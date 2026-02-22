@@ -54,10 +54,10 @@ export function TeamPageContent({ team }: { team: TeamDetail }) {
       {sortedSkaters.length > 0 && (
         <div>
           <div className="overflow-x-auto -mx-4 sm:mx-0 sm:px-0">
-            <table className="w-full min-w-[700px] text-[11px] table-fixed">
+            <table className="text-[11px] table-fixed">
               <thead>
                 <tr className="text-muted-foreground/50 text-[9px] uppercase tracking-wider">
-                  <th className="text-left font-medium py-2.5 min-w-[120px] pl-4 sm:pl-0">Player</th>
+                  <th className="text-left font-medium py-2.5 w-[130px] pl-4 sm:pl-0">Player</th>
                   <SortableTh label="GP" sortKey="gp" currentKey={skaterSort} dir={skaterDir} onToggle={toggleSkaterSort} />
                   <SortableTh label="G" sortKey="goals" currentKey={skaterSort} dir={skaterDir} onToggle={toggleSkaterSort} />
                   <SortableTh label="A" sortKey="assists" currentKey={skaterSort} dir={skaterDir} onToggle={toggleSkaterSort} />
@@ -103,10 +103,10 @@ export function TeamPageContent({ team }: { team: TeamDetail }) {
       {sortedGoalies.length > 0 && (
         <div>
           <div className="overflow-x-auto -mx-4 sm:mx-0 sm:px-0">
-            <table className="w-full min-w-[600px] text-[11px] table-fixed">
+            <table className="text-[11px] table-fixed">
               <thead>
                 <tr className="text-muted-foreground/50 text-[9px] uppercase tracking-wider">
-                  <th className="text-left font-medium py-2.5 min-w-[120px] pl-4 sm:pl-0">Goalie</th>
+                  <th className="text-left font-medium py-2.5 w-[130px] pl-4 sm:pl-0">Goalie</th>
                   <SortableTh label="GP" sortKey="gp" currentKey={goalieSort} dir={goalieDir} onToggle={toggleGoalieSort} />
                   <SortableTh label="W" sortKey="wins" currentKey={goalieSort} dir={goalieDir} onToggle={toggleGoalieSort} />
                   <SortableTh label="L" sortKey="losses" currentKey={goalieSort} dir={goalieDir} onToggle={toggleGoalieSort} />
