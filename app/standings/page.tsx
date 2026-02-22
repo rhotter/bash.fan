@@ -1,17 +1,17 @@
 "use client"
 
 import { SiteHeader } from "@/components/site-header"
-import { ScoresTab } from "@/components/scores-tab"
+import { StandingsTab } from "@/components/standings-tab"
 import { useBashData } from "@/lib/hockey-data"
 
-export default function HomePage() {
-  const { games, isLoading } = useBashData()
+export default function StandingsPage() {
+  const { standings, isLoading } = useBashData()
 
   return (
     <div className="flex min-h-svh flex-col bg-background">
-      <SiteHeader activeTab="scores" />
+      <SiteHeader activeTab="standings" />
       <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-5 md:py-8">
-        <ScoresTab games={games} isLoading={isLoading} />
+        <StandingsTab standings={standings} isLoading={isLoading} />
       </main>
     </div>
   )

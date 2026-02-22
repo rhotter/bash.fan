@@ -4,10 +4,11 @@ import { useState, useMemo } from "react"
 import { useGameDetail, type BashGame } from "@/lib/hockey-data"
 import { formatGameDate } from "@/lib/format-time"
 import { cn } from "@/lib/utils"
-import { ChevronLeft, ChevronDown, ChevronUp, Loader2 } from "lucide-react"
+import { ChevronDown, ChevronUp, Loader2 } from "lucide-react"
 import Link from "next/link"
+import type { PlayerBoxScore, GoalieBoxScore } from "@/app/api/bash/game/[id]/route"
 
-type SkaterSortKey = "points" | "goals" | "assists" | "pim"
+type SkaterSortKey = "points" | "goals" | "assists" | "pim" | "gwg" | "ppg" | "shg" | "eng" | "hatTricks" | "pen"
 type SortDir = "asc" | "desc"
 
 interface GameDetailProps {
@@ -20,16 +21,6 @@ export function GameDetail({ game }: GameDetailProps) {
 
   return (
     <div className="w-full">
-      {/* Back nav */}
-      <Link
-        href="/"
-        className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors mb-5 group"
-        aria-label="Back to scores"
-      >
-        <ChevronLeft className="h-3.5 w-3.5 transition-transform group-hover:-translate-x-0.5" />
-        <span>All Scores</span>
-      </Link>
-
       {/* Game meta */}
       <div className="flex items-center gap-2 mb-3 text-[11px] text-muted-foreground tracking-wide uppercase font-medium flex-wrap">
         <span>{formatGameDate(game.date)}</span>
@@ -50,9 +41,9 @@ export function GameDetail({ game }: GameDetailProps) {
             {/* Away team */}
             <div className="flex flex-col items-center gap-2 flex-1 min-w-0">
               <div className="text-center">
-                <div className="text-sm font-bold text-foreground leading-tight">
+                <Link href={`/team/${game.awaySlug}`} className="text-sm font-bold text-foreground leading-tight hover:text-primary transition-colors">
                   {game.awayTeam}
-                </div>
+                </Link>
               </div>
             </div>
 
@@ -79,9 +70,9 @@ export function GameDetail({ game }: GameDetailProps) {
             {/* Home team */}
             <div className="flex flex-col items-center gap-2 flex-1 min-w-0">
               <div className="text-center">
-                <div className="text-sm font-bold text-foreground leading-tight">
+                <Link href={`/team/${game.homeSlug}`} className="text-sm font-bold text-foreground leading-tight hover:text-primary transition-colors">
                   {game.homeTeam}
-                </div>
+                </Link>
               </div>
             </div>
           </div>
@@ -115,26 +106,26 @@ export function GameDetail({ game }: GameDetailProps) {
             {detail.awayPlayers.length > 0 && (
               <div>
                 <SectionHeader>{detail.awayTeam}</SectionHeader>
-                <PlayerBoxScore players={detail.awayPlayers} />
+                <SkaterBoxScore players={detail.awayPlayers} />
               </div>
             )}
 
             {/* Away goalies */}
             {detail.awayGoalies.length > 0 && (
-              <GoalieBoxScore goalies={detail.awayGoalies} />
+              <GoalieBoxScoreTable goalies={detail.awayGoalies} />
             )}
 
             {/* Home team box score */}
             {detail.homePlayers.length > 0 && (
               <div>
                 <SectionHeader>{detail.homeTeam}</SectionHeader>
-                <PlayerBoxScore players={detail.homePlayers} />
+                <SkaterBoxScore players={detail.homePlayers} />
               </div>
             )}
 
             {/* Home goalies */}
             {detail.homeGoalies.length > 0 && (
-              <GoalieBoxScore goalies={detail.homeGoalies} />
+              <GoalieBoxScoreTable goalies={detail.homeGoalies} />
             )}
 
             {/* Officials */}
@@ -176,7 +167,7 @@ function SortIcon({ active, dir }: { active: boolean; dir: SortDir }) {
     : <ChevronUp className="h-2.5 w-2.5 text-primary" />
 }
 
-function PlayerBoxScore({ players }: { players: { id: number; name: string; goals: number; assists: number; points: number; pim: number }[] }) {
+function SkaterBoxScore({ players }: { players: PlayerBoxScore[] }) {
   const [sortKey, setSortKey] = useState<SkaterSortKey>("points")
   const [sortDir, setSortDir] = useState<SortDir>("desc")
 
@@ -187,8 +178,8 @@ function PlayerBoxScore({ players }: { players: { id: number; name: string; goal
 
   const sorted = useMemo(() => {
     return [...players].sort((a, b) => {
-      const av = a[sortKey]
-      const bv = b[sortKey]
+      const av = (a[sortKey] ?? 0) as number
+      const bv = (b[sortKey] ?? 0) as number
       const cmp = sortDir === "desc" ? bv - av : av - bv
       if (cmp !== 0) return cmp
       return b.points - a.points || b.goals - a.goals
@@ -204,6 +195,11 @@ function PlayerBoxScore({ players }: { players: { id: number; name: string; goal
             <SortableTh label="G" sortKey="goals" currentKey={sortKey} dir={sortDir} onToggle={toggleSort} />
             <SortableTh label="A" sortKey="assists" currentKey={sortKey} dir={sortDir} onToggle={toggleSort} />
             <SortableTh label="PTS" sortKey="points" currentKey={sortKey} dir={sortDir} onToggle={toggleSort} bold />
+            <SortableTh label="GWG" sortKey="gwg" currentKey={sortKey} dir={sortDir} onToggle={toggleSort} className="hidden sm:table-cell" />
+            <SortableTh label="PPG" sortKey="ppg" currentKey={sortKey} dir={sortDir} onToggle={toggleSort} className="hidden sm:table-cell" />
+            <SortableTh label="SHG" sortKey="shg" currentKey={sortKey} dir={sortDir} onToggle={toggleSort} className="hidden sm:table-cell" />
+            <SortableTh label="ENG" sortKey="eng" currentKey={sortKey} dir={sortDir} onToggle={toggleSort} className="hidden sm:table-cell" />
+            <SortableTh label="HAT" sortKey="hatTricks" currentKey={sortKey} dir={sortDir} onToggle={toggleSort} className="hidden sm:table-cell" />
             <SortableTh label="PIM" sortKey="pim" currentKey={sortKey} dir={sortDir} onToggle={toggleSort} />
           </tr>
         </thead>
@@ -217,11 +213,18 @@ function PlayerBoxScore({ players }: { players: { id: number; name: string; goal
               )}
             >
               <td className="py-2 pr-2">
-                <span className={cn("font-medium", p.points > 0 && "font-semibold text-foreground")}>{p.name}</span>
+                <Link href={`/player/${p.id}`} className={cn("hover:text-primary transition-colors font-medium", p.points > 0 && "font-semibold text-foreground")}>
+                  {p.name}
+                </Link>
               </td>
               <td className={cn("text-center tabular-nums py-2", p.goals > 0 && "font-medium")}>{p.goals}</td>
               <td className={cn("text-center tabular-nums py-2", p.assists > 0 && "font-medium")}>{p.assists}</td>
               <td className={cn("text-center tabular-nums py-2", p.points > 0 && "font-medium")}>{p.points}</td>
+              <td className={cn("text-center tabular-nums py-2 hidden sm:table-cell", (p.gwg ?? 0) > 0 ? "font-medium" : "text-muted-foreground")}>{p.gwg ?? 0}</td>
+              <td className="text-center tabular-nums py-2 text-muted-foreground hidden sm:table-cell">{p.ppg ?? 0}</td>
+              <td className="text-center tabular-nums py-2 text-muted-foreground hidden sm:table-cell">{p.shg ?? 0}</td>
+              <td className="text-center tabular-nums py-2 text-muted-foreground hidden sm:table-cell">{p.eng ?? 0}</td>
+              <td className={cn("text-center tabular-nums py-2 hidden sm:table-cell", (p.hatTricks ?? 0) > 0 ? "font-medium" : "text-muted-foreground")}>{p.hatTricks ?? 0}</td>
               <td className="text-center tabular-nums py-2 text-muted-foreground">{p.pim}</td>
             </tr>
           ))}
@@ -231,7 +234,7 @@ function PlayerBoxScore({ players }: { players: { id: number; name: string; goal
   )
 }
 
-function GoalieBoxScore({ goalies }: { goalies: { id: number; name: string; minutes: number; goalsAgainst: number; shotsAgainst: number; saves: number; savePercentage: string; result: string | null }[] }) {
+function GoalieBoxScoreTable({ goalies }: { goalies: GoalieBoxScore[] }) {
   return (
     <div className="overflow-x-auto -mx-4 px-4">
       <table className="w-full text-[11px]">
@@ -242,7 +245,9 @@ function GoalieBoxScore({ goalies }: { goalies: { id: number; name: string; minu
             <th className="text-center font-medium py-2 w-10">SA</th>
             <th className="text-center font-medium py-2 w-10">SV</th>
             <th className="text-center font-medium py-2 w-10">GA</th>
-            <th className="text-center font-medium py-2 w-12">SV%</th>
+            <th className="text-center font-medium py-2 w-12 font-bold">SV%</th>
+            <th className="text-center font-medium py-2 w-10 hidden sm:table-cell">SO</th>
+            <th className="text-center font-medium py-2 w-10 hidden sm:table-cell">A</th>
             <th className="text-center font-medium py-2 w-10">DEC</th>
           </tr>
         </thead>
@@ -255,12 +260,16 @@ function GoalieBoxScore({ goalies }: { goalies: { id: number; name: string; minu
                 i % 2 === 0 && "bg-card/20"
               )}
             >
-              <td className="py-2 pr-2 font-medium">{g.name}</td>
+              <td className="py-2 pr-2">
+                <Link href={`/player/${g.id}`} className="font-medium hover:text-primary transition-colors">{g.name}</Link>
+              </td>
               <td className="text-center tabular-nums py-2 text-muted-foreground">{g.minutes}</td>
               <td className="text-center tabular-nums py-2 text-muted-foreground">{g.shotsAgainst}</td>
               <td className="text-center tabular-nums py-2 font-medium">{g.saves}</td>
               <td className="text-center tabular-nums py-2 text-muted-foreground">{g.goalsAgainst}</td>
               <td className="text-center tabular-nums py-2 font-bold">{g.savePercentage}</td>
+              <td className={cn("text-center tabular-nums py-2 hidden sm:table-cell", (g.shutouts ?? 0) > 0 ? "font-medium" : "text-muted-foreground")}>{g.shutouts ?? 0}</td>
+              <td className="text-center tabular-nums py-2 text-muted-foreground hidden sm:table-cell">{g.goalieAssists ?? 0}</td>
               <td className="text-center tabular-nums py-2 text-muted-foreground">{g.result ?? "-"}</td>
             </tr>
           ))}
@@ -270,13 +279,13 @@ function GoalieBoxScore({ goalies }: { goalies: { id: number; name: string; minu
   )
 }
 
-function SortableTh({ label, sortKey, currentKey, dir, onToggle, bold }: {
+function SortableTh({ label, sortKey, currentKey, dir, onToggle, bold, className }: {
   label: string; sortKey: SkaterSortKey; currentKey: SkaterSortKey; dir: SortDir
-  onToggle: (k: SkaterSortKey) => void; bold?: boolean
+  onToggle: (k: SkaterSortKey) => void; bold?: boolean; className?: string
 }) {
   return (
     <th
-      className="text-center font-medium py-2 w-8 cursor-pointer select-none"
+      className={cn("text-center font-medium py-2 w-8 cursor-pointer select-none", className)}
       onClick={() => onToggle(sortKey)}
     >
       <div className="flex items-center justify-center gap-0.5">

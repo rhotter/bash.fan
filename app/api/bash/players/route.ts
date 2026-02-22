@@ -10,6 +10,13 @@ export interface SkaterStat {
   goals: number
   assists: number
   points: number
+  ptsPg: string
+  gwg: number
+  ppg: number
+  shg: number
+  eng: number
+  hatTricks: number
+  pen: number
   pim: number
 }
 
@@ -27,6 +34,8 @@ export interface GoalieStat {
   gaa: number
   wins: number
   losses: number
+  shutouts: number
+  goalieAssists: number
 }
 
 export interface PlayerStatsData {
@@ -47,6 +56,12 @@ export async function GET() {
         SUM(pgs.goals)::int as goals,
         SUM(pgs.assists)::int as assists,
         SUM(pgs.points)::int as points,
+        SUM(pgs.gwg)::int as gwg,
+        SUM(pgs.ppg)::int as ppg,
+        SUM(pgs.shg)::int as shg,
+        SUM(pgs.eng)::int as eng,
+        SUM(pgs.hat_tricks)::int as hat_tricks,
+        SUM(pgs.pen)::int as pen,
         SUM(pgs.pim)::int as pim
       FROM players p
       JOIN player_seasons ps ON p.id = ps.player_id AND ps.season_id = '2025-2026'
@@ -66,6 +81,13 @@ export async function GET() {
       goals: r.goals,
       assists: r.assists,
       points: r.points,
+      ptsPg: r.gp > 0 ? (r.points / r.gp).toFixed(2) : "0.00",
+      gwg: r.gwg,
+      ppg: r.ppg,
+      shg: r.shg,
+      eng: r.eng,
+      hatTricks: r.hat_tricks,
+      pen: r.pen,
       pim: r.pim,
     }))
 
@@ -79,12 +101,16 @@ export async function GET() {
         SUM(ggs.goals_against)::int as goals_against,
         SUM(ggs.shots_against)::int as shots_against,
         SUM(ggs.saves)::int as saves,
+        SUM(ggs.shutouts)::int as shutouts,
+        SUM(ggs.goalie_assists)::int as goalie_assists,
         CASE WHEN SUM(ggs.shots_against) > 0
           THEN SUM(ggs.saves)::float / SUM(ggs.shots_against)::float
           ELSE 0 END as save_pct,
         CASE WHEN SUM(ggs.minutes) > 0
           THEN (SUM(ggs.goals_against)::float / SUM(ggs.minutes)::float) * 60
-          ELSE 0 END as gaa
+          ELSE 0 END as gaa,
+        COUNT(*) FILTER (WHERE ggs.result = 'W')::int as wins,
+        COUNT(*) FILTER (WHERE ggs.result = 'L')::int as losses
       FROM players p
       JOIN player_seasons ps ON p.id = ps.player_id AND ps.season_id = '2025-2026'
       JOIN teams t ON ps.team_slug = t.slug
@@ -94,41 +120,23 @@ export async function GET() {
       ORDER BY save_pct DESC
     `
 
-    // Compute goalie wins/losses
-    const goalieWinsRows = await sql`
-      SELECT
-        ggs.player_id,
-        COUNT(*) FILTER (WHERE ggs.result = 'W')::int as wins,
-        COUNT(*) FILTER (WHERE ggs.result = 'L')::int as losses
-      FROM goalie_game_stats ggs
-      JOIN player_seasons ps ON ggs.player_id = ps.player_id AND ps.season_id = '2025-2026'
-      WHERE ps.is_goalie = true
-      GROUP BY ggs.player_id
-    `
-
-    const winsMap = new Map<number, { wins: number; losses: number }>()
-    for (const r of goalieWinsRows) {
-      winsMap.set(r.player_id, { wins: r.wins, losses: r.losses })
-    }
-
-    const goalies: GoalieStat[] = goalieRows.map((r) => {
-      const wl = winsMap.get(r.id) ?? { wins: 0, losses: 0 }
-      return {
-        id: r.id,
-        name: r.name,
-        team: r.team,
-        teamSlug: r.team_slug,
-        gp: r.gp,
-        minutes: r.minutes,
-        goalsAgainst: r.goals_against,
-        shotsAgainst: r.shots_against,
-        saves: r.saves,
-        savePercentage: r.save_pct,
-        gaa: r.gaa,
-        wins: wl.wins,
-        losses: wl.losses,
-      }
-    })
+    const goalies: GoalieStat[] = goalieRows.map((r) => ({
+      id: r.id,
+      name: r.name,
+      team: r.team,
+      teamSlug: r.team_slug,
+      gp: r.gp,
+      minutes: r.minutes,
+      goalsAgainst: r.goals_against,
+      shotsAgainst: r.shots_against,
+      saves: r.saves,
+      savePercentage: r.save_pct,
+      gaa: r.gaa,
+      wins: r.wins,
+      losses: r.losses,
+      shutouts: r.shutouts,
+      goalieAssists: r.goalie_assists,
+    }))
 
     // Teams list
     const teamRows = await sql`

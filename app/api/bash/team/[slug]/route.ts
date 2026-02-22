@@ -1,19 +1,59 @@
 import { NextResponse } from "next/server"
 import { sql } from "@/lib/db"
 
+export interface GoalieRoster {
+  id: number
+  name: string
+  isGoalie: true
+  gp: number
+  wins: number
+  losses: number
+  gaa: string
+  savePercentage: string
+  shutouts: number
+  saves: number
+  goalsAgainst: number
+  shotsAgainst: number
+  goalieAssists: number
+}
+
+export interface SkaterRoster {
+  id: number
+  name: string
+  isGoalie: false
+  gp: number
+  goals: number
+  assists: number
+  points: number
+  ptsPg: string
+  gwg: number
+  ppg: number
+  shg: number
+  eng: number
+  hatTricks: number
+  pen: number
+  pim: number
+}
+
+export interface TeamRecord {
+  gp: number
+  w: number
+  otw: number
+  l: number
+  otl: number
+  pts: number
+  gf: number
+  ga: number
+  rank: number
+  totalTeams: number
+}
+
 export interface TeamDetail {
   slug: string
   name: string
-  roster: {
-    id: number
-    name: string
-    isGoalie: boolean
-    gp: number
-    goals: number
-    assists: number
-    points: number
-    pim: number
-  }[]
+  record: TeamRecord
+  skaters: SkaterRoster[]
+  goalies: GoalieRoster[]
   games: {
     id: string
     date: string
@@ -43,31 +83,87 @@ export async function GET(
     }
     const team = teamRows[0]
 
-    // Roster with aggregated stats
-    const rosterRows = await sql`
+    // Skaters with aggregated stats
+    const skaterRows = await sql`
       SELECT
-        p.id, p.name, ps.is_goalie,
-        COALESCE((SELECT COUNT(*) FROM player_game_stats pgs WHERE pgs.player_id = p.id)::int, 0) as gp,
-        COALESCE((SELECT SUM(goals) FROM player_game_stats pgs WHERE pgs.player_id = p.id)::int, 0) as goals,
-        COALESCE((SELECT SUM(assists) FROM player_game_stats pgs WHERE pgs.player_id = p.id)::int, 0) as assists,
-        COALESCE((SELECT SUM(points) FROM player_game_stats pgs WHERE pgs.player_id = p.id)::int, 0) as points,
-        COALESCE((SELECT SUM(pim) FROM player_game_stats pgs WHERE pgs.player_id = p.id)::int, 0) as pim
+        p.id, p.name,
+        COUNT(*)::int as gp,
+        SUM(pgs.goals)::int as goals,
+        SUM(pgs.assists)::int as assists,
+        SUM(pgs.points)::int as points,
+        SUM(pgs.gwg)::int as gwg,
+        SUM(pgs.ppg)::int as ppg,
+        SUM(pgs.shg)::int as shg,
+        SUM(pgs.eng)::int as eng,
+        SUM(pgs.hat_tricks)::int as hat_tricks,
+        SUM(pgs.pen)::int as pen,
+        SUM(pgs.pim)::int as pim
       FROM players p
       JOIN player_seasons ps ON p.id = ps.player_id AND ps.season_id = '2025-2026'
-      WHERE ps.team_slug = ${slug}
-      ORDER BY ps.is_goalie ASC, points DESC, goals DESC, p.name ASC
+      JOIN player_game_stats pgs ON pgs.player_id = p.id
+      WHERE ps.team_slug = ${slug} AND ps.is_goalie = false
+      GROUP BY p.id, p.name
+      ORDER BY points DESC, goals DESC, p.name ASC
     `
 
-    const roster = rosterRows.map((r) => ({
+    const skaters: SkaterRoster[] = skaterRows.map((r) => ({
       id: r.id,
       name: r.name,
-      isGoalie: r.is_goalie,
+      isGoalie: false as const,
       gp: r.gp,
       goals: r.goals,
       assists: r.assists,
       points: r.points,
+      ptsPg: r.gp > 0 ? (r.points / r.gp).toFixed(2) : "0.00",
+      gwg: r.gwg,
+      ppg: r.ppg,
+      shg: r.shg,
+      eng: r.eng,
+      hatTricks: r.hat_tricks,
+      pen: r.pen,
       pim: r.pim,
     }))
+
+    // Goalies with aggregated stats
+    const goalieRows = await sql`
+      SELECT
+        p.id, p.name,
+        COUNT(*)::int as gp,
+        SUM(ggs.goals_against)::int as ga,
+        SUM(ggs.saves)::int as saves,
+        SUM(ggs.shots_against)::int as sa,
+        SUM(ggs.minutes)::int as minutes,
+        SUM(ggs.shutouts)::int as shutouts,
+        SUM(ggs.goalie_assists)::int as goalie_assists,
+        COUNT(*) FILTER (WHERE ggs.result = 'W')::int as wins,
+        COUNT(*) FILTER (WHERE ggs.result = 'L')::int as losses
+      FROM players p
+      JOIN player_seasons ps ON p.id = ps.player_id AND ps.season_id = '2025-2026'
+      JOIN goalie_game_stats ggs ON ggs.player_id = p.id
+      WHERE ps.team_slug = ${slug} AND ps.is_goalie = true
+      GROUP BY p.id, p.name
+      ORDER BY gp DESC, p.name ASC
+    `
+
+    const goalies: GoalieRoster[] = goalieRows.map((r) => {
+      const svPct = r.sa > 0 ? (r.saves / r.sa) : 0
+      const gaa = r.minutes > 0 ? (r.ga / r.minutes) * 60 : 0
+      return {
+        id: r.id,
+        name: r.name,
+        isGoalie: true as const,
+        gp: r.gp,
+        wins: r.wins,
+        losses: r.losses,
+        gaa: gaa.toFixed(2),
+        savePercentage: svPct.toFixed(3),
+        shutouts: r.shutouts,
+        saves: r.saves,
+        goalsAgainst: r.ga,
+        shotsAgainst: r.sa,
+        goalieAssists: r.goalie_assists,
+      }
+    })
 
     // Team games
     const gameRows = await sql`
@@ -112,7 +208,51 @@ export async function GET(
       }
     })
 
-    const result: TeamDetail = { slug: team.slug, name: team.name, roster, games }
+    // Compute this team's record from games
+    const record: TeamRecord = { gp: 0, w: 0, otw: 0, l: 0, otl: 0, pts: 0, gf: 0, ga: 0, rank: 0, totalTeams: 0 }
+    for (const g of games) {
+      if (g.result) {
+        record.gp++
+        record.gf += g.teamScore ?? 0
+        record.ga += g.opponentScore ?? 0
+        if (g.result === "W") { record.w++; record.pts += 3 }
+        else if (g.result === "OTW") { record.otw++; record.pts += 2 }
+        else if (g.result === "OTL") { record.otl++; record.pts += 1 }
+        else if (g.result === "L") { record.l++ }
+      }
+    }
+
+    // Compute standings rank from all teams' results
+    const allTeamResults = await sql`
+      SELECT
+        t.team_slug,
+        SUM(CASE
+          WHEN g.home_team = t.team_slug AND g.home_score > g.away_score AND NOT g.is_overtime THEN 3
+          WHEN g.away_team = t.team_slug AND g.away_score > g.home_score AND NOT g.is_overtime THEN 3
+          WHEN g.home_team = t.team_slug AND g.home_score > g.away_score AND g.is_overtime THEN 2
+          WHEN g.away_team = t.team_slug AND g.away_score > g.home_score AND g.is_overtime THEN 2
+          WHEN g.home_team = t.team_slug AND g.home_score < g.away_score AND g.is_overtime THEN 1
+          WHEN g.away_team = t.team_slug AND g.away_score < g.home_score AND g.is_overtime THEN 1
+          ELSE 0
+        END)::int as pts,
+        SUM(CASE WHEN g.home_team = t.team_slug THEN g.home_score ELSE g.away_score END)::int as gf,
+        SUM(CASE WHEN g.home_team = t.team_slug THEN g.away_score ELSE g.home_score END)::int as ga
+      FROM season_teams t
+      CROSS JOIN LATERAL (
+        SELECT * FROM games g2
+        WHERE g2.season_id = '2025-2026' AND g2.status = 'final' AND NOT g2.is_playoff
+          AND (g2.home_team = t.team_slug OR g2.away_team = t.team_slug)
+      ) g
+      WHERE t.season_id = '2025-2026'
+      GROUP BY t.team_slug
+      ORDER BY pts DESC, (SUM(CASE WHEN g.home_team = t.team_slug THEN g.home_score ELSE g.away_score END) - SUM(CASE WHEN g.home_team = t.team_slug THEN g.away_score ELSE g.home_score END)) DESC
+    `
+    const totalTeams = await sql`SELECT COUNT(*)::int as count FROM season_teams WHERE season_id = '2025-2026'`
+    record.totalTeams = totalTeams[0].count
+    const rankIdx = allTeamResults.findIndex(r => r.team_slug === slug)
+    record.rank = rankIdx >= 0 ? rankIdx + 1 : 0
+
+    const result: TeamDetail = { slug: team.slug, name: team.name, record, skaters, goalies, games }
 
     return NextResponse.json(result, {
       headers: { "Cache-Control": "public, s-maxage=60, stale-while-revalidate=120" },

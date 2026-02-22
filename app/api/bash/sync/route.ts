@@ -6,59 +6,32 @@ const LEAGUE_ID = "50562"
 const SEASON_ID = "2025-2026"
 const MAX_BOXSCORES_PER_SYNC = 3
 
-// Parse HTML text content (strip tags)
 function stripHtml(html: string): string {
   return html.replace(/<[^>]*>/g, "").trim()
 }
 
-// Fetch and parse schedule page to update scores
 async function syncSchedule() {
   const url = `${BASE_URL}/Schedule.asp?LgID=${LEAGUE_ID}`
   const res = await fetch(url, { cache: "no-store" })
   const html = await res.text()
 
-  // Parse game rows from schedule HTML
-  // Look for patterns like: GID=XXXXXXX and score patterns
   const gamePattern = /GID=(\d+)/g
   const gameIds: string[] = []
   let match
   while ((match = gamePattern.exec(html)) !== null) {
-    if (!gameIds.includes(match[1])) {
-      gameIds.push(match[1])
-    }
+    if (!gameIds.includes(match[1])) gameIds.push(match[1])
   }
 
-  // Parse scores from the schedule page
-  // The schedule shows: "Away # @ Home #" or "Away @ Home" for upcoming
-  // We need to extract scores for each game
-  // Strategy: find each game row by GID, then parse the surrounding content
-
-  // For each game that exists in our DB, check if the score has changed
   const updates: { id: string; homeScore: number; awayScore: number; isOT: boolean }[] = []
-
-  // Parse the HTML more carefully - look for table rows with game data
-  // Sportability format: each game row has team names and scores
   const rows = html.split(/(?=GID=\d+)/)
 
   for (const row of rows) {
     const gidMatch = row.match(/GID=(\d+)/)
     if (!gidMatch) continue
     const gid = gidMatch[1]
-
-    // Look for score pattern: "TeamA #" and "TeamB #" or "(OT)" marker
-    // The format typically shows: "Away Team Score @ Home Team Score"
-    // Or in the boxscore link area
-    const scorePattern = /(\d+)\s*(?:@|vs\.?)\s*(?:.*?)(\d+)/
-    const otPattern = /\(OT\)/i
-
-    // Try to extract scores from the row text
     const text = stripHtml(row)
-    const isOT = otPattern.test(text)
-
-    // More targeted: look for the score numbers near the "@" symbol
-    const atPattern = /(\d+)\s+@\s+.*?(\d+)/
-    const atMatch = text.match(atPattern)
-
+    const isOT = /\(OT\)/i.test(text)
+    const atMatch = text.match(/(\d+)\s+@\s+.*?(\d+)/)
     if (atMatch) {
       const awayScore = parseInt(atMatch[1])
       const homeScore = parseInt(atMatch[2])
@@ -68,89 +41,59 @@ async function syncSchedule() {
     }
   }
 
-  // Update games in DB
   let updated = 0
   for (const u of updates) {
-    const result = await sql`
+    await sql`
       UPDATE games
       SET home_score = ${u.homeScore}, away_score = ${u.awayScore},
           status = 'final', is_overtime = ${u.isOT}
       WHERE id = ${u.id} AND season_id = ${SEASON_ID}
         AND (home_score IS NULL OR home_score != ${u.homeScore} OR away_score != ${u.awayScore})
     `
-    if (result.length !== undefined) updated++
+    updated++
   }
 
   return { gamesChecked: gameIds.length, updatesApplied: updated }
 }
 
-// Fetch and parse a game boxscore
 async function syncBoxscore(gameId: string) {
   const url = `${BASE_URL}/Game.asp?LgID=${LEAGUE_ID}&GID=${gameId}`
   const res = await fetch(url, { cache: "no-store" })
   const html = await res.text()
-  const text = stripHtml(html)
 
-  // Get game info to know which teams are playing
-  const gameRows = await sql`
-    SELECT home_team, away_team FROM games WHERE id = ${gameId}
-  `
-  if (gameRows.length === 0) return
+  // Build team name → slug lookup
+  const teamRows = await sql`SELECT slug, name FROM teams`
+  const teamNameToSlug: Record<string, string> = {}
+  for (const t of teamRows) {
+    teamNameToSlug[t.name.toLowerCase()] = t.slug
+  }
 
-  const { home_team, away_team } = gameRows[0]
-
-  // Parse player stats from boxscore
-  // Sportability boxscore format has tables with: Player, G, A, Pts, Pen, PIM
-  // And goalie stats: Player, Min, GA, SA, Sv, Result
-
-  // Parse officials
-  const refPattern = /(?:Referee|Official|Ref)[:\s]*([^\n<]+)/gi
+  // Parse officials: "Ref 1: Name", "Ref 2: Name", "Scorekeeper: Name"
+  const refPattern = /Ref\s*\d*\s*:\s*([^<\n]+)/gi
   let refMatch
   const refs: string[] = []
   while ((refMatch = refPattern.exec(html)) !== null) {
-    const refName = stripHtml(refMatch[1]).trim()
-    if (refName && refName.length > 1 && refName.length < 50) {
-      refs.push(refName)
-    }
+    const name = stripHtml(refMatch[1]).trim()
+    if (name && name.length > 1 && name.length < 50) refs.push(name)
   }
 
-  // Also look for "Scorekeeper" pattern
-  const skPattern = /Scorekeeper[:\s]*([^\n<]+)/gi
+  const skPattern = /Scorekeeper\s*:\s*([^<\n]+)/gi
   let skMatch
   const scorekeepers: string[] = []
   while ((skMatch = skPattern.exec(html)) !== null) {
-    const skName = stripHtml(skMatch[1]).trim()
-    if (skName && skName.length > 1 && skName.length < 50) {
-      scorekeepers.push(skName)
-    }
+    const name = stripHtml(skMatch[1]).trim()
+    if (name && name.length > 1 && name.length < 50) scorekeepers.push(name)
   }
 
-  // Insert officials
+  await sql`DELETE FROM game_officials WHERE game_id = ${gameId}`
   for (const ref of refs) {
-    await sql`
-      INSERT INTO game_officials (game_id, name, role)
-      SELECT ${gameId}, ${ref}, 'ref'
-      WHERE NOT EXISTS (
-        SELECT 1 FROM game_officials WHERE game_id = ${gameId} AND name = ${ref}
-      )
-    `
+    await sql`INSERT INTO game_officials (game_id, name, role) VALUES (${gameId}, ${ref}, 'ref')`
   }
   for (const sk of scorekeepers) {
-    await sql`
-      INSERT INTO game_officials (game_id, name, role)
-      SELECT ${gameId}, ${sk}, 'scorekeeper'
-      WHERE NOT EXISTS (
-        SELECT 1 FROM game_officials WHERE game_id = ${gameId} AND name = ${sk}
-      )
-    `
+    await sql`INSERT INTO game_officials (game_id, name, role) VALUES (${gameId}, ${sk}, 'scorekeeper')`
   }
 
-  // Parse player stats tables
-  // Sportability uses HTML tables - we need to find them
-  // The boxscore typically has two sections: away team stats and home team stats
-  // Each section has a skater table and possibly a goalie table
-
-  // Extract tables using regex
+  // Find all tables
   const tablePattern = /<table[^>]*>([\s\S]*?)<\/table>/gi
   const tables: string[] = []
   let tableMatch
@@ -158,39 +101,58 @@ async function syncBoxscore(gameId: string) {
     tables.push(tableMatch[0])
   }
 
-  // Process tables looking for player stats
-  for (const table of tables) {
-    const rowPattern = /<tr[^>]*>([\s\S]*?)<\/tr>/gi
+  for (const tableHtml of tables) {
     const trs: string[] = []
+    const rowPattern = /<tr[^>]*>([\s\S]*?)<\/tr>/gi
     let trMatch
-    while ((trMatch = rowPattern.exec(table)) !== null) {
+    while ((trMatch = rowPattern.exec(tableHtml)) !== null) {
       trs.push(trMatch[1])
     }
-
     if (trs.length < 2) continue
 
-    // Check header row to determine table type
-    const headerText = stripHtml(trs[0]).toLowerCase()
+    const firstRowText = stripHtml(trs[0]).toLowerCase()
 
-    if (headerText.includes("player") && headerText.includes("pts")) {
-      // This is a skater stats table
-      // Determine which team based on position in HTML or team name in surrounding context
-      const teamSlug = html.indexOf(table) < html.indexOf(table, html.indexOf(table) + 1) ? away_team : home_team
+    // PLAYER STATS TABLE
+    // Both teams are in ONE table, separated by team header rows where
+    // cell[0] is "{TeamName} Players" and cell[1] is "GP", etc.
+    if (firstRowText.includes("player stats")) {
+      let currentTeamSlug: string | null = null
 
       for (let i = 1; i < trs.length; i++) {
         const cells = trs[i].match(/<td[^>]*>([\s\S]*?)<\/td>/gi)
-        if (!cells || cells.length < 5) continue
+        if (!cells || cells.length < 2) continue
 
-        const playerName = stripHtml(cells[0])
-        if (!playerName || playerName === "Totals" || playerName === "Total") continue
+        const cell0Text = stripHtml(cells[0])
 
-        const goals = parseInt(stripHtml(cells[1])) || 0
-        const assists = parseInt(stripHtml(cells[2])) || 0
-        const points = parseInt(stripHtml(cells[3])) || 0
-        const pen = parseInt(stripHtml(cells[4])) || 0
-        const pim = cells.length > 5 ? parseInt(stripHtml(cells[5])) || 0 : pen * 2
+        // Check if this is a team header row: cell[0] = "{TeamName} Players"
+        if (/\bPlayers$/i.test(cell0Text)) {
+          const teamMatch = cell0Text.match(/^(.+?)\s+Players$/i)
+          if (teamMatch) {
+            const teamName = teamMatch[1].trim().toLowerCase()
+            currentTeamSlug = teamNameToSlug[teamName] || null
+          }
+          continue
+        }
 
-        // Upsert player
+        if (!currentTeamSlug) continue
+        if (cells.length < 5) continue
+
+        const playerName = cell0Text
+        if (!playerName || /total/i.test(playerName) || /^(&nbsp;|\s*)$/.test(playerName)) continue
+
+        // Columns: [0]Player, [1]GP, [2]G, [3]A, [4]Pts, [5]PtsPG, [6]GWG, [7]PPG, [8]SHG, [9]ENG, [10]Hat, [11]PMkr, [12]Star, [13]Pen, [14]PIM
+        const goals = parseInt(stripHtml(cells[2])) || 0
+        const assists = parseInt(stripHtml(cells[3])) || 0
+        const points = parseInt(stripHtml(cells[4])) || 0
+        const gwg = cells.length > 6 ? parseInt(stripHtml(cells[6])) || 0 : 0
+        const ppg = cells.length > 7 ? parseInt(stripHtml(cells[7])) || 0 : 0
+        const shg = cells.length > 8 ? parseInt(stripHtml(cells[8])) || 0 : 0
+        const eng = cells.length > 9 ? parseInt(stripHtml(cells[9])) || 0 : 0
+        const hatRaw = cells.length > 10 ? stripHtml(cells[10]) : ""
+        const hat = hatRaw === "Hat" ? 1 : parseInt(hatRaw) || 0
+        const pen = cells.length > 13 ? parseInt(stripHtml(cells[13])) || 0 : 0
+        const pim = cells.length > 14 ? parseInt(stripHtml(cells[14])) || 0 : 0
+
         const playerRows = await sql`
           INSERT INTO players (name) VALUES (${playerName})
           ON CONFLICT (name) DO UPDATE SET name = EXCLUDED.name
@@ -198,42 +160,61 @@ async function syncBoxscore(gameId: string) {
         `
         const playerId = playerRows[0].id
 
-        // Upsert player season
         await sql`
           INSERT INTO player_seasons (player_id, season_id, team_slug, is_goalie)
-          VALUES (${playerId}, ${SEASON_ID}, ${teamSlug}, false)
+          VALUES (${playerId}, ${SEASON_ID}, ${currentTeamSlug}, false)
           ON CONFLICT (player_id, season_id) DO NOTHING
         `
 
-        // Upsert player game stats
         await sql`
-          INSERT INTO player_game_stats (player_id, game_id, goals, assists, points, pen, pim)
-          VALUES (${playerId}, ${gameId}, ${goals}, ${assists}, ${points}, ${pen}, ${pim})
+          INSERT INTO player_game_stats (player_id, game_id, goals, assists, points, gwg, ppg, shg, eng, hat_tricks, pen, pim)
+          VALUES (${playerId}, ${gameId}, ${goals}, ${assists}, ${points}, ${gwg}, ${ppg}, ${shg}, ${eng}, ${hat}, ${pen}, ${pim})
           ON CONFLICT (player_id, game_id) DO UPDATE SET
-            goals = EXCLUDED.goals, assists = EXCLUDED.assists,
-            points = EXCLUDED.points, pen = EXCLUDED.pen, pim = EXCLUDED.pim
+            goals = EXCLUDED.goals, assists = EXCLUDED.assists, points = EXCLUDED.points,
+            gwg = EXCLUDED.gwg, ppg = EXCLUDED.ppg, shg = EXCLUDED.shg,
+            eng = EXCLUDED.eng, hat_tricks = EXCLUDED.hat_tricks,
+            pen = EXCLUDED.pen, pim = EXCLUDED.pim
         `
       }
     }
 
-    if (headerText.includes("goalie") || (headerText.includes("player") && headerText.includes("min") && headerText.includes("result"))) {
-      // This is a goalie stats table
-      const teamSlug = html.indexOf(table) < html.indexOf(table, html.indexOf(table) + 1) ? away_team : home_team
+    // GOALIE STATS TABLE
+    // Both teams in ONE table, separated by rows where cell[0] = "{TeamName} Goalies"
+    if (firstRowText.includes("goalie stats")) {
+      let currentTeamSlug: string | null = null
 
       for (let i = 1; i < trs.length; i++) {
         const cells = trs[i].match(/<td[^>]*>([\s\S]*?)<\/td>/gi)
-        if (!cells || cells.length < 5) continue
+        if (!cells || cells.length < 2) continue
 
-        const playerName = stripHtml(cells[0])
-        if (!playerName || playerName === "Totals" || playerName === "Total") continue
+        const cell0Text = stripHtml(cells[0])
 
-        const minutes = parseInt(stripHtml(cells[1])) || 0
-        const ga = parseInt(stripHtml(cells[2])) || 0
-        const sa = parseInt(stripHtml(cells[3])) || 0
-        const saves = parseInt(stripHtml(cells[4])) || 0
-        const result = cells.length > 5 ? stripHtml(cells[5]) : null
+        // Check if this is a team header row: cell[0] = "{TeamName} Goalies"
+        if (/\bGoalies$/i.test(cell0Text)) {
+          const teamMatch = cell0Text.match(/^(.+?)\s+Goalies$/i)
+          if (teamMatch) {
+            const teamName = teamMatch[1].trim().toLowerCase()
+            currentTeamSlug = teamNameToSlug[teamName] || null
+          }
+          continue
+        }
 
-        // Upsert player
+        if (!currentTeamSlug) continue
+        if (cells.length < 7) continue
+
+        const playerName = cell0Text
+        if (!playerName || /total/i.test(playerName) || /^(&nbsp;|\s*)$/.test(playerName)) continue
+
+        // Columns: [0]Player, [1]GP, [2]Min, [3]GA, [4]GAA, [5]Shots, [6]Saves, [7]Sv%, [8]SO, [9]A, [10]Star, [11]Pen, [12]PIM, [13]Result
+        const minutes = parseInt(stripHtml(cells[2])) || 0
+        const ga = parseInt(stripHtml(cells[3])) || 0
+        const shotsAgainst = parseInt(stripHtml(cells[5])) || 0
+        const saves = parseInt(stripHtml(cells[6])) || 0
+        const shutouts = cells.length > 8 ? parseInt(stripHtml(cells[8])) || 0 : 0
+        const goalieAssists = cells.length > 9 ? parseInt(stripHtml(cells[9])) || 0 : 0
+        const resultCell = cells.length > 13 ? stripHtml(cells[13]) : stripHtml(cells[cells.length - 1])
+        const result = resultCell === "W" || resultCell === "L" ? resultCell : null
+
         const playerRows = await sql`
           INSERT INTO players (name) VALUES (${playerName})
           ON CONFLICT (name) DO UPDATE SET name = EXCLUDED.name
@@ -241,35 +222,32 @@ async function syncBoxscore(gameId: string) {
         `
         const playerId = playerRows[0].id
 
-        // Upsert player season as goalie
         await sql`
           INSERT INTO player_seasons (player_id, season_id, team_slug, is_goalie)
-          VALUES (${playerId}, ${SEASON_ID}, ${teamSlug}, true)
+          VALUES (${playerId}, ${SEASON_ID}, ${currentTeamSlug}, true)
           ON CONFLICT (player_id, season_id) DO UPDATE SET is_goalie = true
         `
 
-        // Upsert goalie game stats
         await sql`
-          INSERT INTO goalie_game_stats (player_id, game_id, minutes, goals_against, shots_against, saves, result)
-          VALUES (${playerId}, ${gameId}, ${minutes}, ${ga}, ${sa}, ${saves}, ${result})
+          INSERT INTO goalie_game_stats (player_id, game_id, minutes, goals_against, shots_against, saves, shutouts, goalie_assists, result)
+          VALUES (${playerId}, ${gameId}, ${minutes}, ${ga}, ${shotsAgainst}, ${saves}, ${shutouts}, ${goalieAssists}, ${result})
           ON CONFLICT (player_id, game_id) DO UPDATE SET
             minutes = EXCLUDED.minutes, goals_against = EXCLUDED.goals_against,
-            shots_against = EXCLUDED.shots_against, saves = EXCLUDED.saves, result = EXCLUDED.result
+            shots_against = EXCLUDED.shots_against, saves = EXCLUDED.saves,
+            shutouts = EXCLUDED.shutouts, goalie_assists = EXCLUDED.goalie_assists,
+            result = EXCLUDED.result
         `
       }
     }
   }
 
-  // Mark game as having boxscore
   await sql`UPDATE games SET has_boxscore = true WHERE id = ${gameId}`
 }
 
 export async function GET() {
   try {
-    // Step 1: Sync schedule (scores)
     const scheduleResult = await syncSchedule()
 
-    // Step 2: Sync boxscores for completed games without boxscore data
     const gamesNeedingBoxscore = await sql`
       SELECT id FROM games
       WHERE season_id = ${SEASON_ID}
@@ -289,7 +267,6 @@ export async function GET() {
       }
     }
 
-    // Update sync metadata
     await sql`
       INSERT INTO sync_metadata (key, value)
       VALUES ('last_sync', ${new Date().toISOString()})

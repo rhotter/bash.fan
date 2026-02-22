@@ -5,9 +5,10 @@ import { useSearchParams, useRouter } from "next/navigation"
 import { usePlayerStats } from "@/lib/hockey-data"
 import { cn } from "@/lib/utils"
 import { ChevronDown, ChevronUp, Loader2 } from "lucide-react"
+import Link from "next/link"
 
-type SortKey = "points" | "goals" | "assists" | "pim" | "gp"
-type GoalieSortKey = "savePercentage" | "gaa" | "wins" | "losses" | "saves" | "goalsAgainst" | "gp"
+type SortKey = "points" | "goals" | "assists" | "pim" | "gp" | "gwg" | "ppg" | "shg" | "eng" | "hatTricks" | "pen" | "ptsPg"
+type GoalieSortKey = "savePercentage" | "gaa" | "wins" | "losses" | "saves" | "goalsAgainst" | "shotsAgainst" | "gp" | "shutouts" | "goalieAssists"
 type SortDir = "asc" | "desc"
 
 function SortIcon({ active, dir }: { active: boolean; dir: SortDir }) {
@@ -33,9 +34,8 @@ export function StatsTab() {
     } else {
       params.set("view", t)
     }
-    params.set("tab", "stats")
     const qs = params.toString()
-    router.replace(qs ? `?${qs}` : "/", { scroll: false })
+    router.replace(qs ? `?${qs}` : "/stats", { scroll: false })
   }, [searchParams, router])
 
   const [teamFilter, setTeamFilter] = useState<string>("all")
@@ -162,6 +162,12 @@ export function StatsTab() {
                 <SortableTh label="G" sortKey="goals" currentKey={sortKey} dir={sortDir} onToggle={toggleSort} />
                 <SortableTh label="A" sortKey="assists" currentKey={sortKey} dir={sortDir} onToggle={toggleSort} />
                 <SortableTh label="PTS" sortKey="points" currentKey={sortKey} dir={sortDir} onToggle={toggleSort} bold />
+                <SortableTh label="PTS/G" sortKey="ptsPg" currentKey={sortKey} dir={sortDir} onToggle={toggleSort} className="hidden sm:table-cell" />
+                <SortableTh label="GWG" sortKey="gwg" currentKey={sortKey} dir={sortDir} onToggle={toggleSort} className="hidden sm:table-cell" />
+                <SortableTh label="PPG" sortKey="ppg" currentKey={sortKey} dir={sortDir} onToggle={toggleSort} className="hidden sm:table-cell" />
+                <SortableTh label="SHG" sortKey="shg" currentKey={sortKey} dir={sortDir} onToggle={toggleSort} className="hidden sm:table-cell" />
+                <SortableTh label="ENG" sortKey="eng" currentKey={sortKey} dir={sortDir} onToggle={toggleSort} className="hidden sm:table-cell" />
+                <SortableTh label="HAT" sortKey="hatTricks" currentKey={sortKey} dir={sortDir} onToggle={toggleSort} className="hidden sm:table-cell" />
                 <SortableTh label="PIM" sortKey="pim" currentKey={sortKey} dir={sortDir} onToggle={toggleSort} />
               </tr>
             </thead>
@@ -177,15 +183,23 @@ export function StatsTab() {
                   <td className="text-center py-2 text-muted-foreground/40 tabular-nums">{(skaterPage - 1) * PER_PAGE + i + 1}</td>
                   <td className="py-2 pr-2">
                     <div className="flex flex-col">
-                      <span className="text-xs font-semibold leading-tight text-foreground">{p.name}</span>
-                      <span className="text-[9px] text-muted-foreground/50 sm:hidden">{p.team}</span>
+                      <Link href={`/player/${p.id}`} className="text-xs font-semibold leading-tight text-foreground hover:text-primary transition-colors">{p.name}</Link>
+                      <Link href={`/team/${p.teamSlug}`} className="text-[9px] text-muted-foreground/50 hover:text-primary transition-colors sm:hidden">{p.team}</Link>
                     </div>
                   </td>
-                  <td className="hidden sm:table-cell py-2 text-muted-foreground text-xs">{p.team}</td>
+                  <td className="hidden sm:table-cell py-2 text-muted-foreground text-xs">
+                    <Link href={`/team/${p.teamSlug}`} className="hover:text-primary transition-colors">{p.team}</Link>
+                  </td>
                   <td className="text-center tabular-nums py-2 text-muted-foreground">{p.gp}</td>
                   <td className={cn("text-center tabular-nums py-2", p.goals > 0 && "font-medium")}>{p.goals}</td>
                   <td className={cn("text-center tabular-nums py-2", p.assists > 0 && "font-medium")}>{p.assists}</td>
-                  <td className={cn("text-center tabular-nums py-2 font-bold", false)}>{p.points}</td>
+                  <td className="text-center tabular-nums py-2 font-bold">{p.points}</td>
+                  <td className="text-center tabular-nums py-2 text-muted-foreground hidden sm:table-cell">{p.ptsPg}</td>
+                  <td className={cn("text-center tabular-nums py-2 hidden sm:table-cell", p.gwg > 0 && "font-medium")}>{p.gwg}</td>
+                  <td className="text-center tabular-nums py-2 text-muted-foreground hidden sm:table-cell">{p.ppg}</td>
+                  <td className="text-center tabular-nums py-2 text-muted-foreground hidden sm:table-cell">{p.shg}</td>
+                  <td className="text-center tabular-nums py-2 text-muted-foreground hidden sm:table-cell">{p.eng}</td>
+                  <td className={cn("text-center tabular-nums py-2 hidden sm:table-cell", p.hatTricks > 0 ? "font-medium" : "text-muted-foreground")}>{p.hatTricks}</td>
                   <td className="text-center tabular-nums py-2 text-muted-foreground">{p.pim}</td>
                 </tr>
               ))}
@@ -216,8 +230,11 @@ export function StatsTab() {
                 <GoalieSortableTh label="L" sortKey="losses" currentKey={goalieSortKey} dir={goalieSortDir} onToggle={toggleGoalieSort} />
                 <GoalieSortableTh label="SV%" sortKey="savePercentage" currentKey={goalieSortKey} dir={goalieSortDir} onToggle={toggleGoalieSort} bold />
                 <GoalieSortableTh label="GAA" sortKey="gaa" currentKey={goalieSortKey} dir={goalieSortDir} onToggle={toggleGoalieSort} />
+                <GoalieSortableTh label="SO" sortKey="shutouts" currentKey={goalieSortKey} dir={goalieSortDir} onToggle={toggleGoalieSort} className="hidden sm:table-cell" />
                 <GoalieSortableTh label="SV" sortKey="saves" currentKey={goalieSortKey} dir={goalieSortDir} onToggle={toggleGoalieSort} className="hidden sm:table-cell" />
                 <GoalieSortableTh label="GA" sortKey="goalsAgainst" currentKey={goalieSortKey} dir={goalieSortDir} onToggle={toggleGoalieSort} className="hidden sm:table-cell" />
+                <GoalieSortableTh label="SA" sortKey="shotsAgainst" currentKey={goalieSortKey} dir={goalieSortDir} onToggle={toggleGoalieSort} className="hidden sm:table-cell" />
+                <GoalieSortableTh label="A" sortKey="goalieAssists" currentKey={goalieSortKey} dir={goalieSortDir} onToggle={toggleGoalieSort} className="hidden sm:table-cell" />
               </tr>
             </thead>
             <tbody>
@@ -232,11 +249,13 @@ export function StatsTab() {
                   <td className="text-center py-2 text-muted-foreground/40 tabular-nums">{(goaliePage - 1) * PER_PAGE + i + 1}</td>
                   <td className="py-2 pr-2">
                     <div className="flex flex-col">
-                      <span className="text-xs font-semibold leading-tight text-foreground">{p.name}</span>
-                      <span className="text-[9px] text-muted-foreground/50 sm:hidden">{p.team}</span>
+                      <Link href={`/player/${p.id}`} className="text-xs font-semibold leading-tight text-foreground hover:text-primary transition-colors">{p.name}</Link>
+                      <Link href={`/team/${p.teamSlug}`} className="text-[9px] text-muted-foreground/50 hover:text-primary transition-colors sm:hidden">{p.team}</Link>
                     </div>
                   </td>
-                  <td className="hidden sm:table-cell py-2 text-muted-foreground text-xs">{p.team}</td>
+                  <td className="hidden sm:table-cell py-2 text-muted-foreground text-xs">
+                    <Link href={`/team/${p.teamSlug}`} className="hover:text-primary transition-colors">{p.team}</Link>
+                  </td>
                   <td className="text-center tabular-nums py-2 text-muted-foreground">{p.gp}</td>
                   <td className={cn("text-center tabular-nums py-2", p.wins > 0 && "font-medium")}>{p.wins}</td>
                   <td className="text-center tabular-nums py-2 text-muted-foreground">{p.losses}</td>
@@ -246,8 +265,11 @@ export function StatsTab() {
                   <td className="text-center tabular-nums py-2 text-muted-foreground">
                     {p.gaa !== undefined ? p.gaa.toFixed(2) : "-"}
                   </td>
+                  <td className={cn("text-center tabular-nums py-2 hidden sm:table-cell", p.shutouts > 0 && "font-medium")}>{p.shutouts}</td>
                   <td className="text-center tabular-nums py-2 text-muted-foreground hidden sm:table-cell">{p.saves}</td>
                   <td className="text-center tabular-nums py-2 text-muted-foreground hidden sm:table-cell">{p.goalsAgainst}</td>
+                  <td className="text-center tabular-nums py-2 text-muted-foreground hidden sm:table-cell">{p.shotsAgainst}</td>
+                  <td className="text-center tabular-nums py-2 text-muted-foreground hidden sm:table-cell">{p.goalieAssists}</td>
                 </tr>
               ))}
             </tbody>
