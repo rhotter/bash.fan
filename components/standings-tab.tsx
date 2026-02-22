@@ -71,7 +71,7 @@ export function StandingsTab({
             <tr
               key={row.slug}
               className={cn(
-                "border-t border-border/20 hover:bg-card/60 transition-colors",
+                "border-t border-border/20 hover:bg-muted/50 transition-colors",
                 i % 2 === 0 && "bg-card/15"
               )}
             >
@@ -81,15 +81,15 @@ export function StandingsTab({
                   {row.team}
                 </Link>
               </td>
-              <td className="text-center tabular-nums py-2 text-muted-foreground">{row.gp}</td>
-              <td className={cn("text-center tabular-nums py-2", row.w > 0 && "font-medium")}>{row.w}</td>
-              <td className="text-center tabular-nums py-2 text-muted-foreground">{row.otw}</td>
-              <td className="text-center tabular-nums py-2 text-muted-foreground">{row.l}</td>
-              <td className="text-center tabular-nums py-2 text-muted-foreground">{row.otl}</td>
-              <td className="text-center tabular-nums py-2 font-bold">{row.pts}</td>
-              <td className="text-center tabular-nums py-2 text-muted-foreground">{row.gf}</td>
-              <td className="text-center tabular-nums py-2 text-muted-foreground">{row.ga}</td>
-              <td className="text-center tabular-nums py-2 text-muted-foreground">
+              <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{row.gp}</td>
+              <td className={cn("text-center tabular-nums py-2 px-3", row.w > 0 && "font-medium")}>{row.w}</td>
+              <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{row.otw}</td>
+              <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{row.l}</td>
+              <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{row.otl}</td>
+              <td className="text-center tabular-nums py-2 px-3 font-bold">{row.pts}</td>
+              <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{row.gf}</td>
+              <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{row.ga}</td>
+              <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">
                 {row.gd > 0 ? `+${row.gd}` : row.gd}
               </td>
             </tr>

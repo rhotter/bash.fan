@@ -209,7 +209,7 @@ function SkaterBoxScore({ players }: { players: PlayerBoxScore[] }) {
             <tr
               key={p.name}
               className={cn(
-                "border-t border-border/30 hover:bg-card/60 transition-colors",
+                "border-t border-border/30 hover:bg-muted/50 transition-colors",
                 i % 2 === 0 && "bg-card/20"
               )}
             >
@@ -218,15 +218,15 @@ function SkaterBoxScore({ players }: { players: PlayerBoxScore[] }) {
                   {p.name}
                 </Link>
               </td>
-              <td className={cn("text-center tabular-nums py-2", p.goals > 0 && "font-medium")}>{p.goals}</td>
-              <td className={cn("text-center tabular-nums py-2", p.assists > 0 && "font-medium")}>{p.assists}</td>
-              <td className={cn("text-center tabular-nums py-2", p.points > 0 && "font-medium")}>{p.points}</td>
-              <td className={cn("text-center tabular-nums py-2 hidden sm:table-cell", (p.gwg ?? 0) > 0 ? "font-medium" : "text-muted-foreground")}>{p.gwg ?? 0}</td>
-              <td className="text-center tabular-nums py-2 text-muted-foreground hidden sm:table-cell">{p.ppg ?? 0}</td>
-              <td className="text-center tabular-nums py-2 text-muted-foreground hidden sm:table-cell">{p.shg ?? 0}</td>
-              <td className="text-center tabular-nums py-2 text-muted-foreground hidden sm:table-cell">{p.eng ?? 0}</td>
-              <td className={cn("text-center tabular-nums py-2 hidden sm:table-cell", (p.hatTricks ?? 0) > 0 ? "font-medium" : "text-muted-foreground")}>{p.hatTricks ?? 0}</td>
-              <td className="text-center tabular-nums py-2 text-muted-foreground">{p.pim}</td>
+              <td className={cn("text-center tabular-nums py-2 px-3", p.goals > 0 && "font-medium")}>{p.goals}</td>
+              <td className={cn("text-center tabular-nums py-2 px-3", p.assists > 0 && "font-medium")}>{p.assists}</td>
+              <td className={cn("text-center tabular-nums py-2 px-3", p.points > 0 && "font-medium")}>{p.points}</td>
+              <td className={cn("text-center tabular-nums py-2 px-3 hidden sm:table-cell", (p.gwg ?? 0) > 0 ? "font-medium" : "text-muted-foreground")}>{p.gwg ?? 0}</td>
+              <td className="text-center tabular-nums py-2 px-3 text-muted-foreground hidden sm:table-cell">{p.ppg ?? 0}</td>
+              <td className="text-center tabular-nums py-2 px-3 text-muted-foreground hidden sm:table-cell">{p.shg ?? 0}</td>
+              <td className="text-center tabular-nums py-2 px-3 text-muted-foreground hidden sm:table-cell">{p.eng ?? 0}</td>
+              <td className={cn("text-center tabular-nums py-2 px-3 hidden sm:table-cell", (p.hatTricks ?? 0) > 0 ? "font-medium" : "text-muted-foreground")}>{p.hatTricks ?? 0}</td>
+              <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{p.pim}</td>
             </tr>
           ))}
         </tbody>
@@ -257,21 +257,21 @@ function GoalieBoxScoreTable({ goalies }: { goalies: GoalieBoxScore[] }) {
             <tr
               key={g.name}
               className={cn(
-                "border-t border-border/30 hover:bg-card/60 transition-colors",
+                "border-t border-border/30 hover:bg-muted/50 transition-colors",
                 i % 2 === 0 && "bg-card/20"
               )}
             >
               <td className="py-2 pr-2">
                 <Link href={`/player/${g.id}`} className="font-medium hover:text-primary transition-colors">{g.name}</Link>
               </td>
-              <td className="text-center tabular-nums py-2 text-muted-foreground">{g.minutes}</td>
-              <td className="text-center tabular-nums py-2 text-muted-foreground">{g.shotsAgainst}</td>
-              <td className="text-center tabular-nums py-2 font-medium">{g.saves}</td>
-              <td className="text-center tabular-nums py-2 text-muted-foreground">{g.goalsAgainst}</td>
-              <td className="text-center tabular-nums py-2 font-bold">{g.savePercentage}</td>
-              <td className={cn("text-center tabular-nums py-2 hidden sm:table-cell", (g.shutouts ?? 0) > 0 ? "font-medium" : "text-muted-foreground")}>{g.shutouts ?? 0}</td>
-              <td className="text-center tabular-nums py-2 text-muted-foreground hidden sm:table-cell">{g.goalieAssists ?? 0}</td>
-              <td className="text-center tabular-nums py-2 text-muted-foreground">{g.result ?? "-"}</td>
+              <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{g.minutes}</td>
+              <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{g.shotsAgainst}</td>
+              <td className="text-center tabular-nums py-2 px-3 font-medium">{g.saves}</td>
+              <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{g.goalsAgainst}</td>
+              <td className="text-center tabular-nums py-2 px-3 font-bold">{g.savePercentage}</td>
+              <td className={cn("text-center tabular-nums py-2 px-3 hidden sm:table-cell", (g.shutouts ?? 0) > 0 ? "font-medium" : "text-muted-foreground")}>{g.shutouts ?? 0}</td>
+              <td className="text-center tabular-nums py-2 px-3 text-muted-foreground hidden sm:table-cell">{g.goalieAssists ?? 0}</td>
+              <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{g.result ?? "-"}</td>
             </tr>
           ))}
         </tbody>

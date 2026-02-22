@@ -225,7 +225,7 @@ function GameRow({ game }: { game: BashGame }) {
   return (
     <tr
       className={cn(
-        "border-t border-border/20 hover:bg-card/60 transition-colors",
+        "border-t border-border/20 hover:bg-muted/50 transition-colors",
         isFinal && "cursor-pointer"
       )}
       onClick={isFinal ? () => router.push(`/game/${game.id}`) : undefined}

@@ -193,11 +193,11 @@ export function StatsTab({ initialData }: { initialData?: PlayerStatsData }) {
                   <tr
                     key={p.id}
                     className={cn(
-                      "border-t border-border/20 hover:bg-card/60 transition-colors",
+                      "group border-t border-border/20 hover:bg-muted/50 transition-colors",
                       i % 2 === 0 && "bg-card/15"
                     )}
                   >
-                    <td className="py-2 sticky left-0 z-10 bg-background pl-4 sm:pl-2 w-[160px] max-w-[160px] after:absolute after:right-0 after:top-0 after:bottom-0 after:w-4 after:bg-gradient-to-r after:from-background/80 after:to-transparent after:pointer-events-none">
+                    <td className="py-2 sticky left-0 z-10 bg-background group-hover:bg-muted/50 transition-colors pl-4 sm:pl-2 w-[160px] max-w-[160px] after:absolute after:right-0 after:top-0 after:bottom-0 after:w-4 after:bg-gradient-to-r after:from-background/80 after:to-transparent after:pointer-events-none group-hover:after:from-muted/50">
                       <div className="flex items-baseline gap-2 pr-4">
                         <span className="text-muted-foreground/40 tabular-nums text-[10px] shrink-0">{(skaterPage - 1) * PER_PAGE + i + 1}</span>
                         <Link href={`/player/${p.id}`} className="text-xs font-semibold leading-tight text-foreground hover:text-primary transition-colors truncate">{p.name}</Link>
@@ -206,17 +206,17 @@ export function StatsTab({ initialData }: { initialData?: PlayerStatsData }) {
                     <td className="py-2 text-muted-foreground text-xs">
                       <Link href={`/team/${p.teamSlug}`} className="hover:text-primary transition-colors whitespace-nowrap">{p.team}</Link>
                     </td>
-                    <td className="text-center tabular-nums py-2 text-muted-foreground">{p.gp}</td>
-                    <td className={cn("text-center tabular-nums py-2", p.goals > 0 && "font-medium")}>{p.goals}</td>
-                    <td className={cn("text-center tabular-nums py-2", p.assists > 0 && "font-medium")}>{p.assists}</td>
-                    <td className="text-center tabular-nums py-2 font-bold">{p.points}</td>
-                    <td className="text-center tabular-nums py-2 text-muted-foreground">{p.ptsPg}</td>
-                    <td className={cn("text-center tabular-nums py-2", p.gwg > 0 && "font-medium")}>{p.gwg}</td>
-                    <td className="text-center tabular-nums py-2 text-muted-foreground">{p.ppg}</td>
-                    <td className="text-center tabular-nums py-2 text-muted-foreground">{p.shg}</td>
-                    <td className="text-center tabular-nums py-2 text-muted-foreground">{p.eng}</td>
-                    <td className={cn("text-center tabular-nums py-2", p.hatTricks > 0 ? "font-medium" : "text-muted-foreground")}>{p.hatTricks}</td>
-                    <td className="text-center tabular-nums py-2 text-muted-foreground">{p.pim}</td>
+                    <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{p.gp}</td>
+                    <td className={cn("text-center tabular-nums py-2 px-3", p.goals > 0 && "font-medium")}>{p.goals}</td>
+                    <td className={cn("text-center tabular-nums py-2 px-3", p.assists > 0 && "font-medium")}>{p.assists}</td>
+                    <td className="text-center tabular-nums py-2 px-3 font-bold">{p.points}</td>
+                    <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{p.ptsPg}</td>
+                    <td className={cn("text-center tabular-nums py-2 px-3", p.gwg > 0 && "font-medium")}>{p.gwg}</td>
+                    <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{p.ppg}</td>
+                    <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{p.shg}</td>
+                    <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{p.eng}</td>
+                    <td className={cn("text-center tabular-nums py-2 px-3", p.hatTricks > 0 ? "font-medium" : "text-muted-foreground")}>{p.hatTricks}</td>
+                    <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{p.pim}</td>
                   </tr>
                 ))}
               </tbody>
@@ -259,11 +259,11 @@ export function StatsTab({ initialData }: { initialData?: PlayerStatsData }) {
                   <tr
                     key={p.id}
                     className={cn(
-                      "border-t border-border/20 hover:bg-card/60 transition-colors",
+                      "group border-t border-border/20 hover:bg-muted/50 transition-colors",
                       i % 2 === 0 && "bg-card/15"
                     )}
                   >
-                    <td className="py-2 sticky left-0 z-10 bg-background pl-4 sm:pl-2 w-[160px] max-w-[160px] after:absolute after:right-0 after:top-0 after:bottom-0 after:w-4 after:bg-gradient-to-r after:from-background/80 after:to-transparent after:pointer-events-none">
+                    <td className="py-2 sticky left-0 z-10 bg-background group-hover:bg-muted/50 transition-colors pl-4 sm:pl-2 w-[160px] max-w-[160px] after:absolute after:right-0 after:top-0 after:bottom-0 after:w-4 after:bg-gradient-to-r after:from-background/80 after:to-transparent after:pointer-events-none group-hover:after:from-muted/50">
                       <div className="flex items-baseline gap-2 pr-4">
                         <span className="text-muted-foreground/40 tabular-nums text-[10px] shrink-0">{(goaliePage - 1) * PER_PAGE + i + 1}</span>
                         <Link href={`/player/${p.id}`} className="text-xs font-semibold leading-tight text-foreground hover:text-primary transition-colors truncate">{p.name}</Link>
@@ -272,20 +272,20 @@ export function StatsTab({ initialData }: { initialData?: PlayerStatsData }) {
                     <td className="py-2 text-muted-foreground text-xs">
                       <Link href={`/team/${p.teamSlug}`} className="hover:text-primary transition-colors whitespace-nowrap">{p.team}</Link>
                     </td>
-                    <td className="text-center tabular-nums py-2 text-muted-foreground">{p.gp}</td>
-                    <td className={cn("text-center tabular-nums py-2", p.wins > 0 && "font-medium")}>{p.wins}</td>
-                    <td className="text-center tabular-nums py-2 text-muted-foreground">{p.losses}</td>
-                    <td className="text-center tabular-nums py-2 font-bold">
+                    <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{p.gp}</td>
+                    <td className={cn("text-center tabular-nums py-2 px-3", p.wins > 0 && "font-medium")}>{p.wins}</td>
+                    <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{p.losses}</td>
+                    <td className="text-center tabular-nums py-2 px-3 font-bold">
                       {p.savePercentage !== undefined ? p.savePercentage.toFixed(3) : "-"}
                     </td>
-                    <td className="text-center tabular-nums py-2 text-muted-foreground">
+                    <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">
                       {p.gaa !== undefined ? p.gaa.toFixed(2) : "-"}
                     </td>
-                    <td className={cn("text-center tabular-nums py-2", p.shutouts > 0 && "font-medium")}>{p.shutouts}</td>
-                    <td className="text-center tabular-nums py-2 text-muted-foreground">{p.saves}</td>
-                    <td className="text-center tabular-nums py-2 text-muted-foreground">{p.goalsAgainst}</td>
-                    <td className="text-center tabular-nums py-2 text-muted-foreground">{p.shotsAgainst}</td>
-                    <td className="text-center tabular-nums py-2 text-muted-foreground">{p.goalieAssists}</td>
+                    <td className={cn("text-center tabular-nums py-2 px-3", p.shutouts > 0 && "font-medium")}>{p.shutouts}</td>
+                    <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{p.saves}</td>
+                    <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{p.goalsAgainst}</td>
+                    <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{p.shotsAgainst}</td>
+                    <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{p.goalieAssists}</td>
                   </tr>
                 ))}
               </tbody>

@@ -43,35 +43,37 @@ export function PlayerPageContent({ player }: { player: PlayerDetail }) {
               </thead>
               <tbody>
                 {player.perSeasonStats.map((s, i) => (
-                  <tr key={s.seasonId} className={cn("border-t border-border/20 hover:bg-card/60 transition-colors", i === 0 && "bg-card/15")}>
-                    <td className="text-left py-2 text-[10px] font-medium text-muted-foreground whitespace-nowrap pr-3">{s.seasonName}</td>
-                    <td className="text-center tabular-nums py-2 whitespace-nowrap">{s.stats.gp}</td>
-                    <td className="text-center tabular-nums py-2 font-medium">{s.stats.goals}</td>
-                    <td className="text-center tabular-nums py-2 font-medium">{s.stats.assists}</td>
-                    <td className="text-center tabular-nums py-2 font-bold">{s.stats.points}</td>
-                    <td className="text-center tabular-nums py-2 text-muted-foreground">{s.stats.ptsPg}</td>
-                    <td className="text-center tabular-nums py-2 text-muted-foreground">{s.stats.gwg}</td>
-                    <td className="text-center tabular-nums py-2 text-muted-foreground">{s.stats.ppg}</td>
-                    <td className="text-center tabular-nums py-2 text-muted-foreground">{s.stats.shg}</td>
-                    <td className="text-center tabular-nums py-2 text-muted-foreground">{s.stats.eng ?? 0}</td>
-                    <td className="text-center tabular-nums py-2 text-muted-foreground">{s.stats.hatTricks ?? 0}</td>
-                    <td className="text-center tabular-nums py-2 text-muted-foreground">{s.stats.pim}</td>
+                  <tr key={s.seasonId} className={cn("border-t border-border/20 hover:bg-muted/50 transition-colors", i === 0 && "bg-card/15")}>
+                    <td className="text-left py-2 text-[10px] font-medium text-muted-foreground whitespace-nowrap pr-3">
+                      <Link href={`/standings?season=${s.seasonId}`} className="hover:text-primary transition-colors">{s.seasonName}</Link>
+                    </td>
+                    <td className="text-center tabular-nums py-2 px-3 whitespace-nowrap">{s.stats.gp}</td>
+                    <td className="text-center tabular-nums py-2 px-3 font-medium">{s.stats.goals}</td>
+                    <td className="text-center tabular-nums py-2 px-3 font-medium">{s.stats.assists}</td>
+                    <td className="text-center tabular-nums py-2 px-3 font-bold">{s.stats.points}</td>
+                    <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{s.stats.ptsPg}</td>
+                    <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{s.stats.gwg}</td>
+                    <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{s.stats.ppg}</td>
+                    <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{s.stats.shg}</td>
+                    <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{s.stats.eng ?? 0}</td>
+                    <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{s.stats.hatTricks ?? 0}</td>
+                    <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{s.stats.pim}</td>
                   </tr>
                 ))}
                 {player.allTimeStats && player.perSeasonStats.length > 1 && (
-                  <tr className="border-t-2 border-border/40 hover:bg-card/60 transition-colors">
+                  <tr className="border-t-2 border-border/40 hover:bg-muted/50 transition-colors">
                     <td className="text-left py-2 text-[10px] font-bold text-muted-foreground whitespace-nowrap pr-3">All Time</td>
-                    <td className="text-center tabular-nums py-2 whitespace-nowrap">{player.allTimeStats.gp}</td>
-                    <td className="text-center tabular-nums py-2 font-medium">{player.allTimeStats.goals}</td>
-                    <td className="text-center tabular-nums py-2 font-medium">{player.allTimeStats.assists}</td>
-                    <td className="text-center tabular-nums py-2 font-bold">{player.allTimeStats.points}</td>
-                    <td className="text-center tabular-nums py-2 text-muted-foreground">{player.allTimeStats.ptsPg}</td>
-                    <td className="text-center tabular-nums py-2 text-muted-foreground">{player.allTimeStats.gwg}</td>
-                    <td className="text-center tabular-nums py-2 text-muted-foreground">{player.allTimeStats.ppg}</td>
-                    <td className="text-center tabular-nums py-2 text-muted-foreground">{player.allTimeStats.shg}</td>
-                    <td className="text-center tabular-nums py-2 text-muted-foreground">{player.allTimeStats.eng ?? 0}</td>
-                    <td className="text-center tabular-nums py-2 text-muted-foreground">{player.allTimeStats.hatTricks ?? 0}</td>
-                    <td className="text-center tabular-nums py-2 text-muted-foreground">{player.allTimeStats.pim}</td>
+                    <td className="text-center tabular-nums py-2 px-3 whitespace-nowrap">{player.allTimeStats.gp}</td>
+                    <td className="text-center tabular-nums py-2 px-3 font-medium">{player.allTimeStats.goals}</td>
+                    <td className="text-center tabular-nums py-2 px-3 font-medium">{player.allTimeStats.assists}</td>
+                    <td className="text-center tabular-nums py-2 px-3 font-bold">{player.allTimeStats.points}</td>
+                    <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{player.allTimeStats.ptsPg}</td>
+                    <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{player.allTimeStats.gwg}</td>
+                    <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{player.allTimeStats.ppg}</td>
+                    <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{player.allTimeStats.shg}</td>
+                    <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{player.allTimeStats.eng ?? 0}</td>
+                    <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{player.allTimeStats.hatTricks ?? 0}</td>
+                    <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{player.allTimeStats.pim}</td>
                   </tr>
                 )}
               </tbody>
@@ -103,33 +105,35 @@ export function PlayerPageContent({ player }: { player: PlayerDetail }) {
               </thead>
               <tbody>
                 {player.perSeasonGoalieStats.map((s, i) => (
-                  <tr key={s.seasonId} className={cn("border-t border-border/20 hover:bg-card/60 transition-colors", i === 0 && "bg-card/15")}>
-                    <td className="text-left py-2 text-[10px] font-medium text-muted-foreground whitespace-nowrap pr-3">{s.seasonName}</td>
-                    <td className="text-center tabular-nums py-2 whitespace-nowrap">{s.stats.gp}</td>
-                    <td className="text-center tabular-nums py-2 font-medium">{s.stats.wins}</td>
-                    <td className="text-center tabular-nums py-2">{s.stats.losses}</td>
-                    <td className="text-center tabular-nums py-2 font-bold">{s.stats.savePercentage}</td>
-                    <td className="text-center tabular-nums py-2">{s.stats.gaa}</td>
-                    <td className="text-center tabular-nums py-2">{s.stats.shutouts}</td>
-                    <td className="text-center tabular-nums py-2 text-muted-foreground">{s.stats.saves}</td>
-                    <td className="text-center tabular-nums py-2 text-muted-foreground">{s.stats.goalsAgainst}</td>
-                    <td className="text-center tabular-nums py-2 text-muted-foreground">{s.stats.shotsAgainst}</td>
-                    <td className="text-center tabular-nums py-2 text-muted-foreground">{s.stats.goalieAssists ?? 0}</td>
+                  <tr key={s.seasonId} className={cn("border-t border-border/20 hover:bg-muted/50 transition-colors", i === 0 && "bg-card/15")}>
+                    <td className="text-left py-2 text-[10px] font-medium text-muted-foreground whitespace-nowrap pr-3">
+                      <Link href={`/standings?season=${s.seasonId}`} className="hover:text-primary transition-colors">{s.seasonName}</Link>
+                    </td>
+                    <td className="text-center tabular-nums py-2 px-3 whitespace-nowrap">{s.stats.gp}</td>
+                    <td className="text-center tabular-nums py-2 px-3 font-medium">{s.stats.wins}</td>
+                    <td className="text-center tabular-nums py-2 px-3">{s.stats.losses}</td>
+                    <td className="text-center tabular-nums py-2 px-3 font-bold">{s.stats.savePercentage}</td>
+                    <td className="text-center tabular-nums py-2 px-3">{s.stats.gaa}</td>
+                    <td className="text-center tabular-nums py-2 px-3">{s.stats.shutouts}</td>
+                    <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{s.stats.saves}</td>
+                    <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{s.stats.goalsAgainst}</td>
+                    <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{s.stats.shotsAgainst}</td>
+                    <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{s.stats.goalieAssists ?? 0}</td>
                   </tr>
                 ))}
                 {player.allTimeGoalieStats && player.perSeasonGoalieStats.length > 1 && (
-                  <tr className="border-t-2 border-border/40 hover:bg-card/60 transition-colors">
+                  <tr className="border-t-2 border-border/40 hover:bg-muted/50 transition-colors">
                     <td className="text-left py-2 text-[10px] font-bold text-muted-foreground whitespace-nowrap pr-3">All Time</td>
-                    <td className="text-center tabular-nums py-2 whitespace-nowrap">{player.allTimeGoalieStats.gp}</td>
-                    <td className="text-center tabular-nums py-2 font-medium">{player.allTimeGoalieStats.wins}</td>
-                    <td className="text-center tabular-nums py-2">{player.allTimeGoalieStats.losses}</td>
-                    <td className="text-center tabular-nums py-2 font-bold">{player.allTimeGoalieStats.savePercentage}</td>
-                    <td className="text-center tabular-nums py-2">{player.allTimeGoalieStats.gaa}</td>
-                    <td className="text-center tabular-nums py-2">{player.allTimeGoalieStats.shutouts}</td>
-                    <td className="text-center tabular-nums py-2 text-muted-foreground">{player.allTimeGoalieStats.saves}</td>
-                    <td className="text-center tabular-nums py-2 text-muted-foreground">{player.allTimeGoalieStats.goalsAgainst}</td>
-                    <td className="text-center tabular-nums py-2 text-muted-foreground">{player.allTimeGoalieStats.shotsAgainst}</td>
-                    <td className="text-center tabular-nums py-2 text-muted-foreground">{player.allTimeGoalieStats.goalieAssists ?? 0}</td>
+                    <td className="text-center tabular-nums py-2 px-3 whitespace-nowrap">{player.allTimeGoalieStats.gp}</td>
+                    <td className="text-center tabular-nums py-2 px-3 font-medium">{player.allTimeGoalieStats.wins}</td>
+                    <td className="text-center tabular-nums py-2 px-3">{player.allTimeGoalieStats.losses}</td>
+                    <td className="text-center tabular-nums py-2 px-3 font-bold">{player.allTimeGoalieStats.savePercentage}</td>
+                    <td className="text-center tabular-nums py-2 px-3">{player.allTimeGoalieStats.gaa}</td>
+                    <td className="text-center tabular-nums py-2 px-3">{player.allTimeGoalieStats.shutouts}</td>
+                    <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{player.allTimeGoalieStats.saves}</td>
+                    <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{player.allTimeGoalieStats.goalsAgainst}</td>
+                    <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{player.allTimeGoalieStats.shotsAgainst}</td>
+                    <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{player.allTimeGoalieStats.goalieAssists ?? 0}</td>
                   </tr>
                 )}
               </tbody>
@@ -162,7 +166,7 @@ export function PlayerPageContent({ player }: { player: PlayerDetail }) {
               </thead>
               <tbody>
                 {player.games.map((g, i) => (
-                  <tr key={g.gameId} className={cn("border-t border-border/20 hover:bg-card/60", i % 2 === 0 && "bg-card/15")}>
+                  <tr key={g.gameId} className={cn("border-t border-border/20 hover:bg-muted/50", i % 2 === 0 && "bg-card/15")}>
                     <td className="py-2 text-[10px] text-muted-foreground whitespace-nowrap pr-3">
                       <Link href={`/game/${g.gameId}`} className="hover:text-primary transition-colors">
                         {formatGameDate(g.date)}
@@ -182,15 +186,15 @@ export function PlayerPageContent({ player }: { player: PlayerDetail }) {
                         </Link>
                       ) : "-"}
                     </td>
-                    <td className={cn("text-center tabular-nums py-2", g.goals > 0 && "font-medium")}>{g.goals}</td>
-                    <td className={cn("text-center tabular-nums py-2", g.assists > 0 && "font-medium")}>{g.assists}</td>
-                    <td className="text-center tabular-nums py-2 font-bold">{g.points}</td>
-                    <td className={cn("text-center tabular-nums py-2", (g.gwg ?? 0) > 0 ? "font-medium" : "text-muted-foreground")}>{g.gwg ?? 0}</td>
-                    <td className="text-center tabular-nums py-2 text-muted-foreground">{g.ppg ?? 0}</td>
-                    <td className="text-center tabular-nums py-2 text-muted-foreground">{g.shg ?? 0}</td>
-                    <td className="text-center tabular-nums py-2 text-muted-foreground">{g.eng ?? 0}</td>
-                    <td className={cn("text-center tabular-nums py-2", (g.hatTricks ?? 0) > 0 ? "font-medium" : "text-muted-foreground")}>{g.hatTricks ?? 0}</td>
-                    <td className="text-center tabular-nums py-2 text-muted-foreground">{g.pim}</td>
+                    <td className={cn("text-center tabular-nums py-2 px-3", g.goals > 0 && "font-medium")}>{g.goals}</td>
+                    <td className={cn("text-center tabular-nums py-2 px-3", g.assists > 0 && "font-medium")}>{g.assists}</td>
+                    <td className="text-center tabular-nums py-2 px-3 font-bold">{g.points}</td>
+                    <td className={cn("text-center tabular-nums py-2 px-3", (g.gwg ?? 0) > 0 ? "font-medium" : "text-muted-foreground")}>{g.gwg ?? 0}</td>
+                    <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{g.ppg ?? 0}</td>
+                    <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{g.shg ?? 0}</td>
+                    <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{g.eng ?? 0}</td>
+                    <td className={cn("text-center tabular-nums py-2 px-3", (g.hatTricks ?? 0) > 0 ? "font-medium" : "text-muted-foreground")}>{g.hatTricks ?? 0}</td>
+                    <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{g.pim}</td>
                   </tr>
                 ))}
               </tbody>
@@ -221,7 +225,7 @@ export function PlayerPageContent({ player }: { player: PlayerDetail }) {
               </thead>
               <tbody>
                 {player.goalieGames.map((g, i) => (
-                  <tr key={g.gameId} className={cn("border-t border-border/20 hover:bg-card/60", i % 2 === 0 && "bg-card/15")}>
+                  <tr key={g.gameId} className={cn("border-t border-border/20 hover:bg-muted/50", i % 2 === 0 && "bg-card/15")}>
                     <td className="py-2 text-[10px] text-muted-foreground whitespace-nowrap pr-3">
                       <Link href={`/game/${g.gameId}`} className="hover:text-primary transition-colors">
                         {formatGameDate(g.date)}
@@ -240,13 +244,13 @@ export function PlayerPageContent({ player }: { player: PlayerDetail }) {
                         </Link>
                       ) : "-"}
                     </td>
-                    <td className="text-center tabular-nums py-2">{g.result ?? "-"}</td>
-                    <td className="text-center tabular-nums py-2 text-muted-foreground">{g.shotsAgainst}</td>
-                    <td className="text-center tabular-nums py-2 font-medium">{g.saves}</td>
-                    <td className="text-center tabular-nums py-2 text-muted-foreground">{g.goalsAgainst}</td>
-                    <td className="text-center tabular-nums py-2 font-bold">{g.savePercentage}</td>
-                    <td className={cn("text-center tabular-nums py-2", (g.shutouts ?? 0) > 0 ? "font-medium" : "text-muted-foreground")}>{g.shutouts ?? 0}</td>
-                    <td className="text-center tabular-nums py-2 text-muted-foreground">{g.goalieAssists ?? 0}</td>
+                    <td className="text-center tabular-nums py-2 px-3">{g.result ?? "-"}</td>
+                    <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{g.shotsAgainst}</td>
+                    <td className="text-center tabular-nums py-2 px-3 font-medium">{g.saves}</td>
+                    <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{g.goalsAgainst}</td>
+                    <td className="text-center tabular-nums py-2 px-3 font-bold">{g.savePercentage}</td>
+                    <td className={cn("text-center tabular-nums py-2 px-3", (g.shutouts ?? 0) > 0 ? "font-medium" : "text-muted-foreground")}>{g.shutouts ?? 0}</td>
+                    <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{g.goalieAssists ?? 0}</td>
                   </tr>
                 ))}
               </tbody>

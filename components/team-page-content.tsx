@@ -82,20 +82,20 @@ export function TeamPageContent({ team }: { team: TeamDetail }) {
               </thead>
               <tbody>
                 {sortedSkaters.map((p, i) => (
-                  <tr key={p.id} className={cn("border-t border-border/20 hover:bg-card/60", i % 2 === 0 && "bg-card/15")}>
+                  <tr key={p.id} className={cn("border-t border-border/20 hover:bg-muted/50", i % 2 === 0 && "bg-card/15")}>
                     <td className="py-2 pr-2">
                       <Link href={`/player/${p.id}`} className="text-xs font-semibold hover:text-primary transition-colors">{p.name}</Link>
                     </td>
-                    <td className="text-center tabular-nums py-2 text-muted-foreground">{p.gp}</td>
-                    <td className={cn("text-center tabular-nums py-2", p.goals > 0 && "font-medium")}>{p.goals}</td>
-                    <td className={cn("text-center tabular-nums py-2", p.assists > 0 && "font-medium")}>{p.assists}</td>
-                    <td className="text-center tabular-nums py-2 font-bold">{p.points}</td>
-                    <td className={cn("text-center tabular-nums py-2 hidden sm:table-cell", (p.gwg ?? 0) > 0 ? "font-medium" : "text-muted-foreground")}>{p.gwg ?? 0}</td>
-                    <td className="text-center tabular-nums py-2 text-muted-foreground hidden sm:table-cell">{p.ppg ?? 0}</td>
-                    <td className="text-center tabular-nums py-2 text-muted-foreground hidden sm:table-cell">{p.shg ?? 0}</td>
-                    <td className="text-center tabular-nums py-2 text-muted-foreground hidden sm:table-cell">{p.eng ?? 0}</td>
-                    <td className={cn("text-center tabular-nums py-2 hidden sm:table-cell", (p.hatTricks ?? 0) > 0 ? "font-medium" : "text-muted-foreground")}>{p.hatTricks ?? 0}</td>
-                    <td className="text-center tabular-nums py-2 text-muted-foreground">{p.pim}</td>
+                    <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{p.gp}</td>
+                    <td className={cn("text-center tabular-nums py-2 px-3", p.goals > 0 && "font-medium")}>{p.goals}</td>
+                    <td className={cn("text-center tabular-nums py-2 px-3", p.assists > 0 && "font-medium")}>{p.assists}</td>
+                    <td className="text-center tabular-nums py-2 px-3 font-bold">{p.points}</td>
+                    <td className={cn("text-center tabular-nums py-2 px-3 hidden sm:table-cell", (p.gwg ?? 0) > 0 ? "font-medium" : "text-muted-foreground")}>{p.gwg ?? 0}</td>
+                    <td className="text-center tabular-nums py-2 px-3 text-muted-foreground hidden sm:table-cell">{p.ppg ?? 0}</td>
+                    <td className="text-center tabular-nums py-2 px-3 text-muted-foreground hidden sm:table-cell">{p.shg ?? 0}</td>
+                    <td className="text-center tabular-nums py-2 px-3 text-muted-foreground hidden sm:table-cell">{p.eng ?? 0}</td>
+                    <td className={cn("text-center tabular-nums py-2 px-3 hidden sm:table-cell", (p.hatTricks ?? 0) > 0 ? "font-medium" : "text-muted-foreground")}>{p.hatTricks ?? 0}</td>
+                    <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{p.pim}</td>
                   </tr>
                 ))}
               </tbody>
@@ -126,20 +126,20 @@ export function TeamPageContent({ team }: { team: TeamDetail }) {
               </thead>
               <tbody>
                 {sortedGoalies.map((g, i) => (
-                  <tr key={g.id} className={cn("border-t border-border/20 hover:bg-card/60", i % 2 === 0 && "bg-card/15")}>
+                  <tr key={g.id} className={cn("border-t border-border/20 hover:bg-muted/50", i % 2 === 0 && "bg-card/15")}>
                     <td className="py-2 pr-2">
                       <Link href={`/player/${g.id}`} className="text-xs font-semibold hover:text-primary transition-colors">{g.name}</Link>
                     </td>
-                    <td className="text-center tabular-nums py-2 text-muted-foreground">{g.gp}</td>
-                    <td className={cn("text-center tabular-nums py-2", (g.wins ?? 0) > 0 && "font-medium")}>{g.wins}</td>
-                    <td className="text-center tabular-nums py-2 text-muted-foreground">{g.losses}</td>
-                    <td className="text-center tabular-nums py-2 font-bold">{g.savePercentage}</td>
-                    <td className="text-center tabular-nums py-2 text-muted-foreground">{g.gaa}</td>
-                    <td className={cn("text-center tabular-nums py-2 hidden sm:table-cell", (g.shutouts ?? 0) > 0 ? "font-medium" : "text-muted-foreground")}>{g.shutouts ?? 0}</td>
-                    <td className="text-center tabular-nums py-2 text-muted-foreground hidden sm:table-cell">{g.saves ?? 0}</td>
-                    <td className="text-center tabular-nums py-2 text-muted-foreground hidden sm:table-cell">{g.goalsAgainst ?? 0}</td>
-                    <td className="text-center tabular-nums py-2 text-muted-foreground hidden sm:table-cell">{g.shotsAgainst ?? 0}</td>
-                    <td className="text-center tabular-nums py-2 text-muted-foreground hidden sm:table-cell">{g.goalieAssists ?? 0}</td>
+                    <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{g.gp}</td>
+                    <td className={cn("text-center tabular-nums py-2 px-3", (g.wins ?? 0) > 0 && "font-medium")}>{g.wins}</td>
+                    <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{g.losses}</td>
+                    <td className="text-center tabular-nums py-2 px-3 font-bold">{g.savePercentage}</td>
+                    <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{g.gaa}</td>
+                    <td className={cn("text-center tabular-nums py-2 px-3 hidden sm:table-cell", (g.shutouts ?? 0) > 0 ? "font-medium" : "text-muted-foreground")}>{g.shutouts ?? 0}</td>
+                    <td className="text-center tabular-nums py-2 px-3 text-muted-foreground hidden sm:table-cell">{g.saves ?? 0}</td>
+                    <td className="text-center tabular-nums py-2 px-3 text-muted-foreground hidden sm:table-cell">{g.goalsAgainst ?? 0}</td>
+                    <td className="text-center tabular-nums py-2 px-3 text-muted-foreground hidden sm:table-cell">{g.shotsAgainst ?? 0}</td>
+                    <td className="text-center tabular-nums py-2 px-3 text-muted-foreground hidden sm:table-cell">{g.goalieAssists ?? 0}</td>
                   </tr>
                 ))}
               </tbody>
@@ -169,7 +169,7 @@ function GameRow({ game: g }: { game: TeamDetail["games"][number] }) {
     <div
       className={cn(
         "flex items-center gap-3 px-3 py-2.5 rounded-lg",
-        isFinal && "hover:bg-card/60 transition-colors cursor-pointer"
+        isFinal && "hover:bg-muted/50 transition-colors cursor-pointer"
       )}
       onClick={isFinal ? () => router.push(`/game/${g.id}`) : undefined}
     >
