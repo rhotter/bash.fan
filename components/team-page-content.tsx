@@ -1,23 +1,22 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useMemo } from "react"
 import { formatGameDate } from "@/lib/format-time"
 import { cn } from "@/lib/utils"
-import { ChevronDown, ChevronUp } from "lucide-react"
 import Link from "next/link"
 import { playerSlug } from "@/lib/player-slug"
 import { useRouter } from "next/navigation"
 import type { TeamDetail } from "@/app/api/bash/team/[slug]/route"
+import { useSort, SortableTh, statsRowClass, SectionHeader } from "@/components/stats-table"
 
 type SkaterSortKey = "points" | "goals" | "assists" | "pim" | "gp" | "gwg" | "ppg" | "shg" | "eng" | "hatTricks" | "pen"
 type GoalieSortKey = "savePercentage" | "gaa" | "wins" | "losses" | "gp" | "shutouts" | "saves" | "goalsAgainst" | "shotsAgainst" | "goalieAssists"
-type SortDir = "asc" | "desc"
+
+const goalieAscKeys = new Set<GoalieSortKey>(["gaa"])
 
 export function TeamPageContent({ team }: { team: TeamDetail }) {
-  const [skaterSort, setSkaterSort] = useState<SkaterSortKey>("points")
-  const [skaterDir, setSkaterDir] = useState<SortDir>("desc")
-  const [goalieSort, setGoalieSort] = useState<GoalieSortKey>("savePercentage")
-  const [goalieDir, setGoalieDir] = useState<SortDir>("desc")
+  const { sortKey: skaterSort, sortDir: skaterDir, toggleSort: toggleSkaterSort } = useSort<SkaterSortKey>("points")
+  const { sortKey: goalieSort, sortDir: goalieDir, toggleSort: toggleGoalieSort } = useSort<GoalieSortKey>("savePercentage", "desc", goalieAscKeys)
 
   const sortedSkaters = useMemo(() => {
     return [...team.skaters].sort((a, b) => {
@@ -34,16 +33,6 @@ export function TeamPageContent({ team }: { team: TeamDetail }) {
       return goalieDir === "desc" ? bv - av : av - bv
     })
   }, [team, goalieSort, goalieDir])
-
-  function toggleSkaterSort(key: SkaterSortKey) {
-    if (skaterSort === key) setSkaterDir((d) => (d === "desc" ? "asc" : "desc"))
-    else { setSkaterSort(key); setSkaterDir("desc") }
-  }
-
-  function toggleGoalieSort(key: GoalieSortKey) {
-    if (goalieSort === key) setGoalieDir((d) => (d === "desc" ? "asc" : "desc"))
-    else { setGoalieSort(key); setGoalieDir(key === "gaa" ? "asc" : "desc") }
-  }
 
   return (
     <div className="flex flex-col gap-8">
@@ -69,16 +58,16 @@ export function TeamPageContent({ team }: { team: TeamDetail }) {
               <thead>
                 <tr className="text-muted-foreground/50 text-[9px] uppercase tracking-wider">
                   <th className="text-left font-medium py-2.5 min-w-[120px]">Player</th>
-                  <SkaterSortableTh label="GP" sortKey="gp" currentKey={skaterSort} dir={skaterDir} onToggle={toggleSkaterSort} />
-                  <SkaterSortableTh label="G" sortKey="goals" currentKey={skaterSort} dir={skaterDir} onToggle={toggleSkaterSort} />
-                  <SkaterSortableTh label="A" sortKey="assists" currentKey={skaterSort} dir={skaterDir} onToggle={toggleSkaterSort} />
-                  <SkaterSortableTh label="PTS" sortKey="points" currentKey={skaterSort} dir={skaterDir} onToggle={toggleSkaterSort} bold />
-                  <SkaterSortableTh label="GWG" sortKey="gwg" currentKey={skaterSort} dir={skaterDir} onToggle={toggleSkaterSort} className="hidden sm:table-cell" />
-                  <SkaterSortableTh label="PPG" sortKey="ppg" currentKey={skaterSort} dir={skaterDir} onToggle={toggleSkaterSort} className="hidden sm:table-cell" />
-                  <SkaterSortableTh label="SHG" sortKey="shg" currentKey={skaterSort} dir={skaterDir} onToggle={toggleSkaterSort} className="hidden sm:table-cell" />
-                  <SkaterSortableTh label="ENG" sortKey="eng" currentKey={skaterSort} dir={skaterDir} onToggle={toggleSkaterSort} className="hidden sm:table-cell" />
-                  <SkaterSortableTh label="HAT" sortKey="hatTricks" currentKey={skaterSort} dir={skaterDir} onToggle={toggleSkaterSort} className="hidden sm:table-cell" />
-                  <SkaterSortableTh label="PIM" sortKey="pim" currentKey={skaterSort} dir={skaterDir} onToggle={toggleSkaterSort} />
+                  <SortableTh label="GP" sortKey="gp" currentKey={skaterSort} dir={skaterDir} onToggle={toggleSkaterSort} />
+                  <SortableTh label="G" sortKey="goals" currentKey={skaterSort} dir={skaterDir} onToggle={toggleSkaterSort} />
+                  <SortableTh label="A" sortKey="assists" currentKey={skaterSort} dir={skaterDir} onToggle={toggleSkaterSort} />
+                  <SortableTh label="PTS" sortKey="points" currentKey={skaterSort} dir={skaterDir} onToggle={toggleSkaterSort} bold />
+                  <SortableTh label="GWG" sortKey="gwg" currentKey={skaterSort} dir={skaterDir} onToggle={toggleSkaterSort} className="hidden sm:table-cell" />
+                  <SortableTh label="PPG" sortKey="ppg" currentKey={skaterSort} dir={skaterDir} onToggle={toggleSkaterSort} className="hidden sm:table-cell" />
+                  <SortableTh label="SHG" sortKey="shg" currentKey={skaterSort} dir={skaterDir} onToggle={toggleSkaterSort} className="hidden sm:table-cell" />
+                  <SortableTh label="ENG" sortKey="eng" currentKey={skaterSort} dir={skaterDir} onToggle={toggleSkaterSort} className="hidden sm:table-cell" />
+                  <SortableTh label="HAT" sortKey="hatTricks" currentKey={skaterSort} dir={skaterDir} onToggle={toggleSkaterSort} className="hidden sm:table-cell" />
+                  <SortableTh label="PIM" sortKey="pim" currentKey={skaterSort} dir={skaterDir} onToggle={toggleSkaterSort} />
                 </tr>
               </thead>
               <tbody>
@@ -113,16 +102,16 @@ export function TeamPageContent({ team }: { team: TeamDetail }) {
               <thead>
                 <tr className="text-muted-foreground/50 text-[9px] uppercase tracking-wider">
                   <th className="text-left font-medium py-2.5 min-w-[120px]">Goalie</th>
-                  <GoalieSortableTh label="GP" sortKey="gp" currentKey={goalieSort} dir={goalieDir} onToggle={toggleGoalieSort} />
-                  <GoalieSortableTh label="W" sortKey="wins" currentKey={goalieSort} dir={goalieDir} onToggle={toggleGoalieSort} />
-                  <GoalieSortableTh label="L" sortKey="losses" currentKey={goalieSort} dir={goalieDir} onToggle={toggleGoalieSort} />
-                  <GoalieSortableTh label="SV%" sortKey="savePercentage" currentKey={goalieSort} dir={goalieDir} onToggle={toggleGoalieSort} bold />
-                  <GoalieSortableTh label="GAA" sortKey="gaa" currentKey={goalieSort} dir={goalieDir} onToggle={toggleGoalieSort} />
-                  <GoalieSortableTh label="SO" sortKey="shutouts" currentKey={goalieSort} dir={goalieDir} onToggle={toggleGoalieSort} className="hidden sm:table-cell" />
-                  <GoalieSortableTh label="SV" sortKey="saves" currentKey={goalieSort} dir={goalieDir} onToggle={toggleGoalieSort} className="hidden sm:table-cell" />
-                  <GoalieSortableTh label="GA" sortKey="goalsAgainst" currentKey={goalieSort} dir={goalieDir} onToggle={toggleGoalieSort} className="hidden sm:table-cell" />
-                  <GoalieSortableTh label="SA" sortKey="shotsAgainst" currentKey={goalieSort} dir={goalieDir} onToggle={toggleGoalieSort} className="hidden sm:table-cell" />
-                  <GoalieSortableTh label="A" sortKey="goalieAssists" currentKey={goalieSort} dir={goalieDir} onToggle={toggleGoalieSort} className="hidden sm:table-cell" />
+                  <SortableTh label="GP" sortKey="gp" currentKey={goalieSort} dir={goalieDir} onToggle={toggleGoalieSort} />
+                  <SortableTh label="W" sortKey="wins" currentKey={goalieSort} dir={goalieDir} onToggle={toggleGoalieSort} />
+                  <SortableTh label="L" sortKey="losses" currentKey={goalieSort} dir={goalieDir} onToggle={toggleGoalieSort} />
+                  <SortableTh label="SV%" sortKey="savePercentage" currentKey={goalieSort} dir={goalieDir} onToggle={toggleGoalieSort} bold />
+                  <SortableTh label="GAA" sortKey="gaa" currentKey={goalieSort} dir={goalieDir} onToggle={toggleGoalieSort} />
+                  <SortableTh label="SO" sortKey="shutouts" currentKey={goalieSort} dir={goalieDir} onToggle={toggleGoalieSort} className="hidden sm:table-cell" />
+                  <SortableTh label="SV" sortKey="saves" currentKey={goalieSort} dir={goalieDir} onToggle={toggleGoalieSort} className="hidden sm:table-cell" />
+                  <SortableTh label="GA" sortKey="goalsAgainst" currentKey={goalieSort} dir={goalieDir} onToggle={toggleGoalieSort} className="hidden sm:table-cell" />
+                  <SortableTh label="SA" sortKey="shotsAgainst" currentKey={goalieSort} dir={goalieDir} onToggle={toggleGoalieSort} className="hidden sm:table-cell" />
+                  <SortableTh label="A" sortKey="goalieAssists" currentKey={goalieSort} dir={goalieDir} onToggle={toggleGoalieSort} className="hidden sm:table-cell" />
                 </tr>
               </thead>
               <tbody>
@@ -202,57 +191,5 @@ function GameRow({ game: g }: { game: TeamDetail["games"][number] }) {
         <span className="text-[10px] text-muted-foreground/40">{g.time}</span>
       )}
     </div>
-  )
-}
-
-function SectionHeader({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="flex items-center gap-3 mb-3">
-      <h4 className="text-[11px] font-bold uppercase tracking-[0.15em] text-muted-foreground whitespace-nowrap">
-        {children}
-      </h4>
-      <div className="h-px flex-1 bg-border/60" />
-    </div>
-  )
-}
-
-function SortIcon({ active, dir }: { active: boolean; dir: SortDir }) {
-  if (!active) return <ChevronDown className="h-2.5 w-2.5 text-muted-foreground/30" />
-  return dir === "desc"
-    ? <ChevronDown className="h-2.5 w-2.5 text-primary" />
-    : <ChevronUp className="h-2.5 w-2.5 text-primary" />
-}
-
-function SkaterSortableTh({ label, sortKey, currentKey, dir, onToggle, bold, className }: {
-  label: string; sortKey: SkaterSortKey; currentKey: SkaterSortKey; dir: SortDir
-  onToggle: (k: SkaterSortKey) => void; bold?: boolean; className?: string
-}) {
-  return (
-    <th
-      className={cn("text-center font-medium py-2.5 w-10 cursor-pointer select-none", className)}
-      onClick={() => onToggle(sortKey)}
-    >
-      <div className="flex items-center justify-center gap-0.5">
-        <span className={cn(bold && "font-bold")}>{label}</span>
-        <SortIcon active={currentKey === sortKey} dir={dir} />
-      </div>
-    </th>
-  )
-}
-
-function GoalieSortableTh({ label, sortKey, currentKey, dir, onToggle, bold, className }: {
-  label: string; sortKey: GoalieSortKey; currentKey: GoalieSortKey; dir: SortDir
-  onToggle: (k: GoalieSortKey) => void; bold?: boolean; className?: string
-}) {
-  return (
-    <th
-      className={cn("text-center font-medium py-2.5 w-10 cursor-pointer select-none", className)}
-      onClick={() => onToggle(sortKey)}
-    >
-      <div className="flex items-center justify-center gap-0.5">
-        <span className={cn(bold && "font-bold")}>{label}</span>
-        <SortIcon active={currentKey === sortKey} dir={dir} />
-      </div>
-    </th>
   )
 }

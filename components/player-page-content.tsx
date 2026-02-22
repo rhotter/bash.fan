@@ -4,6 +4,7 @@ import { formatGameDate } from "@/lib/format-time"
 import { cn } from "@/lib/utils"
 import Link from "next/link"
 import type { PlayerDetail } from "@/app/api/bash/player/[slug]/route"
+import { SectionHeader, statsRowClass } from "@/components/stats-table"
 
 export function PlayerPageContent({ player }: { player: PlayerDetail }) {
   const hasSkaterData = player.perSeasonStats.length > 0 || player.allTimeStats
@@ -258,17 +259,6 @@ export function PlayerPageContent({ player }: { player: PlayerDetail }) {
           </div>
         </div>
       )}
-    </div>
-  )
-}
-
-function SectionHeader({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="flex items-center gap-3 mb-3">
-      <h4 className="text-[11px] font-bold uppercase tracking-[0.15em] text-muted-foreground whitespace-nowrap">
-        {children}
-      </h4>
-      <div className="h-px flex-1 bg-border/60" />
     </div>
   )
 }

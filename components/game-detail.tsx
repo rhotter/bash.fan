@@ -4,13 +4,13 @@ import { useState, useMemo } from "react"
 import { useGameDetail, type BashGame, type BashGameDetail } from "@/lib/hockey-data"
 import { formatGameDate } from "@/lib/format-time"
 import { cn } from "@/lib/utils"
-import { ChevronDown, ChevronUp, Loader2 } from "lucide-react"
+import { Loader2 } from "lucide-react"
 import Link from "next/link"
 import { playerSlug } from "@/lib/player-slug"
 import type { PlayerBoxScore, GoalieBoxScore } from "@/app/api/bash/game/[id]/route"
+import { useSort, SortableTh, SectionHeader } from "@/components/stats-table"
 
 type SkaterSortKey = "points" | "goals" | "assists" | "pim" | "gwg" | "ppg" | "shg" | "eng" | "hatTricks" | "pen"
-type SortDir = "asc" | "desc"
 
 interface GameDetailProps {
   game: BashGame
@@ -151,32 +151,8 @@ export function GameDetail({ game, initialDetail }: GameDetailProps) {
   )
 }
 
-function SectionHeader({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="flex items-center gap-3 mb-3">
-      <h4 className="text-[11px] font-bold uppercase tracking-[0.15em] text-muted-foreground whitespace-nowrap">
-        {children}
-      </h4>
-      <div className="h-px flex-1 bg-border/60" />
-    </div>
-  )
-}
-
-function SortIcon({ active, dir }: { active: boolean; dir: SortDir }) {
-  if (!active) return <ChevronDown className="h-2.5 w-2.5 text-muted-foreground/30" />
-  return dir === "desc"
-    ? <ChevronDown className="h-2.5 w-2.5 text-primary" />
-    : <ChevronUp className="h-2.5 w-2.5 text-primary" />
-}
-
 function SkaterBoxScore({ players }: { players: PlayerBoxScore[] }) {
-  const [sortKey, setSortKey] = useState<SkaterSortKey>("points")
-  const [sortDir, setSortDir] = useState<SortDir>("desc")
-
-  function toggleSort(key: SkaterSortKey) {
-    if (sortKey === key) setSortDir((d) => (d === "desc" ? "asc" : "desc"))
-    else { setSortKey(key); setSortDir("desc") }
-  }
+  const { sortKey, sortDir, toggleSort } = useSort<SkaterSortKey>("points")
 
   const sorted = useMemo(() => {
     return [...players].sort((a, b) => {
@@ -194,15 +170,15 @@ function SkaterBoxScore({ players }: { players: PlayerBoxScore[] }) {
         <thead>
           <tr className="text-muted-foreground/50 text-[9px] uppercase tracking-wider">
             <th className="text-left font-medium py-2 pr-2 min-w-[120px]">Player</th>
-            <SortableTh label="G" sortKey="goals" currentKey={sortKey} dir={sortDir} onToggle={toggleSort} />
-            <SortableTh label="A" sortKey="assists" currentKey={sortKey} dir={sortDir} onToggle={toggleSort} />
-            <SortableTh label="PTS" sortKey="points" currentKey={sortKey} dir={sortDir} onToggle={toggleSort} bold />
-            <SortableTh label="GWG" sortKey="gwg" currentKey={sortKey} dir={sortDir} onToggle={toggleSort} className="hidden sm:table-cell" />
-            <SortableTh label="PPG" sortKey="ppg" currentKey={sortKey} dir={sortDir} onToggle={toggleSort} className="hidden sm:table-cell" />
-            <SortableTh label="SHG" sortKey="shg" currentKey={sortKey} dir={sortDir} onToggle={toggleSort} className="hidden sm:table-cell" />
-            <SortableTh label="ENG" sortKey="eng" currentKey={sortKey} dir={sortDir} onToggle={toggleSort} className="hidden sm:table-cell" />
-            <SortableTh label="HAT" sortKey="hatTricks" currentKey={sortKey} dir={sortDir} onToggle={toggleSort} className="hidden sm:table-cell" />
-            <SortableTh label="PIM" sortKey="pim" currentKey={sortKey} dir={sortDir} onToggle={toggleSort} />
+            <SortableTh label="G" sortKey="goals" currentKey={sortKey} dir={sortDir} onToggle={toggleSort} className="w-8 py-2" />
+            <SortableTh label="A" sortKey="assists" currentKey={sortKey} dir={sortDir} onToggle={toggleSort} className="w-8 py-2" />
+            <SortableTh label="PTS" sortKey="points" currentKey={sortKey} dir={sortDir} onToggle={toggleSort} bold className="w-8 py-2" />
+            <SortableTh label="GWG" sortKey="gwg" currentKey={sortKey} dir={sortDir} onToggle={toggleSort} className="hidden sm:table-cell w-8 py-2" />
+            <SortableTh label="PPG" sortKey="ppg" currentKey={sortKey} dir={sortDir} onToggle={toggleSort} className="hidden sm:table-cell w-8 py-2" />
+            <SortableTh label="SHG" sortKey="shg" currentKey={sortKey} dir={sortDir} onToggle={toggleSort} className="hidden sm:table-cell w-8 py-2" />
+            <SortableTh label="ENG" sortKey="eng" currentKey={sortKey} dir={sortDir} onToggle={toggleSort} className="hidden sm:table-cell w-8 py-2" />
+            <SortableTh label="HAT" sortKey="hatTricks" currentKey={sortKey} dir={sortDir} onToggle={toggleSort} className="hidden sm:table-cell w-8 py-2" />
+            <SortableTh label="PIM" sortKey="pim" currentKey={sortKey} dir={sortDir} onToggle={toggleSort} className="w-8 py-2" />
           </tr>
         </thead>
         <tbody>
@@ -278,22 +254,5 @@ function GoalieBoxScoreTable({ goalies }: { goalies: GoalieBoxScore[] }) {
         </tbody>
       </table>
     </div>
-  )
-}
-
-function SortableTh({ label, sortKey, currentKey, dir, onToggle, bold, className }: {
-  label: string; sortKey: SkaterSortKey; currentKey: SkaterSortKey; dir: SortDir
-  onToggle: (k: SkaterSortKey) => void; bold?: boolean; className?: string
-}) {
-  return (
-    <th
-      className={cn("text-center font-medium py-2 w-8 cursor-pointer select-none", className)}
-      onClick={() => onToggle(sortKey)}
-    >
-      <div className="flex items-center justify-center gap-0.5">
-        <span className={cn(bold && "font-bold")}>{label}</span>
-        <SortIcon active={currentKey === sortKey} dir={dir} />
-      </div>
-    </th>
   )
 }
