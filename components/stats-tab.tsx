@@ -122,33 +122,49 @@ export function StatsTab({ initialData }: { initialData?: PlayerStatsData }) {
       </div>
 
       {/* Team filter */}
-      <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-4 px-4 sm:mx-0 sm:px-0">
-        <button
-          onClick={() => { setTeamFilter("all"); setSkaterPage(1); setGoaliePage(1) }}
-          className={cn(
-            "shrink-0 rounded-md px-2.5 py-1 text-[10px] font-medium transition-colors min-h-[44px] sm:min-h-0 flex items-center gap-1",
-            teamFilter === "all"
-              ? "bg-card text-foreground font-semibold"
-              : "text-muted-foreground/60 hover:text-muted-foreground hover:bg-card/40"
-          )}
-        >
-          All Teams
-        </button>
-        {teams.map((t) => (
+      {teams.length > 8 ? (
+        <div className="flex items-center gap-2">
+          <select
+            value={teamFilter}
+            onChange={(e) => { setTeamFilter(e.target.value); setSkaterPage(1); setGoaliePage(1) }}
+            className="rounded-md bg-card border border-border/40 px-2.5 py-1.5 text-[11px] font-medium text-foreground min-h-[44px] sm:min-h-0 appearance-none cursor-pointer pr-7 bg-[length:12px] bg-[right_8px_center] bg-no-repeat"
+            style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")` }}
+          >
+            <option value="all">All Teams</option>
+            {teams.map((t) => (
+              <option key={t.slug} value={t.slug}>{t.name}</option>
+            ))}
+          </select>
+        </div>
+      ) : (
+        <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-4 px-4 sm:mx-0 sm:px-0">
           <button
-            key={t.slug}
-            onClick={() => { setTeamFilter(t.slug); setSkaterPage(1); setGoaliePage(1) }}
+            onClick={() => { setTeamFilter("all"); setSkaterPage(1); setGoaliePage(1) }}
             className={cn(
               "shrink-0 rounded-md px-2.5 py-1 text-[10px] font-medium transition-colors min-h-[44px] sm:min-h-0 flex items-center gap-1",
-              teamFilter === t.slug
+              teamFilter === "all"
                 ? "bg-card text-foreground font-semibold"
                 : "text-muted-foreground/60 hover:text-muted-foreground hover:bg-card/40"
             )}
           >
-            {t.name}
+            All Teams
           </button>
-        ))}
-      </div>
+          {teams.map((t) => (
+            <button
+              key={t.slug}
+              onClick={() => { setTeamFilter(t.slug); setSkaterPage(1); setGoaliePage(1) }}
+              className={cn(
+                "shrink-0 rounded-md px-2.5 py-1 text-[10px] font-medium transition-colors min-h-[44px] sm:min-h-0 flex items-center gap-1",
+                teamFilter === t.slug
+                  ? "bg-card text-foreground font-semibold"
+                  : "text-muted-foreground/60 hover:text-muted-foreground hover:bg-card/40"
+              )}
+            >
+              {t.name}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Skaters Table */}
       {tab === "skaters" && (

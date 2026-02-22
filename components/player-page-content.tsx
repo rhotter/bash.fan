@@ -6,6 +6,10 @@ import Link from "next/link"
 import type { PlayerDetail } from "@/app/api/bash/player/[id]/route"
 
 export function PlayerPageContent({ player }: { player: PlayerDetail }) {
+  const hasSkaterData = player.perSeasonStats.length > 0 || player.allTimeStats
+  const hasGoalieData = player.perSeasonGoalieStats.length > 0 || player.allTimeGoalieStats
+  const isDualRole = hasSkaterData && hasGoalieData
+
   return (
     <div className="flex flex-col gap-8">
       <div>
@@ -16,9 +20,9 @@ export function PlayerPageContent({ player }: { player: PlayerDetail }) {
       </div>
 
       {/* Skater stats */}
-      {(player.perSeasonStats.length > 0 || player.allTimeStats) && (
+      {hasSkaterData && (
         <div>
-          <SectionHeader>Stats</SectionHeader>
+          <SectionHeader>{isDualRole ? "Skater Stats" : "Stats"}</SectionHeader>
           <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
             <table className="w-full text-[11px]">
               <thead>
@@ -77,9 +81,9 @@ export function PlayerPageContent({ player }: { player: PlayerDetail }) {
       )}
 
       {/* Goalie stats */}
-      {(player.perSeasonGoalieStats.length > 0 || player.allTimeGoalieStats) && (
+      {hasGoalieData && (
         <div>
-          <SectionHeader>Stats</SectionHeader>
+          <SectionHeader>{isDualRole ? "Goalie Stats" : "Stats"}</SectionHeader>
           <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
             <table className="w-full text-[11px]">
               <thead>
@@ -137,7 +141,7 @@ export function PlayerPageContent({ player }: { player: PlayerDetail }) {
       {/* Game-by-game skater */}
       {player.games.length > 0 && (
         <div>
-          <SectionHeader>Game Log</SectionHeader>
+          <SectionHeader>{isDualRole ? "Skater Game Log" : "Game Log"}</SectionHeader>
           <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
             <table className="w-full text-[11px]">
               <thead>
@@ -198,7 +202,7 @@ export function PlayerPageContent({ player }: { player: PlayerDetail }) {
       {/* Game-by-game goalie */}
       {player.goalieGames.length > 0 && (
         <div>
-          <SectionHeader>Game Log</SectionHeader>
+          <SectionHeader>{isDualRole ? "Goalie Game Log" : "Game Log"}</SectionHeader>
           <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
             <table className="w-full text-[11px]">
               <thead>

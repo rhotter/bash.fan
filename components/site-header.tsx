@@ -43,7 +43,7 @@ function SiteHeaderInner({ activeTab }: { activeTab?: string }) {
         </Link>
         <SeasonSelector />
         <nav className="ml-auto flex items-center gap-0 sm:gap-1">
-          {NAV_ITEMS.map((item) => {
+          {NAV_ITEMS.filter((item) => season !== "all" || item.label === "Stats").map((item) => {
             const isActive = activeTab === item.label.toLowerCase()
             return (
               <Link

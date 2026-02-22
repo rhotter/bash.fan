@@ -386,7 +386,7 @@ async function syncBoxscore(gameId: string, leagueId: string, seasonId: string) 
         await sql`
           INSERT INTO player_seasons (player_id, season_id, team_slug, is_goalie)
           VALUES (${playerId}, ${seasonId}, ${currentTeamSlug}, true)
-          ON CONFLICT (player_id, season_id) DO UPDATE SET is_goalie = true
+          ON CONFLICT (player_id, season_id) DO NOTHING
         `
 
         await sql`

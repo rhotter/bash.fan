@@ -15,7 +15,7 @@ const jetbrainsMono = JetBrains_Mono({
 
 export const metadata: Metadata = {
   title: 'BASH - Bay Area Street Hockey',
-  description: 'Scores, standings, stats, and referee info for the Bay Area Street Hockey league.',
+  description: 'Scores, standings, and stats for the Bay Area Street Hockey league.',
 }
 
 export const viewport: Viewport = {

@@ -86,9 +86,9 @@ export async function fetchPlayerStats(seasonParam?: string | null): Promise<Pla
         SELECT
           p.id, p.name,
           (SELECT t2.name FROM player_seasons ps2 JOIN teams t2 ON ps2.team_slug = t2.slug
-           WHERE ps2.player_id = p.id AND ps2.is_goalie = true ORDER BY ps2.season_id DESC LIMIT 1) as team,
+           WHERE ps2.player_id = p.id ORDER BY ps2.season_id DESC LIMIT 1) as team,
           (SELECT ps2.team_slug FROM player_seasons ps2
-           WHERE ps2.player_id = p.id AND ps2.is_goalie = true ORDER BY ps2.season_id DESC LIMIT 1) as team_slug,
+           WHERE ps2.player_id = p.id ORDER BY ps2.season_id DESC LIMIT 1) as team_slug,
           COUNT(DISTINCT ggs.game_id)::int as gp,
           SUM(ggs.minutes)::int as minutes,
           SUM(ggs.goals_against)::int as goals_against,
@@ -136,7 +136,6 @@ export async function fetchPlayerStats(seasonParam?: string | null): Promise<Pla
         JOIN teams t ON ps.team_slug = t.slug
         JOIN player_game_stats pgs ON p.id = pgs.player_id
         JOIN games g ON pgs.game_id = g.id AND g.season_id = ${seasonId}
-        WHERE ps.is_goalie = false
         GROUP BY p.id, p.name, t.name, ps.team_slug
         ORDER BY points DESC, goals DESC, p.name ASC
       `,
@@ -164,7 +163,6 @@ export async function fetchPlayerStats(seasonParam?: string | null): Promise<Pla
         JOIN teams t ON ps.team_slug = t.slug
         JOIN goalie_game_stats ggs ON p.id = ggs.player_id
         JOIN games g ON ggs.game_id = g.id AND g.season_id = ${seasonId}
-        WHERE ps.is_goalie = true
         GROUP BY p.id, p.name, t.name, ps.team_slug
         ORDER BY save_pct DESC
       `,

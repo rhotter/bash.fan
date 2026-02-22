@@ -26,7 +26,7 @@ export async function fetchGameDetail(id: string): Promise<BashGameDetail | null
       FROM player_game_stats pgs
       JOIN players p ON pgs.player_id = p.id
       JOIN player_seasons ps ON p.id = ps.player_id AND ps.season_id = '2025-2026'
-      WHERE pgs.game_id = ${gameId} AND ps.team_slug = ${teamSlug} AND ps.is_goalie = false
+      WHERE pgs.game_id = ${gameId} AND ps.team_slug = ${teamSlug}
       ORDER BY pgs.points DESC, pgs.goals DESC, p.name ASC
     `
     return rows.map((r) => ({
