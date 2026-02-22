@@ -35,7 +35,7 @@ export function RefsTab() {
 
   return (
     <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
-      <table className="w-full text-[11px]">
+      <table className="w-full text-[11px] table-fixed">
         <thead>
           <tr className="text-muted-foreground/50 text-[9px] uppercase tracking-wider">
             <th className="text-center font-medium py-2.5 w-8">#</th>

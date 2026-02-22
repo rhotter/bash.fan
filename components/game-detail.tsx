@@ -166,7 +166,7 @@ function SkaterBoxScore({ players }: { players: PlayerBoxScore[] }) {
 
   return (
     <div className="overflow-x-auto -mx-4 px-4 mb-3">
-      <table className="w-full text-[11px]">
+      <table className="w-full text-[11px] table-fixed">
         <thead>
           <tr className="text-muted-foreground/50 text-[9px] uppercase tracking-wider">
             <th className="text-left font-medium py-2 pr-2 min-w-[120px]">Player</th>
@@ -215,7 +215,7 @@ function SkaterBoxScore({ players }: { players: PlayerBoxScore[] }) {
 function GoalieBoxScoreTable({ goalies }: { goalies: GoalieBoxScore[] }) {
   return (
     <div className="overflow-x-auto -mx-4 px-4">
-      <table className="w-full text-[11px]">
+      <table className="w-full text-[11px] table-fixed">
         <thead>
           <tr className="text-muted-foreground/50 text-[9px] uppercase tracking-wider">
             <th className="text-left font-medium py-2 pr-2 min-w-[120px]">Goalie</th>

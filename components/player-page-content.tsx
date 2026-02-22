@@ -25,7 +25,7 @@ export function PlayerPageContent({ player }: { player: PlayerDetail }) {
         <div>
           <SectionHeader>{isDualRole ? "Skater Stats" : "Stats"}</SectionHeader>
           <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
-            <table className="w-full text-[11px]">
+            <table className="w-full text-[11px] table-fixed">
               <thead>
                 <tr className="text-muted-foreground/50 text-[9px] uppercase tracking-wider">
                   <th className="text-left font-medium py-2.5 whitespace-nowrap pr-3">Season</th>
@@ -88,7 +88,7 @@ export function PlayerPageContent({ player }: { player: PlayerDetail }) {
         <div>
           <SectionHeader>{isDualRole ? "Goalie Stats" : "Stats"}</SectionHeader>
           <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
-            <table className="w-full text-[11px]">
+            <table className="w-full text-[11px] table-fixed">
               <thead>
                 <tr className="text-muted-foreground/50 text-[9px] uppercase tracking-wider">
                   <th className="text-left font-medium py-2.5 whitespace-nowrap pr-3">Season</th>
@@ -148,7 +148,7 @@ export function PlayerPageContent({ player }: { player: PlayerDetail }) {
         <div>
           <SectionHeader>{isDualRole ? "Skater Game Log" : "Game Log"}</SectionHeader>
           <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
-            <table className="w-full text-[11px]">
+            <table className="w-full text-[11px] table-fixed">
               <thead>
                 <tr className="text-muted-foreground/50 text-[9px] uppercase tracking-wider">
                   <th className="text-left font-medium py-2.5 whitespace-nowrap pr-3">Date</th>
@@ -209,7 +209,7 @@ export function PlayerPageContent({ player }: { player: PlayerDetail }) {
         <div>
           <SectionHeader>{isDualRole ? "Goalie Game Log" : "Game Log"}</SectionHeader>
           <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
-            <table className="w-full text-[11px]">
+            <table className="w-full text-[11px] table-fixed">
               <thead>
                 <tr className="text-muted-foreground/50 text-[9px] uppercase tracking-wider">
                   <th className="text-left font-medium py-2.5 whitespace-nowrap pr-3">Date</th>
