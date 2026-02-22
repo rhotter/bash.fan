@@ -241,7 +241,7 @@ function GameRow({ game }: { game: BashGame }) {
       <td className={cn("py-2 text-center tabular-nums font-mono whitespace-nowrap", awayWon ? "font-bold" : "text-muted-foreground")} style={{ width: "1%" }}>
         {game.awayScore ?? "-"}
       </td>
-      <td className="py-2 text-center text-muted-foreground/30 text-[9px]" style={{ width: "1%" }}>-</td>
+      <td className="py-2 text-center text-muted-foreground/30 text-[9px]" style={{ width: "1%" }}>@</td>
       <td className={cn("py-2 text-center tabular-nums font-mono whitespace-nowrap", homeWon ? "font-bold" : "text-muted-foreground")} style={{ width: "1%" }}>
         {game.homeScore ?? "-"}
       </td>
