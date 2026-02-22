@@ -154,7 +154,7 @@ export function StatsTab({ initialData }: { initialData?: PlayerStatsData }) {
       {tab === "skaters" && (
         <>
           <div className="overflow-x-auto -mx-4 sm:mx-0">
-            <table className="w-full min-w-[700px] text-[11px]">
+            <table className="w-full min-w-[700px] text-[11px] table-fixed">
               <thead>
                 <tr className="text-muted-foreground/50 text-[9px] uppercase tracking-wider">
                   <th className="text-left font-medium py-2.5 sticky left-0 z-10 bg-background pl-4 sm:pl-2 w-[160px] max-w-[160px] after:absolute after:right-0 after:top-0 after:bottom-0 after:w-4 after:bg-gradient-to-r after:from-background/80 after:to-transparent after:pointer-events-none">Player</th>
@@ -221,7 +221,7 @@ export function StatsTab({ initialData }: { initialData?: PlayerStatsData }) {
       {tab === "goalies" && (
         <>
           <div className="overflow-x-auto -mx-4 sm:mx-0">
-            <table className="w-full min-w-[700px] text-[11px]">
+            <table className="w-full min-w-[700px] text-[11px] table-fixed">
               <thead>
                 <tr className="text-muted-foreground/50 text-[9px] uppercase tracking-wider">
                   <th className="text-left font-medium py-2.5 sticky left-0 z-10 bg-background pl-4 sm:pl-2 w-[160px] max-w-[160px] after:absolute after:right-0 after:top-0 after:bottom-0 after:w-4 after:bg-gradient-to-r after:from-background/80 after:to-transparent after:pointer-events-none">Goalie</th>
