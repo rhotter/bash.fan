@@ -39,8 +39,12 @@ export function useBashData(season?: string, fallbackData?: BashApiData) {
   }
 }
 
-export function usePlayerStats(season?: string, fallbackData?: PlayerStatsData) {
-  const url = season ? `/api/bash/players?season=${season}` : "/api/bash/players"
+export function usePlayerStats(season?: string, fallbackData?: PlayerStatsData, playoff?: boolean) {
+  const params = new URLSearchParams()
+  if (season) params.set("season", season)
+  if (playoff) params.set("playoff", "true")
+  const qs = params.toString()
+  const url = qs ? `/api/bash/players?${qs}` : "/api/bash/players"
 
   const { data, error, isLoading } = useSWR<PlayerStatsData>(url, fetcher, {
     refreshInterval: 120_000,
@@ -53,6 +57,7 @@ export function usePlayerStats(season?: string, fallbackData?: PlayerStatsData) 
     skaters: data?.skaters ?? [],
     goalies: data?.goalies ?? [],
     teams: data?.teams ?? [],
+    hasPlayoffs: data?.hasPlayoffs ?? false,
     lastUpdated: data?.lastUpdated ?? null,
     isLoading: fallbackData ? false : isLoading,
     isError: !!error,

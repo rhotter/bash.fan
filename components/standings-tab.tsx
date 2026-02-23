@@ -68,7 +68,7 @@ export function StandingsTab({
               >
                 <td className="py-2 sticky left-0 z-10 bg-background group-hover:bg-muted/50 transition-colors pl-4 sm:pl-0 whitespace-nowrap after:absolute after:right-0 after:top-0 after:bottom-0 after:w-4 after:bg-gradient-to-r after:from-background/80 after:to-transparent after:pointer-events-none group-hover:after:from-muted/50">
                   <div className="flex items-baseline gap-2 pr-4">
-                    <span className="text-muted-foreground/40 tabular-nums text-[10px] shrink-0">{i + 1}</span>
+                    <span className="text-muted-foreground/40 tabular-nums text-[10px] shrink-0 w-3 text-right">{i + 1}</span>
                     <Link href={`/team/${row.slug}`} className="text-xs font-semibold hover:text-primary transition-colors">
                       {row.team}
                     </Link>

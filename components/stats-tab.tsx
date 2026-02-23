@@ -19,7 +19,8 @@ const PER_PAGE = 25
 export function StatsTab({ initialData }: { initialData?: PlayerStatsData }) {
   const searchParams = useSearchParams()
   const season = searchParams.get("season") || undefined
-  const { skaters, goalies, teams, isLoading, isError } = usePlayerStats(season, initialData)
+  const [playoff, setPlayoff] = useState(false)
+  const { skaters, goalies, teams, hasPlayoffs, isLoading, isError } = usePlayerStats(season, !playoff ? initialData : undefined, playoff)
   const router = useRouter()
   const rawView = searchParams.get("view")
   const tab = rawView === "goalies" ? "goalies" : "skaters" as const
@@ -82,7 +83,7 @@ export function StatsTab({ initialData }: { initialData?: PlayerStatsData }) {
 
   return (
     <div className="flex flex-col gap-5">
-      {/* Skaters / Goalies toggle */}
+      {/* Skaters / Goalies toggle + Regular Season / Playoffs toggle */}
       <div className="flex items-center gap-1">
         <button
           onClick={() => setTab("skaters")}
@@ -102,6 +103,29 @@ export function StatsTab({ initialData }: { initialData?: PlayerStatsData }) {
         >
           Goalies
         </button>
+        {season !== "all" && (hasPlayoffs || playoff) && (
+          <>
+            <div className="w-px h-4 bg-border/40 mx-1" />
+            <button
+              onClick={() => { setPlayoff(false); setSkaterPage(1); setGoaliePage(1) }}
+              className={cn(
+                "rounded-md px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.1em] transition-colors min-h-[44px] sm:min-h-0",
+                !playoff ? "bg-card text-foreground" : "text-muted-foreground/60 hover:text-muted-foreground"
+              )}
+            >
+              Regular Season
+            </button>
+            <button
+              onClick={() => { setPlayoff(true); setSkaterPage(1); setGoaliePage(1) }}
+              className={cn(
+                "rounded-md px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.1em] transition-colors min-h-[44px] sm:min-h-0",
+                playoff ? "bg-card text-foreground" : "text-muted-foreground/60 hover:text-muted-foreground"
+              )}
+            >
+              Playoffs
+            </button>
+          </>
+        )}
         <div className="h-px flex-1 bg-border/40 ml-2" />
       </div>
 
@@ -183,7 +207,7 @@ export function StatsTab({ initialData }: { initialData?: PlayerStatsData }) {
                   >
                     <td className="py-2 sticky left-0 z-10 bg-background group-hover:bg-muted/50 transition-colors pl-4 sm:pl-2 w-[160px] max-w-[160px] after:absolute after:right-0 after:top-0 after:bottom-0 after:w-4 after:bg-gradient-to-r after:from-background/80 after:to-transparent after:pointer-events-none group-hover:after:from-muted/50">
                       <div className="flex items-baseline gap-2 pr-4">
-                        <span className="text-muted-foreground/40 tabular-nums text-[10px] shrink-0">{(skaterPage - 1) * PER_PAGE + i + 1}</span>
+                        <span className="text-muted-foreground/40 tabular-nums text-[10px] shrink-0 w-3 text-right">{(skaterPage - 1) * PER_PAGE + i + 1}</span>
                         <Link href={`/player/${playerSlug(p.name)}`} className="text-xs font-semibold leading-tight text-foreground hover:text-primary transition-colors truncate">{p.name}</Link>
                       </div>
                     </td>
@@ -249,7 +273,7 @@ export function StatsTab({ initialData }: { initialData?: PlayerStatsData }) {
                   >
                     <td className="py-2 sticky left-0 z-10 bg-background group-hover:bg-muted/50 transition-colors pl-4 sm:pl-2 w-[160px] max-w-[160px] after:absolute after:right-0 after:top-0 after:bottom-0 after:w-4 after:bg-gradient-to-r after:from-background/80 after:to-transparent after:pointer-events-none group-hover:after:from-muted/50">
                       <div className="flex items-baseline gap-2 pr-4">
-                        <span className="text-muted-foreground/40 tabular-nums text-[10px] shrink-0">{(goaliePage - 1) * PER_PAGE + i + 1}</span>
+                        <span className="text-muted-foreground/40 tabular-nums text-[10px] shrink-0 w-3 text-right">{(goaliePage - 1) * PER_PAGE + i + 1}</span>
                         <Link href={`/player/${playerSlug(p.name)}`} className="text-xs font-semibold leading-tight text-foreground hover:text-primary transition-colors truncate">{p.name}</Link>
                       </div>
                     </td>

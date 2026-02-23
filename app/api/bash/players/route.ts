@@ -7,7 +7,8 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url)
     const seasonParam = searchParams.get("season")
-    const result = await fetchPlayerStats(seasonParam)
+    const playoff = searchParams.get("playoff") === "true"
+    const result = await fetchPlayerStats(seasonParam, playoff)
 
     return NextResponse.json(result, {
       headers: { "Cache-Control": "public, s-maxage=60, stale-while-revalidate=120" },

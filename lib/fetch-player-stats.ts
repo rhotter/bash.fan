@@ -45,15 +45,26 @@ export interface PlayerStatsData {
   goalies: GoalieStat[]
   teams: { slug: string; name: string }[]
   lastUpdated: string
+  hasPlayoffs?: boolean
 }
 
-export async function fetchPlayerStats(seasonParam?: string | null): Promise<PlayerStatsData> {
+export async function fetchPlayerStats(seasonParam?: string | null, playoff?: boolean): Promise<PlayerStatsData> {
   const isAllTime = seasonParam === "all"
   const seasonId = !isAllTime ? (seasonParam || getCurrentSeason().id) : null
+  const isPlayoff = playoff === true
 
   let skaterRows
   let goalieRows
   let teamRows
+  let hasPlayoffs = false
+
+  // Check if the selected season has playoff games (only for season-specific, non-playoff views)
+  if (!isAllTime && !isPlayoff && seasonId) {
+    const playoffCheck = await sql`
+      SELECT EXISTS(SELECT 1 FROM games WHERE season_id = ${seasonId} AND is_playoff AND status = 'final') as has_playoffs
+    `
+    hasPlayoffs = playoffCheck[0]?.has_playoffs ?? false
+  }
 
   if (isAllTime) {
     ;[skaterRows, goalieRows, teamRows] = await Promise.all([
@@ -114,7 +125,7 @@ export async function fetchPlayerStats(seasonParam?: string | null): Promise<Pla
       sql`SELECT DISTINCT t.slug, t.name FROM teams t ORDER BY t.name`,
     ])
   } else {
-    // Season-specific: join through games to properly scope stats (bug fix)
+    // Season-specific: join through games to properly scope stats
     ;[skaterRows, goalieRows, teamRows] = await Promise.all([
       sql`
         SELECT
@@ -135,7 +146,7 @@ export async function fetchPlayerStats(seasonParam?: string | null): Promise<Pla
         JOIN player_seasons ps ON p.id = ps.player_id AND ps.season_id = ${seasonId}
         JOIN teams t ON ps.team_slug = t.slug
         JOIN player_game_stats pgs ON p.id = pgs.player_id
-        JOIN games g ON pgs.game_id = g.id AND g.season_id = ${seasonId}
+        JOIN games g ON pgs.game_id = g.id AND g.season_id = ${seasonId} AND ${isPlayoff ? sql`g.is_playoff` : sql`NOT g.is_playoff`}
         GROUP BY p.id, p.name, t.name, ps.team_slug
         ORDER BY points DESC, goals DESC, p.name ASC
       `,
@@ -162,7 +173,7 @@ export async function fetchPlayerStats(seasonParam?: string | null): Promise<Pla
         JOIN player_seasons ps ON p.id = ps.player_id AND ps.season_id = ${seasonId}
         JOIN teams t ON ps.team_slug = t.slug
         JOIN goalie_game_stats ggs ON p.id = ggs.player_id
-        JOIN games g ON ggs.game_id = g.id AND g.season_id = ${seasonId}
+        JOIN games g ON ggs.game_id = g.id AND g.season_id = ${seasonId} AND ${isPlayoff ? sql`g.is_playoff` : sql`NOT g.is_playoff`}
         GROUP BY p.id, p.name, t.name, ps.team_slug
         ORDER BY save_pct DESC
       `,
@@ -217,5 +228,5 @@ export async function fetchPlayerStats(seasonParam?: string | null): Promise<Pla
 
   const teams = teamRows.map((r) => ({ slug: r.slug, name: r.name }))
 
-  return { skaters, goalies, teams, lastUpdated: new Date().toISOString() }
+  return { skaters, goalies, teams, lastUpdated: new Date().toISOString(), hasPlayoffs }
 }

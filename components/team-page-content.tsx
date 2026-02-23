@@ -54,10 +54,10 @@ export function TeamPageContent({ team }: { team: TeamDetail }) {
       {sortedSkaters.length > 0 && (
         <div>
           <div className="overflow-x-auto -mx-4 sm:mx-0 sm:px-0">
-            <table className="text-[11px] table-fixed">
+            <table className="w-full min-w-[520px] text-[11px] table-fixed">
               <thead>
                 <tr className="text-muted-foreground/50 text-[9px] uppercase tracking-wider">
-                  <th className="text-left font-medium py-2.5 w-[130px] pl-4 sm:pl-0">Player</th>
+                  <th className="text-left font-medium py-2.5 w-[22%] pl-4 sm:pl-0">Player</th>
                   <SortableTh label="GP" sortKey="gp" currentKey={skaterSort} dir={skaterDir} onToggle={toggleSkaterSort} />
                   <SortableTh label="G" sortKey="goals" currentKey={skaterSort} dir={skaterDir} onToggle={toggleSkaterSort} />
                   <SortableTh label="A" sortKey="assists" currentKey={skaterSort} dir={skaterDir} onToggle={toggleSkaterSort} />
@@ -76,7 +76,7 @@ export function TeamPageContent({ team }: { team: TeamDetail }) {
                   <tr key={p.id} className={cn("border-t border-border/20 hover:bg-muted/50", i % 2 === 0 && "bg-card/15")}>
                     <td className="py-2 pr-2 pl-4 sm:pl-0">
                       <div className="flex items-baseline gap-2">
-                        <span className="text-muted-foreground/40 tabular-nums text-[10px] shrink-0">{i + 1}</span>
+                        <span className="text-muted-foreground/40 tabular-nums text-[10px] shrink-0 w-3 text-right">{i + 1}</span>
                         <Link href={`/player/${playerSlug(p.name)}`} className="text-xs font-semibold hover:text-primary transition-colors">{p.name}</Link>
                       </div>
                     </td>
@@ -103,10 +103,10 @@ export function TeamPageContent({ team }: { team: TeamDetail }) {
       {sortedGoalies.length > 0 && (
         <div>
           <div className="overflow-x-auto -mx-4 sm:mx-0 sm:px-0">
-            <table className="text-[11px] table-fixed">
+            <table className="w-full min-w-[520px] text-[11px] table-fixed">
               <thead>
                 <tr className="text-muted-foreground/50 text-[9px] uppercase tracking-wider">
-                  <th className="text-left font-medium py-2.5 w-[130px] pl-4 sm:pl-0">Goalie</th>
+                  <th className="text-left font-medium py-2.5 w-[22%] pl-4 sm:pl-0">Goalie</th>
                   <SortableTh label="GP" sortKey="gp" currentKey={goalieSort} dir={goalieDir} onToggle={toggleGoalieSort} />
                   <SortableTh label="W" sortKey="wins" currentKey={goalieSort} dir={goalieDir} onToggle={toggleGoalieSort} />
                   <SortableTh label="L" sortKey="losses" currentKey={goalieSort} dir={goalieDir} onToggle={toggleGoalieSort} />
@@ -124,7 +124,7 @@ export function TeamPageContent({ team }: { team: TeamDetail }) {
                   <tr key={g.id} className={cn("border-t border-border/20 hover:bg-muted/50", i % 2 === 0 && "bg-card/15")}>
                     <td className="py-2 pr-2 pl-4 sm:pl-0">
                       <div className="flex items-baseline gap-2">
-                        <span className="text-muted-foreground/40 tabular-nums text-[10px] shrink-0">{i + 1}</span>
+                        <span className="text-muted-foreground/40 tabular-nums text-[10px] shrink-0 w-3 text-right">{i + 1}</span>
                         <Link href={`/player/${playerSlug(g.name)}`} className="text-xs font-semibold hover:text-primary transition-colors">{g.name}</Link>
                       </div>
                     </td>
