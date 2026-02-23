@@ -125,7 +125,7 @@ function SkaterStatsTable({ title, perSeasonStats, allTimeStats }: {
     <div>
       <SectionHeader>{title}</SectionHeader>
       <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
-        <table className="w-full text-[11px] table-fixed">
+        <table className="w-full text-[11px] table-fixed min-w-[650px]">
           <thead>
             <tr className="text-muted-foreground/50 text-[9px] uppercase tracking-wider">
               <th className="text-left font-medium py-2.5 w-[16%] whitespace-nowrap pr-3">Season</th>
@@ -149,8 +149,8 @@ function SkaterStatsTable({ title, perSeasonStats, allTimeStats }: {
                 <td className="text-left py-2 text-[10px] font-medium text-muted-foreground whitespace-nowrap pr-3">
                   <Link href={`/standings?season=${s.seasonId}`} className="hover:text-primary transition-colors">{s.seasonName}</Link>
                 </td>
-                <td className="text-left py-2 text-[10px] font-medium text-muted-foreground whitespace-nowrap pr-3">
-                  <Link href={`/team/${s.teamSlug}`} className="hover:text-primary transition-colors">{s.teamName}</Link>
+                <td className="text-left py-2 text-[10px] font-medium text-muted-foreground truncate pr-3">
+                  <Link href={`/team/${s.teamSlug}?season=${s.seasonId}`} className="hover:text-primary transition-colors">{s.teamName}</Link>
                 </td>
                 <td className="text-center tabular-nums py-2 px-3 whitespace-nowrap">{s.stats.gp}</td>
                 <td className="text-center tabular-nums py-2 px-3 font-medium">{s.stats.goals}</td>
@@ -198,7 +198,7 @@ function GoalieStatsTable({ title, perSeasonStats, allTimeStats }: {
     <div>
       <SectionHeader>{title}</SectionHeader>
       <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
-        <table className="w-full text-[11px] table-fixed">
+        <table className="w-full text-[11px] table-fixed min-w-[600px]">
           <thead>
             <tr className="text-muted-foreground/50 text-[9px] uppercase tracking-wider">
               <th className="text-left font-medium py-2.5 w-[16%] whitespace-nowrap pr-3">Season</th>
@@ -221,8 +221,8 @@ function GoalieStatsTable({ title, perSeasonStats, allTimeStats }: {
                 <td className="text-left py-2 text-[10px] font-medium text-muted-foreground whitespace-nowrap pr-3">
                   <Link href={`/standings?season=${s.seasonId}`} className="hover:text-primary transition-colors">{s.seasonName}</Link>
                 </td>
-                <td className="text-left py-2 text-[10px] font-medium text-muted-foreground whitespace-nowrap pr-3">
-                  <Link href={`/team/${s.teamSlug}`} className="hover:text-primary transition-colors">{s.teamName}</Link>
+                <td className="text-left py-2 text-[10px] font-medium text-muted-foreground truncate pr-3">
+                  <Link href={`/team/${s.teamSlug}?season=${s.seasonId}`} className="hover:text-primary transition-colors">{s.teamName}</Link>
                 </td>
                 <td className="text-center tabular-nums py-2 px-3 whitespace-nowrap">{s.stats.gp}</td>
                 <td className="text-center tabular-nums py-2 px-3 font-medium">{s.stats.wins}</td>
@@ -264,7 +264,7 @@ function SkaterGameLogTable({ title, games }: { title: string; games: SkaterGame
     <div>
       <SectionHeader>{title}</SectionHeader>
       <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
-        <table className="w-full text-[11px] table-fixed">
+        <table className="w-full text-[11px] table-fixed min-w-[620px]">
           <thead>
             <tr className="text-muted-foreground/50 text-[9px] uppercase tracking-wider">
               <th className="text-left font-medium py-2.5 w-[12%] whitespace-nowrap pr-3">Date</th>
@@ -289,7 +289,7 @@ function SkaterGameLogTable({ title, games }: { title: string; games: SkaterGame
                     {formatGameDate(g.date)}
                   </Link>
                 </td>
-                <td className="py-2 text-xs font-medium whitespace-nowrap pr-3">
+                <td className="py-2 text-xs font-medium truncate pr-3">
                   <span className="text-muted-foreground/40 mr-1">{g.isHome ? "vs" : "@"}</span>
                   <Link href={`/team/${g.opponentSlug}`} className="hover:text-primary transition-colors">
                     {g.opponent}
@@ -326,7 +326,7 @@ function GoalieGameLogTable({ title, games }: { title: string; games: GoalieGame
     <div>
       <SectionHeader>{title}</SectionHeader>
       <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
-        <table className="w-full text-[11px] table-fixed">
+        <table className="w-full text-[11px] table-fixed min-w-[550px]">
           <thead>
             <tr className="text-muted-foreground/50 text-[9px] uppercase tracking-wider">
               <th className="text-left font-medium py-2.5 w-[12%] whitespace-nowrap pr-3">Date</th>
@@ -349,7 +349,7 @@ function GoalieGameLogTable({ title, games }: { title: string; games: GoalieGame
                     {formatGameDate(g.date)}
                   </Link>
                 </td>
-                <td className="py-2 text-xs font-medium whitespace-nowrap pr-3">
+                <td className="py-2 text-xs font-medium truncate pr-3">
                   <span className="text-muted-foreground/40 mr-1">{g.isHome ? "vs" : "@"}</span>
                   <Link href={`/team/${g.opponentSlug}`} className="hover:text-primary transition-colors">
                     {g.opponent}
