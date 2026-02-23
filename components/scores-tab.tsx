@@ -17,10 +17,6 @@ function getWeekKey(dateStr: string) {
   return monday.toISOString().slice(0, 10)
 }
 
-function getCurrentWeekKey() {
-  return getWeekKey(new Date().toISOString().slice(0, 10))
-}
-
 type DateGroup = { date: string; games: BashGame[] }
 
 export function ScoresTab({ games, isLoading }: { games: BashGame[]; isLoading: boolean }) {
@@ -37,21 +33,11 @@ export function ScoresTab({ games, isLoading }: { games: BashGame[]; isLoading: 
       return acc
     }, {})
 
+    // Dates up to and including today go under "Latest"
+    // Dates after today go under "Upcoming"
     const today = new Date().toISOString().slice(0, 10)
-    const currentWeek = getCurrentWeekKey()
-
-    // Dates in the current week or earlier are "recent" territory (even if not yet final)
-    // Only dates AFTER the current week are "upcoming"
-    const completedDates = dates.filter(d => {
-      const wk = getWeekKey(d)
-      if (wk <= currentWeek) return true
-      return grouped[d].every(g => g.status === "final")
-    })
-    const upcomingDates = dates.filter(d => {
-      const wk = getWeekKey(d)
-      if (wk <= currentWeek) return false
-      return grouped[d].some(g => g.status === "upcoming")
-    })
+    const completedDates = dates.filter(d => d <= today)
+    const upcomingDates = dates.filter(d => d > today)
 
     // For completed: find the most recent week with games
     const completedWeeks = [...new Set(completedDates.map(getWeekKey))].sort().reverse()
