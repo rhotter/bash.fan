@@ -6,7 +6,8 @@ import Link from "next/link"
 import type { PlayerDetail, SkaterStats, GoalieStats, SeasonSkaterStats, SeasonGoalieStats, SkaterGameLog, GoalieGameLog } from "@/app/api/bash/player/[slug]/route"
 import { SectionHeader, statsRowClass } from "@/components/stats-table"
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip"
-import { Trophy } from "lucide-react"
+import { Trophy, Star, Award } from "lucide-react"
+import { getAwardLabel } from "@/lib/awards"
 
 export function PlayerPageContent({ player }: { player: PlayerDetail }) {
   const hasSkaterData = player.perSeasonStats.length > 0 || player.allTimeStats
@@ -20,8 +21,27 @@ export function PlayerPageContent({ player }: { player: PlayerDetail }) {
   return (
     <div className="flex flex-col gap-8">
       <div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <h1 className="text-2xl font-black tracking-tight">{player.name}</h1>
+          {player.hallOfFame && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-b from-purple-100 to-purple-200/80 pl-1.5 pr-2.5 py-0.5 cursor-default ring-1 ring-purple-300/50 shadow-sm hover:shadow-md hover:ring-purple-400/60 transition-all duration-200">
+                  <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-gradient-to-br from-purple-400 to-purple-600 shadow-inner">
+                    <Star className="h-3 w-3 text-white drop-shadow-sm" strokeWidth={2.5} />
+                  </span>
+                  <span className="text-[11px] font-bold tracking-tight text-purple-900/80">HOF</span>
+                </span>
+              </TooltipTrigger>
+              <TooltipContent sideOffset={4}>
+                <div className="flex flex-col gap-0.5">
+                  <span className="font-semibold whitespace-nowrap">Class of {player.hallOfFame.classYear} ({player.hallOfFame.wing === "builders" ? "Builders" : "Players"} Wing)</span>
+                  {player.hallOfFame.yearsActive && <span className="text-muted-foreground whitespace-nowrap">{player.hallOfFame.yearsActive}</span>}
+                  {player.hallOfFame.achievements && <span className="whitespace-nowrap">{player.hallOfFame.achievements}</span>}
+                </div>
+              </TooltipContent>
+            </Tooltip>
+          )}
           {player.championships.length > 0 && (
             <Tooltip>
               <TooltipTrigger asChild>
@@ -36,6 +56,27 @@ export function PlayerPageContent({ player }: { player: PlayerDetail }) {
                 <div className="flex flex-col gap-0.5">
                   {player.championships.map((c) => (
                     <span key={c.seasonId} className="whitespace-nowrap">{c.seasonName}</span>
+                  ))}
+                </div>
+              </TooltipContent>
+            </Tooltip>
+          )}
+          {player.awards.length > 0 && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-b from-sky-100 to-sky-200/80 pl-1.5 pr-2.5 py-0.5 cursor-default ring-1 ring-sky-300/50 shadow-sm hover:shadow-md hover:ring-sky-400/60 transition-all duration-200">
+                  <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-gradient-to-br from-sky-400 to-sky-600 shadow-inner">
+                    <Award className="h-3 w-3 text-white drop-shadow-sm" strokeWidth={2.5} />
+                  </span>
+                  <span className="text-[11px] font-bold tracking-tight text-sky-900/80">x {player.awards.length}</span>
+                </span>
+              </TooltipTrigger>
+              <TooltipContent sideOffset={4}>
+                <div className="flex flex-col gap-0.5 max-h-64 overflow-y-auto">
+                  {player.awards.map((a) => (
+                    <span key={`${a.awardType}-${a.seasonId}`} className="whitespace-nowrap">
+                      {a.seasonName} — {getAwardLabel(a.awardType)}
+                    </span>
                   ))}
                 </div>
               </TooltipContent>

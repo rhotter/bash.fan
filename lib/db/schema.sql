@@ -96,6 +96,28 @@ CREATE TABLE IF NOT EXISTS sync_metadata (
   value TEXT NOT NULL
 );
 
+-- Player awards (historical + auto-computed)
+CREATE TABLE IF NOT EXISTS player_awards (
+  id SERIAL PRIMARY KEY,
+  player_name TEXT NOT NULL,
+  player_id INTEGER REFERENCES players(id),
+  season_id TEXT NOT NULL,
+  award_type TEXT NOT NULL,
+  UNIQUE (player_name, season_id, award_type)
+);
+
+-- Hall of Fame inductees
+CREATE TABLE IF NOT EXISTS hall_of_fame (
+  id SERIAL PRIMARY KEY,
+  player_name TEXT NOT NULL,
+  player_id INTEGER REFERENCES players(id),
+  class_year INTEGER NOT NULL,
+  wing TEXT NOT NULL DEFAULT 'players',
+  years_active TEXT,
+  achievements TEXT,
+  UNIQUE (player_name, class_year)
+);
+
 -- Indexes
 CREATE INDEX IF NOT EXISTS idx_games_season ON games(season_id);
 CREATE INDEX IF NOT EXISTS idx_games_status ON games(status);
@@ -106,3 +128,6 @@ CREATE INDEX IF NOT EXISTS idx_goalie_game_stats_game ON goalie_game_stats(game_
 CREATE INDEX IF NOT EXISTS idx_goalie_game_stats_player ON goalie_game_stats(player_id);
 CREATE INDEX IF NOT EXISTS idx_player_seasons_player ON player_seasons(player_id);
 CREATE INDEX IF NOT EXISTS idx_game_officials_game ON game_officials(game_id);
+CREATE INDEX IF NOT EXISTS idx_player_awards_player ON player_awards(player_id);
+CREATE INDEX IF NOT EXISTS idx_player_awards_season ON player_awards(season_id);
+CREATE INDEX IF NOT EXISTS idx_hall_of_fame_player ON hall_of_fame(player_id);

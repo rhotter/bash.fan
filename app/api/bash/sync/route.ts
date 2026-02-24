@@ -143,7 +143,7 @@ async function syncFullSchedule(leagueId: string, seasonId: string) {
     const isOT = /Overtime|ShootOut/i.test(gameCellHtml)
 
     // Parse "Away Score at Home Score"
-    const cleanText = gameText.replace(/^\(Pla\)\s*/i, "").replace(/\(Overtime\)|\(ShootOut\)|\(If Necessary\)/gi, "").trim()
+    const cleanText = gameText.replace(/^\(Pla\)\s*/i, "").replace(/\(Overtime\)|\(ShootOut\)|\(Shutout\)|\(If Necessary\)/gi, "").trim()
 
     const scoreMatch = cleanText.match(/^(.+?)\s+(\d+)\s+at\s+(.+?)\s+(\d+)$/)
     const upcomingMatch = !scoreMatch ? cleanText.match(/^(.+?)\s+at\s+(.+?)$/) : null

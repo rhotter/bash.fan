@@ -57,6 +57,8 @@ export async function fetchPlayerDetail(slug: string): Promise<PlayerDetail | nu
   let playoffAllTimeGoalieStats: PlayerDetail["playoffAllTimeGoalieStats"] = null
   let playoffGoalieGames: PlayerDetail["playoffGoalieGames"] = []
   let championships: PlayerDetail["championships"] = []
+  let awards: PlayerDetail["awards"] = []
+  let hallOfFame: PlayerDetail["hallOfFame"] = null
 
   function buildSkaterStats(s: Record<string, number>): SkaterStats {
     return {
@@ -86,6 +88,8 @@ export async function fetchPlayerDetail(slug: string): Promise<PlayerDetail | nu
     poSkaterAllTimeRows, poSkaterPerSeasonRows, poSkaterGameRows,
     poGoalieAllTimeRows, poGoaliePerSeasonRows, poGoalieGameRows,
     championshipRows,
+    awardRows,
+    hofRows,
   ] = await Promise.all([
     // Skater season stats (regular season)
     sql`
@@ -304,6 +308,18 @@ export async function fetchPlayerDetail(slug: string): Promise<PlayerDetail | nu
           ORDER BY g2.date DESC, g2.id DESC LIMIT 1
         )
     `,
+    // Player awards
+    sql`
+      SELECT award_type, season_id FROM player_awards
+      WHERE player_id = ${player.id}
+      ORDER BY season_id DESC
+    `,
+    // Hall of Fame
+    sql`
+      SELECT class_year, wing, years_active, achievements FROM hall_of_fame
+      WHERE player_id = ${player.id}
+      LIMIT 1
+    `,
   ])
 
   // Populate skater stats if data exists
@@ -444,6 +460,23 @@ export async function fetchPlayerDetail(slug: string): Promise<PlayerDetail | nu
     seasonName: getSeasonById(r.season_id)?.name ?? r.season_id,
   }))
 
+  // Populate awards
+  awards = awardRows.map((r) => ({
+    awardType: r.award_type,
+    seasonId: r.season_id,
+    seasonName: getSeasonById(r.season_id)?.name ?? r.season_id,
+  }))
+
+  // Populate hall of fame
+  if (hofRows.length > 0) {
+    hallOfFame = {
+      classYear: hofRows[0].class_year,
+      wing: hofRows[0].wing,
+      yearsActive: hofRows[0].years_active,
+      achievements: hofRows[0].achievements,
+    }
+  }
+
   return {
     id: player.id, name: player.name,
     team: player.team_name, teamSlug: player.team_slug,
@@ -454,5 +487,7 @@ export async function fetchPlayerDetail(slug: string): Promise<PlayerDetail | nu
     playoffPerSeasonStats, playoffAllTimeStats, playoffGames,
     playoffPerSeasonGoalieStats, playoffAllTimeGoalieStats, playoffGoalieGames,
     championships,
+    awards,
+    hallOfFame,
   }
 }

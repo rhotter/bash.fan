@@ -79,6 +79,19 @@ export type Championship = {
   seasonName: string
 }
 
+export type PlayerAward = {
+  awardType: string
+  seasonId: string
+  seasonName: string
+}
+
+export type HallOfFameEntry = {
+  classYear: number
+  wing: string
+  yearsActive: string | null
+  achievements: string | null
+}
+
 export interface PlayerDetail {
   id: number
   name: string
@@ -100,6 +113,8 @@ export interface PlayerDetail {
   playoffAllTimeGoalieStats: GoalieStats | null
   playoffGoalieGames: GoalieGameLog[]
   championships: Championship[]
+  awards: PlayerAward[]
+  hallOfFame: HallOfFameEntry | null
 }
 
 export async function GET(
@@ -178,6 +193,8 @@ export async function GET(
     let playoffAllTimeGoalieStats: PlayerDetail["playoffAllTimeGoalieStats"] = null
     let playoffGoalieGames: PlayerDetail["playoffGoalieGames"] = []
     let championships: PlayerDetail["championships"] = []
+    let awards: PlayerDetail["awards"] = []
+    let hallOfFame: PlayerDetail["hallOfFame"] = null
 
     // For game log, always use the specific season (current season by default)
     const gameLogSeasonId = seasonParam && !isAllTime ? seasonParam : getCurrentSeason().id
@@ -210,6 +227,8 @@ export async function GET(
       poSkaterAllTimeRows, poSkaterPerSeasonRows, poSkaterGameRows,
       poGoalieAllTimeRows, poGoaliePerSeasonRows, poGoalieGameRows,
       championshipRows,
+      awardRows,
+      hofRows,
     ] = await Promise.all([
       // Skater season stats (regular season)
       sql`
@@ -428,6 +447,18 @@ export async function GET(
             ORDER BY g2.date DESC, g2.id DESC LIMIT 1
           )
       `,
+      // Player awards
+      sql`
+        SELECT award_type, season_id FROM player_awards
+        WHERE player_id = ${player.id}
+        ORDER BY season_id DESC
+      `,
+      // Hall of Fame
+      sql`
+        SELECT class_year, wing, years_active, achievements FROM hall_of_fame
+        WHERE player_id = ${player.id}
+        LIMIT 1
+      `,
     ])
 
     // Populate skater stats if data exists
@@ -568,6 +599,23 @@ export async function GET(
       seasonName: getSeasonById(r.season_id)?.name ?? r.season_id,
     }))
 
+    // Populate awards
+    awards = awardRows.map((r) => ({
+      awardType: r.award_type,
+      seasonId: r.season_id,
+      seasonName: getSeasonById(r.season_id)?.name ?? r.season_id,
+    }))
+
+    // Populate hall of fame
+    if (hofRows.length > 0) {
+      hallOfFame = {
+        classYear: hofRows[0].class_year,
+        wing: hofRows[0].wing,
+        yearsActive: hofRows[0].years_active,
+        achievements: hofRows[0].achievements,
+      }
+    }
+
     const result: PlayerDetail = {
       id: player.id, name: player.name,
       team: player.team_name, teamSlug: player.team_slug,
@@ -578,6 +626,8 @@ export async function GET(
       playoffPerSeasonStats, playoffAllTimeStats, playoffGames,
       playoffPerSeasonGoalieStats, playoffAllTimeGoalieStats, playoffGoalieGames,
       championships,
+      awards,
+      hallOfFame,
     }
 
     return NextResponse.json(result, {
