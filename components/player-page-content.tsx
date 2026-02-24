@@ -1,6 +1,6 @@
 "use client"
 
-import { formatGameDate } from "@/lib/format-time"
+import { formatGameDate, formatGameDateShort } from "@/lib/format-time"
 import { cn } from "@/lib/utils"
 import Link from "next/link"
 import type { PlayerDetail, SkaterStats, GoalieStats, SeasonSkaterStats, SeasonGoalieStats, SkaterGameLog, GoalieGameLog } from "@/app/api/bash/player/[slug]/route"
@@ -21,79 +21,81 @@ export function PlayerPageContent({ player }: { player: PlayerDetail }) {
   return (
     <div className="flex flex-col gap-8">
       <div>
-        <div className="flex items-center gap-2 flex-wrap">
-          <h1 className="text-2xl font-black tracking-tight">{player.name}</h1>
-          {player.hallOfFame && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-b from-purple-100 to-purple-200/80 pl-1.5 pr-2.5 py-0.5 cursor-default ring-1 ring-purple-300/50 shadow-sm hover:shadow-md hover:ring-purple-400/60 transition-all duration-200">
-                  <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-gradient-to-br from-purple-400 to-purple-600 shadow-inner">
-                    <Star className="h-3 w-3 text-white drop-shadow-sm" strokeWidth={2.5} />
-                  </span>
-                  <span className="text-[11px] font-bold tracking-tight text-purple-900/80">HOF</span>
-                </span>
-              </TooltipTrigger>
-              <TooltipContent sideOffset={4}>
-                <div className="flex flex-col gap-0.5">
-                  <span className="font-semibold whitespace-nowrap">Class of {player.hallOfFame.classYear} ({player.hallOfFame.wing === "builders" ? "Builders" : "Players"} Wing)</span>
-                  {player.hallOfFame.yearsActive && <span className="text-muted-foreground whitespace-nowrap">{player.hallOfFame.yearsActive}</span>}
-                  {player.hallOfFame.achievements && <span className="whitespace-nowrap">{player.hallOfFame.achievements}</span>}
-                </div>
-              </TooltipContent>
-            </Tooltip>
-          )}
-          {player.championships.length > 0 && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-b from-amber-100 to-amber-200/80 pl-1.5 pr-2.5 py-0.5 cursor-default ring-1 ring-amber-300/50 shadow-sm hover:shadow-md hover:ring-amber-400/60 transition-all duration-200">
-                  <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-gradient-to-br from-amber-400 to-amber-600 shadow-inner">
-                    <Trophy className="h-3 w-3 text-white drop-shadow-sm" strokeWidth={2.5} />
-                  </span>
-                  <span className="text-[11px] font-bold tracking-tight text-amber-900/80">BASH Champion{player.championships.length > 1 ? ` x ${player.championships.length}` : ""}</span>
-                </span>
-              </TooltipTrigger>
-              <TooltipContent sideOffset={4}>
-                <div className="flex flex-col gap-0.5">
-                  {player.championships.map((c) => (
-                    <span key={c.seasonId} className="whitespace-nowrap">{c.seasonName}</span>
-                  ))}
-                </div>
-              </TooltipContent>
-            </Tooltip>
-          )}
-          {player.awards.length > 0 && (() => {
-            const grouped = player.awards.reduce<Record<string, { count: number; seasons: string[] }>>((acc, a) => {
-              if (!acc[a.awardType]) acc[a.awardType] = { count: 0, seasons: [] }
-              acc[a.awardType].count++
-              acc[a.awardType].seasons.push(a.seasonName)
-              return acc
-            }, {})
-            return Object.entries(grouped).map(([awardType, { count, seasons }]) => (
-              <Tooltip key={awardType}>
+        <h1 className="text-2xl font-black tracking-tight">{player.name}</h1>
+        <Link href={`/team/${player.teamSlug}`} className="text-sm text-muted-foreground hover:text-primary transition-colors">
+          {player.team}
+        </Link>
+        {(player.hallOfFame || player.championships.length > 0 || player.awards.length > 0) && (
+          <div className="flex items-center gap-2 flex-wrap mt-2">
+            {player.hallOfFame && (
+              <Tooltip>
                 <TooltipTrigger asChild>
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-b from-sky-100 to-sky-200/80 pl-1.5 pr-2.5 py-0.5 cursor-default ring-1 ring-sky-300/50 shadow-sm hover:shadow-md hover:ring-sky-400/60 transition-all duration-200">
-                    <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-gradient-to-br from-sky-400 to-sky-600 shadow-inner">
-                      <Award className="h-3 w-3 text-white drop-shadow-sm" strokeWidth={2.5} />
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-b from-purple-100 to-purple-200/80 pl-1.5 pr-2.5 py-0.5 cursor-default ring-1 ring-purple-300/50 shadow-sm hover:shadow-md hover:ring-purple-400/60 transition-all duration-200">
+                    <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-gradient-to-br from-purple-400 to-purple-600 shadow-inner">
+                      <Star className="h-3 w-3 text-white drop-shadow-sm" strokeWidth={2.5} />
                     </span>
-                    <span className="text-[11px] font-bold tracking-tight text-sky-900/80">
-                      {getAwardLabel(awardType)}{count > 1 ? ` x ${count}` : ""}
-                    </span>
+                    <span className="text-[11px] font-bold tracking-tight text-purple-900/80">HOF</span>
                   </span>
                 </TooltipTrigger>
                 <TooltipContent sideOffset={4}>
                   <div className="flex flex-col gap-0.5">
-                    {seasons.map((s) => (
-                      <span key={s} className="whitespace-nowrap">{s}</span>
+                    <span className="font-semibold whitespace-nowrap">Class of {player.hallOfFame.classYear} ({player.hallOfFame.wing === "builders" ? "Builders" : "Players"} Wing)</span>
+                    {player.hallOfFame.yearsActive && <span className="text-muted-foreground whitespace-nowrap">{player.hallOfFame.yearsActive}</span>}
+                    {player.hallOfFame.achievements && <span className="whitespace-nowrap">{player.hallOfFame.achievements}</span>}
+                  </div>
+                </TooltipContent>
+              </Tooltip>
+            )}
+            {player.championships.length > 0 && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-b from-amber-100 to-amber-200/80 pl-1.5 pr-2.5 py-0.5 cursor-default ring-1 ring-amber-300/50 shadow-sm hover:shadow-md hover:ring-amber-400/60 transition-all duration-200">
+                    <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-gradient-to-br from-amber-400 to-amber-600 shadow-inner">
+                      <Trophy className="h-3 w-3 text-white drop-shadow-sm" strokeWidth={2.5} />
+                    </span>
+                    <span className="text-[11px] font-bold tracking-tight text-amber-900/80">BASH Champion{player.championships.length > 1 ? ` x ${player.championships.length}` : ""}</span>
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent sideOffset={4}>
+                  <div className="flex flex-col gap-0.5">
+                    {player.championships.map((c) => (
+                      <span key={c.seasonId} className="whitespace-nowrap">{c.seasonName}</span>
                     ))}
                   </div>
                 </TooltipContent>
               </Tooltip>
-            ))
-          })()}
-        </div>
-        <Link href={`/team/${player.teamSlug}`} className="text-sm text-muted-foreground hover:text-primary transition-colors">
-          {player.team}
-        </Link>
+            )}
+            {player.awards.length > 0 && (() => {
+              const grouped = player.awards.reduce<Record<string, { count: number; seasons: string[] }>>((acc, a) => {
+                if (!acc[a.awardType]) acc[a.awardType] = { count: 0, seasons: [] }
+                acc[a.awardType].count++
+                acc[a.awardType].seasons.push(a.seasonName)
+                return acc
+              }, {})
+              return Object.entries(grouped).map(([awardType, { count, seasons }]) => (
+                <Tooltip key={awardType}>
+                  <TooltipTrigger asChild>
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-b from-sky-100 to-sky-200/80 pl-1.5 pr-2.5 py-0.5 cursor-default ring-1 ring-sky-300/50 shadow-sm hover:shadow-md hover:ring-sky-400/60 transition-all duration-200">
+                      <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-gradient-to-br from-sky-400 to-sky-600 shadow-inner">
+                        <Award className="h-3 w-3 text-white drop-shadow-sm" strokeWidth={2.5} />
+                      </span>
+                      <span className="text-[11px] font-bold tracking-tight text-sky-900/80">
+                        {getAwardLabel(awardType)}{count > 1 ? ` x ${count}` : ""}
+                      </span>
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent sideOffset={4}>
+                    <div className="flex flex-col gap-0.5">
+                      {seasons.map((s) => (
+                        <span key={s} className="whitespace-nowrap">{s}</span>
+                      ))}
+                    </div>
+                  </TooltipContent>
+                </Tooltip>
+              ))
+            })()}
+          </div>
+        )}
       </div>
 
       {/* Skater stats */}
@@ -355,8 +357,8 @@ function SkaterGameLogTable({ title, games }: { title: string; games: SkaterGame
         <table className="w-full text-[11px] table-fixed min-w-[620px]">
           <thead>
             <tr className="text-muted-foreground/50 text-[9px] uppercase tracking-wider">
-              <th className="text-left font-medium py-2.5 w-[12%] whitespace-nowrap pr-3">Date</th>
-              <th className="text-left font-medium py-2.5 w-[14%] whitespace-nowrap pr-3">Opp</th>
+              <th className="text-left font-medium py-2.5 w-[10%] whitespace-nowrap pr-1">Date</th>
+              <th className="text-left font-medium py-2.5 w-[16%] whitespace-nowrap pr-3">Opp</th>
               <th className="text-center font-medium py-2.5 w-14">Score</th>
               <th className="text-center font-medium py-2.5 w-10">G</th>
               <th className="text-center font-medium py-2.5 w-10">A</th>
@@ -372,9 +374,9 @@ function SkaterGameLogTable({ title, games }: { title: string; games: SkaterGame
           <tbody>
             {games.map((g, i) => (
               <tr key={g.gameId} className={cn("border-t border-border/20 hover:bg-muted/50", i % 2 === 0 && "bg-card/15")}>
-                <td className="py-2 text-[10px] text-muted-foreground whitespace-nowrap pr-3">
+                <td className="py-2 text-[10px] text-muted-foreground whitespace-nowrap pr-1">
                   <Link href={`/game/${g.gameId}`} className="hover:text-primary transition-colors">
-                    {formatGameDate(g.date)}
+                    {formatGameDateShort(g.date)}
                   </Link>
                 </td>
                 <td className="py-2 text-xs font-medium truncate pr-3">
@@ -417,8 +419,8 @@ function GoalieGameLogTable({ title, games }: { title: string; games: GoalieGame
         <table className="w-full text-[11px] table-fixed min-w-[550px]">
           <thead>
             <tr className="text-muted-foreground/50 text-[9px] uppercase tracking-wider">
-              <th className="text-left font-medium py-2.5 w-[12%] whitespace-nowrap pr-3">Date</th>
-              <th className="text-left font-medium py-2.5 w-[14%] whitespace-nowrap pr-3">Opp</th>
+              <th className="text-left font-medium py-2.5 w-[10%] whitespace-nowrap pr-1">Date</th>
+              <th className="text-left font-medium py-2.5 w-[16%] whitespace-nowrap pr-3">Opp</th>
               <th className="text-center font-medium py-2.5 w-14">Score</th>
               <th className="text-center font-medium py-2.5 w-10">DEC</th>
               <th className="text-center font-medium py-2.5 w-10">SA</th>
@@ -432,9 +434,9 @@ function GoalieGameLogTable({ title, games }: { title: string; games: GoalieGame
           <tbody>
             {games.map((g, i) => (
               <tr key={g.gameId} className={cn("border-t border-border/20 hover:bg-muted/50", i % 2 === 0 && "bg-card/15")}>
-                <td className="py-2 text-[10px] text-muted-foreground whitespace-nowrap pr-3">
+                <td className="py-2 text-[10px] text-muted-foreground whitespace-nowrap pr-1">
                   <Link href={`/game/${g.gameId}`} className="hover:text-primary transition-colors">
-                    {formatGameDate(g.date)}
+                    {formatGameDateShort(g.date)}
                   </Link>
                 </td>
                 <td className="py-2 text-xs font-medium truncate pr-3">
