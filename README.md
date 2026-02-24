@@ -1,6 +1,6 @@
 # BASH Hockey
 
-A stats website for the [Bay Area Street Hockey (BASH)](https://www.bashockey.com/) league. View live scores, standings, player stats, and game boxscores.
+A stats website for the Bay Area Street Hockey (BASH) league. View live scores, standings, player stats, and game boxscores.
 
 ## Tech Stack
 
