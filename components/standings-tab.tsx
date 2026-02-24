@@ -75,7 +75,7 @@ export function StandingsTab({
                   </div>
                 </td>
                 <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{row.gp}</td>
-                <td className="text-center tabular-nums py-2 px-3 font-bold">{row.w}</td>
+                <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{row.w}</td>
                 <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{row.otw}</td>
                 <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{row.l}</td>
                 <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{row.otl}</td>

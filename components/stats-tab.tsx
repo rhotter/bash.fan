@@ -215,8 +215,8 @@ export function StatsTab({ initialData }: { initialData?: PlayerStatsData }) {
                       <Link href={`/team/${p.teamSlug}`} className="hover:text-primary transition-colors whitespace-nowrap">{p.team}</Link>
                     </td>
                     <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{p.gp}</td>
-                    <td className="text-center tabular-nums py-2 px-3 font-bold">{p.goals}</td>
-                    <td className="text-center tabular-nums py-2 px-3 font-bold">{p.assists}</td>
+                    <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{p.goals}</td>
+                    <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{p.assists}</td>
                     <td className="text-center tabular-nums py-2 px-3 font-bold">{p.points}</td>
                     <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{p.ptsPg}</td>
                     <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{p.gwg}</td>
@@ -281,7 +281,7 @@ export function StatsTab({ initialData }: { initialData?: PlayerStatsData }) {
                       <Link href={`/team/${p.teamSlug}`} className="hover:text-primary transition-colors whitespace-nowrap">{p.team}</Link>
                     </td>
                     <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{p.gp}</td>
-                    <td className="text-center tabular-nums py-2 px-3 font-bold">{p.wins}</td>
+                    <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{p.wins}</td>
                     <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{p.losses}</td>
                     <td className="text-center tabular-nums py-2 px-3 font-bold">
                       {p.savePercentage !== undefined ? p.savePercentage.toFixed(3) : "-"}

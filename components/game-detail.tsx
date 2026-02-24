@@ -191,12 +191,12 @@ function SkaterBoxScore({ players }: { players: PlayerBoxScore[] }) {
               )}
             >
               <td className="py-2 pr-2 whitespace-nowrap">
-                <Link href={`/player/${playerSlug(p.name)}`} className="hover:text-primary transition-colors font-bold">
+                <Link href={`/player/${playerSlug(p.name)}`} className="hover:text-primary transition-colors">
                   {p.name}
                 </Link>
               </td>
-              <td className="text-center tabular-nums py-2 px-3 font-bold">{p.goals}</td>
-              <td className="text-center tabular-nums py-2 px-3 font-bold">{p.assists}</td>
+              <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{p.goals}</td>
+              <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{p.assists}</td>
               <td className="text-center tabular-nums py-2 px-3 font-bold">{p.points}</td>
               <td className="text-center tabular-nums py-2 px-3 text-muted-foreground hidden sm:table-cell">{p.gwg ?? 0}</td>
               <td className="text-center tabular-nums py-2 px-3 text-muted-foreground hidden sm:table-cell">{p.ppg ?? 0}</td>
@@ -239,11 +239,11 @@ function GoalieBoxScoreTable({ goalies }: { goalies: GoalieBoxScore[] }) {
               )}
             >
               <td className="py-2 pr-2 whitespace-nowrap">
-                <Link href={`/player/${playerSlug(g.name)}`} className="font-bold hover:text-primary transition-colors">{g.name}</Link>
+                <Link href={`/player/${playerSlug(g.name)}`} className="hover:text-primary transition-colors">{g.name}</Link>
               </td>
               <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{g.minutes}</td>
               <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{g.shotsAgainst}</td>
-              <td className="text-center tabular-nums py-2 px-3 font-bold">{g.saves}</td>
+              <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{g.saves}</td>
               <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{g.goalsAgainst}</td>
               <td className="text-center tabular-nums py-2 px-3 font-bold">{g.savePercentage}</td>
               <td className="text-center tabular-nums py-2 px-3 text-muted-foreground hidden sm:table-cell">{g.shutouts ?? 0}</td>

@@ -81,8 +81,8 @@ export function TeamPageContent({ team }: { team: TeamDetail }) {
                       </div>
                     </td>
                     <td className="text-center tabular-nums py-2 px-1 sm:px-3 text-muted-foreground">{p.gp}</td>
-                    <td className="text-center tabular-nums py-2 px-1 sm:px-3 font-bold">{p.goals}</td>
-                    <td className="text-center tabular-nums py-2 px-1 sm:px-3 font-bold">{p.assists}</td>
+                    <td className="text-center tabular-nums py-2 px-1 sm:px-3 text-muted-foreground">{p.goals}</td>
+                    <td className="text-center tabular-nums py-2 px-1 sm:px-3 text-muted-foreground">{p.assists}</td>
                     <td className="text-center tabular-nums py-2 px-1 sm:px-3 font-bold">{p.points}</td>
                     <td className="text-center tabular-nums py-2 px-3 text-muted-foreground hidden sm:table-cell">{p.ptsPg}</td>
                     <td className="text-center tabular-nums py-2 px-3 text-muted-foreground hidden sm:table-cell">{p.gwg ?? 0}</td>
@@ -129,7 +129,7 @@ export function TeamPageContent({ team }: { team: TeamDetail }) {
                       </div>
                     </td>
                     <td className="text-center tabular-nums py-2 px-1 sm:px-3 text-muted-foreground">{g.gp}</td>
-                    <td className="text-center tabular-nums py-2 px-1 sm:px-3 font-bold">{g.wins}</td>
+                    <td className="text-center tabular-nums py-2 px-1 sm:px-3 text-muted-foreground">{g.wins}</td>
                     <td className="text-center tabular-nums py-2 px-1 sm:px-3 text-muted-foreground">{g.losses}</td>
                     <td className="text-center tabular-nums py-2 px-1 sm:px-3 font-bold">{g.savePercentage}</td>
                     <td className="text-center tabular-nums py-2 px-1 sm:px-3 text-muted-foreground">{g.gaa}</td>
