@@ -74,7 +74,7 @@ export async function fetchBashData(seasonParam?: string | null): Promise<BashAp
     JOIN teams ht ON g.home_team = ht.slug
     JOIN teams awt ON g.away_team = awt.slug
     WHERE g.season_id = ${seasonId}
-    ORDER BY g.date ASC, CASE WHEN g.time = 'TBD' THEN '23:59'::time ELSE to_timestamp(regexp_replace(g.time, '([ap])$', ' \1m'), 'HH:MI AM')::time END ASC
+    ORDER BY g.date ASC, CASE WHEN g.time = 'TBD' THEN '23:59'::time ELSE to_timestamp(CASE WHEN g.time LIKE '%a' THEN replace(g.time, 'a', ' AM') ELSE replace(g.time, 'p', ' PM') END, 'HH:MI AM')::time END ASC
   `
 
   const games: BashGame[] = rows.map((r) => ({
