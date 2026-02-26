@@ -715,15 +715,6 @@ export function ScorekeeperApp({
         <div className="pt-1 pb-3">
           <div className="relative rounded-2xl overflow-hidden bg-foreground text-background">
             <div className="relative px-6 py-5 sm:py-6">
-              {/* Period badge */}
-              <div className="flex justify-center mb-3">
-                <button onClick={() => setPeriodEditOpen(true)}>
-                  <span className="text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded-full bg-background/15 text-background">
-                    {periodLabel(state.period)}
-                  </span>
-                </button>
-              </div>
-
               {/* Scores — hero */}
               <div className="flex items-center justify-between gap-2 mb-4">
                 <div className="flex flex-col items-center gap-1 flex-1 min-w-0">
@@ -745,9 +736,14 @@ export function ScorekeeperApp({
                 </div>
               </div>
 
-              {/* Clock + Play/Pause */}
+              {/* Clock + Period + Play/Pause */}
               {!isPreGame && !isShootout && (
                 <div className="flex items-center justify-center gap-3">
+                  <button onClick={() => setPeriodEditOpen(true)}>
+                    <span className="text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded-full bg-background/15 text-background">
+                      {periodLabel(state.period)}
+                    </span>
+                  </button>
                   <button
                     onClick={openClockEdit}
                     className="text-3xl font-black font-mono tabular-nums tracking-tighter text-background/60"
@@ -764,6 +760,15 @@ export function ScorekeeperApp({
                     )}
                   >
                     {state.clockRunning ? <Pause className="size-5" /> : <Play className="size-5 ml-0.5" />}
+                  </button>
+                </div>
+              )}
+              {(isPreGame || isShootout) && (
+                <div className="flex justify-center">
+                  <button onClick={() => setPeriodEditOpen(true)}>
+                    <span className="text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded-full bg-background/15 text-background">
+                      {periodLabel(state.period)}
+                    </span>
                   </button>
                 </div>
               )}
