@@ -721,10 +721,7 @@ export function ScorekeeperApp({
               {/* Period badge */}
               <div className="flex justify-center mb-3">
                 <button onClick={() => setPeriodEditOpen(true)}>
-                  <span className={cn(
-                    "text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded-full",
-                    state.clockRunning ? "bg-background/15 text-background" : "bg-background/20 text-background"
-                  )}>
+                  <span className="text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded-full bg-background/15 text-background">
                     {periodLabel(state.period)}
                   </span>
                 </button>
