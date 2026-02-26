@@ -701,11 +701,8 @@ export function ScorekeeperApp({
   return (
     <div className="min-h-svh bg-background pb-24">
       {/* ─── Top Bar ─────────────────────────────────────────────── */}
-      <div className="sticky top-0 z-50 bg-background/95 backdrop-blur border-b border-border/60">
-        <div className="flex items-center justify-between px-4 py-2 max-w-2xl mx-auto">
-          <span className="text-[11px] font-semibold text-muted-foreground truncate">
-            {awayTeam} @ {homeTeam}
-          </span>
+      <div className="sticky top-0 z-50 bg-background/95 backdrop-blur">
+        <div className="flex items-center justify-end px-4 py-2 max-w-2xl mx-auto">
           <div className="flex items-center gap-1.5">
             <span className={cn("h-1.5 w-1.5 rounded-full shrink-0", syncDotColor)} />
             <span className={cn("text-[9px] capitalize", syncStatus === "offline" ? "text-red-500" : "text-muted-foreground")}>{syncStatus}</span>
@@ -715,7 +712,7 @@ export function ScorekeeperApp({
 
       <div className="max-w-2xl mx-auto px-4">
         {/* ─── Scoreboard ──────────────────────────────────────────── */}
-        <div className="pt-4 pb-3">
+        <div className="pt-1 pb-3">
           <div className="relative rounded-2xl overflow-hidden bg-foreground text-background">
             <div className="relative px-6 py-5 sm:py-6">
               {/* Period badge */}
@@ -1452,7 +1449,7 @@ function ShotCounter({
 function PeriodSummary({ state, homeSlug, awaySlug, homeTeam, awayTeam }: {
   state: LiveGameState; homeSlug: string; awaySlug: string; homeTeam: string; awayTeam: string
 }) {
-  const periods = Math.max(state.period, 1)
+  const periods = Math.max(state.period, 3)
   const periodHeaders = Array.from({ length: Math.min(periods, 5) }, (_, i) => {
     const p = i + 1
     if (p <= 3) return `P${p}`

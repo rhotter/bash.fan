@@ -27,10 +27,15 @@ export default async function ScorekeeperIndexPage() {
     grouped[game.date].push(game)
   }
 
-  const today = new Date().toISOString().slice(0, 10)
-  const upcoming = Object.keys(grouped).filter(d => d >= today).sort()
-  const past = Object.keys(grouped).filter(d => d < today).sort().reverse()
-  const dates = [...upcoming, ...past]
+  // Upcoming/live dates first (chronological), then past dates (reverse chronological)
+  const dates = Object.keys(grouped).sort((a, b) => {
+    const aHasActive = grouped[a].some((g) => g.status !== "final")
+    const bHasActive = grouped[b].some((g) => g.status !== "final")
+    if (aHasActive && !bHasActive) return -1
+    if (!aHasActive && bHasActive) return 1
+    if (aHasActive && bHasActive) return a.localeCompare(b)
+    return b.localeCompare(a)
+  })
 
   return (
     <div className="flex min-h-svh flex-col bg-background">
@@ -73,11 +78,11 @@ export default async function ScorekeeperIndexPage() {
                           </Link>
                         </td>
                         <td className="py-2 px-2 text-center tabular-nums font-mono whitespace-nowrap text-muted-foreground" style={{ width: "1%" }}>
-                          {game.status === "final" ? game.away_score : "-"}
+                          {game.status === "final" || game.status === "live" ? game.away_score : "-"}
                         </td>
                         <td className="py-2 text-center text-muted-foreground/30 text-[9px]" style={{ width: "1%" }}>@</td>
                         <td className="py-2 px-2 text-center tabular-nums font-mono whitespace-nowrap text-muted-foreground" style={{ width: "1%" }}>
-                          {game.status === "final" ? game.home_score : "-"}
+                          {game.status === "final" || game.status === "live" ? game.home_score : "-"}
                         </td>
                         <td className="py-2 pl-1 whitespace-nowrap w-[40%] text-muted-foreground">
                           <Link href={`/scorekeeper/${game.id}`} className="hover:text-foreground transition-colors">

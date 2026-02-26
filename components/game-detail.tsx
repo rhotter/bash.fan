@@ -117,7 +117,7 @@ export function GameDetail({ game, initialDetail }: GameDetailProps) {
             awaySlug={game.awaySlug}
             homeTeam={game.homeTeam}
             awayTeam={game.awayTeam}
-            playerNames={buildPlayerNameMap(detail)}
+            playerNames={{ ...(liveData?.playerNames ?? {}), ...buildPlayerNameMap(detail) }}
           />
         </div>
       )}
@@ -215,7 +215,7 @@ function LivePeriodSummary({ state, homeSlug, awaySlug, homeTeam, awayTeam }: {
   const totalHomeShots = state.homeShots.reduce((a, b) => a + b, 0)
   const totalAwayShots = state.awayShots.reduce((a, b) => a + b, 0)
 
-  const periods = Math.max(state.period, 1)
+  const periods = Math.max(state.period, 3)
   const awayGoalsByPeriod: number[] = []
   const homeGoalsByPeriod: number[] = []
   for (let p = 1; p <= periods; p++) {
@@ -354,7 +354,7 @@ function EventLog({ state, homeSlug, awaySlug, homeTeam, awayTeam, playerNames }
                       <div className="flex-1 min-w-0">
                         <div className="text-[11px]">
                           <span className="font-medium">{player}</span>
-                          <span className="text-muted-foreground"> {p.infraction} ({p.minutes}min)</span>
+                          <span className="text-muted-foreground"> {p.infraction} ({p.minutes} min)</span>
                         </div>
                       </div>
                       <span className="text-[10px] text-muted-foreground/50 shrink-0">{teamName}</span>

@@ -25,6 +25,29 @@ export async function GET(
     }
 
     const row = rows[0]
+    const state = row.state as { homeAttendance?: number[]; awayAttendance?: number[]; goals?: { scorerId: number; assist1Id: number | null; assist2Id: number | null }[]; penalties?: { playerId: number }[] }
+
+    // Collect all player IDs referenced in the state
+    const playerIds = new Set<number>()
+    for (const id of state.homeAttendance ?? []) playerIds.add(id)
+    for (const id of state.awayAttendance ?? []) playerIds.add(id)
+    for (const g of state.goals ?? []) {
+      playerIds.add(g.scorerId)
+      if (g.assist1Id) playerIds.add(g.assist1Id)
+      if (g.assist2Id) playerIds.add(g.assist2Id)
+    }
+    for (const p of state.penalties ?? []) playerIds.add(p.playerId)
+
+    // Look up player names
+    let playerNames: Record<number, string> = {}
+    if (playerIds.size > 0) {
+      const ids = [...playerIds]
+      const playerRows = await sql`SELECT id, name FROM players WHERE id = ANY(${ids})`
+      for (const r of playerRows) {
+        playerNames[r.id as number] = r.name as string
+      }
+    }
+
     return NextResponse.json({
       state: row.state,
       homeScore: row.home_score,
@@ -35,6 +58,7 @@ export async function GET(
       homeTeam: row.home_team_name,
       awayTeam: row.away_team_name,
       updatedAt: row.updated_at,
+      playerNames,
     }, {
       headers: { "Cache-Control": "public, s-maxage=5, stale-while-revalidate=10" },
     })
