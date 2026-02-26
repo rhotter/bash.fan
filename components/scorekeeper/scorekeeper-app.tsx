@@ -16,7 +16,7 @@ import { cn } from "@/lib/utils"
 import { Play, Pause, Plus, Minus, ChevronRight, X } from "lucide-react"
 import Link from "next/link"
 import type {
-  LiveGameState, GoalEvent, PenaltyEvent, RosterPlayer, ShootoutAttempt,
+  LiveGameState, GoalEvent, PenaltyEvent, TimeoutEvent, RosterPlayer, ShootoutAttempt,
   ActivePenalty, PowerPlayState,
 } from "@/lib/scorekeeper-types"
 import {
@@ -96,6 +96,7 @@ export function ScorekeeperApp({
   const [finalizeOpen, setFinalizeOpen] = useState(false)
   const [finalizing, setFinalizing] = useState(false)
   const [finalized, setFinalized] = useState(status === "final")
+  const [pendingFinalize, setPendingFinalize] = useState(false)
   const [showAttendance, setShowAttendance] = useState(false)
   const [showShootout, setShowShootout] = useState(false)
   const [shootoutTeam, setShootoutTeam] = useState<string>(awaySlug)
@@ -118,6 +119,23 @@ export function ScorekeeperApp({
 
   // Undo confirmation
   const [confirmUndo, setConfirmUndo] = useState<{ id: string; type: "goal" | "penalty" } | null>(null)
+
+  // Timeout countdown
+  const [activeTimeout, setActiveTimeout] = useState<{ team: string; startedAt: number } | null>(null)
+  const [timeoutRemaining, setTimeoutRemaining] = useState(0)
+
+  useEffect(() => {
+    if (!activeTimeout) { setTimeoutRemaining(0); return }
+    const tick = () => {
+      const elapsed = (Date.now() - activeTimeout.startedAt) / 1000
+      const rem = Math.max(0, 60 - elapsed)
+      setTimeoutRemaining(rem)
+      if (rem <= 0) setActiveTimeout(null)
+    }
+    tick()
+    const id = setInterval(tick, 200)
+    return () => clearInterval(id)
+  }, [activeTimeout])
 
   // ─── Clock tick ──────────────────────────────────────────────────────────
   const [displayClock, setDisplayClock] = useState(state.clockSeconds)
@@ -179,6 +197,52 @@ export function ScorekeeperApp({
     syncRef.current = mgr
     return () => mgr.destroy()
   }, [authenticated, gameId, pin])
+
+  // ─── Check for pending finalize on mount ───────────────────────────────
+  useEffect(() => {
+    try {
+      if (localStorage.getItem(`bash-finalize-${gameId}`)) {
+        setPendingFinalize(true)
+      }
+    } catch {}
+  }, [gameId])
+
+  // ─── Auto-finalize when back online ────────────────────────────────────
+  useEffect(() => {
+    if (!pendingFinalize || !authenticated || finalized) return
+
+    let cancelled = false
+
+    async function tryFinalize() {
+      // Give sync manager time to send latest state
+      await new Promise(r => setTimeout(r, 2000))
+      if (cancelled) return
+      try {
+        await syncRef.current?.flush()
+        const res = await fetch(`/api/bash/scorekeeper/${gameId}/finalize`, {
+          method: "POST",
+          headers: { "x-pin": pin },
+        })
+        if (res.ok && !cancelled) {
+          setFinalized(true)
+          clearLocalStorage(gameId)
+          setPendingFinalize(false)
+          localStorage.removeItem(`bash-finalize-${gameId}`)
+        }
+      } catch {
+        // Still offline
+      }
+    }
+
+    tryFinalize()
+
+    const handler = () => tryFinalize()
+    window.addEventListener("online", handler)
+    return () => {
+      cancelled = true
+      window.removeEventListener("online", handler)
+    }
+  }, [pendingFinalize, authenticated, finalized, gameId, pin])
 
   // ─── Helpers ─────────────────────────────────────────────────────────────
   const updateState = useCallback((updater: (prev: LiveGameState) => LiveGameState) => {
@@ -337,10 +401,24 @@ export function ScorekeeperApp({
   }
 
   function useTimeout(team: "home" | "away") {
+    const slug = team === "home" ? homeSlug : awaySlug
     updateState((prev) => {
-      const key = team === "home" ? "homeTimeoutsUsed" : "awayTimeoutsUsed"
-      return { ...prev, [key]: prev[key] + 1 }
+      const remaining = computeCurrentClock(prev)
+      const event: TimeoutEvent = {
+        id: crypto.randomUUID(),
+        team: slug,
+        period: prev.period,
+        clock: formatClock(remaining),
+      }
+      return {
+        ...prev,
+        timeouts: [...(prev.timeouts ?? []), event],
+        clockRunning: false,
+        clockSeconds: Math.max(0, remaining),
+        clockStartedAt: null,
+      }
     })
+    setActiveTimeout({ team: slug, startedAt: Date.now() })
   }
 
   function toggleAttendance(team: string, playerId: number) {
@@ -610,9 +688,14 @@ export function ScorekeeperApp({
         setFinalized(true)
         clearLocalStorage(gameId)
         setFinalizeOpen(false)
+        setPendingFinalize(false)
+        localStorage.removeItem(`bash-finalize-${gameId}`)
       }
     } catch {
-      // ignore
+      // Network error — mark for auto-retry when back online
+      setPendingFinalize(true)
+      localStorage.setItem(`bash-finalize-${gameId}`, "1")
+      setFinalizeOpen(false)
     }
     setFinalizing(false)
   }
@@ -712,6 +795,18 @@ export function ScorekeeperApp({
       </div>
 
       <div className="max-w-2xl mx-auto px-4">
+        {/* ─── Offline Finalize Banner ──────────────────────────────── */}
+        {pendingFinalize && (
+          <div className="pt-1 pb-2">
+            <div className="rounded-lg border border-yellow-500/20 bg-yellow-500/[0.04] px-4 py-3 text-center">
+              <p className="text-xs">Game data is saved on this device.</p>
+              <p className="text-[10px] text-muted-foreground mt-1">
+                It will automatically finalize when you&apos;re back online.
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* ─── Scoreboard ──────────────────────────────────────────── */}
         <div className="pt-1 pb-3">
           <div className="relative rounded-2xl overflow-hidden bg-foreground text-background">
@@ -778,6 +873,24 @@ export function ScorekeeperApp({
         </div>
 
 
+        {/* ─── Active Timeout ──────────────────────────────────────── */}
+        {activeTimeout && !isPreGame && !isShootout && (
+          <div className="pb-2">
+            <div className="flex items-center gap-3 rounded-lg border border-yellow-500/20 bg-yellow-500/[0.04] px-3 py-2">
+              <span className="font-mono tabular-nums text-base font-black tracking-tight text-foreground w-12 shrink-0">
+                {Math.floor(timeoutRemaining / 60)}:{Math.floor(timeoutRemaining % 60).toString().padStart(2, "0")}
+              </span>
+              <div className="flex-1 min-w-0">
+                <div className="text-[11px] font-medium">Timeout</div>
+                <div className="text-[10px] text-muted-foreground/60">{activeTimeout.team === homeSlug ? homeTeam : awayTeam}</div>
+              </div>
+              <Button size="icon-sm" variant="ghost" onClick={() => setActiveTimeout(null)} className="text-muted-foreground shrink-0">
+                <X className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          </div>
+        )}
+
         {/* ─── Active Penalties ────────────────────────────────────── */}
         {activePenalties.length > 0 && !isPreGame && !isShootout && (
           <div className="space-y-1.5 pb-2">
@@ -809,10 +922,6 @@ export function ScorekeeperApp({
         {/* ─── Pre-Game: Attendance ────────────────────────────────── */}
         {isPreGame && (
           <div className="space-y-4 pt-2">
-            <Button className="w-full bg-foreground text-background hover:bg-foreground/90" onClick={() => startNextPeriod()}>
-              Start Period 1
-            </Button>
-
             <div className="space-y-4">
               <SectionHeader>Attendance</SectionHeader>
               <AttendanceList
@@ -863,6 +972,10 @@ export function ScorekeeperApp({
                 />
               </div>
             </div>
+
+            <Button className="w-full bg-foreground text-background hover:bg-foreground/90" onClick={() => startNextPeriod()}>
+              Start Period 1
+            </Button>
           </div>
         )}
 
@@ -879,18 +992,16 @@ export function ScorekeeperApp({
                 <Button variant="outline" className="w-full h-9 text-xs text-muted-foreground" onClick={() => openPenaltyDrawer(awaySlug)}>
                   Penalty
                 </Button>
+                <TimeoutButton
+                  used={(state.timeouts ?? []).filter((t) => t.team === awaySlug).length}
+                  max={state.period >= 4 ? 3 : 2}
+                  onUse={() => useTimeout("away")}
+                />
                 <ShotCounter
                   label="SOG"
                   count={state.awayShots[shotPeriodIndex(state.period)] ?? 0}
                   onPlus={() => adjustShots("away", 1)}
                   onMinus={() => adjustShots("away", -1)}
-                />
-                <TimeoutCounter
-                  label="Timeout"
-                  used={state.awayTimeoutsUsed}
-                  max={state.period >= 4 ? 1 : 2}
-                  onAdd={() => useTimeout("away")}
-                  onRemove={() => updateState((prev) => ({ ...prev, awayTimeoutsUsed: Math.max(0, prev.awayTimeoutsUsed - 1) }))}
                 />
               </div>
               <div className="space-y-2">
@@ -901,18 +1012,16 @@ export function ScorekeeperApp({
                 <Button variant="outline" className="w-full h-9 text-xs text-muted-foreground" onClick={() => openPenaltyDrawer(homeSlug)}>
                   Penalty
                 </Button>
+                <TimeoutButton
+                  used={(state.timeouts ?? []).filter((t) => t.team === homeSlug).length}
+                  max={state.period >= 4 ? 3 : 2}
+                  onUse={() => useTimeout("home")}
+                />
                 <ShotCounter
                   label="SOG"
                   count={state.homeShots[shotPeriodIndex(state.period)] ?? 0}
                   onPlus={() => adjustShots("home", 1)}
                   onMinus={() => adjustShots("home", -1)}
-                />
-                <TimeoutCounter
-                  label="Timeout"
-                  used={state.homeTimeoutsUsed}
-                  max={state.period >= 4 ? 1 : 2}
-                  onAdd={() => useTimeout("home")}
-                  onRemove={() => updateState((prev) => ({ ...prev, homeTimeoutsUsed: Math.max(0, prev.homeTimeoutsUsed - 1) }))}
                 />
               </div>
             </div>
@@ -971,13 +1080,14 @@ export function ScorekeeperApp({
         {!isPreGame && (
           <div className="mt-5">
             <SectionHeader>Events</SectionHeader>
-            {state.goals.length === 0 && state.penalties.length === 0 && (
+            {state.goals.length === 0 && state.penalties.length === 0 && (state.timeouts ?? []).length === 0 && (
               <p className="text-[11px] text-muted-foreground/40 text-center py-6">No events yet</p>
             )}
             <div className="space-y-0">
               {[
                 ...state.goals.map((g) => ({ type: "goal" as const, event: g, period: g.period, clock: g.clock })),
                 ...state.penalties.map((p) => ({ type: "penalty" as const, event: p, period: p.period, clock: p.clock })),
+                ...(state.timeouts ?? []).map((t) => ({ type: "timeout" as const, event: t, period: t.period, clock: t.clock })),
               ]
                 .sort((a, b) => a.period - b.period || b.clock.localeCompare(a.clock))
                 .map((item) => {
@@ -1004,7 +1114,7 @@ export function ScorekeeperApp({
                         </button>
                       </div>
                     )
-                  } else {
+                  } else if (item.type === "penalty") {
                     const p = item.event as PenaltyEvent
                     const teamName = p.team === homeSlug ? homeTeam : awayTeam
                     return (
@@ -1018,6 +1128,24 @@ export function ScorekeeperApp({
                         <span className="text-[10px] text-muted-foreground/40 tabular-nums font-mono shrink-0">{periodLabel(p.period)} {p.clock}</span>
                         <button
                           onClick={(e) => { e.stopPropagation(); setConfirmUndo({ id: p.id, type: "penalty" }) }}
+                          className="shrink-0 p-1 rounded text-muted-foreground/30 hover:text-foreground transition-colors"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                    )
+                  } else {
+                    const t = item.event as TimeoutEvent
+                    const teamName = t.team === homeSlug ? homeTeam : awayTeam
+                    return (
+                      <div key={t.id} className="flex items-center gap-2 py-2 border-t border-border/20">
+                        <span className="text-[9px] font-bold uppercase tracking-wider text-yellow-500/60 w-8 shrink-0">T/O</span>
+                        <div className="flex-1 min-w-0">
+                          <span className="text-[11px] font-medium text-muted-foreground">{teamName}</span>
+                        </div>
+                        <span className="text-[10px] text-muted-foreground/40 tabular-nums font-mono shrink-0">{periodLabel(t.period)} {t.clock}</span>
+                        <button
+                          onClick={() => updateState((prev) => ({ ...prev, timeouts: (prev.timeouts ?? []).filter((x) => x.id !== t.id) }))}
                           className="shrink-0 p-1 rounded text-muted-foreground/30 hover:text-foreground transition-colors"
                         >
                           <X className="h-3 w-3" />
@@ -1041,16 +1169,45 @@ export function ScorekeeperApp({
           </div>
         )}
 
+        {/* ─── Officials (in-game) ────────────────────────────────── */}
+        {!isPreGame && (
+          <div className="mt-5">
+            <SectionHeader>Officials</SectionHeader>
+            <div className="grid grid-cols-1 gap-2">
+              <input
+                className="rounded-md border border-border/60 bg-card px-3 py-2 text-xs outline-none focus:border-foreground/40"
+                placeholder="Referee 1"
+                value={state.officials.ref1}
+                onChange={(e) => setOfficial("ref1", e.target.value)}
+              />
+              <input
+                className="rounded-md border border-border/60 bg-card px-3 py-2 text-xs outline-none focus:border-foreground/40"
+                placeholder="Referee 2"
+                value={state.officials.ref2}
+                onChange={(e) => setOfficial("ref2", e.target.value)}
+              />
+              <input
+                className="rounded-md border border-border/60 bg-card px-3 py-2 text-xs outline-none focus:border-foreground/40"
+                placeholder="Scorekeeper"
+                value={state.officials.scorekeeper}
+                onChange={(e) => setOfficial("scorekeeper", e.target.value)}
+              />
+            </div>
+          </div>
+        )}
+
         {/* ─── Notes ─────────────────────────────────────────────────── */}
-        <div className={cn("mt-5", !isPreGame && "pb-16")}>
-          <SectionHeader>Notes</SectionHeader>
-          <textarea
-            className="w-full rounded-md border border-border/60 bg-card px-3 py-2 text-xs outline-none focus:border-foreground/40 resize-y min-h-[80px]"
-            placeholder="Game notes..."
-            value={state.notes ?? ""}
-            onChange={(e) => updateState((prev) => ({ ...prev, notes: e.target.value }))}
-          />
-        </div>
+        {!isPreGame && (
+          <div className="mt-5 pb-16">
+            <SectionHeader>Notes</SectionHeader>
+            <textarea
+              className="w-full rounded-md border border-border/60 bg-card px-3 py-2 text-xs outline-none focus:border-foreground/40 resize-y min-h-[80px]"
+              placeholder="Game notes..."
+              value={state.notes ?? ""}
+              onChange={(e) => updateState((prev) => ({ ...prev, notes: e.target.value }))}
+            />
+          </div>
+        )}
       </div>
 
       {/* ─── Bottom Sticky Bar (period controls + finalize) ──────── */}
@@ -1527,24 +1684,16 @@ function PeriodSummary({ state, homeSlug, awaySlug, homeTeam, awayTeam }: {
   )
 }
 
-function TimeoutCounter({
-  label, used, max, onAdd, onRemove,
+function TimeoutButton({
+  used, max, onUse,
 }: {
-  label: string; used: number; max: number; onAdd: () => void; onRemove: () => void
+  used: number; max: number; onUse: () => void
 }) {
+  const remaining = max - used
   return (
-    <div className="flex items-center justify-between rounded-md border bg-card px-3 py-2">
-      <span className="text-[11px] text-muted-foreground shrink-0 mr-2">{label}</span>
-      <div className="flex items-center gap-1.5">
-        <Button size="icon-sm" variant="ghost" onClick={onRemove} disabled={used <= 0}>
-          <Minus className="h-3.5 w-3.5" />
-        </Button>
-        <span className="text-lg font-bold font-mono tabular-nums w-6 text-center">{used}<span className="text-[9px] text-muted-foreground/40 font-normal">/{max}</span></span>
-        <Button size="icon-sm" variant="outline" onClick={onAdd} disabled={used >= max}>
-          <Plus className="h-3.5 w-3.5" />
-        </Button>
-      </div>
-    </div>
+    <Button variant="outline" className="w-full h-9 text-xs text-muted-foreground" onClick={onUse} disabled={remaining <= 0}>
+      Timeout ({remaining} left)
+    </Button>
   )
 }
 

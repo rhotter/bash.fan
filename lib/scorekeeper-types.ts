@@ -22,6 +22,13 @@ export interface PenaltyEvent {
   adjustedEndElapsed?: number // for double minor: adjusted expiration after PPG ends first half
 }
 
+export interface TimeoutEvent {
+  id: string
+  team: string
+  period: number
+  clock: string // "MM:SS"
+}
+
 export interface ShootoutAttempt {
   playerId: number
   scored: boolean
@@ -45,6 +52,7 @@ export interface LiveGameState {
   awayAttendance: number[]
   goals: GoalEvent[]
   penalties: PenaltyEvent[]
+  timeouts: TimeoutEvent[]
   shootout: ShootoutState | null
   threeStars: number[] | null // [1st, 2nd, 3rd] player IDs
   officials: { ref1: string; ref2: string; scorekeeper: string }
@@ -72,6 +80,7 @@ export function createInitialState(): LiveGameState {
     awayAttendance: [],
     goals: [],
     penalties: [],
+    timeouts: [],
     shootout: null,
     threeStars: null,
     officials: { ref1: "", ref2: "", scorekeeper: "" },
@@ -159,7 +168,7 @@ export function getActivePenalties(
     .map((p) => {
       const startElapsed = clockToElapsed(p.period, parseClockString(p.clock))
       const endElapsed = p.adjustedEndElapsed ?? startElapsed + p.minutes * 60
-      const remaining = endElapsed - currentElapsed
+      const remaining = Math.min(endElapsed - currentElapsed, p.minutes * 60)
       return { penalty: p, remainingSeconds: remaining }
     })
     .filter((ap) => ap.remainingSeconds > 0)
