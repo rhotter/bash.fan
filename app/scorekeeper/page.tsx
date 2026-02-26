@@ -73,7 +73,7 @@ export default async function ScorekeeperIndexPage() {
                           ) : game.time}
                         </td>
                         <td className="py-2 pr-1 text-right whitespace-nowrap w-[40%] text-muted-foreground">
-                          <Link href={`/scorekeeper/${game.id}`} className="hover:text-foreground transition-colors">
+                          <Link href={`/scorekeeper/${game.id}`} prefetch={false} className="hover:text-foreground transition-colors">
                             {game.away_team_name}
                           </Link>
                         </td>
@@ -85,7 +85,7 @@ export default async function ScorekeeperIndexPage() {
                           {game.status === "final" || game.status === "live" ? game.home_score : "-"}
                         </td>
                         <td className="py-2 pl-1 whitespace-nowrap w-[40%] text-muted-foreground">
-                          <Link href={`/scorekeeper/${game.id}`} className="hover:text-foreground transition-colors">
+                          <Link href={`/scorekeeper/${game.id}`} prefetch={false} className="hover:text-foreground transition-colors">
                             {game.home_team_name}
                           </Link>
                         </td>

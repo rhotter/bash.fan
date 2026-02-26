@@ -154,6 +154,24 @@ export function ScorekeeperApp({
   // ─── Scores ──────────────────────────────────────────────────────────────
   const scores = useMemo(() => computeScore(state.goals, homeSlug, awaySlug), [state.goals, homeSlug, awaySlug])
 
+  // ─── Auto-advance when clock hits 0 ─────────────────────────────────────
+  const scoresRef = useRef(scores)
+  scoresRef.current = scores
+  useEffect(() => {
+    if (displayClock <= 0 && state.clockRunning && state.period >= 1) {
+      if (state.period < 3) {
+        // P1 → P2, P2 → P3: always advance
+        startNextPeriod()
+      } else if (state.period === 3 && scoresRef.current.home === scoresRef.current.away) {
+        // P3 tied → OT
+        startNextPeriod()
+      }
+      // P3 not tied → game over (bottom bar handles)
+      // P4 (OT) → bottom bar handles shootout/finalize
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [displayClock])
+
   // ─── Power Play State ──────────────────────────────────────────────────
   const activePenalties = useMemo(
     () => getActivePenalties(state.penalties, state.period, displayClock),
@@ -1210,31 +1228,24 @@ export function ScorekeeperApp({
         )}
       </div>
 
-      {/* ─── Bottom Sticky Bar (period controls + finalize) ──────── */}
-      {!isPreGame && (
+      {/* ─── Bottom Sticky Bar (shootout + finalize) ──────── */}
+      {!isPreGame && !isShootout && displayClock <= 0 && (
+        (state.period === 4 && scores.home === scores.away) ||
+        (state.period >= 3 && scores.home !== scores.away)
+      ) && (
         <div className="fixed bottom-0 left-0 right-0 p-3 bg-background/95 backdrop-blur border-t border-border/60">
           <div className="max-w-2xl mx-auto flex items-center gap-2">
-            {!isShootout && displayClock <= 0 && !state.clockRunning && state.period < 4 && (
-              <Button className="flex-1 bg-foreground text-background hover:bg-foreground/90" onClick={startNextPeriod}>
-                Start {fullPeriodLabel(state.period + 1)}
-              </Button>
-            )}
-            {!isShootout && displayClock <= 0 && !state.clockRunning && state.period === 4 && scores.home === scores.away && (
+            {state.period === 4 && scores.home === scores.away && (
               <Button className="flex-1 bg-foreground text-background hover:bg-foreground/90" onClick={startShootout}>
                 Start Shootout
               </Button>
             )}
-            {!isShootout && (displayClock > 0 || state.clockRunning) && (
-              <Button variant="secondary" className="flex-1 text-xs" onClick={endPeriod}>
-                End {fullPeriodLabel(state.period)}
-              </Button>
-            )}
-            {!isShootout && state.period >= 3 && !state.clockRunning && displayClock <= 0 && scores.home !== scores.away && (
+            {state.period >= 3 && scores.home !== scores.away && (
               <Button className="flex-1 bg-foreground text-background hover:bg-foreground/90" onClick={() => setShowThreeStars(true)}>
                 Three Stars
               </Button>
             )}
-            {!isShootout && state.period >= 3 && !state.clockRunning && displayClock <= 0 && scores.home !== scores.away && (
+            {state.period >= 3 && scores.home !== scores.away && (
               <Button variant="outline" className="flex-1 text-xs" onClick={() => setFinalizeOpen(true)}>
                 Finalize
               </Button>

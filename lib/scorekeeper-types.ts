@@ -85,7 +85,7 @@ export function createInitialState(): LiveGameState {
     threeStars: null,
     officials: { ref1: "", ref2: "", scorekeeper: "" },
     notes: "",
-    updatedAt: Date.now(),
+    updatedAt: 0,
   }
 }
 
