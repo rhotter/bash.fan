@@ -18,7 +18,7 @@ export default async function ScorekeeperIndexPage() {
     JOIN teams ht ON g.home_team = ht.slug
     JOIN teams awt ON g.away_team = awt.slug
     WHERE g.season_id = ${season.id}
-    ORDER BY g.date ASC, g.time ASC
+    ORDER BY g.date ASC, CASE WHEN g.time = 'TBD' THEN '23:59'::time ELSE to_timestamp(CASE WHEN g.time LIKE '%a' THEN replace(g.time, 'a', ' AM') ELSE replace(g.time, 'p', ' PM') END, 'HH:MI AM')::time END ASC
   `
 
   // Group by date
