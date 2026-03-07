@@ -45,8 +45,13 @@ async function syncScheduleScores(leagueId: string, seasonId: string) {
     }
   }
 
+  // Skip games managed by scorekeeper
+  const liveGames = await sql`SELECT game_id FROM game_live`
+  const liveGameIds = new Set(liveGames.map((r) => r.game_id))
+
   let updated = 0
   for (const u of updates) {
+    if (liveGameIds.has(u.id)) continue
     await sql`
       UPDATE games
       SET home_score = ${u.homeScore}, away_score = ${u.awayScore},
@@ -91,6 +96,10 @@ async function syncFullSchedule(leagueId: string, seasonId: string) {
   for (const t of existingTeams) {
     teamNameToSlug[t.name.toLowerCase()] = t.slug
   }
+
+  // Skip score updates for games managed by scorekeeper
+  const liveGames = await sql`SELECT game_id FROM game_live`
+  const liveGameIds = new Set(liveGames.map((r) => r.game_id))
 
   let currentDate = ""
   let gamesCreated = 0
@@ -193,16 +202,24 @@ async function syncFullSchedule(leagueId: string, seasonId: string) {
     await sql`INSERT INTO season_teams (season_id, team_slug) VALUES (${seasonId}, ${awaySlug}) ON CONFLICT DO NOTHING`
     await sql`INSERT INTO season_teams (season_id, team_slug) VALUES (${seasonId}, ${homeSlug}) ON CONFLICT DO NOTHING`
 
-    // Upsert game
-    await sql`
-      INSERT INTO games (id, season_id, date, time, away_team, home_team, away_score, home_score, status, is_overtime, is_playoff, location, has_boxscore)
-      VALUES (${gid}, ${seasonId}, ${currentDate}, ${time}, ${awaySlug}, ${homeSlug}, ${awayScore}, ${homeScore}, ${status}, ${isOT}, ${isPlayoff}, ${location}, false)
-      ON CONFLICT (id) DO UPDATE SET
-        away_score = EXCLUDED.away_score,
-        home_score = EXCLUDED.home_score,
-        status = EXCLUDED.status,
-        is_overtime = EXCLUDED.is_overtime
-    `
+    // Upsert game (don't overwrite scores for scorekeeper-managed games)
+    if (liveGameIds.has(gid)) {
+      await sql`
+        INSERT INTO games (id, season_id, date, time, away_team, home_team, away_score, home_score, status, is_overtime, is_playoff, location, has_boxscore)
+        VALUES (${gid}, ${seasonId}, ${currentDate}, ${time}, ${awaySlug}, ${homeSlug}, ${awayScore}, ${homeScore}, ${status}, ${isOT}, ${isPlayoff}, ${location}, false)
+        ON CONFLICT (id) DO NOTHING
+      `
+    } else {
+      await sql`
+        INSERT INTO games (id, season_id, date, time, away_team, home_team, away_score, home_score, status, is_overtime, is_playoff, location, has_boxscore)
+        VALUES (${gid}, ${seasonId}, ${currentDate}, ${time}, ${awaySlug}, ${homeSlug}, ${awayScore}, ${homeScore}, ${status}, ${isOT}, ${isPlayoff}, ${location}, false)
+        ON CONFLICT (id) DO UPDATE SET
+          away_score = EXCLUDED.away_score,
+          home_score = EXCLUDED.home_score,
+          status = EXCLUDED.status,
+          is_overtime = EXCLUDED.is_overtime
+      `
+    }
     gamesCreated++
   }
 
@@ -210,6 +227,10 @@ async function syncFullSchedule(leagueId: string, seasonId: string) {
 }
 
 async function syncBoxscore(gameId: string, leagueId: string, seasonId: string) {
+  // Skip games managed by scorekeeper
+  const liveCheck = await sql`SELECT 1 FROM game_live WHERE game_id = ${gameId}`
+  if (liveCheck.length > 0) return
+
   const url = `${BASE_URL}/Game.asp?LgID=${leagueId}&GID=${gameId}`
   const res = await fetch(url, { cache: "no-store" })
   const html = await res.text()
