@@ -25,11 +25,7 @@ export async function POST(
     if (gameRows.length === 0) {
       return NextResponse.json({ error: "Game not found" }, { status: 404 })
     }
-    if (gameRows[0].status === "final") {
-      return NextResponse.json({ error: "Game is already final" }, { status: 400 })
-    }
-
-    // Check if game_live row already exists (scorekeeper re-auth)
+    // Check if game_live row already exists (scorekeeper re-auth or editing finalized game)
     const existingLive = await sql`
       SELECT state FROM game_live WHERE game_id = ${id}
     `

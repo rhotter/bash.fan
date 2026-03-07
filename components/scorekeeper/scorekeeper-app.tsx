@@ -783,9 +783,19 @@ export function ScorekeeperApp({
               <div className="text-5xl font-black font-mono tabular-nums tracking-tighter">{scores.home}</div>
             </div>
           </div>
-          <Link href={`/game/${gameId}`} className="text-xs text-foreground hover:underline">
-            View game page
-          </Link>
+          <div className="flex flex-col items-center gap-2">
+            <Link href={`/game/${gameId}`} className="text-xs text-foreground hover:underline">
+              View game page
+            </Link>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setFinalized(false)}
+              className="text-xs"
+            >
+              Edit Game
+            </Button>
+          </div>
         </div>
       </div>
     )
