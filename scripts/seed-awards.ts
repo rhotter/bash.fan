@@ -2,7 +2,7 @@ import { neon } from "@neondatabase/serverless"
 
 const sql = neon(process.env.DATABASE_URL!)
 
-// ─── Historical award data (1991-2022) from BASH spreadsheet ──────────────────
+// ─── Historical award data (1991-2025) from BASH spreadsheet ──────────────────
 
 type AwardEntry = { season: string; winners: string[] }
 
@@ -38,6 +38,9 @@ const HISTORICAL_AWARDS: Record<string, AwardEntry[]> = {
     { season: "2018-2019", winners: ["Hatfield"] },
     { season: "2019-2020", winners: ["Cole"] },
     { season: "2021-2022", winners: ["McCann"] },
+    { season: "2022-2023", winners: ["C. Jones"] },
+    { season: "2023-2024", winners: ["C. Jones"] },
+    { season: "2024-2025", winners: ["C. Jones"] },
   ],
   conn_smythe: [
     { season: "1991-1992", winners: ["Smith"] },
@@ -69,6 +72,9 @@ const HISTORICAL_AWARDS: Record<string, AwardEntry[]> = {
     { season: "2017-2018", winners: ["K. Jones"] },
     { season: "2018-2019", winners: ["Hatfield"] },
     { season: "2021-2022", winners: ["McCann"] },
+    { season: "2022-2023", winners: ["Zilinskas"] },
+    { season: "2023-2024", winners: ["C. Jones"] },
+    { season: "2024-2025", winners: ["Tikku"] },
   ],
   scoring_title: [
     { season: "1991-1992", winners: ["Totman"] },
@@ -101,6 +107,9 @@ const HISTORICAL_AWARDS: Record<string, AwardEntry[]> = {
     { season: "2018-2019", winners: ["C. Jones"] },
     { season: "2019-2020", winners: ["Cole"] },
     { season: "2021-2022", winners: ["C. Jones"] },
+    { season: "2022-2023", winners: ["C. Jones"] },
+    { season: "2023-2024", winners: ["C. Jones"] },
+    { season: "2024-2025", winners: ["C. Jones"] },
   ],
   best_gaa: [
     { season: "1992-1993", winners: ["Smith"] },
@@ -132,6 +141,9 @@ const HISTORICAL_AWARDS: Record<string, AwardEntry[]> = {
     { season: "2018-2019", winners: ["Casilli"] },
     { season: "2019-2020", winners: ["Tikku"] },
     { season: "2021-2022", winners: ["Casilli"] },
+    { season: "2022-2023", winners: ["Peterson"] },
+    { season: "2023-2024", winners: ["Reodica"] },
+    { season: "2024-2025", winners: ["Casilli"] },
   ],
   vezina: [
     { season: "1991-1992", winners: ["Murray"] },
@@ -164,6 +176,9 @@ const HISTORICAL_AWARDS: Record<string, AwardEntry[]> = {
     { season: "2018-2019", winners: ["Casilli"] },
     { season: "2019-2020", winners: ["Tikku"] },
     { season: "2021-2022", winners: ["Peterson"] },
+    { season: "2022-2023", winners: ["Peterson"] },
+    { season: "2023-2024", winners: ["Reodica"] },
+    { season: "2024-2025", winners: ["Crawford"] },
   ],
   norris: [
     { season: "1991-1992", winners: ["Wahl"] },
@@ -196,6 +211,9 @@ const HISTORICAL_AWARDS: Record<string, AwardEntry[]> = {
     { season: "2018-2019", winners: ["J. Wong"] },
     { season: "2019-2020", winners: ["J. Wong"] },
     { season: "2021-2022", winners: ["J. Wong"] },
+    { season: "2022-2023", winners: ["J. Wong"] },
+    { season: "2023-2024", winners: ["W. MacInnis"] },
+    { season: "2024-2025", winners: ["W. MacInnis"] },
   ],
   calder: [
     { season: "1992-1993", winners: ["Rowean"] },
@@ -227,6 +245,9 @@ const HISTORICAL_AWARDS: Record<string, AwardEntry[]> = {
     { season: "2018-2019", winners: ["Schneidman"] },
     { season: "2019-2020", winners: ["Peterson"] },
     { season: "2021-2022", winners: ["Goodale"] },
+    { season: "2022-2023", winners: ["Sanrocco"] },
+    { season: "2023-2024", winners: ["Crawford"] },
+    { season: "2024-2025", winners: ["Hart"] },
   ],
   selke: [
     { season: "1991-1992", winners: ["Wilson"] },
@@ -259,6 +280,9 @@ const HISTORICAL_AWARDS: Record<string, AwardEntry[]> = {
     { season: "2018-2019", winners: ["Quick"] },
     { season: "2019-2020", winners: ["Quick"] },
     { season: "2021-2022", winners: ["Hatfield"] },
+    { season: "2022-2023", winners: ["Hatfield"] },
+    { season: "2023-2024", winners: ["Faibish"] },
+    { season: "2024-2025", winners: ["Bryant"] },
   ],
   lady_bing: [
     { season: "2003-2004", winners: ["Watts", "Greer"] },
@@ -279,6 +303,9 @@ const HISTORICAL_AWARDS: Record<string, AwardEntry[]> = {
     { season: "2018-2019", winners: ["Del Prete"] },
     { season: "2019-2020", winners: ["Del Prete"] },
     { season: "2021-2022", winners: ["Pratt"] },
+    { season: "2022-2023", winners: ["Pennise"] },
+    { season: "2023-2024", winners: ["Knupp"] },
+    { season: "2024-2025", winners: ["Pennise"] },
   ],
   most_improved: [
     { season: "2013-2014", winners: ["Eligado"] },
@@ -289,6 +316,9 @@ const HISTORICAL_AWARDS: Record<string, AwardEntry[]> = {
     { season: "2018-2019", winners: ["Casilli"] },
     { season: "2019-2020", winners: ["Ker"] },
     { season: "2021-2022", winners: ["Faibish"] },
+    { season: "2022-2023", winners: ["Hilbich"] },
+    { season: "2023-2024", winners: ["Mitchell"] },
+    { season: "2024-2025", winners: ["White"] },
   ],
 }
 
