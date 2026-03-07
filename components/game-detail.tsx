@@ -143,6 +143,18 @@ export function GameDetail({ game, initialDetail }: GameDetailProps) {
           </div>
         )}
 
+        {isLive && liveState && liveData && (
+          <LiveBoxScore
+            state={liveState}
+            homeSlug={game.homeSlug}
+            awaySlug={game.awaySlug}
+            homeTeam={game.homeTeam}
+            awayTeam={game.awayTeam}
+            playerNames={liveData.playerNames ?? {}}
+            goalieIds={liveData.goalieIds ?? []}
+          />
+        )}
+
         {detail && !isLive && (
           <div className="flex flex-col gap-8">
             {/* Away team box score */}
@@ -367,6 +379,93 @@ function EventLog({ state, homeSlug, awaySlug, homeTeam, awayTeam, playerNames }
           </div>
         )
       })}
+    </div>
+  )
+}
+
+function LiveBoxScore({ state, homeSlug, awaySlug, homeTeam, awayTeam, playerNames, goalieIds }: {
+  state: LiveGameState; homeSlug: string; awaySlug: string; homeTeam: string; awayTeam: string
+  playerNames: Record<number, string>; goalieIds: number[]
+}) {
+  const goalieSet = useMemo(() => new Set(goalieIds), [goalieIds])
+
+  const { homePlayers, awayPlayers, homeGoalies, awayGoalies } = useMemo(() => {
+    // Build skater stats from goals/penalties
+    const stats = new Map<number, { goals: number; assists: number; points: number; ppg: number; shg: number; eng: number; pen: number; pim: number }>()
+
+    function getOrCreate(id: number) {
+      if (!stats.has(id)) stats.set(id, { goals: 0, assists: 0, points: 0, ppg: 0, shg: 0, eng: 0, pen: 0, pim: 0 })
+      return stats.get(id)!
+    }
+
+    // Init all attending players
+    for (const id of [...state.homeAttendance, ...state.awayAttendance]) getOrCreate(id)
+
+    for (const goal of state.goals) {
+      if (goal.period >= 5) continue
+      const s = getOrCreate(goal.scorerId)
+      s.goals++; s.points++
+      if (goal.flags.includes("PPG")) s.ppg++
+      if (goal.flags.includes("SHG")) s.shg++
+      if (goal.flags.includes("ENG")) s.eng++
+      if (goal.assist1Id) { const a = getOrCreate(goal.assist1Id); a.assists++; a.points++ }
+      if (goal.assist2Id) { const a = getOrCreate(goal.assist2Id); a.assists++; a.points++ }
+    }
+
+    for (const pen of state.penalties) {
+      const p = getOrCreate(pen.playerId)
+      p.pen++; p.pim += pen.minutes
+    }
+
+    function buildSkaters(attendance: number[]): PlayerBoxScore[] {
+      return attendance
+        .filter((id) => !goalieSet.has(id))
+        .map((id) => {
+          const s = stats.get(id)!
+          return { id, name: playerNames[id] ?? `#${id}`, goals: s.goals, assists: s.assists, points: s.points, gwg: 0, ppg: s.ppg, shg: s.shg, eng: s.eng, hatTricks: s.goals >= 3 ? 1 : 0, pen: s.pen, pim: s.pim }
+        })
+    }
+
+    // Goalie stats
+    const homeGoalsAgainst = state.goals.filter((g) => g.team === awaySlug && g.period <= 4).length
+    const awayGoalsAgainst = state.goals.filter((g) => g.team === homeSlug && g.period <= 4).length
+    const totalHomeShots = state.homeShots.reduce((a, b) => a + b, 0)
+    const totalAwayShots = state.awayShots.reduce((a, b) => a + b, 0)
+
+    function buildGoalies(attendance: number[], shotsAgainst: number, goalsAgainst: number): GoalieBoxScore[] {
+      return attendance
+        .filter((id) => goalieSet.has(id))
+        .map((id) => {
+          const saves = shotsAgainst - goalsAgainst
+          const svPct = shotsAgainst > 0 ? (saves / shotsAgainst).toFixed(3).replace(/^0/, "") : "-"
+          return { id, name: playerNames[id] ?? `#${id}`, minutes: 0, goalsAgainst, shotsAgainst, saves, savePercentage: svPct, shutouts: goalsAgainst === 0 ? 1 : 0, goalieAssists: 0, result: null }
+        })
+    }
+
+    return {
+      homePlayers: buildSkaters(state.homeAttendance),
+      awayPlayers: buildSkaters(state.awayAttendance),
+      homeGoalies: buildGoalies(state.homeAttendance, totalAwayShots, homeGoalsAgainst),
+      awayGoalies: buildGoalies(state.awayAttendance, totalHomeShots, awayGoalsAgainst),
+    }
+  }, [state, homeSlug, awaySlug, playerNames, goalieSet])
+
+  return (
+    <div className="flex flex-col gap-8">
+      {awayPlayers.length > 0 && (
+        <div>
+          <SectionHeader>{awayTeam}</SectionHeader>
+          <SkaterBoxScore players={awayPlayers} />
+        </div>
+      )}
+      {awayGoalies.length > 0 && <GoalieBoxScoreTable goalies={awayGoalies} />}
+      {homePlayers.length > 0 && (
+        <div>
+          <SectionHeader>{homeTeam}</SectionHeader>
+          <SkaterBoxScore players={homePlayers} />
+        </div>
+      )}
+      {homeGoalies.length > 0 && <GoalieBoxScoreTable goalies={homeGoalies} />}
     </div>
   )
 }

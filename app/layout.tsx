@@ -44,6 +44,11 @@ export default function RootLayout({
     <html lang="en" className={`${inter.variable} ${jetbrainsMono.variable} bg-background`}>
       <body className="font-sans antialiased">
         {children}
+        <footer className="py-6 px-4 text-right">
+          <a href="/scorekeeper" className="text-xs text-muted-foreground/30">
+            scorekeeper
+          </a>
+        </footer>
         <Analytics />
       </body>
     </html>

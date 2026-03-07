@@ -184,73 +184,90 @@ export function ScoresTab({ games, isLoading }: { games: BashGame[]; isLoading: 
 function DateSection({ date, games }: { date: string; games: BashGame[] }) {
   return (
     <div className="mb-4">
-      <div className="mb-1">
+      <div className="mb-1.5">
         <span className="text-[11px] font-semibold text-muted-foreground">
           {formatGameDate(date)}
         </span>
       </div>
-      <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
-        <table className="w-full text-[11px]">
-          <tbody>
-            {games.map((game) => (
-              <GameRow key={game.id} game={game} />
-            ))}
-          </tbody>
-        </table>
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+        {games.map((game) => (
+          <GameCard key={game.id} game={game} />
+        ))}
       </div>
     </div>
   )
 }
 
-function GameRow({ game }: { game: BashGame }) {
+function GameCard({ game }: { game: BashGame }) {
   const router = useRouter()
   const isFinal = game.status === "final"
   const isLive = game.status === "live"
-  const isClickable = true
   const awayWon = isFinal && game.awayScore != null && game.homeScore != null && game.awayScore > game.homeScore
   const homeWon = isFinal && game.homeScore != null && game.awayScore != null && game.homeScore > game.awayScore
 
   return (
-    <tr
+    <div
       className={cn(
-        "border-t border-border/20 hover:bg-muted/50",
-        isClickable && "cursor-pointer"
+        "rounded-lg border border-border/40 bg-card hover:bg-muted/50 transition-colors cursor-pointer",
+        isLive && "border-red-500/30"
       )}
-      onClick={isClickable ? () => router.push(`/game/${game.id}`) : undefined}
+      onClick={() => router.push(`/game/${game.id}`)}
     >
-      <td className="py-2 pr-2 text-[10px] text-muted-foreground/50 whitespace-nowrap" style={{ width: "1%" }}>
+      {/* Status bar */}
+      <div className="px-3 pt-2 pb-1 border-b border-border/20 flex items-center justify-between">
+        <span className="text-[10px] text-muted-foreground/50">{game.time}</span>
         {isLive ? (
           <span className="inline-flex items-center gap-1">
             <span className="relative flex h-1.5 w-1.5">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
               <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-red-500" />
             </span>
-            <span className="text-red-500 font-bold uppercase">Live</span>
+            <span className="text-[9px] text-red-500 font-bold uppercase">Live</span>
           </span>
-        ) : game.time}
-      </td>
-      <td className={cn("py-2 pr-1 text-right whitespace-nowrap w-[40%]", awayWon ? "font-bold" : "text-muted-foreground")}>
-        <Link href={`/team/${game.awaySlug}`} className="hover:text-primary transition-colors" onClick={(e) => e.stopPropagation()}>
-          {game.awayTeam}
-        </Link>
-      </td>
-      <td className={cn("py-2 px-2 text-center tabular-nums font-mono whitespace-nowrap", awayWon ? "font-bold" : isLive ? "font-bold text-foreground" : "text-muted-foreground")} style={{ width: "1%" }}>
-        {game.awayScore ?? "-"}
-      </td>
-      <td className="py-2 text-center text-muted-foreground/30 text-[9px]" style={{ width: "1%" }}>@</td>
-      <td className={cn("py-2 px-2 text-center tabular-nums font-mono whitespace-nowrap", homeWon ? "font-bold" : isLive ? "font-bold text-foreground" : "text-muted-foreground")} style={{ width: "1%" }}>
-        {game.homeScore ?? "-"}
-      </td>
-      <td className={cn("py-2 pl-1 whitespace-nowrap w-[40%]", homeWon ? "font-bold" : "text-muted-foreground")}>
-        <Link href={`/team/${game.homeSlug}`} className="hover:text-primary transition-colors" onClick={(e) => e.stopPropagation()}>
-          {game.homeTeam}
-        </Link>
-      </td>
-      <td className="py-2 pl-1 text-right" style={{ width: "1%" }}>
-        {isFinal && game.isOvertime && (
-          <span className="text-[9px] text-muted-foreground/50 uppercase whitespace-nowrap">OT</span>
-        )}
-      </td>
-    </tr>
+        ) : isFinal ? (
+          <span className="text-[9px] text-muted-foreground/50 font-medium uppercase">Final{game.isOvertime ? "/OT" : ""}</span>
+        ) : null}
+      </div>
+
+      {/* Teams and scores */}
+      <div className="px-3 py-2 flex flex-col gap-1">
+        <div className="flex items-center justify-between gap-2">
+          <Link
+            href={`/team/${game.awaySlug}`}
+            className={cn(
+              "text-xs truncate hover:text-foreground transition-colors",
+              awayWon ? "font-semibold" : "text-muted-foreground"
+            )}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {game.awayTeam}
+          </Link>
+          <span className={cn(
+            "text-sm tabular-nums font-mono w-6 text-right shrink-0",
+            awayWon ? "font-bold" : isLive ? "font-bold" : "text-muted-foreground"
+          )}>
+            {game.awayScore ?? "-"}
+          </span>
+        </div>
+        <div className="flex items-center justify-between gap-2">
+          <Link
+            href={`/team/${game.homeSlug}`}
+            className={cn(
+              "text-xs truncate hover:text-foreground transition-colors",
+              homeWon ? "font-semibold" : "text-muted-foreground"
+            )}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {game.homeTeam}
+          </Link>
+          <span className={cn(
+            "text-sm tabular-nums font-mono w-6 text-right shrink-0",
+            homeWon ? "font-bold" : isLive ? "font-bold" : "text-muted-foreground"
+          )}>
+            {game.homeScore ?? "-"}
+          </span>
+        </div>
+      </div>
+    </div>
   )
 }

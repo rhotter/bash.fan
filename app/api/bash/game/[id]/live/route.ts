@@ -38,14 +38,21 @@ export async function GET(
     }
     for (const p of state.penalties ?? []) playerIds.add(p.playerId)
 
-    // Look up player names
+    // Look up player names and goalie status
     let playerNames: Record<number, string> = {}
+    let goalieIds: number[] = []
     if (playerIds.size > 0) {
       const ids = [...playerIds]
       const playerRows = await sql`SELECT id, name FROM players WHERE id = ANY(${ids})`
       for (const r of playerRows) {
         playerNames[r.id as number] = r.name as string
       }
+
+      const goalieRows = await sql`
+        SELECT DISTINCT player_id FROM player_seasons
+        WHERE player_id = ANY(${ids}) AND is_goalie = true
+      `
+      goalieIds = goalieRows.map((r) => r.player_id as number)
     }
 
     return NextResponse.json({
@@ -59,6 +66,7 @@ export async function GET(
       awayTeam: row.away_team_name,
       updatedAt: row.updated_at,
       playerNames,
+      goalieIds,
     }, {
       headers: { "Cache-Control": "public, s-maxage=5, stale-while-revalidate=10" },
     })
