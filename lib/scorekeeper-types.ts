@@ -55,6 +55,7 @@ export interface LiveGameState {
   timeouts: TimeoutEvent[]
   shootout: ShootoutState | null
   threeStars: number[] | null // [1st, 2nd, 3rd] player IDs
+  goalieOverrides: Record<number, boolean> // player ID → is goalie (set by scorekeeper)
   officials: { ref1: string; ref2: string; scorekeeper: string }
   notes: string
   updatedAt: number // timestamp for merge resolution
@@ -83,6 +84,7 @@ export function createInitialState(): LiveGameState {
     timeouts: [],
     shootout: null,
     threeStars: null,
+    goalieOverrides: {},
     officials: { ref1: "", ref2: "", scorekeeper: "" },
     notes: "",
     updatedAt: 0,
@@ -140,6 +142,16 @@ export function clockToElapsed(period: number, clockSeconds: number): number {
     totalElapsed += p <= 3 ? 1200 : 300
   }
   return totalElapsed + elapsedInPeriod
+}
+
+/** Convert a countdown clock "M:SS" to elapsed time "M:SS" for display. */
+export function clockToElapsedDisplay(clock: string, period: number): string {
+  const remaining = parseClockString(clock)
+  const periodLength = period <= 3 ? 1200 : period === 4 ? 300 : 0
+  const elapsed = periodLength - remaining
+  const m = Math.max(0, Math.floor(elapsed / 60))
+  const s = Math.max(0, Math.floor(elapsed % 60))
+  return `${m}:${s.toString().padStart(2, "0")}`
 }
 
 /** Parse "M:SS" clock string to seconds remaining. */

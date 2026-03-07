@@ -13,7 +13,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select"
 import { cn } from "@/lib/utils"
-import { Play, Pause, Plus, Minus, ChevronRight, X } from "lucide-react"
+import { Play, Pause, Plus, Minus, ChevronRight, X, AlertTriangle } from "lucide-react"
 import Link from "next/link"
 import type {
   LiveGameState, GoalEvent, PenaltyEvent, TimeoutEvent, RosterPlayer, ShootoutAttempt,
@@ -22,7 +22,7 @@ import type {
 import {
   createInitialState, periodLabel, formatClock, computeCurrentClock,
   computeScore, shotPeriodIndex, getActivePenalties, getPowerPlayState,
-  findPenaltyToEnd, clockToElapsed, parseClockString,
+  findPenaltyToEnd, clockToElapsed, parseClockString, clockToElapsedDisplay,
 } from "@/lib/scorekeeper-types"
 import {
   saveToLocalStorage, loadFromLocalStorage, clearLocalStorage,
@@ -79,7 +79,7 @@ export function ScorekeeperApp({
   const syncRef = useRef<ReturnType<typeof createSyncManager> | null>(null)
 
   // ─── Goalie Overrides ───────────────────────────────────────────────────
-  const [goalieOverrides, setGoalieOverrides] = useState<Record<number, boolean>>({})
+  const goalieOverrides = state.goalieOverrides ?? {}
 
   const effectiveRoster = (roster: RosterPlayer[]) =>
     roster.map((p) => ({ ...p, isGoalie: goalieOverrides[p.id] ?? p.isGoalie }))
@@ -117,8 +117,12 @@ export function ScorekeeperApp({
   const [penMinutes, setPenMinutes] = useState<string>("2")
   const [editingPenaltyId, setEditingPenaltyId] = useState<string | null>(null)
 
+  // Timeout editing
+  const [timeoutDrawerOpen, setTimeoutDrawerOpen] = useState(false)
+  const [editingTimeoutId, setEditingTimeoutId] = useState<string | null>(null)
+
   // Undo confirmation
-  const [confirmUndo, setConfirmUndo] = useState<{ id: string; type: "goal" | "penalty" } | null>(null)
+  const [confirmUndo, setConfirmUndo] = useState<{ id: string; type: "goal" | "penalty" | "timeout" } | null>(null)
 
   // Timeout countdown
   const [activeTimeout, setActiveTimeout] = useState<{ team: string; startedAt: number } | null>(null)
@@ -439,6 +443,28 @@ export function ScorekeeperApp({
     setActiveTimeout({ team: slug, startedAt: Date.now() })
   }
 
+  function editTimeout(timeout: TimeoutEvent) {
+    setEditingTimeoutId(timeout.id)
+    setCapturedClock(timeout.clock)
+    setElapsedPartsFromCountdown(timeout.clock, timeout.period)
+    setCapturedPeriod(timeout.period)
+    setTimeoutDrawerOpen(true)
+  }
+
+  function submitTimeout() {
+    if (!editingTimeoutId) return
+    const clock = capturedClock
+    updateState((prev) => ({
+      ...prev,
+      timeouts: (prev.timeouts ?? []).map((t) =>
+        t.id === editingTimeoutId
+          ? { ...t, period: capturedPeriod, clock }
+          : t
+      ),
+    }))
+    setTimeoutDrawerOpen(false)
+  }
+
   function toggleAttendance(team: string, playerId: number) {
     updateState((prev) => {
       const key = team === homeSlug ? "homeAttendance" : "awayAttendance"
@@ -466,18 +492,19 @@ export function ScorekeeperApp({
   }
 
   function toggleGoalie(playerId: number) {
-    setGoalieOverrides((prev) => {
+    updateState((prev) => {
+      const prevOverrides = prev.goalieOverrides ?? {}
       const isHome = homeRoster.some((p) => p.id === playerId)
       const teamRoster = isHome ? homeRoster : awayRoster
-      const current = prev[playerId] ?? teamRoster.find((p) => p.id === playerId)?.isGoalie ?? false
-      const next = { ...prev }
+      const current = prevOverrides[playerId] ?? teamRoster.find((p) => p.id === playerId)?.isGoalie ?? false
+      const next = { ...prevOverrides }
       // Clear goalie from all other players on the same team
       for (const p of teamRoster) {
         next[p.id] = false
       }
       // Toggle the selected player
       next[playerId] = !current
-      return next
+      return { ...prev, goalieOverrides: next }
     })
   }
 
@@ -493,10 +520,36 @@ export function ScorekeeperApp({
 
   // ─── Goal Entry ─────────────────────────────────────────────────────────
   const [capturedClock, setCapturedClock] = useState("")
+  const [capturedPeriod, setCapturedPeriod] = useState(0)
+  const [clockMinutes, setClockMinutes] = useState("")
+  const [clockSeconds, setClockSeconds] = useState("")
+
+  /** Convert elapsed min:sec inputs back to countdown clock string. */
+  function elapsedPartsToCountdown(min: string, sec: string, period: number): string {
+    const elapsedSecs = (parseInt(min) || 0) * 60 + (parseInt(sec) || 0)
+    const periodLength = period <= 3 ? 1200 : period === 4 ? 300 : 0
+    const remaining = Math.max(0, periodLength - elapsedSecs)
+    const m = Math.floor(remaining / 60)
+    const s = remaining % 60
+    return `${m}:${s.toString().padStart(2, "0")}`
+  }
+
+  /** Set the clock parts from a countdown clock string, converting to elapsed for display. */
+  function setElapsedPartsFromCountdown(clock: string, period: number) {
+    const remaining = parseClockString(clock)
+    const periodLength = period <= 3 ? 1200 : period === 4 ? 300 : 0
+    const elapsed = Math.max(0, periodLength - remaining)
+    const m = Math.floor(elapsed / 60)
+    const s = elapsed % 60
+    setClockMinutes(m.toString())
+    setClockSeconds(s.toString().padStart(2, "0"))
+  }
 
   function openGoalDrawer(team: string) {
     const clock = pauseClockNow()
     setCapturedClock(clock)
+    setElapsedPartsFromCountdown(clock, state.period)
+    setCapturedPeriod(state.period)
     setEditingGoalId(null)
     setGoalTeam(team)
     setGoalScorer("")
@@ -514,6 +567,8 @@ export function ScorekeeperApp({
   function editGoal(goal: GoalEvent) {
     setEditingGoalId(goal.id)
     setCapturedClock(goal.clock)
+    setElapsedPartsFromCountdown(goal.clock, goal.period)
+    setCapturedPeriod(goal.period)
     setGoalTeam(goal.team)
     setGoalScorer(goal.scorerId.toString())
     setGoalAssist1(goal.assist1Id ? goal.assist1Id.toString() : "")
@@ -537,7 +592,7 @@ export function ScorekeeperApp({
         ...prev,
         goals: prev.goals.map((g) =>
           g.id === editingGoalId
-            ? { ...g, team: goalTeam, clock, scorerId: parseInt(goalScorer), assist1Id: goalAssist1 && goalAssist1 !== "none" ? parseInt(goalAssist1) : null, assist2Id: goalAssist2 && goalAssist2 !== "none" ? parseInt(goalAssist2) : null, flags }
+            ? { ...g, team: goalTeam, period: capturedPeriod, clock, scorerId: parseInt(goalScorer), assist1Id: goalAssist1 && goalAssist1 !== "none" ? parseInt(goalAssist1) : null, assist2Id: goalAssist2 && goalAssist2 !== "none" ? parseInt(goalAssist2) : null, flags }
             : g
         ),
       }))
@@ -546,7 +601,7 @@ export function ScorekeeperApp({
       const goal: GoalEvent = {
         id: goalId,
         team: goalTeam,
-        period: state.period,
+        period: capturedPeriod,
         clock,
         scorerId: parseInt(goalScorer),
         assist1Id: goalAssist1 && goalAssist1 !== "none" ? parseInt(goalAssist1) : null,
@@ -559,9 +614,9 @@ export function ScorekeeperApp({
         // End penalty on PP goal
         if (goalPPG) {
           const clockSecs = parseClockString(clock)
-          const result = findPenaltyToEnd(prev.penalties, goalTeam, state.period, clockSecs)
+          const result = findPenaltyToEnd(prev.penalties, goalTeam, capturedPeriod, clockSecs)
           if (result) {
-            const currentElapsed = clockToElapsed(state.period, clockSecs)
+            const currentElapsed = clockToElapsed(capturedPeriod, clockSecs)
             next.penalties = prev.penalties.map((p) => {
               if (p.id !== result.penaltyId) return p
               if (result.action === "end") {
@@ -583,6 +638,8 @@ export function ScorekeeperApp({
   function openPenaltyDrawer(team: string) {
     const clock = pauseClockNow()
     setCapturedClock(clock)
+    setElapsedPartsFromCountdown(clock, state.period)
+    setCapturedPeriod(state.period)
     setEditingPenaltyId(null)
     setPenaltyTeam(team)
     setPenPlayer("")
@@ -594,6 +651,8 @@ export function ScorekeeperApp({
   function editPenalty(penalty: PenaltyEvent) {
     setEditingPenaltyId(penalty.id)
     setCapturedClock(penalty.clock)
+    setElapsedPartsFromCountdown(penalty.clock, penalty.period)
+    setCapturedPeriod(penalty.period)
     setPenaltyTeam(penalty.team)
     setPenPlayer(penalty.playerId.toString())
     setPenInfraction(penalty.infraction)
@@ -610,7 +669,7 @@ export function ScorekeeperApp({
         ...prev,
         penalties: prev.penalties.map((p) =>
           p.id === editingPenaltyId
-            ? { ...p, team: penaltyTeam, clock, playerId: parseInt(penPlayer), infraction: penInfraction, minutes: parseInt(penMinutes) }
+            ? { ...p, team: penaltyTeam, period: capturedPeriod, clock, playerId: parseInt(penPlayer), infraction: penInfraction, minutes: parseInt(penMinutes) }
             : p
         ),
       }))
@@ -618,7 +677,7 @@ export function ScorekeeperApp({
       const penalty: PenaltyEvent = {
         id: crypto.randomUUID(),
         team: penaltyTeam,
-        period: state.period,
+        period: capturedPeriod,
         clock,
         playerId: parseInt(penPlayer),
         infraction: penInfraction,
@@ -731,7 +790,7 @@ export function ScorekeeperApp({
   // PIN Screen
   if (!authenticated) {
     return (
-      <div className="flex min-h-svh flex-col items-center justify-center bg-background px-4">
+      <div className="flex flex-col items-center justify-center bg-background px-4 py-24">
         <div className="w-full max-w-xs space-y-8">
           <div className="text-center space-y-2">
             <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/50">Scorekeeper</p>
@@ -1001,6 +1060,21 @@ export function ScorekeeperApp({
               </div>
             </div>
 
+            {(() => {
+              const homeGoaliePresent = attendingPlayers(homeSlug).some((p) => p.isGoalie)
+              const awayGoaliePresent = attendingPlayers(awaySlug).some((p) => p.isGoalie)
+              const missingTeams = [
+                ...(!awayGoaliePresent ? [awayTeam] : []),
+                ...(!homeGoaliePresent ? [homeTeam] : []),
+              ]
+              return missingTeams.length > 0 ? (
+                <div className="flex items-start gap-2 rounded-lg border border-yellow-500/30 bg-yellow-500/[0.06] px-3 py-2.5 text-xs text-yellow-600 dark:text-yellow-400">
+                  <AlertTriangle className="size-4 shrink-0 mt-0.5" />
+                  <span>No goalie selected for {missingTeams.join(" and ")}. Mark a goalie as present in the attendance list above.</span>
+                </div>
+              ) : null
+            })()}
+
             <Button className="w-full bg-foreground text-background hover:bg-foreground/90" onClick={() => startNextPeriod()}>
               Start Period 1
             </Button>
@@ -1103,7 +1177,7 @@ export function ScorekeeperApp({
                 ...state.penalties.map((p) => ({ type: "penalty" as const, event: p, period: p.period, clock: p.clock })),
                 ...(state.timeouts ?? []).map((t) => ({ type: "timeout" as const, event: t, period: t.period, clock: t.clock })),
               ]
-                .sort((a, b) => a.period - b.period || b.clock.localeCompare(a.clock))
+                .sort((a, b) => a.period - b.period || parseClockString(b.clock) - parseClockString(a.clock))
                 .map((item) => {
                   if (item.type === "goal") {
                     const g = item.event as GoalEvent
@@ -1119,7 +1193,7 @@ export function ScorekeeperApp({
                           )}
                         </div>
                         <span className="text-[10px] text-muted-foreground/50 shrink-0">{teamName}</span>
-                        <span className="text-[10px] text-muted-foreground/40 tabular-nums font-mono shrink-0">{periodLabel(g.period)} {g.clock}</span>
+                        <span className="text-[10px] text-muted-foreground/40 tabular-nums font-mono shrink-0">{periodLabel(g.period)} {clockToElapsedDisplay(g.clock, g.period)}</span>
                         <button
                           onClick={(e) => { e.stopPropagation(); setConfirmUndo({ id: g.id, type: "goal" }) }}
                           className="shrink-0 p-1 rounded text-muted-foreground/30 hover:text-foreground transition-colors"
@@ -1139,7 +1213,7 @@ export function ScorekeeperApp({
                           <span className="text-[10px] text-muted-foreground/50"> &middot; {p.infraction} &middot; {p.minutes}min</span>
                         </div>
                         <span className="text-[10px] text-muted-foreground/50 shrink-0">{teamName}</span>
-                        <span className="text-[10px] text-muted-foreground/40 tabular-nums font-mono shrink-0">{periodLabel(p.period)} {p.clock}</span>
+                        <span className="text-[10px] text-muted-foreground/40 tabular-nums font-mono shrink-0">{periodLabel(p.period)} {clockToElapsedDisplay(p.clock, p.period)}</span>
                         <button
                           onClick={(e) => { e.stopPropagation(); setConfirmUndo({ id: p.id, type: "penalty" }) }}
                           className="shrink-0 p-1 rounded text-muted-foreground/30 hover:text-foreground transition-colors"
@@ -1152,14 +1226,14 @@ export function ScorekeeperApp({
                     const t = item.event as TimeoutEvent
                     const teamName = t.team === homeSlug ? homeTeam : awayTeam
                     return (
-                      <div key={t.id} className="flex items-center gap-2 py-2 border-t border-border/20">
+                      <div key={t.id} className="flex items-center gap-2 py-2 border-t border-border/20 cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => editTimeout(t)}>
                         <span className="text-[9px] font-bold uppercase tracking-wider text-yellow-500/60 w-8 shrink-0">T/O</span>
                         <div className="flex-1 min-w-0">
                           <span className="text-[11px] font-medium text-muted-foreground">{teamName}</span>
                         </div>
-                        <span className="text-[10px] text-muted-foreground/40 tabular-nums font-mono shrink-0">{periodLabel(t.period)} {t.clock}</span>
+                        <span className="text-[10px] text-muted-foreground/40 tabular-nums font-mono shrink-0">{periodLabel(t.period)} {clockToElapsedDisplay(t.clock, t.period)}</span>
                         <button
-                          onClick={() => updateState((prev) => ({ ...prev, timeouts: (prev.timeouts ?? []).filter((x) => x.id !== t.id) }))}
+                          onClick={(e) => { e.stopPropagation(); setConfirmUndo({ id: t.id, type: "timeout" }) }}
                           className="shrink-0 p-1 rounded text-muted-foreground/30 hover:text-foreground transition-colors"
                         >
                           <X className="h-3 w-3" />
@@ -1268,15 +1342,44 @@ export function ScorekeeperApp({
             </DrawerTitle>
           </DrawerHeader>
           <div className="px-4 pb-6 space-y-4">
-            <FieldLabel label="Time">
-              <input
-                type="text"
-                inputMode="numeric"
-                value={capturedClock}
-                onChange={(e) => setCapturedClock(e.target.value)}
-                className="mt-1 w-full rounded-md border border-border/60 bg-card px-3 py-2 text-sm font-mono tabular-nums outline-none focus:border-foreground/40"
-              />
-            </FieldLabel>
+            <div className="flex gap-3">
+              <FieldLabel label="Period">
+                <Select value={capturedPeriod.toString()} onValueChange={(v) => { const p = parseInt(v); setCapturedPeriod(p); setCapturedClock(elapsedPartsToCountdown(clockMinutes, clockSeconds, p)) }}>
+                  <SelectTrigger className="mt-1 w-[110px]"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {[1, 2, 3].map((p) => (
+                      <SelectItem key={p} value={p.toString()}>P{p}</SelectItem>
+                    ))}
+                    <SelectItem value="4">OT</SelectItem>
+                  </SelectContent>
+                </Select>
+              </FieldLabel>
+              <FieldLabel label="Time">
+                <div className="mt-1 flex items-center gap-1">
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    min={0}
+                    max={20}
+                    value={clockMinutes}
+                    onChange={(e) => { setClockMinutes(e.target.value); setCapturedClock(elapsedPartsToCountdown(e.target.value, clockSeconds, capturedPeriod)) }}
+                    className="w-[52px] rounded-md border border-border/60 bg-card px-2 py-2 text-sm font-mono tabular-nums text-center outline-none focus:border-foreground/40"
+                    placeholder="M"
+                  />
+                  <span className="text-sm font-mono font-bold">:</span>
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    min={0}
+                    max={59}
+                    value={clockSeconds}
+                    onChange={(e) => { setClockSeconds(e.target.value); setCapturedClock(elapsedPartsToCountdown(clockMinutes, e.target.value, capturedPeriod)) }}
+                    className="w-[52px] rounded-md border border-border/60 bg-card px-2 py-2 text-sm font-mono tabular-nums text-center outline-none focus:border-foreground/40"
+                    placeholder="SS"
+                  />
+                </div>
+              </FieldLabel>
+            </div>
             <FieldLabel label="Scorer *">
               <Select value={goalScorer} onValueChange={setGoalScorer}>
                 <SelectTrigger className="mt-1"><SelectValue placeholder="Select player" /></SelectTrigger>
@@ -1341,15 +1444,44 @@ export function ScorekeeperApp({
             </DrawerTitle>
           </DrawerHeader>
           <div className="px-4 pb-6 space-y-4">
-            <FieldLabel label="Time">
-              <input
-                type="text"
-                inputMode="numeric"
-                value={capturedClock}
-                onChange={(e) => setCapturedClock(e.target.value)}
-                className="mt-1 w-full rounded-md border border-border/60 bg-card px-3 py-2 text-sm font-mono tabular-nums outline-none focus:border-foreground/40"
-              />
-            </FieldLabel>
+            <div className="flex gap-3">
+              <FieldLabel label="Period">
+                <Select value={capturedPeriod.toString()} onValueChange={(v) => { const p = parseInt(v); setCapturedPeriod(p); setCapturedClock(elapsedPartsToCountdown(clockMinutes, clockSeconds, p)) }}>
+                  <SelectTrigger className="mt-1 w-[110px]"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {[1, 2, 3].map((p) => (
+                      <SelectItem key={p} value={p.toString()}>P{p}</SelectItem>
+                    ))}
+                    <SelectItem value="4">OT</SelectItem>
+                  </SelectContent>
+                </Select>
+              </FieldLabel>
+              <FieldLabel label="Time">
+                <div className="mt-1 flex items-center gap-1">
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    min={0}
+                    max={20}
+                    value={clockMinutes}
+                    onChange={(e) => { setClockMinutes(e.target.value); setCapturedClock(elapsedPartsToCountdown(e.target.value, clockSeconds, capturedPeriod)) }}
+                    className="w-[52px] rounded-md border border-border/60 bg-card px-2 py-2 text-sm font-mono tabular-nums text-center outline-none focus:border-foreground/40"
+                    placeholder="M"
+                  />
+                  <span className="text-sm font-mono font-bold">:</span>
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    min={0}
+                    max={59}
+                    value={clockSeconds}
+                    onChange={(e) => { setClockSeconds(e.target.value); setCapturedClock(elapsedPartsToCountdown(clockMinutes, e.target.value, capturedPeriod)) }}
+                    className="w-[52px] rounded-md border border-border/60 bg-card px-2 py-2 text-sm font-mono tabular-nums text-center outline-none focus:border-foreground/40"
+                    placeholder="SS"
+                  />
+                </div>
+              </FieldLabel>
+            </div>
             <FieldLabel label="Player *">
               <Select value={penPlayer} onValueChange={setPenPlayer}>
                 <SelectTrigger className="mt-1"><SelectValue placeholder="Select player" /></SelectTrigger>
@@ -1483,11 +1615,68 @@ export function ScorekeeperApp({
         </DialogContent>
       </Dialog>
 
+      {/* ─── Timeout Edit Drawer ─────────────────────────────────── */}
+      <Drawer open={timeoutDrawerOpen} onOpenChange={setTimeoutDrawerOpen}>
+        <DrawerContent>
+          <DrawerHeader>
+            <DrawerTitle>Edit Timeout</DrawerTitle>
+          </DrawerHeader>
+          <div className="px-4 pb-6 space-y-4">
+            <div className="flex gap-3">
+              <FieldLabel label="Period">
+                <Select value={capturedPeriod.toString()} onValueChange={(v) => { const p = parseInt(v); setCapturedPeriod(p); setCapturedClock(elapsedPartsToCountdown(clockMinutes, clockSeconds, p)) }}>
+                  <SelectTrigger className="mt-1 w-[110px]"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {[1, 2, 3].map((p) => (
+                      <SelectItem key={p} value={p.toString()}>P{p}</SelectItem>
+                    ))}
+                    <SelectItem value="4">OT</SelectItem>
+                  </SelectContent>
+                </Select>
+              </FieldLabel>
+              <FieldLabel label="Time">
+                <div className="mt-1 flex items-center gap-1">
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    min={0}
+                    max={20}
+                    value={clockMinutes}
+                    onChange={(e) => { setClockMinutes(e.target.value); setCapturedClock(elapsedPartsToCountdown(e.target.value, clockSeconds, capturedPeriod)) }}
+                    className="w-[52px] rounded-md border border-border/60 bg-card px-2 py-2 text-sm font-mono tabular-nums text-center outline-none focus:border-foreground/40"
+                    placeholder="M"
+                  />
+                  <span className="text-sm font-mono font-bold">:</span>
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    min={0}
+                    max={59}
+                    value={clockSeconds}
+                    onChange={(e) => { setClockSeconds(e.target.value); setCapturedClock(elapsedPartsToCountdown(clockMinutes, e.target.value, capturedPeriod)) }}
+                    className="w-[52px] rounded-md border border-border/60 bg-card px-2 py-2 text-sm font-mono tabular-nums text-center outline-none focus:border-foreground/40"
+                    placeholder="SS"
+                  />
+                </div>
+              </FieldLabel>
+            </div>
+            <div className="flex gap-2">
+              <Button className="flex-1 bg-foreground text-background hover:bg-foreground/90" onClick={submitTimeout}>
+                Save
+              </Button>
+              <DrawerClose asChild>
+                <Button variant="outline">Cancel</Button>
+              </DrawerClose>
+            </div>
+          </div>
+        </DrawerContent>
+      </Drawer>
+
       {/* ─── Undo Confirmation ──────────────────────────────────── */}
       <Dialog open={!!confirmUndo} onOpenChange={(open) => { if (!open) setConfirmUndo(null) }}>
         <DialogContent className="max-w-xs">
           <DialogHeader>
-            <DialogTitle>Remove {confirmUndo?.type === "goal" ? "goal" : "penalty"}?</DialogTitle>
+            <DialogTitle>Remove {confirmUndo?.type === "goal" ? "goal" : confirmUndo?.type === "penalty" ? "penalty" : "timeout"}?</DialogTitle>
           </DialogHeader>
           <DialogFooter className="flex gap-2">
             <Button variant="outline" onClick={() => setConfirmUndo(null)} className="flex-1">
@@ -1498,6 +1687,7 @@ export function ScorekeeperApp({
               onClick={() => {
                 if (confirmUndo?.type === "goal") undoGoal(confirmUndo.id)
                 else if (confirmUndo?.type === "penalty") undoPenalty(confirmUndo.id)
+                else if (confirmUndo?.type === "timeout") updateState((prev) => ({ ...prev, timeouts: (prev.timeouts ?? []).filter((x) => x.id !== confirmUndo.id) }))
                 setConfirmUndo(null)
               }}
             >

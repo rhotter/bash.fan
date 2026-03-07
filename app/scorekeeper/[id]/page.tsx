@@ -1,4 +1,5 @@
 import { sql } from "@/lib/db"
+import { SiteHeader } from "@/components/site-header"
 import { ScorekeeperApp } from "@/components/scorekeeper/scorekeeper-app"
 import type { RosterPlayer } from "@/lib/scorekeeper-types"
 
@@ -51,6 +52,8 @@ export default async function ScorekeeperPage({ params }: { params: Promise<{ id
   `
 
   return (
+    <>
+    <SiteHeader />
     <ScorekeeperApp
       gameId={id}
       date={game.date}
@@ -64,5 +67,6 @@ export default async function ScorekeeperPage({ params }: { params: Promise<{ id
       awayRoster={awayRoster}
       existingState={liveRows.length > 0 ? liveRows[0].state : null}
     />
+    </>
   )
 }

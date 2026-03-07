@@ -137,11 +137,23 @@ export async function POST(
     }
 
     // 8. Figure out which players are goalies
-    const goalieRows = await sql`
-      SELECT player_id FROM player_seasons
-      WHERE season_id = ${game.season_id} AND is_goalie = true
-    `
-    const goalieIds = new Set(goalieRows.map((r) => r.player_id))
+    // Use scorekeeper overrides if set, otherwise fall back to player_seasons
+    const goalieIds = new Set<number>()
+    const overrides = state.goalieOverrides ?? {}
+    const allAttending = [...state.homeAttendance, ...state.awayAttendance]
+    const hasOverrides = allAttending.some((pid) => overrides[pid] === true)
+
+    if (hasOverrides) {
+      for (const pid of allAttending) {
+        if (overrides[pid]) goalieIds.add(pid)
+      }
+    } else {
+      const goalieRows = await sql`
+        SELECT player_id FROM player_seasons
+        WHERE season_id = ${game.season_id} AND is_goalie = true
+      `
+      for (const r of goalieRows) goalieIds.add(r.player_id)
+    }
 
     // 9. Upsert player_game_stats for attending skaters
     for (const [playerId, stats] of playerStats) {

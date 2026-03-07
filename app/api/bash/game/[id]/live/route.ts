@@ -48,11 +48,20 @@ export async function GET(
         playerNames[r.id as number] = r.name as string
       }
 
-      const goalieRows = await sql`
-        SELECT DISTINCT player_id FROM player_seasons
-        WHERE player_id = ANY(${ids}) AND is_goalie = true
-      `
-      goalieIds = goalieRows.map((r) => r.player_id as number)
+      // Use scorekeeper goalie overrides if set, otherwise fall back to player_seasons
+      const overrides = (state as Record<string, unknown>).goalieOverrides as Record<number, boolean> | undefined
+      const allAttending = [...(state.homeAttendance ?? []), ...(state.awayAttendance ?? [])]
+      const hasOverrides = overrides && allAttending.some((pid) => overrides[pid] === true)
+
+      if (hasOverrides) {
+        goalieIds = allAttending.filter((pid) => overrides[pid])
+      } else {
+        const goalieRows = await sql`
+          SELECT DISTINCT player_id FROM player_seasons
+          WHERE player_id = ANY(${ids}) AND is_goalie = true
+        `
+        goalieIds = goalieRows.map((r) => r.player_id as number)
+      }
     }
 
     return NextResponse.json({

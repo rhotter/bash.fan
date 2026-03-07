@@ -10,7 +10,7 @@ import { playerSlug } from "@/lib/player-slug"
 import type { PlayerBoxScore, GoalieBoxScore } from "@/app/api/bash/game/[id]/route"
 import { useSort, SortableTh, SectionHeader } from "@/components/stats-table"
 import type { LiveGameState, GoalEvent, PenaltyEvent } from "@/lib/scorekeeper-types"
-import { periodLabel, formatClock, computeCurrentClock } from "@/lib/scorekeeper-types"
+import { periodLabel, formatClock, computeCurrentClock, parseClockString, clockToElapsedDisplay } from "@/lib/scorekeeper-types"
 
 type SkaterSortKey = "points" | "goals" | "assists" | "pim" | "gwg" | "ppg" | "shg" | "eng" | "hatTricks" | "pen"
 
@@ -101,8 +101,8 @@ export function GameDetail({ game, initialDetail }: GameDetailProps) {
         </div>
       </div>
 
-      {/* Live game content (period summary) */}
-      {isLive && liveState && (
+      {/* Period summary (goals + shots by period) */}
+      {(isLive || isFinal) && liveState && (
         <div className="pt-4">
           <LivePeriodSummary state={liveState} homeSlug={game.homeSlug} awaySlug={game.awaySlug} homeTeam={game.homeTeam} awayTeam={game.awayTeam} />
         </div>
@@ -313,7 +313,7 @@ function EventLog({ state, homeSlug, awaySlug, homeTeam, awayTeam, playerNames }
   const events = [
     ...state.goals.map((g) => ({ type: "goal" as const, period: g.period, clock: g.clock, event: g })),
     ...state.penalties.map((p) => ({ type: "penalty" as const, period: p.period, clock: p.clock, event: p })),
-  ].sort((a, b) => a.period - b.period || b.clock.localeCompare(a.clock))
+  ].sort((a, b) => a.period - b.period || parseClockString(b.clock) - parseClockString(a.clock))
 
   // Group by period
   const periods = [...new Set(events.map((e) => e.period))].sort()
@@ -353,7 +353,7 @@ function EventLog({ state, homeSlug, awaySlug, homeTeam, awayTeam, playerNames }
                         )}
                       </div>
                       <span className="text-[10px] text-muted-foreground/50 shrink-0">{teamName}</span>
-                      <span className="text-[10px] text-muted-foreground/40 tabular-nums font-mono shrink-0">{g.clock}</span>
+                      <span className="text-[10px] text-muted-foreground/40 tabular-nums font-mono shrink-0">{clockToElapsedDisplay(g.clock, g.period)}</span>
                     </div>
                   )
                 } else {
@@ -370,7 +370,7 @@ function EventLog({ state, homeSlug, awaySlug, homeTeam, awayTeam, playerNames }
                         </div>
                       </div>
                       <span className="text-[10px] text-muted-foreground/50 shrink-0">{teamName}</span>
-                      <span className="text-[10px] text-muted-foreground/40 tabular-nums font-mono shrink-0">{p.clock}</span>
+                      <span className="text-[10px] text-muted-foreground/40 tabular-nums font-mono shrink-0">{clockToElapsedDisplay(p.clock, p.period)}</span>
                     </div>
                   )
                 }
