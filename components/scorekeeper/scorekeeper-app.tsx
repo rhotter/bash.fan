@@ -289,6 +289,10 @@ export function ScorekeeperApp({
     return rosterForTeam(team).filter((p) => ids.includes(p.id))
   }
   const attendingSkaters = (team: string) => attendingPlayers(team).filter((p) => !p.isGoalie)
+  const currentGoalieId = (team: string): string => {
+    const goalie = attendingPlayers(team).find((p) => p.isGoalie)
+    return goalie ? String(goalie.id) : "none"
+  }
 
   // ─── PIN Auth ────────────────────────────────────────────────────────────
   async function handlePinSubmit() {
@@ -491,19 +495,16 @@ export function ScorekeeperApp({
     })
   }
 
-  function toggleGoalie(playerId: number) {
+  function setGoalie(team: string, playerId: string) {
     updateState((prev) => {
-      const prevOverrides = prev.goalieOverrides ?? {}
-      const isHome = homeRoster.some((p) => p.id === playerId)
-      const teamRoster = isHome ? homeRoster : awayRoster
-      const current = prevOverrides[playerId] ?? teamRoster.find((p) => p.id === playerId)?.isGoalie ?? false
-      const next = { ...prevOverrides }
-      // Clear goalie from all other players on the same team
+      const teamRoster = team === homeSlug ? homeRoster : awayRoster
+      const next = { ...(prev.goalieOverrides ?? {}) }
       for (const p of teamRoster) {
         next[p.id] = false
       }
-      // Toggle the selected player
-      next[playerId] = !current
+      if (playerId !== "none") {
+        next[Number(playerId)] = true
+      }
       return { ...prev, goalieOverrides: next }
     })
   }
@@ -1020,7 +1021,6 @@ export function ScorekeeperApp({
                 onToggle={toggleAttendance}
                 onSelectAll={selectAllAttendance}
                 onUnselectAll={unselectAllAttendance}
-                onToggleGoalie={toggleGoalie}
               />
               <AttendanceList
                 label={homeTeam}
@@ -1031,8 +1031,13 @@ export function ScorekeeperApp({
                 onToggle={toggleAttendance}
                 onSelectAll={selectAllAttendance}
                 onUnselectAll={unselectAllAttendance}
-                onToggleGoalie={toggleGoalie}
               />
+            </div>
+
+            <div className="space-y-2">
+              <SectionHeader>Goalies</SectionHeader>
+              <GoalieSelect label={awayTeam} players={attendingPlayers(awaySlug)} value={currentGoalieId(awaySlug)} onChange={(v) => setGoalie(awaySlug, v)} />
+              <GoalieSelect label={homeTeam} players={attendingPlayers(homeSlug)} value={currentGoalieId(homeSlug)} onChange={(v) => setGoalie(homeSlug, v)} />
             </div>
 
             {/* Officials */}
@@ -1070,7 +1075,7 @@ export function ScorekeeperApp({
               return missingTeams.length > 0 ? (
                 <div className="flex items-start gap-2 rounded-lg border border-yellow-500/30 bg-yellow-500/[0.06] px-3 py-2.5 text-xs text-yellow-600 dark:text-yellow-400">
                   <AlertTriangle className="size-4 shrink-0 mt-0.5" />
-                  <span>No goalie selected for {missingTeams.join(" and ")}. Mark a goalie as present in the attendance list above.</span>
+                  <span>No goalie selected for {missingTeams.join(" and ")}. Pick a goalie from the dropdowns above.</span>
                 </div>
               ) : null
             })()}
@@ -1265,8 +1270,10 @@ export function ScorekeeperApp({
           <div className="mt-5">
             <SectionHeader>Attendance</SectionHeader>
             <div className="space-y-3">
-              <AttendanceList label={awayTeam} count={state.awayAttendance.length} team={awaySlug} roster={effectiveRoster(awayRoster)} attendance={state.awayAttendance} onToggle={toggleAttendance} onSelectAll={selectAllAttendance} onUnselectAll={unselectAllAttendance} onToggleGoalie={toggleGoalie} />
-              <AttendanceList label={homeTeam} count={state.homeAttendance.length} team={homeSlug} roster={effectiveRoster(homeRoster)} attendance={state.homeAttendance} onToggle={toggleAttendance} onSelectAll={selectAllAttendance} onUnselectAll={unselectAllAttendance} onToggleGoalie={toggleGoalie} />
+              <AttendanceList label={awayTeam} count={state.awayAttendance.length} team={awaySlug} roster={effectiveRoster(awayRoster)} attendance={state.awayAttendance} onToggle={toggleAttendance} onSelectAll={selectAllAttendance} onUnselectAll={unselectAllAttendance} />
+              <AttendanceList label={homeTeam} count={state.homeAttendance.length} team={homeSlug} roster={effectiveRoster(homeRoster)} attendance={state.homeAttendance} onToggle={toggleAttendance} onSelectAll={selectAllAttendance} onUnselectAll={unselectAllAttendance} />
+              <GoalieSelect label={awayTeam} players={attendingPlayers(awaySlug)} value={currentGoalieId(awaySlug)} onChange={(v) => setGoalie(awaySlug, v)} />
+              <GoalieSelect label={homeTeam} players={attendingPlayers(homeSlug)} value={currentGoalieId(homeSlug)} onChange={(v) => setGoalie(homeSlug, v)} />
             </div>
           </div>
         )}
@@ -1747,11 +1754,11 @@ function FieldLabel({ label, children }: { label: string; children: React.ReactN
 }
 
 function AttendanceList({
-  label, count, team, roster, attendance, onToggle, onSelectAll, onUnselectAll, onToggleGoalie,
+  label, count, team, roster, attendance, onToggle, onSelectAll, onUnselectAll,
 }: {
   label: string; count: number; team: string; roster: RosterPlayer[]; attendance: number[]
   onToggle: (team: string, id: number) => void; onSelectAll: (team: string) => void
-  onUnselectAll: (team: string) => void; onToggleGoalie?: (id: number) => void
+  onUnselectAll: (team: string) => void
 }) {
   const allSelected = roster.length > 0 && roster.every((p) => attendance.includes(p.id))
   return (
@@ -1776,20 +1783,30 @@ function AttendanceList({
             <span className="text-[11px] truncate flex-1">
               {p.name}
             </span>
-            {onToggleGoalie && (
-              <button
-                onClick={(e) => { e.preventDefault(); onToggleGoalie(p.id) }}
-                className={cn(
-                  "text-[9px] px-1.5 py-0.5 rounded transition-colors shrink-0",
-                  p.isGoalie ? "bg-foreground text-background font-bold" : "text-muted-foreground/30 hover:text-muted-foreground"
-                )}
-              >
-                G
-              </button>
-            )}
           </label>
         ))}
       </div>
+    </div>
+  )
+}
+
+function GoalieSelect({ label, players, value, onChange }: {
+  label: string; players: RosterPlayer[]; value: string; onChange: (value: string) => void
+}) {
+  return (
+    <div className="flex items-center gap-2">
+      <span className="text-[11px] text-muted-foreground shrink-0 w-28 truncate">{label} goalie</span>
+      <Select value={value} onValueChange={onChange}>
+        <SelectTrigger className="h-8 text-xs flex-1">
+          <SelectValue placeholder="Select goalie" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="none">No goalie</SelectItem>
+          {players.map((p) => (
+            <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     </div>
   )
 }
