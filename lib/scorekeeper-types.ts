@@ -39,6 +39,14 @@ export interface ShootoutState {
   awayAttempts: ShootoutAttempt[]
 }
 
+export interface GoaliePullEvent {
+  id: string
+  team: string
+  period: number
+  pulledAt: string // "M:SS" clock when pulled
+  returnedAt: string | null // "M:SS" clock when returned, null if still pulled
+}
+
 export interface LiveGameState {
   period: number // 0=pre-game, 1-3=regulation, 4=OT, 5=shootout
   clockSeconds: number // countdown seconds remaining
@@ -53,6 +61,7 @@ export interface LiveGameState {
   goals: GoalEvent[]
   penalties: PenaltyEvent[]
   timeouts: TimeoutEvent[]
+  goaliePulls: GoaliePullEvent[]
   shootout: ShootoutState | null
   threeStars: number[] | null // [1st, 2nd, 3rd] player IDs
   goalieOverrides: Record<number, boolean> // player ID → is goalie (set by scorekeeper)
@@ -82,6 +91,7 @@ export function createInitialState(): LiveGameState {
     goals: [],
     penalties: [],
     timeouts: [],
+    goaliePulls: [],
     shootout: null,
     threeStars: null,
     goalieOverrides: {},
@@ -123,6 +133,20 @@ export function computeScore(goals: GoalEvent[], homeSlug: string, awaySlug: str
     }
   }
   return { home, away }
+}
+
+/** Compute total seconds a team's goalie was pulled. */
+export function computePulledSeconds(pulls: GoaliePullEvent[], team: string): number {
+  let total = 0
+  for (const pull of pulls) {
+    if (pull.team !== team) continue
+    const startElapsed = clockToElapsed(pull.period, parseClockString(pull.pulledAt))
+    const endElapsed = pull.returnedAt
+      ? clockToElapsed(pull.period, parseClockString(pull.returnedAt))
+      : clockToElapsed(pull.period, 0) // pulled for rest of period if not returned
+    total += endElapsed - startElapsed
+  }
+  return total
 }
 
 /** Period index for shots array (0-based). OT maps to index 3. */

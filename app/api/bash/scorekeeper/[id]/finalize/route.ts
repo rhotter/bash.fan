@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { sql } from "@/lib/db"
 import type { LiveGameState, GoalEvent, PenaltyEvent } from "@/lib/scorekeeper-types"
+import { computePulledSeconds } from "@/lib/scorekeeper-types"
 
 function validatePin(request: Request): boolean {
   const pin = request.headers.get("x-pin")
@@ -185,6 +186,14 @@ export async function POST(
 
     const homeWon = homeScore > awayScore
 
+    // Compute goalie minutes: regulation (60) + OT (5 if played) minus pulled time
+    const totalGameSecs = isOvertime ? 3900 : 3600
+    const pulls = state.goaliePulls ?? []
+    const homePulledSecs = computePulledSeconds(pulls, homeSlug)
+    const awayPulledSecs = computePulledSeconds(pulls, awaySlug)
+    const homeGoalieMinutes = Math.max(0, Math.round((totalGameSecs - homePulledSecs) / 60))
+    const awayGoalieMinutes = Math.max(0, Math.round((totalGameSecs - awayPulledSecs) / 60))
+
     for (const goalieId of homeGoalies) {
       const sa = totalAwayShots
       const ga = homeGoalsAgainst
@@ -194,9 +203,9 @@ export async function POST(
 
       await sql`
         INSERT INTO goalie_game_stats (player_id, game_id, minutes, goals_against, shots_against, saves, shutouts, goalie_assists, result)
-        VALUES (${goalieId}, ${id}, 60, ${ga}, ${sa}, ${sv}, ${so}, 0, ${result})
+        VALUES (${goalieId}, ${id}, ${homeGoalieMinutes}, ${ga}, ${sa}, ${sv}, ${so}, 0, ${result})
         ON CONFLICT (player_id, game_id) DO UPDATE SET
-          minutes = 60, goals_against = ${ga}, shots_against = ${sa}, saves = ${sv},
+          minutes = ${homeGoalieMinutes}, goals_against = ${ga}, shots_against = ${sa}, saves = ${sv},
           shutouts = ${so}, result = ${result}
       `
     }
@@ -210,9 +219,9 @@ export async function POST(
 
       await sql`
         INSERT INTO goalie_game_stats (player_id, game_id, minutes, goals_against, shots_against, saves, shutouts, goalie_assists, result)
-        VALUES (${goalieId}, ${id}, 60, ${ga}, ${sa}, ${sv}, ${so}, 0, ${result})
+        VALUES (${goalieId}, ${id}, ${awayGoalieMinutes}, ${ga}, ${sa}, ${sv}, ${so}, 0, ${result})
         ON CONFLICT (player_id, game_id) DO UPDATE SET
-          minutes = 60, goals_against = ${ga}, shots_against = ${sa}, saves = ${sv},
+          minutes = ${awayGoalieMinutes}, goals_against = ${ga}, shots_against = ${sa}, saves = ${sv},
           shutouts = ${so}, result = ${result}
       `
     }

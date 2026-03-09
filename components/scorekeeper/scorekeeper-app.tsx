@@ -17,7 +17,7 @@ import { Play, Pause, Plus, Minus, ChevronRight, X, AlertTriangle } from "lucide
 import Link from "next/link"
 import type {
   LiveGameState, GoalEvent, PenaltyEvent, TimeoutEvent, RosterPlayer, ShootoutAttempt,
-  ActivePenalty, PowerPlayState,
+  ActivePenalty, PowerPlayState, GoaliePullEvent,
 } from "@/lib/scorekeeper-types"
 import {
   createInitialState, periodLabel, formatClock, computeCurrentClock,
@@ -361,12 +361,13 @@ export function ScorekeeperApp({
   }
 
   function endPeriod() {
-    updateState((prev) => ({
-      ...prev,
-      clockRunning: false,
-      clockSeconds: 0,
-      clockStartedAt: null,
-    }))
+    updateState((prev) => {
+      // Auto-return any pulled goalies at period end (clock = 0:00)
+      const goaliePulls = (prev.goaliePulls ?? []).map((p) =>
+        p.returnedAt === null ? { ...p, returnedAt: "0:00" } : p
+      )
+      return { ...prev, clockRunning: false, clockSeconds: 0, clockStartedAt: null, goaliePulls }
+    })
   }
 
   function startNextPeriod() {
@@ -506,6 +507,33 @@ export function ScorekeeperApp({
         next[Number(playerId)] = true
       }
       return { ...prev, goalieOverrides: next }
+    })
+  }
+
+  function isGoaliePulled(team: string): boolean {
+    const pulls = state.goaliePulls ?? []
+    return pulls.some((p) => p.team === team && p.returnedAt === null)
+  }
+
+  function pullGoalie(team: string) {
+    const clock = currentClockString()
+    updateState((prev) => {
+      const pulls = prev.goaliePulls ?? []
+      const id = crypto.randomUUID()
+      return {
+        ...prev,
+        goaliePulls: [...pulls, { id, team, period: prev.period, pulledAt: clock, returnedAt: null }],
+      }
+    })
+  }
+
+  function returnGoalie(team: string) {
+    const clock = currentClockString()
+    updateState((prev) => {
+      const pulls = (prev.goaliePulls ?? []).map((p) =>
+        p.team === team && p.returnedAt === null ? { ...p, returnedAt: clock } : p
+      )
+      return { ...prev, goaliePulls: pulls }
     })
   }
 
@@ -1110,6 +1138,13 @@ export function ScorekeeperApp({
                   onPlus={() => adjustShots("away", 1)}
                   onMinus={() => adjustShots("away", -1)}
                 />
+                <Button
+                  variant={isGoaliePulled(awaySlug) ? "default" : "outline"}
+                  className={cn("w-full h-9 text-xs", isGoaliePulled(awaySlug) ? "bg-red-600 hover:bg-red-700 text-white" : "text-muted-foreground")}
+                  onClick={() => isGoaliePulled(awaySlug) ? returnGoalie(awaySlug) : pullGoalie(awaySlug)}
+                >
+                  {isGoaliePulled(awaySlug) ? "Return Goalie" : "Pull Goalie"}
+                </Button>
               </div>
               <div className="space-y-2">
                 <SectionHeader>{homeTeam}</SectionHeader>
@@ -1130,6 +1165,13 @@ export function ScorekeeperApp({
                   onPlus={() => adjustShots("home", 1)}
                   onMinus={() => adjustShots("home", -1)}
                 />
+                <Button
+                  variant={isGoaliePulled(homeSlug) ? "default" : "outline"}
+                  className={cn("w-full h-9 text-xs", isGoaliePulled(homeSlug) ? "bg-red-600 hover:bg-red-700 text-white" : "text-muted-foreground")}
+                  onClick={() => isGoaliePulled(homeSlug) ? returnGoalie(homeSlug) : pullGoalie(homeSlug)}
+                >
+                  {isGoaliePulled(homeSlug) ? "Return Goalie" : "Pull Goalie"}
+                </Button>
               </div>
             </div>
 
