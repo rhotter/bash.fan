@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils"
 import { Loader2, Star, Pencil } from "lucide-react"
 import Link from "next/link"
 import { playerSlug } from "@/lib/player-slug"
+import { formatGoalieTime } from "@/lib/format-goalie-time"
 import type { PlayerBoxScore, GoalieBoxScore } from "@/app/api/bash/game/[id]/route"
 import { useSort, SortableTh, SectionHeader } from "@/components/stats-table"
 import type { LiveGameState, GoalEvent, PenaltyEvent, RosterPlayer } from "@/lib/scorekeeper-types"
@@ -542,7 +543,7 @@ function LiveBoxScore({ state, homeSlug, awaySlug, homeTeam, awayTeam, playerNam
         .map((id) => {
           const saves = shotsAgainst - goalsAgainst
           const svPct = shotsAgainst > 0 ? (saves / shotsAgainst).toFixed(3).replace(/^0/, "") : "-"
-          return { id, name: playerNames[id] ?? `#${id}`, minutes: 0, goalsAgainst, shotsAgainst, saves, savePercentage: svPct, shutouts: goalsAgainst === 0 ? 1 : 0, goalieAssists: 0, result: null }
+          return { id, name: playerNames[id] ?? `#${id}`, seconds: 0, goalsAgainst, shotsAgainst, saves, savePercentage: svPct, shutouts: goalsAgainst === 0 ? 1 : 0, goalieAssists: 0, result: null }
         })
     }
 
@@ -664,7 +665,7 @@ function GoalieBoxScoreTable({ goalies }: { goalies: GoalieBoxScore[] }) {
               <td className="py-2 pr-2 whitespace-nowrap">
                 <Link href={`/player/${playerSlug(g.name)}`} className="hover:text-primary transition-colors">{g.name}</Link>
               </td>
-              <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{g.minutes}</td>
+              <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{formatGoalieTime(g.seconds)}</td>
               <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{g.shotsAgainst}</td>
               <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{g.saves}</td>
               <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{g.goalsAgainst}</td>
