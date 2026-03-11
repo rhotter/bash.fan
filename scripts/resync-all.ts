@@ -1,14 +1,6 @@
-import { neon } from "@neondatabase/serverless"
-import { readFileSync } from "fs"
-
-// Load env
-const envContent = readFileSync(new URL("../.env.local", import.meta.url), "utf-8")
-for (const line of envContent.split("\n")) {
-  const match = line.match(/^([^#=]+)=(.*)$/)
-  if (match) process.env[match[1].trim()] = match[2].trim()
-}
-
-const sql = neon(process.env.DATABASE_URL!)
+import "./env"
+import { rawSql } from "../lib/db"
+import { sql } from "drizzle-orm"
 
 const BASE_URL = "https://secure.sportability.com/spx/Leagues"
 
@@ -84,7 +76,7 @@ async function syncBoxscore(gameId: string, leagueId: string, seasonId: string) 
 
   let hasAnyStats = false
 
-  const teamRows = await sql`SELECT slug, name FROM teams`
+  const teamRows = await rawSql(sql`SELECT slug, name FROM teams`)
   const teamNameToSlug: Record<string, string> = {}
   for (const t of teamRows) {
     teamNameToSlug[t.name.toLowerCase()] = t.slug
@@ -126,8 +118,8 @@ async function syncBoxscore(gameId: string, leagueId: string, seasonId: string) 
             currentTeamSlug = teamNameToSlug[teamName] || null
             if (!currentTeamSlug) {
               const slug = nameToSlug(teamMatch[1].trim())
-              await sql`INSERT INTO teams (slug, name) VALUES (${slug}, ${teamMatch[1].trim()}) ON CONFLICT (slug) DO NOTHING`
-              await sql`INSERT INTO season_teams (season_id, team_slug) VALUES (${seasonId}, ${slug}) ON CONFLICT DO NOTHING`
+              await rawSql(sql`INSERT INTO teams (slug, name) VALUES (${slug}, ${teamMatch[1].trim()}) ON CONFLICT (slug) DO NOTHING`)
+              await rawSql(sql`INSERT INTO season_teams (season_id, team_slug) VALUES (${seasonId}, ${slug}) ON CONFLICT DO NOTHING`)
               teamNameToSlug[teamName] = slug
               currentTeamSlug = slug
             }
@@ -153,20 +145,20 @@ async function syncBoxscore(gameId: string, leagueId: string, seasonId: string) 
         const pen = cells.length > 13 ? parseInt(stripHtml(cells[13])) || 0 : 0
         const pim = cells.length > 14 ? parseInt(stripHtml(cells[14])) || 0 : 0
 
-        const playerRows = await sql`
+        const playerRows = await rawSql(sql`
           INSERT INTO players (name) VALUES (${playerName})
           ON CONFLICT (name) DO UPDATE SET name = EXCLUDED.name
           RETURNING id
-        `
+        `)
         const playerId = playerRows[0].id
 
-        await sql`
+        await rawSql(sql`
           INSERT INTO player_seasons (player_id, season_id, team_slug, is_goalie)
           VALUES (${playerId}, ${seasonId}, ${currentTeamSlug}, false)
           ON CONFLICT (player_id, season_id, team_slug) DO NOTHING
-        `
+        `)
 
-        await sql`
+        await rawSql(sql`
           INSERT INTO player_game_stats (player_id, game_id, goals, assists, points, gwg, ppg, shg, eng, hat_tricks, pen, pim)
           VALUES (${playerId}, ${gameId}, ${goals}, ${assists}, ${points}, ${gwg}, ${ppg}, ${shg}, ${eng}, ${hat}, ${pen}, ${pim})
           ON CONFLICT (player_id, game_id) DO UPDATE SET
@@ -174,7 +166,7 @@ async function syncBoxscore(gameId: string, leagueId: string, seasonId: string) 
             gwg = EXCLUDED.gwg, ppg = EXCLUDED.ppg, shg = EXCLUDED.shg,
             eng = EXCLUDED.eng, hat_tricks = EXCLUDED.hat_tricks,
             pen = EXCLUDED.pen, pim = EXCLUDED.pim
-        `
+        `)
         statsInserted = true
       }
 
@@ -198,8 +190,8 @@ async function syncBoxscore(gameId: string, leagueId: string, seasonId: string) 
             currentTeamSlug = teamNameToSlug[teamName] || null
             if (!currentTeamSlug) {
               const slug = nameToSlug(teamMatch[1].trim())
-              await sql`INSERT INTO teams (slug, name) VALUES (${slug}, ${teamMatch[1].trim()}) ON CONFLICT (slug) DO NOTHING`
-              await sql`INSERT INTO season_teams (season_id, team_slug) VALUES (${seasonId}, ${slug}) ON CONFLICT DO NOTHING`
+              await rawSql(sql`INSERT INTO teams (slug, name) VALUES (${slug}, ${teamMatch[1].trim()}) ON CONFLICT (slug) DO NOTHING`)
+              await rawSql(sql`INSERT INTO season_teams (season_id, team_slug) VALUES (${seasonId}, ${slug}) ON CONFLICT DO NOTHING`)
               teamNameToSlug[teamName] = slug
               currentTeamSlug = slug
             }
@@ -222,20 +214,20 @@ async function syncBoxscore(gameId: string, leagueId: string, seasonId: string) 
         const resultCell = cells.length > 13 ? stripHtml(cells[13]) : stripHtml(cells[cells.length - 1])
         const result = resultCell === "W" || resultCell === "L" ? resultCell : null
 
-        const playerRows = await sql`
+        const playerRows = await rawSql(sql`
           INSERT INTO players (name) VALUES (${playerName})
           ON CONFLICT (name) DO UPDATE SET name = EXCLUDED.name
           RETURNING id
-        `
+        `)
         const playerId = playerRows[0].id
 
-        await sql`
+        await rawSql(sql`
           INSERT INTO player_seasons (player_id, season_id, team_slug, is_goalie)
           VALUES (${playerId}, ${seasonId}, ${currentTeamSlug}, true)
           ON CONFLICT (player_id, season_id, team_slug) DO NOTHING
-        `
+        `)
 
-        await sql`
+        await rawSql(sql`
           INSERT INTO goalie_game_stats (player_id, game_id, minutes, goals_against, shots_against, saves, shutouts, goalie_assists, result)
           VALUES (${playerId}, ${gameId}, ${minutes}, ${ga}, ${shotsAgainst}, ${saves}, ${shutouts}, ${goalieAssists}, ${result})
           ON CONFLICT (player_id, game_id) DO UPDATE SET
@@ -243,7 +235,7 @@ async function syncBoxscore(gameId: string, leagueId: string, seasonId: string) 
             shots_against = EXCLUDED.shots_against, saves = EXCLUDED.saves,
             shutouts = EXCLUDED.shutouts, goalie_assists = EXCLUDED.goalie_assists,
             result = EXCLUDED.result
-        `
+        `)
         statsInserted = true
       }
 
@@ -252,7 +244,7 @@ async function syncBoxscore(gameId: string, leagueId: string, seasonId: string) 
   }
 
   if (hasAnyStats) {
-    await sql`UPDATE games SET has_boxscore = true WHERE id = ${gameId}`
+    await rawSql(sql`UPDATE games SET has_boxscore = true WHERE id = ${gameId}`)
   }
 }
 
@@ -294,13 +286,13 @@ async function main() {
   console.log(`Time: ${new Date().toISOString()}`)
 
   for (const season of SEASONS) {
-    const games = await sql`
+    const games = await rawSql(sql`
       SELECT id FROM games
       WHERE season_id = ${season.id}
         AND status = 'final'
         AND has_boxscore = false
       ORDER BY date ASC
-    `
+    `)
 
     if (games.length === 0) {
       console.log(`[${season.id}] No games to sync`)
@@ -315,13 +307,13 @@ async function main() {
   }
 
   // Now check for multi-team players
-  const multiTeam = await sql`
+  const multiTeam = await rawSql(sql`
     SELECT p.name, ps.player_id, ps.season_id, COUNT(DISTINCT ps.team_slug) as teams
     FROM player_seasons ps
     JOIN players p ON ps.player_id = p.id
     GROUP BY p.name, ps.player_id, ps.season_id
     HAVING COUNT(DISTINCT team_slug) > 1
-  `
+  `)
   console.log(`\nPlayers with multiple teams in a season: ${multiTeam.length}`)
   for (const r of multiTeam) {
     console.log(`  ${r.name} (id=${r.player_id}) - ${r.season_id}: ${r.teams} teams`)

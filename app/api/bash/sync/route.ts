@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { db, schema, rawSql } from "@/lib/db"
 import { sql, eq, and, count } from "drizzle-orm"
 import { getCurrentSeason, getSeasonById } from "@/lib/seasons"
+import { mergeDuplicatePlayers } from "@/lib/merge-duplicates"
 
 const BASE_URL = "https://secure.sportability.com/spx/Leagues"
 const MAX_BOXSCORES_PER_SYNC = 8
@@ -596,6 +597,9 @@ export async function GET(request: Request) {
       console.error(`Failed to sync boxscore for game ${gamesNeedingBoxscore[i].id}:`, (r as PromiseRejectedResult).reason)
     })
 
+    // Merge duplicate players (case differences, nicknames, etc.)
+    const mergeResult = await mergeDuplicatePlayers()
+
     await db
       .insert(schema.syncMetadata)
       .values({ key: "last_sync", value: new Date().toISOString() })
@@ -608,6 +612,7 @@ export async function GET(request: Request) {
       ok: true,
       schedule: scheduleResult,
       boxscoresSynced,
+      playersMerged: mergeResult.merged,
       timestamp: new Date().toISOString(),
     })
   } catch (error) {

@@ -1,6 +1,6 @@
-import { neon } from "@neondatabase/serverless";
-
-const sql = neon(process.env.DATABASE_URL!);
+import "./env"
+import { rawSql } from "../lib/db"
+import { sql } from "drizzle-orm"
 
 // Common nickname mappings
 const NICKNAMES: Record<string, string[]> = {
@@ -95,7 +95,7 @@ function fuzzyNormalize(name: string): string {
 }
 
 async function findDuplicates() {
-  const players = await sql`SELECT id, name FROM players ORDER BY name`;
+  const players = await rawSql(sql`SELECT id, name FROM players ORDER BY name`);
 
   // --- Pass 1: Exact match after full normalization ---
   const fuzzyGroups = new Map<string, Array<{ id: number; name: string }>>();

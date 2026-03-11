@@ -1,7 +1,7 @@
-import { neon } from "@neondatabase/serverless"
+import "./env"
+import { rawSql } from "../lib/db"
+import { sql } from "drizzle-orm"
 import { execSync } from "child_process"
-
-const sql = neon(process.env.DATABASE_URL!)
 
 const CSV_URL =
   "https://docs.google.com/spreadsheets/d/1D7yVyYqy2AVZRchLQExYcSZoqwUum8wsN6EuK0kZKm4/export?format=csv&gid=2023972233"
@@ -78,7 +78,7 @@ async function importHistoricalStats() {
 
   // Clear old data before re-importing (handles stale rows from previous bad imports)
   const seasonIdList = [...PRE_SPORTABILITY_SEASONS].map(toSeasonId)
-  await sql`DELETE FROM player_season_stats WHERE season_id = ANY(${seasonIdList})`
+  await rawSql(sql`DELETE FROM player_season_stats WHERE season_id IN ${seasonIdList}`)
   console.log("Cleared old player_season_stats for pre-Sportability seasons")
 
   // First, insert all seasons
@@ -87,11 +87,11 @@ async function importHistoricalStats() {
     seasonIds.add(toSeasonId(row.Season))
   }
   for (const sid of seasonIds) {
-    await sql`
+    await rawSql(sql`
       INSERT INTO seasons (id, name, league_id, is_current, season_type)
       VALUES (${sid}, ${sid}, '', false, 'fall')
       ON CONFLICT (id) DO NOTHING
-    `
+    `)
   }
   console.log(`Inserted ${seasonIds.size} seasons`)
 
@@ -110,18 +110,18 @@ async function importHistoricalStats() {
 
   // Insert teams
   for (const [slug, name] of teamsMap) {
-    await sql`INSERT INTO teams (slug, name) VALUES (${slug}, ${name}) ON CONFLICT (slug) DO NOTHING`
+    await rawSql(sql`INSERT INTO teams (slug, name) VALUES (${slug}, ${name}) ON CONFLICT (slug) DO NOTHING`)
   }
   console.log(`Inserted ${teamsMap.size} teams`)
 
   // Insert players
   for (const name of playersSet) {
-    await sql`INSERT INTO players (name) VALUES (${name}) ON CONFLICT (name) DO NOTHING`
+    await rawSql(sql`INSERT INTO players (name) VALUES (${name}) ON CONFLICT (name) DO NOTHING`)
   }
   console.log(`Inserted ${playersSet.size} players`)
 
   // Fetch player IDs
-  const playerRows = await sql`SELECT id, name FROM players`
+  const playerRows = await rawSql(sql`SELECT id, name FROM players`)
   const playerIdMap = new Map<string, number>()
   for (const p of playerRows) {
     playerIdMap.set(p.name, p.id)
@@ -143,18 +143,18 @@ async function importHistoricalStats() {
     const isPlayoff = row.Type === "Playoffs"
 
     // season_teams
-    await sql`
+    await rawSql(sql`
       INSERT INTO season_teams (season_id, team_slug)
       VALUES (${seasonId}, ${tSlug})
       ON CONFLICT DO NOTHING
-    `
+    `)
 
     // player_seasons
-    await sql`
+    await rawSql(sql`
       INSERT INTO player_seasons (player_id, season_id, team_slug, is_goalie)
       VALUES (${playerId}, ${seasonId}, ${tSlug}, false)
       ON CONFLICT (player_id, season_id, team_slug) DO NOTHING
-    `
+    `)
 
     // player_season_stats
     const gp = parseIntSafe(row.GP)
@@ -169,14 +169,14 @@ async function importHistoricalStats() {
     const pen = parseIntSafe(row.Pen)
     const pim = parseIntSafe(row.PIM)
 
-    await sql`
+    await rawSql(sql`
       INSERT INTO player_season_stats (player_id, season_id, team_slug, is_playoff, gp, goals, assists, points, gwg, ppg, shg, eng, hat_tricks, pen, pim)
       VALUES (${playerId}, ${seasonId}, ${tSlug}, ${isPlayoff}, ${gp}, ${goals}, ${assists}, ${points}, ${gwg}, ${ppg}, ${shg}, ${eng}, ${hatTricks}, ${pen}, ${pim})
       ON CONFLICT (player_id, season_id, team_slug, is_playoff) DO UPDATE SET
         gp = EXCLUDED.gp, goals = EXCLUDED.goals, assists = EXCLUDED.assists, points = EXCLUDED.points,
         gwg = EXCLUDED.gwg, ppg = EXCLUDED.ppg, shg = EXCLUDED.shg, eng = EXCLUDED.eng,
         hat_tricks = EXCLUDED.hat_tricks, pen = EXCLUDED.pen, pim = EXCLUDED.pim
-    `
+    `)
     statsCount++
   }
 

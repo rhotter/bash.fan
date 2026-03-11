@@ -1,6 +1,7 @@
-import { neon } from "@neondatabase/serverless"
-
-const sql = neon(process.env.DATABASE_URL!)
+import "./env"
+import { rawSql } from "../lib/db"
+import { sql } from "drizzle-orm"
+import { execSync } from "child_process"
 
 // ─── Historical award data (1991-2025) from BASH spreadsheet ──────────────────
 
@@ -481,14 +482,14 @@ async function computePostSeasonAwards(): Promise<{ awardType: string; seasonId:
 
   for (const seasonId of POST_2022_SEASONS) {
     // Check if season has any completed games
-    const gameCount = await sql`
+    const gameCount = await rawSql(sql`
       SELECT COUNT(*)::int as count FROM games
       WHERE season_id = ${seasonId} AND status = 'final' AND NOT is_playoff
-    `
+    `)
     if (gameCount[0].count === 0) continue
 
     // Scoring Title: player with most points in regular season
-    const topScorer = await sql`
+    const topScorer = await rawSql(sql`
       SELECT p.id, p.name, SUM(pgs.points)::int as total_points
       FROM player_game_stats pgs
       JOIN games g ON pgs.game_id = g.id AND g.season_id = ${seasonId} AND NOT g.is_playoff AND g.status = 'final'
@@ -496,7 +497,7 @@ async function computePostSeasonAwards(): Promise<{ awardType: string; seasonId:
       GROUP BY p.id, p.name
       ORDER BY total_points DESC
       LIMIT 1
-    `
+    `)
     if (topScorer.length > 0 && topScorer[0].total_points > 0) {
       results.push({
         awardType: "scoring_title",
@@ -507,7 +508,7 @@ async function computePostSeasonAwards(): Promise<{ awardType: string; seasonId:
     }
 
     // Best GAA: goalie with lowest GAA (min games threshold)
-    const bestGoalie = await sql`
+    const bestGoalie = await rawSql(sql`
       SELECT p.id, p.name,
         COUNT(*)::int as gp,
         SUM(ggs.goals_against)::float / NULLIF(SUM(ggs.minutes), 0) * 60 as gaa
@@ -518,7 +519,7 @@ async function computePostSeasonAwards(): Promise<{ awardType: string; seasonId:
       HAVING COUNT(*) >= ${MIN_GOALIE_GAMES} AND SUM(ggs.minutes) > 0
       ORDER BY gaa ASC
       LIMIT 1
-    `
+    `)
     if (bestGoalie.length > 0) {
       results.push({
         awardType: "best_gaa",
@@ -535,41 +536,16 @@ async function computePostSeasonAwards(): Promise<{ awardType: string; seasonId:
 // ─── Main seeding function ────────────────────────────────────────────────────
 
 async function main() {
-  console.log("Creating tables...")
-
-  // Create tables if they don't exist
-  await sql`
-    CREATE TABLE IF NOT EXISTS player_awards (
-      id SERIAL PRIMARY KEY,
-      player_name TEXT NOT NULL,
-      player_id INTEGER REFERENCES players(id),
-      season_id TEXT NOT NULL,
-      award_type TEXT NOT NULL,
-      UNIQUE (player_name, season_id, award_type)
-    )
-  `
-  await sql`
-    CREATE TABLE IF NOT EXISTS hall_of_fame (
-      id SERIAL PRIMARY KEY,
-      player_name TEXT NOT NULL,
-      player_id INTEGER REFERENCES players(id),
-      class_year INTEGER NOT NULL,
-      wing TEXT NOT NULL DEFAULT 'players',
-      years_active TEXT,
-      achievements TEXT,
-      UNIQUE (player_name, class_year)
-    )
-  `
-  await sql`CREATE INDEX IF NOT EXISTS idx_player_awards_player ON player_awards(player_id)`
-  await sql`CREATE INDEX IF NOT EXISTS idx_player_awards_season ON player_awards(season_id)`
-  await sql`CREATE INDEX IF NOT EXISTS idx_hall_of_fame_player ON hall_of_fame(player_id)`
+  console.log("Pushing schema via drizzle-kit...")
+  execSync("npx drizzle-kit push", { stdio: "inherit" })
+  console.log("Schema applied.")
 
   console.log("Loading players...")
-  const players = await sql`SELECT id, name FROM players ORDER BY id` as { id: number; name: string }[]
+  const players = await rawSql(sql`SELECT id, name FROM players ORDER BY id`) as { id: number; name: string }[]
   console.log(`Found ${players.length} players in database`)
 
   // Build season -> player_id map for better matching
-  const playerSeasonsRows = await sql`SELECT player_id, season_id FROM player_seasons`
+  const playerSeasonsRows = await rawSql(sql`SELECT player_id, season_id FROM player_seasons`)
   const playerSeasons = new Map<string, Set<number>>()
   for (const row of playerSeasonsRows) {
     if (!playerSeasons.has(row.season_id)) playerSeasons.set(row.season_id, new Set())
@@ -590,11 +566,11 @@ async function main() {
         }
 
         try {
-          await sql`
+          await rawSql(sql`
             INSERT INTO player_awards (player_name, player_id, season_id, award_type)
             VALUES (${winner}, ${playerId}, ${entry.season}, ${awardType})
             ON CONFLICT (player_name, season_id, award_type) DO NOTHING
-          `
+          `)
           insertedAwards++
         } catch (e: unknown) {
           const msg = e instanceof Error ? e.message : String(e)
@@ -618,11 +594,11 @@ async function main() {
 
   for (const award of computed) {
     try {
-      await sql`
+      await rawSql(sql`
         INSERT INTO player_awards (player_name, player_id, season_id, award_type)
         VALUES (${award.playerName}, ${award.playerId}, ${award.seasonId}, ${award.awardType})
         ON CONFLICT (player_name, season_id, award_type) DO NOTHING
-      `
+      `)
       console.log(`  ${award.awardType} ${award.seasonId}: ${award.playerName} (id=${award.playerId})`)
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e)
@@ -642,11 +618,11 @@ async function main() {
     }
 
     try {
-      await sql`
+      await rawSql(sql`
         INSERT INTO hall_of_fame (player_name, player_id, class_year, wing, years_active, achievements)
         VALUES (${entry.name}, ${playerId}, ${entry.classYear}, ${entry.wing}, ${entry.yearsActive ?? null}, ${entry.achievements ?? null})
         ON CONFLICT (player_name, class_year) DO NOTHING
-      `
+      `)
       insertedHof++
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e)

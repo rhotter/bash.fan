@@ -1,7 +1,7 @@
-import { neon } from "@neondatabase/serverless"
+import "./env"
+import { rawSql } from "../lib/db"
+import { sql } from "drizzle-orm"
 import { execSync } from "child_process"
-
-const sql = neon(process.env.DATABASE_URL!)
 
 async function seed() {
   console.log("Pushing schema via drizzle-kit...")
@@ -9,11 +9,11 @@ async function seed() {
   console.log("Schema applied.")
 
   // Insert season
-  await sql`
+  await rawSql(sql`
     INSERT INTO seasons (id, name, league_id, is_current, season_type)
     VALUES ('2025-2026', 'BASH 2025-2026', '50562', true, 'fall')
     ON CONFLICT (id) DO UPDATE SET season_type = EXCLUDED.season_type
-  `
+  `)
 
   // Insert teams
   const teams = [
@@ -27,8 +27,8 @@ async function seed() {
   ]
 
   for (const t of teams) {
-    await sql`INSERT INTO teams (slug, name) VALUES (${t.slug}, ${t.name}) ON CONFLICT (slug) DO NOTHING`
-    await sql`INSERT INTO season_teams (season_id, team_slug) VALUES ('2025-2026', ${t.slug}) ON CONFLICT DO NOTHING`
+    await rawSql(sql`INSERT INTO teams (slug, name) VALUES (${t.slug}, ${t.name}) ON CONFLICT (slug) DO NOTHING`)
+    await rawSql(sql`INSERT INTO season_teams (season_id, team_slug) VALUES ('2025-2026', ${t.slug}) ON CONFLICT DO NOTHING`)
   }
   console.log("Teams inserted.")
 
@@ -122,7 +122,7 @@ async function seed() {
 
   console.log(`Inserting ${games.length} games...`)
   for (const g of games) {
-    await sql`
+    await rawSql(sql`
       INSERT INTO games (id, season_id, date, time, away_team, home_team, away_score, home_score, status, is_overtime, is_playoff, location, has_boxscore)
       VALUES (${g.id}, '2025-2026', ${g.date}, ${g.time}, ${g.away}, ${g.home}, ${g.awayScore}, ${g.homeScore}, ${g.status}, ${g.isOT}, ${g.isPlayoff}, 'James Lick Arena', false)
       ON CONFLICT (id) DO UPDATE SET
@@ -130,7 +130,7 @@ async function seed() {
         home_score = EXCLUDED.home_score,
         status = EXCLUDED.status,
         is_overtime = EXCLUDED.is_overtime
-    `
+    `)
   }
   console.log("Games inserted.")
 

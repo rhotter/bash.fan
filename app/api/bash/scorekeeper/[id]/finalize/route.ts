@@ -169,7 +169,9 @@ export async function POST(
       for (const r of goalieRows) goalieIds.add(r.playerId)
     }
 
-    // 9. Upsert player_game_stats for attending skaters
+    // 9. Delete old player/goalie stats then insert fresh for attending players
+    await db.delete(schema.playerGameStats).where(eq(schema.playerGameStats.gameId, id))
+
     for (const [playerId, stats] of playerStats) {
       if (goalieIds.has(playerId)) continue // skip goalies
 
@@ -229,6 +231,10 @@ export async function POST(
     const awayPulledSecs = computePulledSeconds(pulls, awaySlug)
     const homeGoalieMinutes = Math.max(0, Math.round((totalGameSecs - homePulledSecs) / 60))
     const awayGoalieMinutes = Math.max(0, Math.round((totalGameSecs - awayPulledSecs) / 60))
+
+    // Delete old goalie stats for this game before inserting (prevents duplicates
+    // when scorekeeper finalizes with different goalies than sync imported)
+    await db.delete(schema.goalieGameStats).where(eq(schema.goalieGameStats.gameId, id))
 
     for (const goalieId of homeGoalies) {
       const sa = totalAwayShots

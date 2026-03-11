@@ -12,9 +12,9 @@
  *   --base-url: URL of running app (default: http://localhost:3000)
  */
 
-import { neon } from "@neondatabase/serverless"
-
-const sql = neon(process.env.DATABASE_URL!)
+import "./env"
+import { rawSql } from "../lib/db"
+import { sql } from "drizzle-orm"
 
 const BASE_URL = process.argv.includes("--base-url")
   ? process.argv[process.argv.indexOf("--base-url") + 1]
@@ -22,10 +22,10 @@ const BASE_URL = process.argv.includes("--base-url")
 
 async function cleanup() {
   // Find all bogus teams (scores embedded in team names)
-  const bogusTeams = await sql`
+  const bogusTeams = await rawSql(sql`
     SELECT slug FROM teams
     WHERE slug ~ '-\d+(-shutout)?$' OR slug LIKE '%-shutout'
-  `
+  `)
   const bogusSlugs = bogusTeams.map((t) => t.slug)
   console.log(`Found ${bogusSlugs.length} bogus team entries`)
 
@@ -35,36 +35,36 @@ async function cleanup() {
   }
 
   // Find all broken games referencing bogus teams
-  const brokenGames = await sql`
+  const brokenGames = await rawSql(sql`
     SELECT id, season_id FROM games
-    WHERE away_team = ANY(${bogusSlugs}) OR home_team = ANY(${bogusSlugs})
-  `
+    WHERE away_team IN ${bogusSlugs} OR home_team IN ${bogusSlugs}
+  `)
   const brokenGameIds = brokenGames.map((g) => g.id)
   const affectedSeasons = [...new Set(brokenGames.map((g) => g.season_id))]
   console.log(`Found ${brokenGameIds.length} broken games across ${affectedSeasons.length} seasons`)
 
   // Delete in FK order
   if (brokenGameIds.length > 0) {
-    const delOfficials = await sql`DELETE FROM game_officials WHERE game_id = ANY(${brokenGameIds})`
+    const delOfficials = await rawSql(sql`DELETE FROM game_officials WHERE game_id IN ${brokenGameIds}`)
     console.log(`  Deleted game_officials for broken games`)
-    const delPGS = await sql`DELETE FROM player_game_stats WHERE game_id = ANY(${brokenGameIds})`
+    const delPGS = await rawSql(sql`DELETE FROM player_game_stats WHERE game_id IN ${brokenGameIds}`)
     console.log(`  Deleted player_game_stats for broken games`)
-    const delGGS = await sql`DELETE FROM goalie_game_stats WHERE game_id = ANY(${brokenGameIds})`
+    const delGGS = await rawSql(sql`DELETE FROM goalie_game_stats WHERE game_id IN ${brokenGameIds}`)
     console.log(`  Deleted goalie_game_stats for broken games`)
-    await sql`DELETE FROM games WHERE id = ANY(${brokenGameIds})`
+    await rawSql(sql`DELETE FROM games WHERE id IN ${brokenGameIds}`)
     console.log(`  Deleted ${brokenGameIds.length} broken games`)
   }
 
   // Delete bogus season_teams
-  await sql`DELETE FROM season_teams WHERE team_slug = ANY(${bogusSlugs})`
+  await rawSql(sql`DELETE FROM season_teams WHERE team_slug IN ${bogusSlugs}`)
   console.log(`  Deleted season_teams for bogus teams`)
 
   // Delete bogus player_seasons
-  await sql`DELETE FROM player_seasons WHERE team_slug = ANY(${bogusSlugs})`
+  await rawSql(sql`DELETE FROM player_seasons WHERE team_slug IN ${bogusSlugs}`)
   console.log(`  Deleted player_seasons for bogus teams`)
 
   // Delete bogus teams
-  await sql`DELETE FROM teams WHERE slug = ANY(${bogusSlugs})`
+  await rawSql(sql`DELETE FROM teams WHERE slug IN ${bogusSlugs}`)
   console.log(`  Deleted ${bogusSlugs.length} bogus teams`)
 
   return affectedSeasons
