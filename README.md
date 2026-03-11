@@ -1,13 +1,14 @@
 # BASH Hockey
 
-A stats website for the Bay Area Street Hockey (BASH) league. View live scores, standings, player stats, and game boxscores.
+A stats website for the Bay Area Street Hockey (BASH) league. View live scores, standings, player stats, game boxscores, and live scorekeeper.
 
 ## Tech Stack
 
 - **Next.js 16** (App Router) with React 19
-- **Neon Postgres** — serverless database with raw SQL queries (no ORM)
+- **Neon Postgres** via **Drizzle ORM** (`drizzle-orm/neon-http`)
 - **Tailwind CSS v4** with shadcn/ui components
 - **SWR** for client-side data caching and revalidation
+- **Vitest** for testing
 - Deployed on **Vercel**
 
 ## Getting Started
@@ -32,9 +33,11 @@ A stats website for the Bay Area Street Hockey (BASH) league. View live scores, 
    DATABASE_URL=postgresql://...
    ```
 
-3. Set up the database schema:
+3. Push the Drizzle schema to your database:
 
-   Run the SQL in `lib/db/schema.sql` against your Neon database.
+   ```bash
+   pnpm db:push
+   ```
 
 4. Seed data from the Sportability API:
 
@@ -54,32 +57,34 @@ Game data is sourced from [Sportability](https://www.sportability.com/). A daily
 
 ## Database Schema
 
-The Postgres schema (`lib/db/schema.sql`) has 9 tables:
+The Drizzle schema (`lib/db/schema.ts`) has 15 tables:
 
 - **seasons** / **teams** / **season_teams** — league structure
-- **games** — schedule with scores, overtime/playoff flags, and boxscore availability
-- **players** / **player_seasons** — player identities and per-season team membership
+- **games** / **game_live** — schedule, scores, overtime/playoff flags, and live game state
+- **players** / **player_seasons** / **player_season_stats** — player identities, per-season team membership, and aggregated stats
 - **player_game_stats** — per-game skater stats (G, A, PTS, PPG, SHG, GWG, PIM, etc.)
 - **goalie_game_stats** — per-game goalie stats (GA, SA, saves, shutouts, result)
 - **game_officials** — referees and linesmen
+- **player_awards** / **hall_of_fame** — awards and hall of fame entries
 - **sync_metadata** — tracks last sync times
 
 ## Project Structure
 
 ```
 app/
-  api/bash/          API routes (games, players, sync, etc.)
+  api/bash/          API routes (games, players, sync, admin, scorekeeper, etc.)
   player/[slug]/     Player detail page
   team/[slug]/       Team detail page
   game/[id]/         Game boxscore page
   standings/         League standings
   stats/             Player stats leaderboards
+  scorekeeper/       Live game scorekeeper
 components/
   ui/                shadcn/ui primitives
   *.tsx              Page-level components (scores-tab, standings-tab, etc.)
 lib/
-  db/                Database connection and schema
-  fetch-*.ts         Server-side data fetching (raw SQL)
+  db/                Database connection and Drizzle schema
+  fetch-*.ts         Server-side data fetching
   hockey-data.ts     SWR hooks for client-side data
   seasons.ts         Season definitions with Sportability league IDs
 scripts/             Database seeding and maintenance utilities
