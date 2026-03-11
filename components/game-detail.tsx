@@ -4,7 +4,7 @@ import { useState, useMemo } from "react"
 import { useGameDetail, useLiveGame, type BashGame, type BashGameDetail } from "@/lib/hockey-data"
 import { formatGameDate } from "@/lib/format-time"
 import { cn } from "@/lib/utils"
-import { Loader2 } from "lucide-react"
+import { Loader2, Star } from "lucide-react"
 import Link from "next/link"
 import { playerSlug } from "@/lib/player-slug"
 import type { PlayerBoxScore, GoalieBoxScore } from "@/app/api/bash/game/[id]/route"
@@ -17,14 +17,15 @@ type SkaterSortKey = "points" | "goals" | "assists" | "pim" | "gwg" | "ppg" | "s
 interface GameDetailProps {
   game: BashGame
   initialDetail?: BashGameDetail
+  initialLiveData?: { state: unknown; homeScore: number | null; awayScore: number | null; playerNames: Record<number, string>; goalieIds: number[] }
 }
 
-export function GameDetail({ game, initialDetail }: GameDetailProps) {
+export function GameDetail({ game, initialDetail, initialLiveData }: GameDetailProps) {
   const { detail, isLoading, isError } = useGameDetail(game.id, initialDetail)
   const isLive = game.status === "live"
   const isFinal = game.status === "final"
   // Fetch live data for both live and final games (to get goal/penalty event details)
-  const { liveData } = useLiveGame(isLive || isFinal ? game.id : null)
+  const { liveData } = useLiveGame(isLive || isFinal ? game.id : null, initialLiveData)
 
   const liveState: LiveGameState | null = liveData?.state ?? null
 
@@ -100,6 +101,14 @@ export function GameDetail({ game, initialDetail }: GameDetailProps) {
           </div>
         </div>
       </div>
+
+      {/* Three Stars */}
+      {liveState?.threeStars && liveState.threeStars.some(id => id > 0) && (
+        <ThreeStars
+          stars={liveState.threeStars}
+          playerNames={{ ...(liveData?.playerNames ?? {}), ...buildPlayerNameMap(detail) }}
+        />
+      )}
 
       {/* Period summary (goals + shots by period) */}
       {(isLive || isFinal) && liveState && (
@@ -219,6 +228,27 @@ function buildPlayerNameMap(detail: BashGameDetail | null | undefined): Record<n
     map[p.id] = p.name
   }
   return map
+}
+
+function ThreeStars({ stars, playerNames }: { stars: number[]; playerNames: Record<number, string> }) {
+  const labels = ["1st", "2nd", "3rd"]
+  return (
+    <div className="mt-4 flex items-center justify-center gap-6 py-3">
+      {stars.map((playerId, i) => {
+        if (!playerId) return null
+        const name = playerNames[playerId] ?? `#${playerId}`
+        return (
+          <div key={i} className="flex items-center gap-1.5 text-[11px]">
+            <Star className="h-3 w-3 text-yellow-500 fill-yellow-500" />
+            <span className="text-[9px] text-muted-foreground/50 uppercase tracking-wider font-medium">{labels[i]}</span>
+            <Link href={`/player/${playerSlug(name)}`} className="font-medium hover:text-primary transition-colors">
+              {name}
+            </Link>
+          </div>
+        )
+      })}
+    </div>
+  )
 }
 
 function LivePeriodSummary({ state, homeSlug, awaySlug, homeTeam, awayTeam }: {
