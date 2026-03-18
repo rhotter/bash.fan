@@ -6,7 +6,7 @@ async function addTestGame() {
   const id = "test-game-001"
   const seasonId = "2025-2026"
   const date = "2026-03-21"
-  const time = "7:30p"
+  const time = "6:00a"
   const homeTeam = "seals"
   const awayTeam = "reign"
 

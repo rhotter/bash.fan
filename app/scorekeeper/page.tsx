@@ -22,9 +22,13 @@ export default async function ScorekeeperIndexPage() {
     ORDER BY g.date ASC, CASE WHEN g.time = 'TBD' THEN '23:59'::time ELSE to_timestamp(CASE WHEN g.time LIKE '%a' THEN replace(g.time, 'a', ' AM') ELSE replace(g.time, 'p', ' PM') END, 'HH:MI AM')::time END ASC
   `)
 
+  // Separate test games from real games
+  const testGames = games.filter((g: { id: string }) => g.id.startsWith("test-"))
+  const realGames = games.filter((g: { id: string }) => !g.id.startsWith("test-"))
+
   // Group by date
   const grouped: Record<string, typeof games> = {}
-  for (const game of games) {
+  for (const game of realGames) {
     if (!grouped[game.date]) grouped[game.date] = []
     grouped[game.date].push(game)
   }
@@ -48,6 +52,55 @@ export default async function ScorekeeperIndexPage() {
           Select a game to scorekeep.
         </p>
         <div className="flex flex-col gap-6">
+          {testGames.length > 0 && (
+            <div>
+              <div className="mb-1.5">
+                <span className="text-[11px] font-semibold text-amber-500">
+                  Test Games
+                </span>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {testGames.map((game) => {
+                  const isFinal = game.status === "final"
+                  const isLive = game.status === "live"
+                  const awayScore = isFinal || isLive ? game.away_score : null
+                  const homeScore = isFinal || isLive ? game.home_score : null
+
+                  return (
+                    <Link
+                      key={game.id}
+                      href={`/scorekeeper/${game.id}`}
+                      prefetch={false}
+                      className="rounded-lg border border-amber-500/40 bg-amber-500/5 hover:bg-amber-500/10 transition-colors block"
+                    >
+                      <div className="px-3 pt-2 pb-1 border-b border-border/20 flex items-center justify-between">
+                        <span className="text-[10px] text-muted-foreground/50">{game.time}</span>
+                        <span className="text-[9px] text-amber-500 font-bold uppercase">Test</span>
+                      </div>
+                      <div className="px-3 py-2 flex flex-col gap-1">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-xs truncate text-muted-foreground">
+                            {game.away_team_name}
+                          </span>
+                          <span className="text-sm tabular-nums font-mono w-6 text-right shrink-0 text-muted-foreground">
+                            {awayScore ?? "-"}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-xs truncate text-muted-foreground">
+                            {game.home_team_name}
+                          </span>
+                          <span className="text-sm tabular-nums font-mono w-6 text-right shrink-0 text-muted-foreground">
+                            {homeScore ?? "-"}
+                          </span>
+                        </div>
+                      </div>
+                    </Link>
+                  )
+                })}
+              </div>
+            </div>
+          )}
           {dates.map((date) => (
             <div key={date}>
               <div className="mb-1.5">
@@ -57,7 +110,6 @@ export default async function ScorekeeperIndexPage() {
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                 {grouped[date].map((game) => {
-                  const isTest = (game.id as string).startsWith("test-")
                   const isFinal = game.status === "final"
                   const isLive = game.status === "live"
                   const awayScore = isFinal || isLive ? game.away_score : null
@@ -70,13 +122,11 @@ export default async function ScorekeeperIndexPage() {
                       key={game.id}
                       href={`/scorekeeper/${game.id}`}
                       prefetch={false}
-                      className={`rounded-lg border bg-card hover:bg-muted/50 transition-colors block ${isTest ? "border-amber-500/40 bg-amber-500/5" : isLive ? "border-red-500/30" : "border-border/40"}`}
+                      className={`rounded-lg border bg-card hover:bg-muted/50 transition-colors block ${isLive ? "border-red-500/30" : "border-border/40"}`}
                     >
                       <div className="px-3 pt-2 pb-1 border-b border-border/20 flex items-center justify-between">
                         <span className="text-[10px] text-muted-foreground/50">{game.time}</span>
-                        {isTest ? (
-                          <span className="text-[9px] text-amber-500 font-bold uppercase">Test</span>
-                        ) : isLive ? (
+                        {isLive ? (
                           <span className="inline-flex items-center gap-1">
                             <span className="relative flex h-1.5 w-1.5">
                               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
