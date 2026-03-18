@@ -57,6 +57,7 @@ export default async function ScorekeeperIndexPage() {
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                 {grouped[date].map((game) => {
+                  const isTest = (game.id as string).startsWith("test-")
                   const isFinal = game.status === "final"
                   const isLive = game.status === "live"
                   const awayScore = isFinal || isLive ? game.away_score : null
@@ -69,11 +70,13 @@ export default async function ScorekeeperIndexPage() {
                       key={game.id}
                       href={`/scorekeeper/${game.id}`}
                       prefetch={false}
-                      className={`rounded-lg border bg-card hover:bg-muted/50 transition-colors block ${isLive ? "border-red-500/30" : "border-border/40"}`}
+                      className={`rounded-lg border bg-card hover:bg-muted/50 transition-colors block ${isTest ? "border-amber-500/40 bg-amber-500/5" : isLive ? "border-red-500/30" : "border-border/40"}`}
                     >
                       <div className="px-3 pt-2 pb-1 border-b border-border/20 flex items-center justify-between">
                         <span className="text-[10px] text-muted-foreground/50">{game.time}</span>
-                        {isLive ? (
+                        {isTest ? (
+                          <span className="text-[9px] text-amber-500 font-bold uppercase">Test</span>
+                        ) : isLive ? (
                           <span className="inline-flex items-center gap-1">
                             <span className="relative flex h-1.5 w-1.5">
                               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
