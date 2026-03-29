@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next'
 import { Inter, JetBrains_Mono } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
+import { SpeedInsights } from '@vercel/speed-insights/next'
 import { AdminProvider } from '@/lib/admin-context'
 import { SiteFooter } from '@/components/site-footer'
 import './globals.css'
@@ -50,6 +51,7 @@ export default function RootLayout({
           <SiteFooter />
         </AdminProvider>
         <Analytics />
+        <SpeedInsights />
       </body>
     </html>
   )
