@@ -61,7 +61,7 @@ export function TeamPageContent({ team }: { team: TeamDetail }) {
             <table className="w-full min-w-[600px] text-[11px] table-fixed">
               <thead>
                 <tr className="text-muted-foreground/50 text-[9px] uppercase tracking-wider">
-                  <th className="text-left font-medium py-2.5 sticky left-0 z-10 bg-background pl-4 sm:pl-0 w-[130px] max-w-[130px] after:absolute after:right-0 after:top-0 after:bottom-0 after:w-4 after:bg-gradient-to-r after:from-background/80 after:to-transparent after:pointer-events-none">Player</th>
+                  <th className="text-left font-medium py-2.5 sticky left-0 z-10 bg-background pl-4 sm:pl-0 w-[180px] max-w-[180px] after:absolute after:right-0 after:top-0 after:bottom-0 after:w-4 after:bg-gradient-to-r after:from-background/80 after:to-transparent after:pointer-events-none">Player</th>
                   <SortableTh label="GP" sortKey="gp" currentKey={skaterSort} dir={skaterDir} onToggle={toggleSkaterSort} />
                   <SortableTh label="G" sortKey="goals" currentKey={skaterSort} dir={skaterDir} onToggle={toggleSkaterSort} />
                   <SortableTh label="A" sortKey="assists" currentKey={skaterSort} dir={skaterDir} onToggle={toggleSkaterSort} />
@@ -78,7 +78,7 @@ export function TeamPageContent({ team }: { team: TeamDetail }) {
               <tbody>
                 {sortedSkaters.map((p, i) => (
                   <tr key={p.id} className={cn("group border-t border-border/20 hover:bg-muted/50", i % 2 === 0 && "bg-card/15")}>
-                    <td className="py-2 sticky left-0 z-10 bg-background group-hover:bg-muted/50 pl-4 sm:pl-0 w-[130px] max-w-[130px] after:absolute after:right-0 after:top-0 after:bottom-0 after:w-4 after:bg-gradient-to-r after:from-background/80 after:to-transparent after:pointer-events-none group-hover:after:from-muted/50">
+                    <td className="py-2 sticky left-0 z-10 bg-background group-hover:bg-muted/50 pl-4 sm:pl-0 w-[180px] max-w-[180px] after:absolute after:right-0 after:top-0 after:bottom-0 after:w-4 after:bg-gradient-to-r after:from-background/80 after:to-transparent after:pointer-events-none group-hover:after:from-muted/50">
                       <div className="flex items-baseline gap-2 pr-4">
                         <span className="text-muted-foreground/40 tabular-nums text-[10px] shrink-0 w-3 text-right">{i + 1}</span>
                         <Link href={`/player/${playerSlug(p.name)}`} className="text-xs font-semibold hover:text-primary transition-colors truncate">{p.name}</Link>
@@ -110,7 +110,7 @@ export function TeamPageContent({ team }: { team: TeamDetail }) {
             <table className="w-full min-w-[600px] text-[11px] table-fixed">
               <thead>
                 <tr className="text-muted-foreground/50 text-[9px] uppercase tracking-wider">
-                  <th className="text-left font-medium py-2.5 sticky left-0 z-10 bg-background pl-4 sm:pl-0 w-[130px] max-w-[130px] after:absolute after:right-0 after:top-0 after:bottom-0 after:w-4 after:bg-gradient-to-r after:from-background/80 after:to-transparent after:pointer-events-none">Goalie</th>
+                  <th className="text-left font-medium py-2.5 sticky left-0 z-10 bg-background pl-4 sm:pl-0 w-[180px] max-w-[180px] after:absolute after:right-0 after:top-0 after:bottom-0 after:w-4 after:bg-gradient-to-r after:from-background/80 after:to-transparent after:pointer-events-none">Goalie</th>
                   <SortableTh label="GP" sortKey="gp" currentKey={goalieSort} dir={goalieDir} onToggle={toggleGoalieSort} />
                   <SortableTh label="W" sortKey="wins" currentKey={goalieSort} dir={goalieDir} onToggle={toggleGoalieSort} />
                   <SortableTh label="L" sortKey="losses" currentKey={goalieSort} dir={goalieDir} onToggle={toggleGoalieSort} />
@@ -126,7 +126,7 @@ export function TeamPageContent({ team }: { team: TeamDetail }) {
               <tbody>
                 {sortedGoalies.map((g, i) => (
                   <tr key={g.id} className={cn("group border-t border-border/20 hover:bg-muted/50", i % 2 === 0 && "bg-card/15")}>
-                    <td className="py-2 sticky left-0 z-10 bg-background group-hover:bg-muted/50 pl-4 sm:pl-0 w-[130px] max-w-[130px] after:absolute after:right-0 after:top-0 after:bottom-0 after:w-4 after:bg-gradient-to-r after:from-background/80 after:to-transparent after:pointer-events-none group-hover:after:from-muted/50">
+                    <td className="py-2 sticky left-0 z-10 bg-background group-hover:bg-muted/50 pl-4 sm:pl-0 w-[180px] max-w-[180px] after:absolute after:right-0 after:top-0 after:bottom-0 after:w-4 after:bg-gradient-to-r after:from-background/80 after:to-transparent after:pointer-events-none group-hover:after:from-muted/50">
                       <div className="flex items-baseline gap-2 pr-4">
                         <span className="text-muted-foreground/40 tabular-nums text-[10px] shrink-0 w-3 text-right">{i + 1}</span>
                         <Link href={`/player/${playerSlug(g.name)}`} className="text-xs font-semibold hover:text-primary transition-colors truncate">{g.name}</Link>
