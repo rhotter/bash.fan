@@ -41,6 +41,14 @@ export function GameDetail({ game, initialDetail, initialLiveData, homeRoster, a
   const [mounted, setMounted] = useState(false)
   useEffect(() => { setMounted(true) }, [])
 
+  // Tick every second so the clock updates in real time
+  const [, setTick] = useState(0)
+  useEffect(() => {
+    if (!liveState?.clockRunning) return
+    const id = setInterval(() => setTick((t) => t + 1), 1000)
+    return () => clearInterval(id)
+  }, [liveState?.clockRunning])
+
   // Admin edit mode
   const { isAdmin, pin: adminPin } = useAdmin()
   const [editMode, setEditMode] = useState(false)

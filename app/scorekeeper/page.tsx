@@ -1,47 +1,57 @@
 import { rawSql } from "@/lib/db"
 import { sql } from "drizzle-orm"
 import { getCurrentSeason } from "@/lib/seasons"
-import { formatGameDate } from "@/lib/format-time"
 import { SiteHeader } from "@/components/site-header"
-import Link from "next/link"
+import { ScorekeeperGameList } from "./scorekeeper-game-list"
+import type { BashGame } from "@/lib/hockey-data"
 
 export const dynamic = "force-dynamic"
 
 export default async function ScorekeeperIndexPage() {
   const season = getCurrentSeason()
 
-  const games = await rawSql(sql`
+  const rows = await rawSql(sql`
     SELECT g.id, g.date, g.time, g.status,
       g.home_score, g.away_score,
+      g.home_team, g.away_team,
+      g.is_overtime, g.is_playoff,
+      g.location, g.has_boxscore,
       ht.name as home_team_name,
-      awt.name as away_team_name
+      awt.name as away_team_name,
+      gl.game_id IS NOT NULL as has_live_stats,
+      (gl.state->>'period')::int as live_period,
+      (gl.state->>'clockSeconds')::float as live_clock_seconds,
+      (gl.state->>'clockRunning')::boolean as live_clock_running,
+      (gl.state->>'clockStartedAt')::float as live_clock_started_at
     FROM games g
     JOIN teams ht ON g.home_team = ht.slug
     JOIN teams awt ON g.away_team = awt.slug
+    LEFT JOIN game_live gl ON gl.game_id = g.id
     WHERE g.season_id = ${season.id}
     ORDER BY g.date ASC, CASE WHEN g.time = 'TBD' THEN '23:59'::time ELSE to_timestamp(CASE WHEN g.time LIKE '%a' THEN replace(g.time, 'a', ' AM') ELSE replace(g.time, 'p', ' PM') END, 'HH:MI AM')::time END ASC
   `)
 
-  // Separate test games from real games
-  const testGames = games.filter((g: { id: string }) => g.id.startsWith("test-"))
-  const realGames = games.filter((g: { id: string }) => !g.id.startsWith("test-"))
-
-  // Group by date
-  const grouped: Record<string, typeof games> = {}
-  for (const game of realGames) {
-    if (!grouped[game.date]) grouped[game.date] = []
-    grouped[game.date].push(game)
-  }
-
-  // Upcoming/live dates first (chronological), then past dates (reverse chronological)
-  const dates = Object.keys(grouped).sort((a, b) => {
-    const aHasActive = grouped[a].some((g) => g.status !== "final")
-    const bHasActive = grouped[b].some((g) => g.status !== "final")
-    if (aHasActive && !bHasActive) return -1
-    if (!aHasActive && bHasActive) return 1
-    if (aHasActive && bHasActive) return a.localeCompare(b)
-    return b.localeCompare(a)
-  })
+  const games: BashGame[] = rows.map((r: Record<string, unknown>) => ({
+    id: r.id as string,
+    date: r.date as string,
+    time: r.time as string,
+    homeTeam: r.home_team_name as string,
+    homeSlug: r.home_team as string,
+    awayTeam: r.away_team_name as string,
+    awaySlug: r.away_team as string,
+    homeScore: r.home_score as number | null,
+    awayScore: r.away_score as number | null,
+    status: r.status as "final" | "upcoming" | "live",
+    isOvertime: r.is_overtime as boolean,
+    isPlayoff: r.is_playoff as boolean,
+    location: r.location as string,
+    hasBoxscore: r.has_boxscore as boolean,
+    hasLiveStats: r.has_live_stats as boolean,
+    livePeriod: r.live_period as number | null,
+    liveClockSeconds: r.live_clock_seconds as number | null,
+    liveClockRunning: r.live_clock_running as boolean | null,
+    liveClockStartedAt: r.live_clock_started_at as number | null,
+  }))
 
   return (
     <div className="flex min-h-svh flex-col bg-background">
@@ -51,118 +61,7 @@ export default async function ScorekeeperIndexPage() {
         <p className="text-sm text-muted-foreground mb-6">
           Select a game to scorekeep.
         </p>
-        <div className="flex flex-col gap-6">
-          {testGames.length > 0 && (
-            <div>
-              <div className="mb-1.5">
-                <span className="text-[11px] font-semibold text-amber-500">
-                  Test Games
-                </span>
-              </div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                {testGames.map((game) => {
-                  const isFinal = game.status === "final"
-                  const isLive = game.status === "live"
-                  const awayScore = isFinal || isLive ? game.away_score : null
-                  const homeScore = isFinal || isLive ? game.home_score : null
-
-                  return (
-                    <Link
-                      key={game.id}
-                      href={`/scorekeeper/${game.id}`}
-                      prefetch={false}
-                      className="rounded-lg border border-amber-500/40 bg-amber-500/5 hover:bg-amber-500/10 transition-colors block"
-                    >
-                      <div className="px-3 pt-2 pb-1 border-b border-border/20 flex items-center justify-between">
-                        <span className="text-[10px] text-muted-foreground/50">{game.time}</span>
-                        <span className="text-[9px] text-amber-500 font-bold uppercase">Test</span>
-                      </div>
-                      <div className="px-3 py-2 flex flex-col gap-1">
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="text-xs truncate text-muted-foreground">
-                            {game.away_team_name}
-                          </span>
-                          <span className="text-sm tabular-nums font-mono w-6 text-right shrink-0 text-muted-foreground">
-                            {awayScore ?? "-"}
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="text-xs truncate text-muted-foreground">
-                            {game.home_team_name}
-                          </span>
-                          <span className="text-sm tabular-nums font-mono w-6 text-right shrink-0 text-muted-foreground">
-                            {homeScore ?? "-"}
-                          </span>
-                        </div>
-                      </div>
-                    </Link>
-                  )
-                })}
-              </div>
-            </div>
-          )}
-          {dates.map((date) => (
-            <div key={date}>
-              <div className="mb-1.5">
-                <span className="text-[11px] font-semibold text-muted-foreground">
-                  {formatGameDate(date)}
-                </span>
-              </div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                {grouped[date].map((game) => {
-                  const isFinal = game.status === "final"
-                  const isLive = game.status === "live"
-                  const awayScore = isFinal || isLive ? game.away_score : null
-                  const homeScore = isFinal || isLive ? game.home_score : null
-                  const awayWon = isFinal && awayScore != null && homeScore != null && awayScore > homeScore
-                  const homeWon = isFinal && homeScore != null && awayScore != null && homeScore > awayScore
-
-                  return (
-                    <Link
-                      key={game.id}
-                      href={`/scorekeeper/${game.id}`}
-                      prefetch={false}
-                      className={`rounded-lg border bg-card hover:bg-muted/50 transition-colors block ${isLive ? "border-red-500/30" : "border-border/40"}`}
-                    >
-                      <div className="px-3 pt-2 pb-1 border-b border-border/20 flex items-center justify-between">
-                        <span className="text-[10px] text-muted-foreground/50">{game.time}</span>
-                        {isLive ? (
-                          <span className="inline-flex items-center gap-1">
-                            <span className="relative flex h-1.5 w-1.5">
-                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
-                              <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-red-500" />
-                            </span>
-                            <span className="text-[9px] text-red-500 font-bold uppercase">Live</span>
-                          </span>
-                        ) : isFinal ? (
-                          <span className="text-[9px] text-muted-foreground/50 font-medium uppercase">Final</span>
-                        ) : null}
-                      </div>
-                      <div className="px-3 py-2 flex flex-col gap-1">
-                        <div className="flex items-center justify-between gap-2">
-                          <span className={`text-xs truncate ${awayWon ? "font-semibold" : "text-muted-foreground"}`}>
-                            {game.away_team_name}
-                          </span>
-                          <span className={`text-sm tabular-nums font-mono w-6 text-right shrink-0 ${awayWon ? "font-bold" : isLive ? "font-bold" : "text-muted-foreground"}`}>
-                            {awayScore ?? "-"}
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between gap-2">
-                          <span className={`text-xs truncate ${homeWon ? "font-semibold" : "text-muted-foreground"}`}>
-                            {game.home_team_name}
-                          </span>
-                          <span className={`text-sm tabular-nums font-mono w-6 text-right shrink-0 ${homeWon ? "font-bold" : isLive ? "font-bold" : "text-muted-foreground"}`}>
-                            {homeScore ?? "-"}
-                          </span>
-                        </div>
-                      </div>
-                    </Link>
-                  )
-                })}
-              </div>
-            </div>
-          ))}
-        </div>
+        <ScorekeeperGameList games={games} />
       </div>
     </div>
   )
