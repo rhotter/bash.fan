@@ -1467,13 +1467,13 @@ export function ScorekeeperApp({
 
       {/* ─── Goal Drawer ─────────────────────────────────────────── */}
       <Drawer open={goalDrawerOpen} onOpenChange={setGoalDrawerOpen}>
-        <DrawerContent>
+        <DrawerContent className="max-h-[85dvh]">
           <DrawerHeader>
             <DrawerTitle>
               {editingGoalId ? "Edit" : ""} {goalTeam === homeSlug ? homeTeam : awayTeam} Goal
             </DrawerTitle>
           </DrawerHeader>
-          <div className="px-4 pb-6 space-y-4">
+          <div className="px-4 pb-6 space-y-4 overflow-y-auto">
             <div className="flex gap-3">
               <FieldLabel label="Period">
                 <Select value={capturedPeriod.toString()} onValueChange={(v) => { const p = parseInt(v); setCapturedPeriod(p); setCapturedClock(elapsedPartsToCountdown(clockMinutes, clockSeconds, p)) }}>
@@ -1569,13 +1569,13 @@ export function ScorekeeperApp({
 
       {/* ─── Penalty Drawer ──────────────────────────────────────── */}
       <Drawer open={penaltyDrawerOpen} onOpenChange={setPenaltyDrawerOpen}>
-        <DrawerContent>
+        <DrawerContent className="max-h-[85dvh]">
           <DrawerHeader>
             <DrawerTitle>
               {editingPenaltyId ? "Edit" : ""} {penaltyTeam === homeSlug ? homeTeam : awayTeam} Penalty
             </DrawerTitle>
           </DrawerHeader>
-          <div className="px-4 pb-6 space-y-4">
+          <div className="px-4 pb-6 space-y-4 overflow-y-auto">
             <div className="flex gap-3">
               <FieldLabel label="Period">
                 <Select value={capturedPeriod.toString()} onValueChange={(v) => { const p = parseInt(v); setCapturedPeriod(p); setCapturedClock(elapsedPartsToCountdown(clockMinutes, clockSeconds, p)) }}>
@@ -1749,11 +1749,11 @@ export function ScorekeeperApp({
 
       {/* ─── Timeout Edit Drawer ─────────────────────────────────── */}
       <Drawer open={timeoutDrawerOpen} onOpenChange={setTimeoutDrawerOpen}>
-        <DrawerContent>
+        <DrawerContent className="max-h-[85dvh]">
           <DrawerHeader>
             <DrawerTitle>Edit Timeout</DrawerTitle>
           </DrawerHeader>
-          <div className="px-4 pb-6 space-y-4">
+          <div className="px-4 pb-6 space-y-4 overflow-y-auto">
             <div className="flex gap-3">
               <FieldLabel label="Period">
                 <Select value={capturedPeriod.toString()} onValueChange={(v) => { const p = parseInt(v); setCapturedPeriod(p); setCapturedClock(elapsedPartsToCountdown(clockMinutes, clockSeconds, p)) }}>
