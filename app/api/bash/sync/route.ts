@@ -536,7 +536,7 @@ async function syncBoxscore(gameId: string, leagueId: string, seasonId: string) 
         AND ps.team_slug IN (${game.home_team}, ${game.away_team})
       GROUP BY ps.team_slug
     `)
-    const teamsWithGoalies = new Set(goalieCheck.map((r: { team_slug: string }) => r.team_slug))
+    const teamsWithGoalies = new Set(goalieCheck.map((r) => r.team_slug))
     const hasAllGoalies = teamsWithGoalies.has(game.home_team) && teamsWithGoalies.has(game.away_team)
     await db.update(schema.games).set({ hasBoxscore: hasAllGoalies }).where(eq(schema.games.id, gameId))
   }

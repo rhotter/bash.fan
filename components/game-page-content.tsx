@@ -28,6 +28,10 @@ export function GamePageContent({ initialDetail, initialLiveData, homeRoster, aw
     location: initialDetail.location,
     hasBoxscore: initialDetail.homePlayers.length > 0 || initialDetail.awayPlayers.length > 0,
     hasLiveStats: !!initialLiveData,
+    livePeriod: (initialLiveData?.state as any)?.period ?? null,
+    liveClockSeconds: (initialLiveData?.state as any)?.clockSeconds ?? null,
+    liveClockRunning: (initialLiveData?.state as any)?.clockRunning ?? null,
+    liveClockStartedAt: (initialLiveData?.state as any)?.clockStartedAt ?? null,
   }
 
   return (

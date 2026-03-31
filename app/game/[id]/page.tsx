@@ -58,8 +58,8 @@ export default async function GamePage({ params }: { params: Promise<{ id: strin
     if (gameRows.length > 0) {
       seasonId = gameRows[0].season_id
       const [hr, ar] = await Promise.all([
-        getRoster(detail.homeSlug, seasonId),
-        getRoster(detail.awaySlug, seasonId),
+        getRoster(detail.homeSlug, seasonId!),
+        getRoster(detail.awaySlug, seasonId!),
       ])
       homeRoster = hr
       awayRoster = ar

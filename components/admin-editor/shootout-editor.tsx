@@ -52,8 +52,9 @@ export function ShootoutEditor({ state, onChange, homeSlug, awaySlug, homeTeam, 
   const availablePlayers = roster.filter((p) => attending.includes(p.id))
 
   function handleAdd() {
+    if (!shootout) return
     const attempt = { playerId: parseInt(playerId), scored: result === "goal" }
-    const newShootout = { ...shootout }
+    const newShootout: ShootoutState = { homeAttempts: [...shootout.homeAttempts], awayAttempts: [...shootout.awayAttempts] }
     if (team === homeSlug) {
       newShootout.homeAttempts = [...shootout.homeAttempts, attempt]
     } else {
@@ -66,7 +67,8 @@ export function ShootoutEditor({ state, onChange, homeSlug, awaySlug, homeTeam, 
   }
 
   function handleDeleteAttempt(teamSlug: string, index: number) {
-    const newShootout = { ...shootout }
+    if (!shootout) return
+    const newShootout: ShootoutState = { homeAttempts: [...shootout.homeAttempts], awayAttempts: [...shootout.awayAttempts] }
     if (teamSlug === homeSlug) {
       newShootout.homeAttempts = shootout.homeAttempts.filter((_, i) => i !== index)
     } else {

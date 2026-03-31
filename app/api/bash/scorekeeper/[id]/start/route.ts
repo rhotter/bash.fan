@@ -57,7 +57,7 @@ export async function POST(
           LIMIT 1
         `)
         if (rows.length > 0) {
-          ;(initialState as Record<string, unknown>)[key] = rows[0].player_id
+          ;(initialState as unknown as Record<string, unknown>)[key] = rows[0].player_id
         }
       }
     }

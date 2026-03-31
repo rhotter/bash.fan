@@ -97,6 +97,10 @@ export async function fetchBashData(seasonParam?: string | null): Promise<BashAp
     location: r.location,
     hasBoxscore: r.has_boxscore,
     hasLiveStats: r.has_live_stats,
+    livePeriod: null,
+    liveClockSeconds: null,
+    liveClockRunning: null,
+    liveClockStartedAt: null,
   }))
 
   const standings = computeStandings(games)
