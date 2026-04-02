@@ -2,97 +2,18 @@ import { NextRequest, NextResponse } from "next/server"
 import { neon } from "@neondatabase/serverless"
 
 // BASH MCP Server — Streamable HTTP transport
-// Tools for querying BASH hockey league data across all seasons
-
-const BASE_URL = "https://www.bash.fan/api/bash"
+// Single tool: read-only SQL queries against the BASH hockey database
 
 const TOOLS = [
   {
-    name: "get_seasons",
-    description:
-      "List all available BASH (Bay Area Street Hockey) seasons. Returns season IDs, names, and whether they have game data. Use this to discover which seasons exist before querying other tools. Seasons go back to 1991-1992. Fall seasons are the main league; summer seasons are a separate shorter league.",
-    inputSchema: {
-      type: "object" as const,
-      properties: {},
-    },
-  },
-  {
-    name: "get_standings",
-    description:
-      "Get league standings and game results for a specific season. Returns team records (W/L/OTW/OTL/PTS/GF/GA) and all game scores. If no season is provided, returns the current season.",
-    inputSchema: {
-      type: "object" as const,
-      properties: {
-        season: {
-          type: "string",
-          description:
-            'Season ID, e.g. "2025-2026", "2024-summer", "1999-2000". Use get_seasons to find valid IDs.',
-        },
-      },
-    },
-  },
-  {
-    name: "get_team",
-    description:
-      "Get detailed team info including full roster with player stats (G/A/PTS/PPG/SHG/GWG/PIM), goalie stats (W/L/SV%/GAA/SO), and schedule/results for a specific season.",
-    inputSchema: {
-      type: "object" as const,
-      properties: {
-        team: {
-          type: "string",
-          description:
-            'Team slug, e.g. "yetis", "seals", "rink-rats", "landsharks", "loons", "reign", "no-regretzkys". Use get_standings to find team slugs.',
-        },
-        season: {
-          type: "string",
-          description:
-            'Season ID. If omitted, returns current season.',
-        },
-      },
-      required: ["team"],
-    },
-  },
-  {
-    name: "get_game",
-    description:
-      "Get a detailed boxscore for a specific game including player stats, goalie stats, and officials.",
-    inputSchema: {
-      type: "object" as const,
-      properties: {
-        game_id: {
-          type: "string",
-          description:
-            "Game ID. Get game IDs from get_standings or get_team results.",
-        },
-      },
-      required: ["game_id"],
-    },
-  },
-  {
-    name: "get_player",
-    description:
-      "Get a player's career stats across all seasons, including per-season breakdowns by team.",
-    inputSchema: {
-      type: "object" as const,
-      properties: {
-        player: {
-          type: "string",
-          description:
-            'Player slug (lowercase, hyphenated name), e.g. "john-smith". Get player slugs from team rosters.',
-        },
-      },
-      required: ["player"],
-    },
-  },
-  {
     name: "query_stats",
-    description: `Run a read-only SQL query against the BASH database. Use this for complex historical analysis that other tools can't answer efficiently (e.g. "who has the most 20-goal seasons", "all-time points leaders", "most hat tricks in a single season").
+    description: `Run a read-only SQL query against the BASH (Bay Area Street Hockey) database. BASH is a street hockey league in San Francisco that has been running since 1991.
 
 Database schema:
-- seasons (id TEXT PK, name TEXT, league_id TEXT, is_current BOOL, season_type TEXT)
+- seasons (id TEXT PK, name TEXT, league_id TEXT, is_current BOOL, season_type TEXT ['summer'|'fall'])
 - teams (slug TEXT PK, name TEXT)
 - season_teams (season_id TEXT, team_slug TEXT)
-- games (id TEXT PK, season_id TEXT, date TEXT, time TEXT, home_team TEXT, away_team TEXT, home_score INT, away_score INT, status TEXT, is_overtime BOOL, is_playoff BOOL, location TEXT, has_boxscore BOOL)
+- games (id TEXT PK, season_id TEXT, date TEXT, time TEXT, home_team TEXT, away_team TEXT, home_score INT, away_score INT, status TEXT ['upcoming'|'final'|'live'], is_overtime BOOL, is_playoff BOOL, location TEXT, has_boxscore BOOL)
 - players (id SERIAL PK, name TEXT UNIQUE)
 - player_seasons (player_id INT, season_id TEXT, team_slug TEXT, is_goalie BOOL)
 - player_game_stats (player_id INT, game_id TEXT, goals INT, assists INT, points INT, gwg INT, ppg INT, shg INT, eng INT, hat_tricks INT, pen INT, pim INT)
@@ -102,6 +23,7 @@ Database schema:
 - hall_of_fame (id SERIAL, player_name TEXT, player_id INT, class_year INT, wing TEXT, years_active TEXT, achievements TEXT)
 - game_officials (id SERIAL, game_id TEXT, name TEXT, role TEXT)
 
+Season IDs look like "2025-2026" (fall) or "2024-summer". The current season is marked with is_current=true.
 Only SELECT queries are allowed. Results limited to 100 rows.`,
     inputSchema: {
       type: "object" as const,
@@ -115,81 +37,6 @@ Only SELECT queries are allowed. Results limited to 100 rows.`,
     },
   },
 ]
-
-async function fetchJSON(url: string) {
-  const res = await fetch(url)
-  if (!res.ok) throw new Error(`API error: ${res.status}`)
-  return res.json()
-}
-
-async function handleToolCall(name: string, args: Record<string, string>) {
-  switch (name) {
-    case "get_seasons": {
-      const data = await fetchJSON(`${BASE_URL}/seasons`)
-      return JSON.stringify(data)
-    }
-    case "get_standings": {
-      const season = args.season ? `?season=${args.season}` : ""
-      const data = await fetchJSON(`${BASE_URL}${season}`)
-      // Return standings + recent/upcoming games (last 5 + next 5) to keep response small
-      const games = (data.games || []).map((g: Record<string, unknown>) => ({
-        id: g.id,
-        date: g.date,
-        time: g.time,
-        homeTeam: g.homeTeam,
-        awayTeam: g.awayTeam,
-        homeScore: g.homeScore,
-        awayScore: g.awayScore,
-        status: g.status,
-        isOvertime: g.isOvertime,
-        isPlayoff: g.isPlayoff,
-      }))
-      const final = games.filter((g: Record<string, unknown>) => g.status === "final")
-      const upcoming = games.filter((g: Record<string, unknown>) => g.status !== "final")
-      return JSON.stringify({
-        standings: data.standings,
-        recentGames: final.slice(-10),
-        upcomingGames: upcoming.slice(0, 10),
-        totalGames: games.length,
-        totalFinal: final.length,
-        note: "Use get_team for full game history of a specific team.",
-      })
-    }
-    case "get_team": {
-      const season = args.season ? `?season=${args.season}` : ""
-      const data = await fetchJSON(`${BASE_URL}/team/${args.team}${season}`)
-      return JSON.stringify(data)
-    }
-    case "get_game": {
-      const data = await fetchJSON(`${BASE_URL}/game/${args.game_id}`)
-      return JSON.stringify(data)
-    }
-    case "get_player": {
-      const data = await fetchJSON(`${BASE_URL}/player/${args.player}`)
-      return JSON.stringify(data)
-    }
-    case "query_stats": {
-      const query = (args.sql || "").trim()
-      // Block anything that isn't a SELECT
-      const forbidden = /\b(INSERT|UPDATE|DELETE|DROP|ALTER|CREATE|TRUNCATE|GRANT|REVOKE|COPY|EXECUTE|DO)\b/i
-      if (forbidden.test(query)) {
-        throw new Error("Only SELECT queries are allowed.")
-      }
-      if (!query.toUpperCase().startsWith("SELECT")) {
-        throw new Error("Query must start with SELECT.")
-      }
-      // Enforce row limit
-      const limitedQuery = /\bLIMIT\b/i.test(query) ? query : `${query} LIMIT 100`
-      const dbUrl = process.env.DATABASE_URL_READONLY
-      if (!dbUrl) throw new Error("Database not configured.")
-      const sql = neon(dbUrl)
-      const rows = await sql.query(limitedQuery)
-      return JSON.stringify({ rows, rowCount: rows.length })
-    }
-    default:
-      throw new Error(`Unknown tool: ${name}`)
-  }
-}
 
 // JSON-RPC helpers
 function jsonrpcResponse(id: string | number | null, result: unknown) {
@@ -227,11 +74,32 @@ export async function POST(req: NextRequest) {
 
       case "tools/call": {
         const { name, arguments: args } = params
-        try {
-          const result = await handleToolCall(name, args || {})
+        if (name !== "query_stats") {
           return NextResponse.json(
             jsonrpcResponse(id, {
-              content: [{ type: "text", text: result }],
+              content: [{ type: "text", text: `Error: Unknown tool: ${name}` }],
+              isError: true,
+            })
+          )
+        }
+
+        try {
+          const query = (args.sql || "").trim()
+          const forbidden = /\b(INSERT|UPDATE|DELETE|DROP|ALTER|CREATE|TRUNCATE|GRANT|REVOKE|COPY|EXECUTE|DO)\b/i
+          if (forbidden.test(query)) {
+            throw new Error("Only SELECT queries are allowed.")
+          }
+          if (!query.toUpperCase().startsWith("SELECT")) {
+            throw new Error("Query must start with SELECT.")
+          }
+          const limitedQuery = /\bLIMIT\b/i.test(query) ? query : `${query} LIMIT 100`
+          const dbUrl = process.env.DATABASE_URL_READONLY
+          if (!dbUrl) throw new Error("Database not configured.")
+          const sql = neon(dbUrl)
+          const rows = await sql.query(limitedQuery)
+          return NextResponse.json(
+            jsonrpcResponse(id, {
+              content: [{ type: "text", text: JSON.stringify({ rows, rowCount: rows.length }) }],
             })
           )
         } catch (e) {
@@ -246,7 +114,6 @@ export async function POST(req: NextRequest) {
 
       case "notifications/initialized":
       case "notifications/cancelled": {
-        // Notifications don't need a response
         return new NextResponse(null, { status: 204 })
       }
 
@@ -264,7 +131,6 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// GET for SSE transport discovery (optional)
 export async function GET() {
   return NextResponse.json({
     name: "bash-hockey",
