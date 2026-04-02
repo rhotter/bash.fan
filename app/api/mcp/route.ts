@@ -100,20 +100,28 @@ async function handleToolCall(name: string, args: Record<string, string>) {
     case "get_standings": {
       const season = args.season ? `?season=${args.season}` : ""
       const data = await fetchJSON(`${BASE_URL}${season}`)
+      // Return standings + recent/upcoming games (last 5 + next 5) to keep response small
+      const games = (data.games || []).map((g: Record<string, unknown>) => ({
+        id: g.id,
+        date: g.date,
+        time: g.time,
+        homeTeam: g.homeTeam,
+        awayTeam: g.awayTeam,
+        homeScore: g.homeScore,
+        awayScore: g.awayScore,
+        status: g.status,
+        isOvertime: g.isOvertime,
+        isPlayoff: g.isPlayoff,
+      }))
+      const final = games.filter((g: Record<string, unknown>) => g.status === "final")
+      const upcoming = games.filter((g: Record<string, unknown>) => g.status !== "final")
       return JSON.stringify({
         standings: data.standings,
-        games: data.games?.map((g: Record<string, unknown>) => ({
-          id: g.id,
-          date: g.date,
-          time: g.time,
-          homeTeam: g.homeTeam,
-          awayTeam: g.awayTeam,
-          homeScore: g.homeScore,
-          awayScore: g.awayScore,
-          status: g.status,
-          isOvertime: g.isOvertime,
-          isPlayoff: g.isPlayoff,
-        })),
+        recentGames: final.slice(-10),
+        upcomingGames: upcoming.slice(0, 10),
+        totalGames: games.length,
+        totalFinal: final.length,
+        note: "Use get_team for full game history of a specific team.",
       })
     }
     case "get_team": {
