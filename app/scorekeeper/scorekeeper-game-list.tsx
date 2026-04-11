@@ -8,7 +8,7 @@ const scorekeeperHref = (game: BashGame) => `/scorekeeper/${game.id}`
 
 export function ScorekeeperGameList({ games }: { games: BashGame[] }) {
   const testGames = games.filter((g) => g.id.startsWith("test-"))
-  const realGames = games.filter((g) => !g.id.startsWith("test-"))
+  const realGames = games.filter((g) => !g.id.startsWith("test-") && !(g.isPlayoff && g.homeSlug === g.awaySlug))
 
   return (
     <div className="flex flex-col gap-6">

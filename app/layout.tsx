@@ -22,12 +22,8 @@ export const metadata: Metadata = {
     template: '%s | BASH',
   },
   description: 'Scores, standings, and stats for the Bay Area Street Hockey league.',
-  openGraph: {
-    images: [{ url: '/og-image.png', width: 1200, height: 630 }],
-  },
   twitter: {
     card: 'summary_large_image',
-    images: ['/og-image.png'],
   },
 }
 

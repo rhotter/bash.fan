@@ -1,9 +1,8 @@
 "use client"
 
-import { useState, useMemo, useRef, useEffect, useCallback } from "react"
+import { useState, useMemo, useRef, useEffect, useCallback, Fragment } from "react"
 import { type BashGame } from "@/lib/hockey-data"
 import { cn } from "@/lib/utils"
-import { ChevronLeft, ChevronRight } from "lucide-react"
 import { DateSection } from "@/components/game-card"
 
 function getWeekKey(dateStr: string) {
@@ -37,61 +36,69 @@ type Week = {
   isCurrent: boolean
 }
 
+function buildWeeks(games: BashGame[]): Week[] {
+  const weekMap = new Map<string, BashGame[]>()
+  for (const game of games) {
+    const wk = getWeekKey(game.date)
+    if (!weekMap.has(wk)) weekMap.set(wk, [])
+    weekMap.get(wk)!.push(game)
+  }
+
+  const today = new Date().toISOString().slice(0, 10)
+  const todayWeek = getWeekKey(today)
+
+  return [...weekMap.keys()].sort().map((key): Week => {
+    const weekGames = weekMap.get(key)!
+    const dateMap = new Map<string, BashGame[]>()
+    for (const g of weekGames) {
+      if (!dateMap.has(g.date)) dateMap.set(g.date, [])
+      dateMap.get(g.date)!.push(g)
+    }
+
+    return {
+      key,
+      label: formatWeekRange(key),
+      dates: [...dateMap.entries()]
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([date, dGames]) => ({ date, games: dGames })),
+      isCurrent: key === todayWeek,
+    }
+  })
+}
+
 export function WeekNavigator({
   games,
+  playoffGames,
   gameHref,
 }: {
   games: BashGame[]
+  playoffGames?: BashGame[]
   gameHref?: (game: BashGame) => string
 }) {
-  const weeks = useMemo(() => {
-    const weekMap = new Map<string, BashGame[]>()
-    for (const game of games) {
-      const wk = getWeekKey(game.date)
-      if (!weekMap.has(wk)) weekMap.set(wk, [])
-      weekMap.get(wk)!.push(game)
-    }
-
-    const today = new Date().toISOString().slice(0, 10)
-    const todayWeek = getWeekKey(today)
-
-    return [...weekMap.keys()].sort().map((key): Week => {
-      const weekGames = weekMap.get(key)!
-      const dateMap = new Map<string, BashGame[]>()
-      for (const g of weekGames) {
-        if (!dateMap.has(g.date)) dateMap.set(g.date, [])
-        dateMap.get(g.date)!.push(g)
-      }
-
-      return {
-        key,
-        label: formatWeekRange(key),
-        dates: [...dateMap.entries()]
-          .sort(([a], [b]) => a.localeCompare(b))
-          .map(([date, dGames]) => ({ date, games: dGames })),
-        isCurrent: key === todayWeek,
-      }
-    })
-  }, [games])
+  const regularWeeks = useMemo(() => buildWeeks(games), [games])
+  const pWeeks = useMemo(() => buildWeeks(playoffGames || []), [playoffGames])
+  const allWeeks = useMemo(() => [...regularWeeks, ...pWeeks], [regularWeeks, pWeeks])
+  const hasPlayoffs = pWeeks.length > 0
+  const playoffStartIndex = regularWeeks.length
 
   const defaultIndex = useMemo(() => {
-    const currentIdx = weeks.findIndex((w) => w.isCurrent)
-    if (currentIdx !== -1) return currentIdx
-
     const today = new Date().toISOString().slice(0, 10)
     const todayWeek = getWeekKey(today)
-    for (let i = weeks.length - 1; i >= 0; i--) {
-      if (weeks[i].key <= todayWeek) return i
+    const currentIdx = allWeeks.findIndex((w) => w.isCurrent)
+    if (currentIdx !== -1) return currentIdx
+
+    for (let i = allWeeks.length - 1; i >= 0; i--) {
+      if (allWeeks[i].key <= todayWeek) return i
     }
 
-    return Math.max(0, weeks.length - 1)
-  }, [weeks])
+    return Math.max(0, allWeeks.length - 1)
+  }, [allWeeks])
 
   const [selectedIndex, setSelectedIndex] = useState(defaultIndex)
   const scrollRef = useRef<HTMLDivElement>(null)
   const pillRefs = useRef<Map<number, HTMLButtonElement>>(new Map())
 
-  const idx = Math.min(selectedIndex, Math.max(0, weeks.length - 1))
+  const idx = Math.min(selectedIndex, Math.max(0, allWeeks.length - 1))
 
   const scrollToIndex = useCallback((index: number, behavior: ScrollBehavior = "smooth") => {
     const container = scrollRef.current
@@ -114,7 +121,7 @@ export function WeekNavigator({
     scrollToIndex(idx)
   }, [idx, scrollToIndex])
 
-  if (weeks.length === 0) {
+  if (allWeeks.length === 0) {
     return (
       <div className="flex items-center justify-center py-16">
         <p className="text-xs text-muted-foreground">No games found.</p>
@@ -122,36 +129,25 @@ export function WeekNavigator({
     )
   }
 
-  const selectedWeek = weeks[idx]
-  const canGoLeft = idx > 0
-  const canGoRight = idx < weeks.length - 1
+  const selectedWeek = allWeeks[idx]
 
   return (
     <div className="flex flex-col gap-4">
       {/* Week navigation strip */}
-      <div className="flex items-center gap-1">
-        <button
-          onClick={() => canGoLeft && setSelectedIndex(idx - 1)}
-          disabled={!canGoLeft}
-          className={cn(
-            "hidden sm:flex shrink-0 items-center justify-center w-7 h-7 rounded-full transition-colors",
-            canGoLeft
-              ? "hover:bg-muted text-muted-foreground cursor-pointer"
-              : "text-muted-foreground/20 cursor-default"
-          )}
-          aria-label="Previous week"
-        >
-          <ChevronLeft className="h-4 w-4" />
-        </button>
-
-        <div
-          ref={scrollRef}
-          className="flex-1 overflow-x-auto flex gap-1 py-1"
-          style={{ scrollbarWidth: "none" }}
-        >
-          {weeks.map((week, i) => (
+      <div
+        ref={scrollRef}
+        className="overflow-x-auto flex gap-1 py-1"
+        style={{ scrollbarWidth: "none" }}
+      >
+        {allWeeks.map((week, i) => (
+          <Fragment key={`${i >= playoffStartIndex && hasPlayoffs ? "p-" : ""}${week.key}`}>
+            {i === playoffStartIndex && hasPlayoffs && (
+              <div className="shrink-0 flex items-center gap-2 px-2">
+                <div className="w-px h-4 bg-border" />
+                <span className="text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wider">Playoffs</span>
+              </div>
+            )}
             <button
-              key={week.key}
               ref={(el) => {
                 if (el) pillRefs.current.set(i, el)
                 else pillRefs.current.delete(i)
@@ -169,22 +165,8 @@ export function WeekNavigator({
                 <span className="absolute -bottom-0.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-foreground/40" />
               )}
             </button>
-          ))}
-        </div>
-
-        <button
-          onClick={() => canGoRight && setSelectedIndex(idx + 1)}
-          disabled={!canGoRight}
-          className={cn(
-            "hidden sm:flex shrink-0 items-center justify-center w-7 h-7 rounded-full transition-colors",
-            canGoRight
-              ? "hover:bg-muted text-muted-foreground cursor-pointer"
-              : "text-muted-foreground/20 cursor-default"
-          )}
-          aria-label="Next week"
-        >
-          <ChevronRight className="h-4 w-4" />
-        </button>
+          </Fragment>
+        ))}
       </div>
 
       {/* Games for selected week */}

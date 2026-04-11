@@ -6,8 +6,13 @@ import { Loader2 } from "lucide-react"
 import { WeekNavigator } from "@/components/week-navigator"
 
 export function ScoresTab({ games, isLoading }: { games: BashGame[]; isLoading: boolean }) {
-  const filteredGames = useMemo(
-    () => games.filter((g) => !g.isPlayoff || g.homeSlug !== g.awaySlug),
+  const regularGames = useMemo(
+    () => games.filter((g) => !g.isPlayoff),
+    [games]
+  )
+
+  const playoffGames = useMemo(
+    () => games.filter((g) => g.isPlayoff && g.homeSlug !== g.awaySlug),
     [games]
   )
 
@@ -19,5 +24,10 @@ export function ScoresTab({ games, isLoading }: { games: BashGame[]; isLoading: 
     )
   }
 
-  return <WeekNavigator games={filteredGames} />
+  return (
+    <WeekNavigator
+      games={regularGames}
+      playoffGames={playoffGames.length > 0 ? playoffGames : undefined}
+    />
+  )
 }
