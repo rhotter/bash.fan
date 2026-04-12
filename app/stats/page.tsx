@@ -16,7 +16,7 @@ export default async function StatsPage({ searchParams }: { searchParams: Promis
   const data = await fetchPlayerStats(season)
 
   return (
-    <div className="flex min-h-svh flex-col bg-background">
+    <div className="flex flex-1 flex-col bg-background">
       <SiteHeader activeTab="stats" />
       <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-5 md:py-8">
         <Suspense>

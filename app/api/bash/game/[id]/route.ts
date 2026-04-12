@@ -42,6 +42,7 @@ export interface BashGameDetail {
   awayScore: number | null
   status: string
   isOvertime: boolean
+  isForfeit: boolean
   location: string
   homePlayers: PlayerBoxScore[]
   awayPlayers: PlayerBoxScore[]
@@ -145,6 +146,7 @@ export async function GET(
       awayScore: game.away_score,
       status: game.status,
       isOvertime: game.is_overtime,
+      isForfeit: game.is_forfeit,
       location: game.location,
       homePlayers,
       awayPlayers,

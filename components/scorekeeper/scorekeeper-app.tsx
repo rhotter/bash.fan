@@ -892,7 +892,7 @@ export function ScorekeeperApp({
   // Finalized screen
   if (finalized) {
     return (
-      <div className="flex min-h-svh flex-col items-center justify-center bg-background px-4">
+      <div className="flex flex-1 flex-col items-center justify-center bg-background px-4">
         <div className="text-center space-y-4">
           <div className={cn(
             "text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded-full inline-block",
@@ -939,7 +939,7 @@ export function ScorekeeperApp({
   const totalAwayShots = state.awayShots.reduce((a, b) => a + b, 0)
 
   return (
-    <div className="min-h-svh bg-background pb-24" style={{ "--accent": "var(--muted)", "--accent-foreground": "var(--foreground)" } as React.CSSProperties}>
+    <div className="flex-1 bg-background pb-24" style={{ "--accent": "var(--muted)", "--accent-foreground": "var(--foreground)" } as React.CSSProperties}>
       {/* ─── Top Bar ─────────────────────────────────────────────── */}
       <div className="sticky top-0 z-50 bg-background/95 backdrop-blur">
         <div className="flex items-center justify-end px-4 py-2 max-w-2xl mx-auto">

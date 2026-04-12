@@ -3,12 +3,14 @@
 import type { BashGame } from "@/lib/hockey-data"
 import { GameCard } from "@/components/game-card"
 import { WeekNavigator } from "@/components/week-navigator"
+import { splitRegularAndPlayoff } from "@/lib/split-games"
 
 const scorekeeperHref = (game: BashGame) => `/scorekeeper/${game.id}`
 
 export function ScorekeeperGameList({ games }: { games: BashGame[] }) {
   const testGames = games.filter((g) => g.id.startsWith("test-"))
-  const realGames = games.filter((g) => !g.id.startsWith("test-") && !(g.isPlayoff && g.homeSlug === g.awaySlug))
+  const realGames = games.filter((g) => !g.id.startsWith("test-"))
+  const { regular, playoff } = splitRegularAndPlayoff(realGames)
 
   return (
     <div className="flex flex-col gap-6">
@@ -26,7 +28,11 @@ export function ScorekeeperGameList({ games }: { games: BashGame[] }) {
           </div>
         </div>
       )}
-      <WeekNavigator games={realGames} gameHref={scorekeeperHref} />
+      <WeekNavigator
+        games={regular}
+        playoffGames={playoff.length > 0 ? playoff : undefined}
+        gameHref={scorekeeperHref}
+      />
     </div>
   )
 }

@@ -28,7 +28,7 @@ async function syncScheduleScores(leagueId: string, seasonId: string) {
     if (!gameIds.includes(match[1])) gameIds.push(match[1])
   }
 
-  const updates: { id: string; homeScore: number; awayScore: number; isOT: boolean }[] = []
+  const updates: { id: string; homeScore: number; awayScore: number; isOT: boolean; isForfeit: boolean }[] = []
   const rows = html.split(/(?=GID=\d+)/)
 
   for (const row of rows) {
@@ -37,12 +37,13 @@ async function syncScheduleScores(leagueId: string, seasonId: string) {
     const gid = gidMatch[1]
     const text = stripHtml(row)
     const isOT = /\(OT\)/i.test(text)
-    const atMatch = text.match(/(\d+)\s+at\s+.*?(\d+)/i)
+    const isForfeit = /\((?:Dbl\s+)?Forfeit\)/i.test(text)
+    const atMatch = text.match(/(\d+)\s*(?:\([^)]*\))?\s+at\s+.*?(\d+)\s*(?:\([^)]*\))?\s*$/i)
     if (atMatch) {
       const awayScore = parseInt(atMatch[1])
       const homeScore = parseInt(atMatch[2])
       if (!isNaN(awayScore) && !isNaN(homeScore)) {
-        updates.push({ id: gid, homeScore, awayScore, isOT })
+        updates.push({ id: gid, homeScore, awayScore, isOT, isForfeit })
       }
     }
   }
@@ -57,9 +58,10 @@ async function syncScheduleScores(leagueId: string, seasonId: string) {
     await rawSql(sql`
       UPDATE games
       SET home_score = ${u.homeScore}, away_score = ${u.awayScore},
-          status = 'final', is_overtime = ${u.isOT}
+          status = 'final', is_overtime = ${u.isOT}, is_forfeit = ${u.isForfeit}
       WHERE id = ${u.id} AND season_id = ${seasonId}
-        AND (home_score IS NULL OR home_score != ${u.homeScore} OR away_score != ${u.awayScore})
+        AND (home_score IS NULL OR home_score != ${u.homeScore} OR away_score != ${u.awayScore}
+             OR is_overtime != ${u.isOT} OR is_forfeit != ${u.isForfeit})
     `)
     updated++
   }
@@ -160,9 +162,10 @@ async function syncFullSchedule(leagueId: string, seasonId: string) {
 
     const isPlayoff = /\(Pla\)/i.test(gameText)
     const isOT = /Overtime|ShootOut/i.test(gameCellHtml)
+    const isForfeit = /\((?:Dbl\s+)?Forfeit\)/i.test(gameText)
 
     // Parse "Away Score at Home Score"
-    const cleanText = gameText.replace(/^\(Pla\)\s*/i, "").replace(/\(Overtime\)|\(ShootOut\)|\(Shutout\)|\(If Necessary\)/gi, "").trim()
+    const cleanText = gameText.replace(/^\(Pla\)\s*/i, "").replace(/\s*\((?:Overtime|ShootOut|Shutout|If Necessary|Dbl Forfeit|Forfeit|Canceled|Cancelled)\)/gi, "").trim()
 
     const scoreMatch = cleanText.match(/^(.+?)\s+(\d+)\s+at\s+(.+?)\s+(\d+)$/)
     const upcomingMatch = !scoreMatch ? cleanText.match(/^(.+?)\s+at\s+(.+?)$/) : null
@@ -186,9 +189,10 @@ async function syncFullSchedule(leagueId: string, seasonId: string) {
 
     if (!awayName || !homeName || awayName.length < 2 || homeName.length < 2) continue
 
-    // Find location cell — look for a cell containing "Arena" or "Rink" etc.
+    // Find location cell — skip the game cell (which may contain team names like "Rink Rats")
     let location = "James Lick Arena"
     for (const cell of cells) {
+      if (cell === gameCellHtml) continue
       const loc = stripHtml(cell).trim()
       if (loc && /arena|rink|center|park|field/i.test(loc)) { location = loc; break }
     }
@@ -228,10 +232,20 @@ async function syncFullSchedule(leagueId: string, seasonId: string) {
           status,
           isOvertime: isOT,
           isPlayoff,
+          isForfeit,
           location,
           hasBoxscore: false,
         })
-        .onConflictDoNothing()
+        .onConflictDoUpdate({
+          target: schema.games.id,
+          set: {
+            date: sql`EXCLUDED.date`,
+            time: sql`EXCLUDED.time`,
+            location: sql`EXCLUDED.location`,
+            isPlayoff: sql`EXCLUDED.is_playoff`,
+            isForfeit: sql`EXCLUDED.is_forfeit`,
+          },
+        })
     } else {
       await db
         .insert(schema.games)
@@ -247,6 +261,7 @@ async function syncFullSchedule(leagueId: string, seasonId: string) {
           status,
           isOvertime: isOT,
           isPlayoff,
+          isForfeit,
           location,
           hasBoxscore: false,
         })
@@ -262,6 +277,7 @@ async function syncFullSchedule(leagueId: string, seasonId: string) {
             status: sql`EXCLUDED.status`,
             isOvertime: sql`EXCLUDED.is_overtime`,
             isPlayoff: sql`EXCLUDED.is_playoff`,
+            isForfeit: sql`EXCLUDED.is_forfeit`,
             location: sql`EXCLUDED.location`,
           },
         })

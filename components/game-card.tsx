@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation"
 import { useAdmin } from "@/lib/admin-context"
 import { TeamLogo } from "@/components/team-logo"
 import { periodLabel, formatClock } from "@/lib/scorekeeper-types"
-import { formatGameDate } from "@/lib/format-time"
+import { formatGameDate, formatGameTime } from "@/lib/format-time"
 import type { BashGame } from "@/lib/hockey-data"
 
 export function useLiveClock(game: BashGame) {
@@ -61,7 +61,7 @@ export function GameCard({ game, href }: { game: BashGame; href?: string }) {
               {periodLabel(liveClock.period)} {liveClock.clock}
             </span>
           ) : (
-            <span className="text-[10px] text-muted-foreground/50">{game.time}</span>
+            <span className="text-[10px] text-muted-foreground/50">{formatGameTime(game.time)}</span>
           )}
           {isLive ? (
             <span className="inline-flex items-center gap-1">
@@ -72,7 +72,7 @@ export function GameCard({ game, href }: { game: BashGame; href?: string }) {
               <span className="text-[9px] text-red-500 font-bold uppercase">Live</span>
             </span>
           ) : isFinal ? (
-            <span className="text-[9px] text-muted-foreground/50 font-medium uppercase">Final{game.isOvertime ? "/OT" : ""}</span>
+            <span className="text-[9px] text-muted-foreground/50 font-medium uppercase">Final{game.isOvertime ? "/OT" : game.isForfeit ? "/Forfeit" : ""}</span>
           ) : null}
         </div>
 

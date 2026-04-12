@@ -22,7 +22,7 @@ export default async function ScorekeeperPage({ params }: { params: Promise<{ id
 
   if (gameRows.length === 0) {
     return (
-      <div className="flex min-h-svh items-center justify-center bg-background">
+      <div className="flex flex-1 items-center justify-center bg-background">
         <p className="text-sm text-muted-foreground">Game not found.</p>
       </div>
     )

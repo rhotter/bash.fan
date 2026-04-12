@@ -25,7 +25,7 @@ export default async function PlayerPage({ params }: { params: Promise<{ slug: s
   if (!player) notFound()
 
   return (
-    <div className="flex min-h-svh flex-col bg-background">
+    <div className="flex flex-1 flex-col bg-background">
       <SiteHeader />
       <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-5 md:py-8">
         <PlayerPageContent player={player} />

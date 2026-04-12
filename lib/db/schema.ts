@@ -65,6 +65,7 @@ export const games = pgTable(
     status: text("status").notNull().default("upcoming"),
     isOvertime: boolean("is_overtime").notNull().default(false),
     isPlayoff: boolean("is_playoff").notNull().default(false),
+    isForfeit: boolean("is_forfeit").notNull().default(false),
     location: text("location").default("James Lick Arena"),
     hasBoxscore: boolean("has_boxscore").notNull().default(false),
     notes: text("notes"),

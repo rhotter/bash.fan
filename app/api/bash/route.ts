@@ -18,6 +18,7 @@ export interface BashGame {
   status: "final" | "upcoming" | "live"
   isOvertime: boolean
   isPlayoff: boolean
+  isForfeit: boolean
   location: string
   hasBoxscore: boolean
   hasLiveStats: boolean
@@ -113,7 +114,7 @@ export async function GET(request: Request) {
     const rows = await rawSql(sql`
       SELECT
         g.id, g.date, g.time, g.home_score, g.away_score,
-        g.status, g.is_overtime, g.is_playoff, g.location, g.has_boxscore,
+        g.status, g.is_overtime, g.is_playoff, g.is_forfeit, g.location, g.has_boxscore,
         ht.name as home_team, ht.slug as home_slug,
         awt.name as away_team, awt.slug as away_slug,
         (gl.game_id IS NOT NULL) as has_live_stats,
@@ -140,6 +141,7 @@ export async function GET(request: Request) {
       status: r.status as "final" | "upcoming" | "live",
       isOvertime: r.is_overtime,
       isPlayoff: r.is_playoff,
+      isForfeit: r.is_forfeit,
       location: r.location,
       hasBoxscore: r.has_boxscore,
       hasLiveStats: r.has_live_stats,

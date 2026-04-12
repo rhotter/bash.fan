@@ -90,6 +90,7 @@ export async function fetchGameDetail(id: string): Promise<BashGameDetail | null
     awayScore: game.away_score,
     status: game.status,
     isOvertime: game.is_overtime,
+    isForfeit: game.is_forfeit,
     location: game.location,
     homePlayers,
     awayPlayers,

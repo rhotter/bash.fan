@@ -4,7 +4,6 @@ import Link from "next/link"
 import Image from "next/image"
 import { useSearchParams } from "next/navigation"
 import { Suspense } from "react"
-import { SeasonSelector } from "@/components/season-selector"
 import { PlayerSearch } from "@/components/player-search"
 import { useAdmin } from "@/lib/admin-context"
 import { Shield } from "lucide-react"
@@ -62,7 +61,6 @@ function SiteHeaderInner({ activeTab }: { activeTab?: string }) {
               BASH
             </span>
           </Link>
-          <SeasonSelector />
           <nav className="ml-auto flex items-center gap-0 sm:gap-1">
             <PlayerSearch />
             {NAV_ITEMS.filter((item) => season !== "all" || item.label === "Stats").map((item) => {

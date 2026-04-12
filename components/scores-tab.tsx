@@ -4,15 +4,11 @@ import { useMemo } from "react"
 import { type BashGame } from "@/lib/hockey-data"
 import { Loader2 } from "lucide-react"
 import { WeekNavigator } from "@/components/week-navigator"
+import { splitRegularAndPlayoff } from "@/lib/split-games"
 
 export function ScoresTab({ games, isLoading }: { games: BashGame[]; isLoading: boolean }) {
-  const regularGames = useMemo(
-    () => games.filter((g) => !g.isPlayoff),
-    [games]
-  )
-
-  const playoffGames = useMemo(
-    () => games.filter((g) => g.isPlayoff && g.homeSlug !== g.awaySlug),
+  const { regular: regularGames, playoff: playoffGames } = useMemo(
+    () => splitRegularAndPlayoff(games),
     [games]
   )
 

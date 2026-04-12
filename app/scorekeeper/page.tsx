@@ -14,7 +14,7 @@ export default async function ScorekeeperIndexPage() {
     SELECT g.id, g.date, g.time, g.status,
       g.home_score, g.away_score,
       g.home_team, g.away_team,
-      g.is_overtime, g.is_playoff,
+      g.is_overtime, g.is_playoff, g.is_forfeit,
       g.location, g.has_boxscore,
       ht.name as home_team_name,
       awt.name as away_team_name,
@@ -44,6 +44,7 @@ export default async function ScorekeeperIndexPage() {
     status: r.status as "final" | "upcoming" | "live",
     isOvertime: r.is_overtime as boolean,
     isPlayoff: r.is_playoff as boolean,
+    isForfeit: r.is_forfeit as boolean,
     location: r.location as string,
     hasBoxscore: r.has_boxscore as boolean,
     hasLiveStats: r.has_live_stats as boolean,
@@ -54,9 +55,9 @@ export default async function ScorekeeperIndexPage() {
   }))
 
   return (
-    <div className="flex min-h-svh flex-col bg-background">
+    <div className="flex flex-1 flex-col bg-background">
       <SiteHeader />
-      <div className="mx-auto w-full max-w-2xl px-4 py-5 md:py-8">
+      <div className="mx-auto w-full max-w-6xl px-4 py-5 md:py-8">
         <h1 className="text-lg font-semibold mb-2">Scorekeeper</h1>
         <p className="text-sm text-muted-foreground mb-6">
           Select a game to scorekeep.

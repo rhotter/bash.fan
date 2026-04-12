@@ -25,6 +25,7 @@ export function GamePageContent({ initialDetail, initialLiveData, homeRoster, aw
     status: initialDetail.status as "final" | "upcoming" | "live",
     isOvertime: initialDetail.isOvertime,
     isPlayoff: false,
+    isForfeit: initialDetail.isForfeit,
     location: initialDetail.location,
     hasBoxscore: initialDetail.homePlayers.length > 0 || initialDetail.awayPlayers.length > 0,
     hasLiveStats: !!initialLiveData,

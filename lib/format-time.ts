@@ -15,3 +15,9 @@ export function formatGameDateShort(dateStr: string): string {
   const date = new Date(y, m - 1, d)
   return date.toLocaleDateString("en-US", { month: "short", day: "numeric" })
 }
+
+export function formatGameTime(time: string): string {
+  if (time.endsWith("a")) return `${time.slice(0, -1)} am`
+  if (time.endsWith("p")) return `${time.slice(0, -1)} pm`
+  return time
+}

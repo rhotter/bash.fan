@@ -3,7 +3,7 @@
 import { useState, useMemo, useEffect } from "react"
 import { useSearchParams, useRouter } from "next/navigation"
 import { useGameDetail, useLiveGame, type BashGame, type BashGameDetail } from "@/lib/hockey-data"
-import { formatGameDate } from "@/lib/format-time"
+import { formatGameDate, formatGameTime } from "@/lib/format-time"
 import { cn } from "@/lib/utils"
 import { Loader2, Star, Pencil } from "lucide-react"
 import Link from "next/link"
@@ -82,7 +82,7 @@ export function GameDetail({ game, initialDetail, initialLiveData, homeRoster, a
       <div className="flex items-center gap-2 mb-3 text-[11px] text-muted-foreground tracking-wide uppercase font-medium flex-wrap">
         <span>{formatGameDate(game.date)}</span>
         <span className="text-border">|</span>
-        <span className="normal-case tracking-normal">{game.time}</span>
+        <span className="normal-case tracking-normal">{formatGameTime(game.time)}</span>
         <span className="text-border">|</span>
         <span className="normal-case tracking-normal">{game.location}</span>
       </div>
@@ -128,7 +128,7 @@ export function GameDetail({ game, initialDetail, initialLiveData, homeRoster, a
                     </span>
                     {liveState ? `${periodLabel(liveState.period)} ${formatClock(mounted ? computeCurrentClock(liveState) : liveState.clockSeconds)}` : "Live"}
                   </span>
-                ) : isFinal ? (game.isOvertime ? "Final/OT" : "Final") : "Upcoming"}
+                ) : isFinal ? (game.isOvertime ? "Final/OT" : game.isForfeit ? "Final/Forfeit" : "Final") : "Upcoming"}
               </div>
             </div>
 
