@@ -35,7 +35,7 @@ export default async function RulebookPage() {
     return (
         <div className="flex min-h-svh flex-col bg-background">
             <SiteHeader activeTab="league" />
-            <main className="mx-auto w-full max-w-4xl flex-1 px-4 py-8 md:py-12">
+            <main className="mx-auto w-full max-w-7xl flex-1 px-4 sm:px-6 py-8 md:py-12">
                 {/* Back link */}
                 <Link
                     href="/about"
