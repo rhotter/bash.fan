@@ -14,7 +14,7 @@ graph TD
     end
     
     subgraph Data Layer
-        Server -->|Raw SQL queries| Postgres["s8"]
+        Server -->|Drizzle ORM| Postgres["s8"]
         SyncRoute -->|Scrapes HTML| Sportability["s9"]
         SyncRoute -->|Upserts Data| Postgres
         ClientSide -->|SWR polling| NextJS
@@ -26,7 +26,7 @@ The BASH Hockey repository is a full-stack Next.js application designed to displ
 ## Tech Stack
 
 - **Framework**: Next.js 16 (App Router) with React 19
-- **Database**: Neon Postgres via `@neondatabase/serverless` using raw SQL queries (no ORM)
+- **Database**: Neon Postgres via **Drizzle ORM** (`drizzle-orm/neon-http`)
 - **Styling & UI**: Tailwind CSS v4, shadcn/ui (Radix UI primitives), `lucide-react` for icons
 - **Client Data Fetching**: SWR hooks for client-side caching and revalidation
 - **Deployment**: Vercel
@@ -58,7 +58,7 @@ erDiagram
     games ||--o| game_live : "updates"
 ```
 
-The PostgreSQL schema (`lib/db/schema.sql`) is designed around 12 core tables:
+The Drizzle schema (`lib/db/schema.ts`) is designed around 15 core tables:
 
 1. **League Structure**
    - `seasons`: Defines seasons (e.g., "Fall 2025") and links to Sportability league IDs.
@@ -87,10 +87,10 @@ The PostgreSQL schema (`lib/db/schema.sql`) is designed around 12 core tables:
 ## Key Functions and Data Flow
 
 ### 1. Data Sync (`app/api/bash/sync/route.ts`)
-Game data is not manually entered; it is sourced from Sportability. A daily cron job (configured in `vercel.json`) calls the `/api/bash/sync` POST endpoint. This script scrapes Sportability HTML pages and upserts the latest schedule, scores, and boxscores into the Postgres database.
+Game data is primarily sourced from Sportability. A daily cron job (configured in `vercel.json`) calls the `/api/bash/sync` POST endpoint. This script scrapes Sportability HTML pages and upserts the latest schedule, scores, and boxscores into the Postgres database. The sync process intelligently skips any games that are being actively managed by the Live Scorekeeper to prevent overwriting manually entered live data.
 
 ### 2. Server-Side Data Fetching (`lib/fetch-*.ts`)
-The application heavily uses Next.js async Server Components. When a page loads, it fetches data using functions located in `lib/fetch-*.ts`, which execute raw SQL queries against Neon Postgres. 
+The application heavily uses Next.js async Server Components. When a page loads, it fetches data using functions located in `lib/fetch-*.ts`, which execute Drizzle ORM queries against Neon Postgres. 
 
 - **`fetchBashData(season)`**: Found in `lib/fetch-bash-data.ts`, this is a crucial function that fetches all games for a season and dynamically computes the **Standings** in-memory based on wins (3 pts), OT wins (2 pts), OT losses (1 pt), and losses (0 pts).
 - **`fetchPlayerDetail(slug)`** / **`fetchTeamDetail(slug)`**: Functions that aggregate stats for specific entities using complex SQL joins.
