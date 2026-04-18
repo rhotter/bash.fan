@@ -122,10 +122,10 @@ export default function AboutPage() {
                                 BASH currently fields one Tier 2 team, and 3 Tier 3 teams that compete in the California Division of the{" "}
                                 <span className="font-semibold text-foreground">National Ball Hockey League (NBHL)</span>. If we win our division during the summer weekends in SoCal, the League Finals take place in New Jersey in September. Our teams are open to any players who have played in BASH, selected based on talent, experience, availability and team chemistry. Questions? Contact{" "}
                                 <a
-                                    href="mailto:commissioners@bayareastreethockey.com"
+                                    href="mailto:sf.bash.hockey@gmail.com"
                                     className="font-semibold text-primary hover:underline"
                                 >
-                                    commissioners@bayareastreethockey.com
+                                    sf.bash.hockey@gmail.com
                                 </a>.
                             </p>
                         </div>

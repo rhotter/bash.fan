@@ -245,10 +245,10 @@ export default function HowToPage() {
                         <HelpCircle className="h-4 w-4" />
                         Questions?{" "}
                         <a
-                            href="mailto:commissioners@bayareastreethockey.com"
+                            href="mailto:sf.bash.hockey@gmail.com"
                             className="font-semibold text-primary hover:underline"
                         >
-                            commissioners@bayareastreethockey.com
+                            sf.bash.hockey@gmail.com
                         </a>
                     </p>
                 </div>
