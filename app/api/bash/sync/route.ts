@@ -19,7 +19,14 @@ function nameToSlug(name: string): string {
 async function syncScheduleScores(leagueId: string, seasonId: string) {
   const url = `${BASE_URL}/Schedule.asp?LgID=${leagueId}`
   const res = await fetch(url, { cache: "no-store" })
-  const html = await res.text()
+  const regularHtml = await res.text()
+
+  // Also fetch playoff schedule scores
+  const playoffUrl = `${BASE_URL}/Schedule.asp?GT=P&LgID=${leagueId}`
+  const playoffRes = await fetch(playoffUrl, { cache: "no-store" })
+  const playoffHtml = await playoffRes.text()
+
+  const html = regularHtml + playoffHtml
 
   const gamePattern = /GID=(\d+)/g
   const gameIds: string[] = []
@@ -74,7 +81,14 @@ async function syncScheduleScores(leagueId: string, seasonId: string) {
 async function syncFullSchedule(leagueId: string, seasonId: string) {
   const url = `${BASE_URL}/Schedule.asp?LgID=${leagueId}`
   const res = await fetch(url, { cache: "no-store" })
-  const html = await res.text()
+  const regularHtml = await res.text()
+
+  // Also fetch playoff schedule
+  const playoffUrl = `${BASE_URL}/Schedule.asp?GT=P&LgID=${leagueId}`
+  const playoffRes = await fetch(playoffUrl, { cache: "no-store" })
+  const playoffHtml = await playoffRes.text()
+
+  const html = regularHtml + playoffHtml
 
   // Ensure season exists in DB
   const season = getSeasonById(seasonId)
