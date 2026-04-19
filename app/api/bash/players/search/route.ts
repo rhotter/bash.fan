@@ -13,7 +13,7 @@ export interface PlayerSearchResult {
 
 export async function GET() {
   try {
-    const season = getCurrentSeason()
+    const season = await getCurrentSeason()
     const rows = await db
       .selectDistinct({
         name: schema.players.name,

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { db, schema, rawSql } from "@/lib/db"
 import { sql } from "drizzle-orm"
-import { getCurrentSeason, getSeasonById } from "@/lib/seasons"
+import { getCurrentSeason, getAllSeasons } from "@/lib/seasons"
 import { playerSlug } from "@/lib/player-slug"
 
 export type SkaterStats = {
@@ -130,7 +130,10 @@ export async function GET(
   const { searchParams } = new URL(request.url)
   const seasonParam = searchParams.get("season")
   const isAllTime = seasonParam === "all"
-  const seasonId = !isAllTime ? (seasonParam || getCurrentSeason().id) : null
+  const currentSeasonId = (await getCurrentSeason()).id
+  const seasonId = !isAllTime ? (seasonParam || currentSeasonId) : null
+  const allSeasons = await getAllSeasons()
+  const seasonMap = new Map(allSeasons.map(s => [s.id, s.name]))
 
   try {
     // Look up player by slug (derived from name)
@@ -203,8 +206,7 @@ export async function GET(
     let awards: PlayerDetail["awards"] = []
     let hallOfFame: PlayerDetail["hallOfFame"] = null
 
-    // For game log, always use the specific season (current season by default)
-    const gameLogSeasonId = seasonParam && !isAllTime ? seasonParam : getCurrentSeason().id
+    const gameLogSeasonId = seasonParam && !isAllTime ? seasonParam : currentSeasonId
 
     function buildSkaterStats(s: Record<string, number>): SkaterStats {
       return {
@@ -483,7 +485,7 @@ export async function GET(
       .filter((r) => r.gp > 0)
       .map((r) => ({
         seasonId: r.season_id,
-        seasonName: getSeasonById(r.season_id)?.name ?? r.season_id,
+        seasonName: seasonMap.get(r.season_id) ?? r.season_id,
         teamName: r.team_name,
         teamSlug: r.team_slug,
         stats: buildSkaterStats(r),
@@ -519,7 +521,7 @@ export async function GET(
       .filter((r) => r.gp > 0)
       .map((r) => ({
         seasonId: r.season_id,
-        seasonName: getSeasonById(r.season_id)?.name ?? r.season_id,
+        seasonName: seasonMap.get(r.season_id) ?? r.season_id,
         teamName: r.team_name,
         teamSlug: r.team_slug,
         stats: buildGoalieStats(r),
@@ -549,7 +551,7 @@ export async function GET(
       .filter((r) => r.gp > 0)
       .map((r) => ({
         seasonId: r.season_id,
-        seasonName: getSeasonById(r.season_id)?.name ?? r.season_id,
+        seasonName: seasonMap.get(r.season_id) ?? r.season_id,
         teamName: r.team_name,
         teamSlug: r.team_slug,
         stats: buildSkaterStats(r),
@@ -582,7 +584,7 @@ export async function GET(
       .filter((r) => r.gp > 0)
       .map((r) => ({
         seasonId: r.season_id,
-        seasonName: getSeasonById(r.season_id)?.name ?? r.season_id,
+        seasonName: seasonMap.get(r.season_id) ?? r.season_id,
         teamName: r.team_name,
         teamSlug: r.team_slug,
         stats: buildGoalieStats(r),
@@ -607,14 +609,14 @@ export async function GET(
     // Populate championships
     championships = championshipRows.map((r) => ({
       seasonId: r.season_id,
-      seasonName: getSeasonById(r.season_id)?.name ?? r.season_id,
+      seasonName: seasonMap.get(r.season_id) ?? r.season_id,
     }))
 
     // Populate awards
     awards = awardRows.map((r) => ({
       awardType: r.award_type,
       seasonId: r.season_id,
-      seasonName: getSeasonById(r.season_id)?.name ?? r.season_id,
+      seasonName: seasonMap.get(r.season_id) ?? r.season_id,
     }))
 
     // Populate hall of fame

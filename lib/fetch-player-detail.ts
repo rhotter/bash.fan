@@ -1,13 +1,15 @@
 import { db, schema, rawSql } from "@/lib/db"
 import { sql, eq, desc } from "drizzle-orm"
-import { getCurrentSeason, getSeasonById } from "@/lib/seasons"
+import { getCurrentSeason, getAllSeasons } from "@/lib/seasons"
 import { playerSlug } from "@/lib/player-slug"
 import type { PlayerDetail, SkaterStats, GoalieStats } from "@/app/api/bash/player/[slug]/route"
 
 export type { PlayerDetail }
 
 export async function fetchPlayerDetail(slug: string): Promise<PlayerDetail | null> {
-  const currentSeasonId = getCurrentSeason().id
+  const currentSeasonId = (await getCurrentSeason()).id
+  const allSeasons = await getAllSeasons()
+  const seasonMap = new Map(allSeasons.map(s => [s.id, s.name]))
 
   // Look up player by slug (derived from name) — find all players whose slug matches
   const allMatches = await db.select({ id: schema.players.id, name: schema.players.name }).from(schema.players)
@@ -523,7 +525,7 @@ export async function fetchPlayerDetail(slug: string): Promise<PlayerDetail | nu
     .filter((r) => r.gp > 0)
     .map((r) => ({
       seasonId: r.season_id,
-      seasonName: getSeasonById(r.season_id)?.name ?? r.season_id,
+      seasonName: seasonMap.get(r.season_id) ?? r.season_id,
       teamName: r.team_name ?? "",
       teamSlug: r.team_slug ?? "",
       stats: buildSkaterStats(r),
@@ -562,7 +564,7 @@ export async function fetchPlayerDetail(slug: string): Promise<PlayerDetail | nu
     .filter((r) => r.gp > 0)
     .map((r) => ({
       seasonId: r.season_id,
-      seasonName: getSeasonById(r.season_id)?.name ?? r.season_id,
+      seasonName: seasonMap.get(r.season_id) ?? r.season_id,
       teamName: r.team_name ?? "",
       teamSlug: r.team_slug ?? "",
       stats: buildGoalieStats(r),
@@ -595,7 +597,7 @@ export async function fetchPlayerDetail(slug: string): Promise<PlayerDetail | nu
     .filter((r) => r.gp > 0)
     .map((r) => ({
       seasonId: r.season_id,
-      seasonName: getSeasonById(r.season_id)?.name ?? r.season_id,
+      seasonName: seasonMap.get(r.season_id) ?? r.season_id,
       teamName: r.team_name ?? "",
       teamSlug: r.team_slug ?? "",
       stats: buildSkaterStats(r),
@@ -631,7 +633,7 @@ export async function fetchPlayerDetail(slug: string): Promise<PlayerDetail | nu
     .filter((r) => r.gp > 0)
     .map((r) => ({
       seasonId: r.season_id,
-      seasonName: getSeasonById(r.season_id)?.name ?? r.season_id,
+      seasonName: seasonMap.get(r.season_id) ?? r.season_id,
       teamName: r.team_name ?? "",
       teamSlug: r.team_slug ?? "",
       stats: buildGoalieStats(r),
@@ -656,14 +658,14 @@ export async function fetchPlayerDetail(slug: string): Promise<PlayerDetail | nu
   // Populate championships
   championships = championshipRows.map((r) => ({
     seasonId: r.season_id,
-    seasonName: getSeasonById(r.season_id)?.name ?? r.season_id,
+    seasonName: seasonMap.get(r.season_id) ?? r.season_id,
   }))
 
   // Populate awards
   awards = awardRows.map((r) => ({
     awardType: r.awardType,
     seasonId: r.seasonId,
-    seasonName: getSeasonById(r.seasonId)?.name ?? r.seasonId,
+    seasonName: seasonMap.get(r.seasonId) ?? r.seasonId,
   }))
 
   // Populate hall of fame

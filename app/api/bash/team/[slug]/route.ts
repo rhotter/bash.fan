@@ -78,7 +78,7 @@ export async function GET(
   const { slug } = await params
   const { searchParams } = new URL(request.url)
   const seasonParam = searchParams.get("season")
-  const seasonId = seasonParam && seasonParam !== "all" ? seasonParam : getCurrentSeason().id
+  const seasonId = seasonParam && seasonParam !== "all" ? seasonParam : (await getCurrentSeason()).id
 
   try {
     // Check team exists

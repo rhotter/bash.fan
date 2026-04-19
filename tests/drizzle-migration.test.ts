@@ -210,7 +210,7 @@ describe("Drizzle query builder", () => {
   })
 
   it("where clause with eq works", async () => {
-    const season = getCurrentSeason()
+    const season = await getCurrentSeason()
     const rows = await db
       .select()
       .from(schema.seasons)
@@ -220,7 +220,7 @@ describe("Drizzle query builder", () => {
   })
 
   it("join query works (season_teams)", async () => {
-    const season = getCurrentSeason()
+    const season = await getCurrentSeason()
     const rows = await db
       .select({ teamSlug: schema.seasonTeams.teamSlug, teamName: schema.teams.name })
       .from(schema.seasonTeams)
@@ -391,7 +391,7 @@ describe("fetchTeamDetail", () => {
 
   it("record fields are consistent", async () => {
     // Get a team with games in a known season
-    const season = getCurrentSeason()
+    const season = await getCurrentSeason()
     const teamRows = await rawSql(sql`
       SELECT DISTINCT home_team as slug FROM games WHERE season_id = ${season.id} LIMIT 1
     `)
@@ -559,7 +559,7 @@ describe("Complex SQL queries via rawSql", () => {
   })
 
   it("CROSS JOIN LATERAL query works (standings pattern)", async () => {
-    const season = getCurrentSeason()
+    const season = await getCurrentSeason()
     const rows = await rawSql(sql`
       SELECT
         t.team_slug,
@@ -593,7 +593,7 @@ describe("Complex SQL queries via rawSql", () => {
   })
 
   it("dynamic SQL fragments work (playoff toggle)", async () => {
-    const season = getCurrentSeason()
+    const season = await getCurrentSeason()
     const isPlayoff = false
     const playoffFragment = isPlayoff ? sql`g.is_playoff` : sql`NOT g.is_playoff`
     const rows = await rawSql(sql`
@@ -639,9 +639,10 @@ describe("Query performance", () => {
   })
 
   it("fetchTeamDetail completes within timeout", async () => {
+    const season = await getCurrentSeason()
     const teamRows = await rawSql(sql`
       SELECT DISTINCT home_team as slug FROM games
-      WHERE season_id = ${getCurrentSeason().id}
+      WHERE season_id = ${season.id}
       LIMIT 1
     `)
     if (teamRows.length === 0) return
@@ -733,7 +734,7 @@ describe("Data integrity", () => {
   })
 
   it("current season exists in DB", async () => {
-    const season = getCurrentSeason()
+    const season = await getCurrentSeason()
     const rows = await db
       .select()
       .from(schema.seasons)
@@ -742,7 +743,7 @@ describe("Data integrity", () => {
   })
 
   it("current season has teams", async () => {
-    const season = getCurrentSeason()
+    const season = await getCurrentSeason()
     const rows = await db
       .select({ count: count() })
       .from(schema.seasonTeams)
@@ -751,7 +752,7 @@ describe("Data integrity", () => {
   })
 
   it("current season has games", async () => {
-    const season = getCurrentSeason()
+    const season = await getCurrentSeason()
     const rows = await db
       .select({ count: count() })
       .from(schema.games)

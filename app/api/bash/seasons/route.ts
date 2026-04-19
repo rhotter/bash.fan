@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { db, schema } from "@/lib/db"
 import { count } from "drizzle-orm"
-import { getAllSeasons, isCurrentSeason } from "@/lib/seasons"
+import { getAllSeasons, getCurrentSeason } from "@/lib/seasons"
 
 export interface SeasonInfo {
   id: string
@@ -40,11 +40,12 @@ export async function GET() {
       seasonsWithStats.add(row.seasonId)
     }
 
-    const allSeasons = getAllSeasons() // newest first
+    const allSeasons = await getAllSeasons() // newest first
+    const currentSeason = await getCurrentSeason()
     const seasons: SeasonInfo[] = allSeasons.map((s) => ({
       id: s.id,
       name: s.name,
-      isCurrent: isCurrentSeason(s.id),
+      isCurrent: s.id === currentSeason.id,
       hasGames: (seasonGameCounts.get(s.id) ?? 0) > 0,
       hasStats: seasonsWithStats.has(s.id),
     }))

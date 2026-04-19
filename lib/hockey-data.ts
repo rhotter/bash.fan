@@ -19,7 +19,7 @@ function triggerSync() {
 
 export function useBashData(season?: string, fallbackData?: BashApiData) {
   const url = season ? `/api/bash?season=${season}` : "/api/bash"
-  const isCurrentSeason = !season || season === "2025-2026"
+  const isCurrentSeason = !season
 
   const { data, error, isLoading, mutate } = useSWR<BashApiData>(url, fetcher, {
     refreshInterval: (latestData) => (latestData ?? fallbackData)?.games?.some((g) => g.status === "live") ? 10_000 : 60_000,

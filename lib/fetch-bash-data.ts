@@ -63,7 +63,8 @@ function computeStandings(games: BashGame[]): Standing[] {
 }
 
 export async function fetchBashData(seasonParam?: string | null): Promise<BashApiData> {
-  const seasonId = seasonParam && seasonParam !== "all" ? seasonParam : getCurrentSeason().id
+  const currentSeason = await getCurrentSeason()
+  const seasonId = seasonParam && seasonParam !== "all" ? seasonParam : currentSeason.id
 
   const rows = await rawSql(sql`
     SELECT

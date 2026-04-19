@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { db, schema } from "@/lib/db"
 import { sql, eq } from "drizzle-orm"
 import { getSession } from "@/lib/admin-session"
+import { invalidateSeasonCache } from "@/lib/seasons"
 
 export async function GET(request: NextRequest) {
   const isAuthenticated = await getSession()
@@ -81,6 +82,9 @@ export async function POST(request: NextRequest) {
       gameLength: 60,
       defaultLocation,
     })
+
+    // Bust the in-memory season cache so subsequent reads see the new season
+    invalidateSeasonCache()
 
     return NextResponse.json({ id, name, status: "draft" }, { status: 201 })
   } catch {

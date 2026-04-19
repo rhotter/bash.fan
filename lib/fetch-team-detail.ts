@@ -6,7 +6,7 @@ import type { TeamDetail, TeamRecord, SkaterRoster, GoalieRoster } from "@/app/a
 export type { TeamDetail, TeamRecord, SkaterRoster, GoalieRoster }
 
 export async function fetchTeamDetail(slug: string, seasonParam?: string | null): Promise<TeamDetail | null> {
-  const seasonId = seasonParam && seasonParam !== "all" ? seasonParam : getCurrentSeason().id
+  const seasonId = seasonParam && seasonParam !== "all" ? seasonParam : (await getCurrentSeason()).id
 
   const teamRows = await db.select().from(schema.teams).where(eq(schema.teams.slug, slug))
   if (teamRows.length === 0) return null

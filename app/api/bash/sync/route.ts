@@ -90,23 +90,9 @@ async function syncFullSchedule(leagueId: string, seasonId: string) {
 
   const html = regularHtml + playoffHtml
 
-  // Ensure season exists in DB
-  const season = getSeasonById(seasonId)
+  // Verify season exists in DB (seasons are now managed via admin, not pushed from static config)
+  const season = await getSeasonById(seasonId)
   if (!season) throw new Error(`Unknown season: ${seasonId}`)
-
-  await db
-    .insert(schema.seasons)
-    .values({
-      id: season.id,
-      name: season.name,
-      leagueId: season.leagueId,
-      isCurrent: false,
-      seasonType: season.seasonType,
-    })
-    .onConflictDoUpdate({
-      target: schema.seasons.id,
-      set: { seasonType: sql`EXCLUDED.season_type` },
-    })
 
   // Parse table rows — each <tr> with GID= is a game
   const rowPattern = /<tr[^>]*class="tablecontent"[^>]*>([\s\S]*?)<\/tr>/gi
@@ -587,7 +573,7 @@ export async function GET(request: Request) {
 
     // If a specific season is requested, do a full sync for that season
     if (seasonParam) {
-      const season = getSeasonById(seasonParam)
+      const season = await getSeasonById(seasonParam)
       if (!season) {
         return NextResponse.json({ ok: false, error: `Unknown season: ${seasonParam}` }, { status: 400 })
       }
@@ -596,7 +582,8 @@ export async function GET(request: Request) {
       const scheduleResult = await syncFullSchedule(season.leagueId, season.id)
 
       // Sync boxscores — skip if scheduleOnly, limited for current season
-      const limit = scheduleOnly ? 0 : (season.id === getCurrentSeason().id ? MAX_BOXSCORES_PER_SYNC : boxscoreLimit)
+      const currentSeason = await getCurrentSeason()
+      const limit = scheduleOnly ? 0 : (season.id === currentSeason.id ? MAX_BOXSCORES_PER_SYNC : boxscoreLimit)
       let boxscoresSynced = 0
       let boxscoresRemaining = 0
 
@@ -643,7 +630,7 @@ export async function GET(request: Request) {
     }
 
     // Default: sync current season (quick mode — just update scores + boxscores)
-    const current = getCurrentSeason()
+    const current = await getCurrentSeason()
     const scheduleResult = await syncScheduleScores(current.leagueId, current.id)
 
     const gamesNeedingBoxscore = await rawSql(sql`

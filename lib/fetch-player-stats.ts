@@ -51,7 +51,7 @@ export interface PlayerStatsData {
 
 export async function fetchPlayerStats(seasonParam?: string | null, playoff?: boolean): Promise<PlayerStatsData> {
   const isAllTime = seasonParam === "all"
-  const seasonId = !isAllTime ? (seasonParam || getCurrentSeason().id) : null
+  const seasonId = !isAllTime ? (seasonParam || (await getCurrentSeason()).id) : null
   const isPlayoff = playoff === true
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -162,7 +162,7 @@ export async function fetchPlayerStats(seasonParam?: string | null, playoff?: bo
       `),
       rawSql(sql`SELECT DISTINCT t.slug, t.name FROM teams t ORDER BY t.name`),
     ])
-  } else if (seasonId && isStatsOnlySeason(seasonId)) {
+  } else if (seasonId && (await isStatsOnlySeason(seasonId))) {
     const playoffFragment = isPlayoff ? sql`pss.is_playoff` : sql`NOT pss.is_playoff`
     ;[skaterRows, goalieRows, teamRows] = await Promise.all([
       rawSql(sql`
