@@ -24,6 +24,48 @@ function slugify(text: string): string {
         .trim()
 }
 
+// The source markdown has roman-numeral and numbered sub-items written on
+// consecutive lines with no blank separators (e.g. "i. ...\nii. ..."), which
+// markdown collapses into one run-on paragraph. Convert them into proper
+// bullet list items and ensure blank lines bracket every list so paragraphs
+// render with real spacing.
+function preprocessRulebook(md: string): string {
+    const romanRegex = /^([ivxl]+)([.)])\s+(.*)$/i
+    const numRegex = /^(\d+)([.)])\s+(.*)$/
+    const bulletRegex = /^[-*+]\s/
+
+    const isSubItem = (line: string) => romanRegex.test(line) || numRegex.test(line)
+    const isListLine = (line: string) => bulletRegex.test(line) || isSubItem(line)
+
+    const lines = md.split("\n")
+    const out: string[] = []
+
+    for (const line of lines) {
+        const prev = out[out.length - 1] ?? ""
+        const prevIsEmpty = prev.trim() === ""
+        const prevIsList = bulletRegex.test(prev) || /^-\s/.test(prev)
+
+        if (isListLine(line) && !prevIsEmpty && !prevIsList) {
+            out.push("")
+        }
+
+        if (!isListLine(line) && line.trim() !== "" && prevIsList) {
+            out.push("")
+        }
+
+        if (isSubItem(line)) {
+            const m = line.match(romanRegex) || line.match(numRegex)!
+            const marker = m[1] + m[2]
+            const content = m[3]
+            out.push(`- **${marker}** ${content}`)
+        } else {
+            out.push(line)
+        }
+    }
+
+    return out.join("\n")
+}
+
 function parseToc(markdown: string): TocSection[] {
     const sections: TocSection[] = []
     const lines = markdown.split("\n")
@@ -235,8 +277,9 @@ function MiniToc({ section }: { section: TocSection }) {
     )
 }
 
-export function RulebookContent({ markdown }: { markdown: string }) {
+export function RulebookContent({ markdown: rawMarkdown }: { markdown: string }) {
     const [drawerOpen, setDrawerOpen] = useState(false)
+    const markdown = useMemo(() => preprocessRulebook(rawMarkdown), [rawMarkdown])
     const sections = useMemo(() => parseToc(markdown), [markdown])
 
     const sectionChunks = useMemo(() => {
@@ -371,11 +414,10 @@ export function RulebookContent({ markdown }: { markdown: string }) {
                                             prose-headings:font-bold prose-headings:tracking-tight
                                             prose-h1:text-2xl md:prose-h1:text-3xl prose-h1:text-primary prose-h1:border-b prose-h1:border-border prose-h1:pb-4 prose-h1:mb-8 prose-h1:scroll-mt-28
                                             prose-h2:text-lg md:prose-h2:text-xl prose-h2:text-foreground prose-h2:mt-12 prose-h2:mb-5 prose-h2:scroll-mt-32
-                                            prose-p:leading-[1.85] prose-p:mb-5 prose-p:text-muted-foreground
-                                            prose-li:leading-[1.85] prose-li:mb-2.5 prose-li:text-muted-foreground
+                                            prose-p:text-muted-foreground
+                                            prose-li:text-muted-foreground prose-li:my-1
                                             prose-a:text-primary hover:prose-a:underline
-                                            prose-strong:text-foreground
-                                            prose-ol:space-y-2 prose-ul:space-y-2"
+                                            prose-strong:text-foreground"
                                         id={section?.id}
                                     >
                                         <ReactMarkdown

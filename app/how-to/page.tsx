@@ -1,15 +1,13 @@
 "use client"
 
 import { useState } from "react"
-import Link from "next/link"
 import Image from "next/image"
 import { SiteHeader } from "@/components/site-header"
 import { Card, CardContent } from "@/components/ui/card"
-import { Wrench, Package, AlertTriangle, CheckCircle, X, HelpCircle, ArrowLeft } from "lucide-react"
 
 const TABS = [
-    { id: "boards" as const, label: "Assembling the Boards", icon: Wrench },
-    { id: "shed" as const, label: "Packing the Shed", icon: Package },
+    { id: "boards" as const, label: "Assembling the Boards" },
+    { id: "shed" as const, label: "Packing the Shed" },
 ]
 
 export default function HowToPage() {
@@ -17,23 +15,10 @@ export default function HowToPage() {
 
     return (
         <div className="flex min-h-svh flex-col bg-background">
-            <SiteHeader activeTab="league" />
+            <SiteHeader activeTab="about" />
             <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-8 md:py-12">
-                {/* Back link */}
-                <Link
-                    href="/about"
-                    className="inline-flex items-center gap-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors mb-6"
-                >
-                    <ArrowLeft className="h-3.5 w-3.5" />
-                    Back to About
-                </Link>
-
                 {/* Hero */}
                 <div className="text-center mb-10">
-                    <div className="inline-flex items-center gap-2 text-primary mb-3">
-                        <Wrench className="h-5 w-5" />
-                        <span className="text-xs font-bold uppercase tracking-[0.2em] text-muted-foreground">Guides</span>
-                    </div>
                     <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-foreground mb-3">
                         BASH How-To
                     </h1>
@@ -44,24 +29,20 @@ export default function HowToPage() {
 
                 {/* Tabs */}
                 <div className="flex border-b border-border mb-8">
-                    {TABS.map((tab) => {
-                        const Icon = tab.icon
-                        return (
-                            <button
-                                key={tab.id}
-                                onClick={() => setActiveTab(tab.id)}
-                                className={
-                                    "flex-1 flex items-center justify-center gap-2 py-3 text-xs sm:text-sm font-semibold uppercase tracking-wider transition-colors border-b-2 " +
-                                    (activeTab === tab.id
-                                        ? "text-foreground border-primary"
-                                        : "text-muted-foreground/50 border-transparent hover:text-muted-foreground")
-                                }
-                            >
-                                <Icon className="h-4 w-4" />
-                                {tab.label}
-                            </button>
-                        )
-                    })}
+                    {TABS.map((tab) => (
+                        <button
+                            key={tab.id}
+                            onClick={() => setActiveTab(tab.id)}
+                            className={
+                                "flex-1 flex items-center justify-center py-3 text-xs sm:text-sm font-semibold tracking-tight transition-colors border-b-2 " +
+                                (activeTab === tab.id
+                                    ? "text-foreground border-primary"
+                                    : "text-muted-foreground/50 border-transparent hover:text-muted-foreground")
+                            }
+                        >
+                            {tab.label}
+                        </button>
+                    ))}
                 </div>
 
                 {/* Boards Tab */}
@@ -79,9 +60,7 @@ export default function HowToPage() {
 
                         <Card>
                             <CardContent className="p-5">
-                                <h2 className="flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-foreground mb-3">
-                                    <AlertTriangle className="h-4 w-4 text-primary" /> First Steps
-                                </h2>
+                                <h2 className="text-base font-bold tracking-tight text-foreground mb-2">First Steps</h2>
                                 <p className="text-sm text-muted-foreground leading-relaxed mb-2">
                                     Look around, is the rink ready? Are you a goalie? No: then pitch in and help. Either with the boards, nets, sweeping, or netting.
                                 </p>
@@ -93,7 +72,7 @@ export default function HowToPage() {
 
                         <Card>
                             <CardContent className="p-5">
-                                <h3 className="text-sm font-bold uppercase tracking-wider text-foreground mb-3">The Boards</h3>
+                                <h3 className="text-base font-bold tracking-tight text-foreground mb-2">The Boards</h3>
                                 <p className="text-sm text-muted-foreground mb-2">
                                     There are 24 total white board pieces: 10 Support, 9 Straight Long, 3 Curved, 1 Straight Medium, and 1 Corner.
                                 </p>
@@ -117,7 +96,7 @@ export default function HowToPage() {
 
                         <Card>
                             <CardContent className="p-5">
-                                <h3 className="text-sm font-bold uppercase tracking-wider text-foreground mb-3">The Poles</h3>
+                                <h3 className="text-base font-bold tracking-tight text-foreground mb-2">The Poles</h3>
                                 <p className="text-sm text-muted-foreground mb-3">
                                     Next, put up the poles. There are 11 poles, 3 are slightly shorter due to cracked ends. They are placed on the eastern end:
                                 </p>
@@ -131,7 +110,7 @@ export default function HowToPage() {
 
                         <Card>
                             <CardContent className="p-5">
-                                <h3 className="text-sm font-bold uppercase tracking-wider text-foreground mb-3">The Netting</h3>
+                                <h3 className="text-base font-bold tracking-tight text-foreground mb-2">The Netting</h3>
                                 <p className="text-sm text-muted-foreground mb-3">Next, put up the netting:</p>
                                 <ul className="list-disc list-inside space-y-1.5 text-sm text-muted-foreground pl-1">
                                     <li>The edge of the net should have a bungee cord which can be used to tie to the fence along the sidewalk.</li>
@@ -139,8 +118,7 @@ export default function HowToPage() {
                                     <li>String the net along the top of the poles as best you can.</li>
                                     <li>Secure the netting in the white board pieces with the thin white poles.</li>
                                 </ul>
-                                <div className="mt-4 rounded-md bg-destructive/10 border border-destructive/20 p-3 flex items-start gap-3 text-sm text-destructive font-medium">
-                                    <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+                                <div className="mt-4 rounded-md bg-destructive/10 border border-destructive/20 p-3 text-sm text-destructive font-medium">
                                     <p>People should not be shooting while you are putting up the net.</p>
                                 </div>
                             </CardContent>
@@ -154,9 +132,7 @@ export default function HowToPage() {
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                             <Card className="bg-chart-2/5 border-chart-2/20">
                                 <CardContent className="p-5">
-                                    <h3 className="flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-foreground mb-3">
-                                        <CheckCircle className="h-4 w-4 text-chart-3" /> In the Shed
-                                    </h3>
+                                    <h3 className="text-base font-bold tracking-tight text-foreground mb-2">In the Shed</h3>
                                     <ul className="list-disc list-inside space-y-1.5 text-sm text-muted-foreground">
                                         <li>White plastic border patrols</li>
                                         <li>Black foam border guards</li>
@@ -173,9 +149,7 @@ export default function HowToPage() {
                             </Card>
                             <Card className="bg-destructive/5 border-destructive/20">
                                 <CardContent className="p-5">
-                                    <h3 className="flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-destructive mb-3">
-                                        <X className="h-4 w-4" /> DO NOT put in Shed
-                                    </h3>
+                                    <h3 className="text-base font-bold tracking-tight text-destructive mb-2">Do not put in shed</h3>
                                     <ul className="list-disc list-inside space-y-1.5 text-sm text-muted-foreground">
                                         <li>Personal gear</li>
                                         <li>Trash</li>
@@ -241,8 +215,7 @@ export default function HowToPage() {
 
                 {/* Footer */}
                 <div className="mt-12 text-center">
-                    <p className="text-sm text-muted-foreground flex items-center justify-center gap-2">
-                        <HelpCircle className="h-4 w-4" />
+                    <p className="text-sm text-muted-foreground">
                         Questions?{" "}
                         <a
                             href="mailto:sf.bash.hockey@gmail.com"

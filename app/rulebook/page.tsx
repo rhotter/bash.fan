@@ -1,9 +1,7 @@
 import type { Metadata } from "next"
-import Link from "next/link"
 import { SiteHeader } from "@/components/site-header"
 import { Card, CardContent } from "@/components/ui/card"
 import { RulebookContent } from "@/components/rulebook-content"
-import { BookOpen, ArrowLeft } from "lucide-react"
 
 export const metadata: Metadata = {
     title: "Official Rulebook",
@@ -34,23 +32,10 @@ export default async function RulebookPage() {
 
     return (
         <div className="flex min-h-svh flex-col bg-background">
-            <SiteHeader activeTab="league" />
+            <SiteHeader activeTab="about" />
             <main className="mx-auto w-full max-w-7xl flex-1 px-4 sm:px-6 py-8 md:py-12">
-                {/* Back link */}
-                <Link
-                    href="/about"
-                    className="inline-flex items-center gap-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors mb-6"
-                >
-                    <ArrowLeft className="h-3.5 w-3.5" />
-                    Back to About
-                </Link>
-
                 {/* Hero */}
                 <div className="text-center mb-10">
-                    <div className="inline-flex items-center gap-2 text-primary mb-3">
-                        <BookOpen className="h-5 w-5" />
-                        <span className="text-xs font-bold uppercase tracking-[0.2em] text-muted-foreground">Rules</span>
-                    </div>
                     <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-foreground mb-3">
                         Official BASH Rulebook
                     </h1>
@@ -80,7 +65,7 @@ function RulebookChangelog({ changelog }: { changelog: { date: string; version: 
                 <details>
                     <summary className="cursor-pointer list-none flex items-center justify-between">
                         <div className="flex items-center gap-3">
-                            <h2 className="text-sm font-bold uppercase tracking-wider text-foreground">Rulebook Revision History</h2>
+                            <h2 className="text-base font-bold tracking-tight text-foreground">Rulebook Revision History</h2>
                             <span className="text-xs text-muted-foreground font-medium">({changelog[0].version})</span>
                         </div>
                         <span className="text-xs font-semibold text-muted-foreground">Click to expand</span>

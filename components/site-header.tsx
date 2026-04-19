@@ -12,7 +12,7 @@ const NAV_ITEMS = [
   { label: "Scores", href: "/" },
   { label: "Standings", href: "/standings" },
   { label: "Stats", href: "/stats" },
-  { label: "League", href: "/about" },
+  { label: "About", href: "/about" },
 ]
 
 function SiteHeaderInner({ activeTab }: { activeTab?: string }) {
