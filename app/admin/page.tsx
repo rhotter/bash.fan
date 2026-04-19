@@ -22,8 +22,9 @@ async function getDashboardData() {
     ORDER BY s.is_current DESC, s.id DESC
   `)
 
+  // Parse/stringify to ensure plain objects for Next.js Server Components
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return rows as any[]
+  return JSON.parse(JSON.stringify(rows)) as any[]
 }
 
 export default async function AdminDashboardPage() {

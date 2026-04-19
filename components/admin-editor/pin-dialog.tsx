@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -57,6 +57,7 @@ export function PinDialog({ open, onOpenChange, gameId, currentState, onSuccess 
       <DialogContent className="max-w-xs">
         <DialogHeader>
           <DialogTitle className="text-sm">Admin Authentication</DialogTitle>
+          <DialogDescription className="sr-only">Enter your PIN to authenticate.</DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-3">
           <Input
