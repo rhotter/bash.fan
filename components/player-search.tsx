@@ -103,11 +103,11 @@ export function PlayerSearch() {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogHeader className="sr-only">
-        <DialogTitle>Search players</DialogTitle>
-        <DialogDescription>Find a player by name</DialogDescription>
-      </DialogHeader>
       <DialogContent className="overflow-hidden p-0 sm:max-w-md" showCloseButton={false}>
+        <DialogHeader className="sr-only">
+          <DialogTitle>Search players</DialogTitle>
+          <DialogDescription>Find a player by name</DialogDescription>
+        </DialogHeader>
         {commandContent}
       </DialogContent>
     </Dialog>

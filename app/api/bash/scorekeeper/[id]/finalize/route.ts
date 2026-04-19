@@ -3,18 +3,20 @@ import { db, schema } from "@/lib/db"
 import { eq, and, sql } from "drizzle-orm"
 import type { LiveGameState, GoalEvent, PenaltyEvent, GoalieChangeEvent } from "@/lib/scorekeeper-types"
 import { computePulledSeconds, clockToElapsed, parseClockString } from "@/lib/scorekeeper-types"
+import { getSession } from "@/lib/admin-session"
 
-function validatePin(request: Request): boolean {
+async function validateAuth(request: Request): Promise<boolean> {
   const pin = request.headers.get("x-pin")
-  return !!pin && pin === process.env.SCOREKEEPER_PIN
+  if (pin && pin === process.env.SCOREKEEPER_PIN) return true
+  return await getSession()
 }
 
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  if (!validatePin(request)) {
-    return NextResponse.json({ error: "Invalid PIN" }, { status: 401 })
+  if (!(await validateAuth(request))) {
+    return NextResponse.json({ error: "Invalid PIN or session" }, { status: 401 })
   }
 
   const { id } = await params

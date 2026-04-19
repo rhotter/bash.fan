@@ -51,17 +51,19 @@ interface Props {
   homeRoster: RosterPlayer[]
   awayRoster: RosterPlayer[]
   existingState: LiveGameState | null
+  initialAuthenticated?: boolean
 }
 
 export function ScorekeeperApp({
   gameId, date, time, status, isPlayoff,
   homeSlug, awaySlug, homeTeam, awayTeam,
   homeRoster, awayRoster, existingState,
+  initialAuthenticated = false,
 }: Props) {
   // ─── PIN Gate ────────────────────────────────────────────────────────────
   const [pin, setPin] = useState("")
   const [pinError, setPinError] = useState("")
-  const [authenticated, setAuthenticated] = useState(false)
+  const [authenticated, setAuthenticated] = useState(initialAuthenticated)
   const [starting, setStarting] = useState(false)
 
   // ─── Game State ──────────────────────────────────────────────────────────

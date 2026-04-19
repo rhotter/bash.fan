@@ -3,7 +3,7 @@ import { Inter, JetBrains_Mono } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import { SpeedInsights } from '@vercel/speed-insights/next'
 import { AdminProvider } from '@/lib/admin-context'
-import { SiteFooter } from '@/components/site-footer'
+import { ConditionalFooter } from '@/components/conditional-footer'
 import './globals.css'
 
 const inter = Inter({
@@ -47,7 +47,7 @@ export default function RootLayout({
       <body className="font-sans antialiased min-h-screen flex flex-col">
         <AdminProvider>
           {children}
-          <SiteFooter />
+          <ConditionalFooter />
         </AdminProvider>
         <Analytics />
         <SpeedInsights />
