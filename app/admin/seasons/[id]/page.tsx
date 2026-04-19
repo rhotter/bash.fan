@@ -32,12 +32,22 @@ async function getSeason(id: string) {
       (SELECT COUNT(DISTINCT player_id)::int FROM player_seasons WHERE season_id = ${id}) AS "playerCount"
   `)
 
+  const recentGames = await rawSql(sql`
+    SELECT id, date, time, away_team AS "awayTeam", home_team AS "homeTeam", location
+    FROM games
+    WHERE season_id = ${id} 
+      AND date::date >= (now() AT TIME ZONE 'America/Los_Angeles')::date - INTERVAL '7 days'
+      AND date::date <= (now() AT TIME ZONE 'America/Los_Angeles')::date
+    ORDER BY date DESC, time DESC
+  `)
+
   const upcomingGames = await rawSql(sql`
     SELECT id, date, time, away_team AS "awayTeam", home_team AS "homeTeam", location
     FROM games
-    WHERE season_id = ${id} AND status = 'upcoming'
-    ORDER BY date, time
-    LIMIT 5
+    WHERE season_id = ${id} 
+      AND date::date > (now() AT TIME ZONE 'America/Los_Angeles')::date
+      AND date::date <= (now() AT TIME ZONE 'America/Los_Angeles')::date + INTERVAL '7 days'
+    ORDER BY date ASC, time ASC
   `)
 
   return {
@@ -46,6 +56,7 @@ async function getSeason(id: string) {
     gameCount: counts?.gameCount ?? 0,
     completedGameCount: counts?.completedGameCount ?? 0,
     playerCount: counts?.playerCount ?? 0,
+    recentGames: recentGames as { id: number; date: string; time: string | null; awayTeam: string; homeTeam: string; location: string | null }[],
     upcomingGames: upcomingGames as { id: number; date: string; time: string | null; awayTeam: string; homeTeam: string; location: string | null }[],
   }
 }

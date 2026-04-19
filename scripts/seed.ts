@@ -24,6 +24,7 @@ async function seed() {
     { slug: "reign", name: "Reign" },
     { slug: "loons", name: "Loons" },
     { slug: "no-regretzkys", name: "No ReGretzkys" },
+    { slug: "tbd", name: "(TBD)" }
   ]
 
   for (const t of teams) {
@@ -108,16 +109,16 @@ async function seed() {
     { id: "1708709", date: "2026-03-28", time: "9:00a", away: "loons", home: "seals", awayScore: null, homeScore: null, status: "upcoming", isOT: false, isPlayoff: false },
     { id: "1708710", date: "2026-03-28", time: "11:00a", away: "yetis", home: "landsharks", awayScore: null, homeScore: null, status: "upcoming", isOT: false, isPlayoff: false },
     { id: "1708711", date: "2026-03-28", time: "1:00p", away: "reign", home: "rink-rats", awayScore: null, homeScore: null, status: "upcoming", isOT: false, isPlayoff: false },
-    { id: "1708712", date: "2026-03-29", time: "11:00a", away: "landsharks", home: "landsharks", awayScore: null, homeScore: null, status: "upcoming", isOT: false, isPlayoff: true },
-    { id: "1708713", date: "2026-04-11", time: "10:00a", away: "landsharks", home: "landsharks", awayScore: null, homeScore: null, status: "upcoming", isOT: false, isPlayoff: true },
-    { id: "1708714", date: "2026-04-11", time: "12:00p", away: "landsharks", home: "landsharks", awayScore: null, homeScore: null, status: "upcoming", isOT: false, isPlayoff: true },
-    { id: "1708715", date: "2026-04-12", time: "10:00a", away: "landsharks", home: "landsharks", awayScore: null, homeScore: null, status: "upcoming", isOT: false, isPlayoff: true },
-    { id: "1708716", date: "2026-04-12", time: "12:00p", away: "landsharks", home: "landsharks", awayScore: null, homeScore: null, status: "upcoming", isOT: false, isPlayoff: true },
-    { id: "1708717", date: "2026-04-18", time: "10:00a", away: "landsharks", home: "landsharks", awayScore: null, homeScore: null, status: "upcoming", isOT: false, isPlayoff: true },
-    { id: "1708718", date: "2026-04-18", time: "12:00p", away: "landsharks", home: "landsharks", awayScore: null, homeScore: null, status: "upcoming", isOT: false, isPlayoff: true },
-    { id: "1708719", date: "2026-04-19", time: "11:00a", away: "landsharks", home: "landsharks", awayScore: null, homeScore: null, status: "upcoming", isOT: false, isPlayoff: true },
-    { id: "1708720", date: "2026-04-25", time: "11:00a", away: "landsharks", home: "landsharks", awayScore: null, homeScore: null, status: "upcoming", isOT: false, isPlayoff: true },
-    { id: "1708721", date: "2026-04-26", time: "11:00a", away: "landsharks", home: "landsharks", awayScore: null, homeScore: null, status: "upcoming", isOT: false, isPlayoff: true },
+    { id: "1708712", date: "2026-03-29", time: "11:00a", away: "loons", home: "landsharks", awayScore: 3, homeScore: 2, status: "final", isOT: true, isPlayoff: true },
+    { id: "1708713", date: "2026-04-11", time: "10:00a", away: "yetis", home: "rink-rats", awayScore: 0, homeScore: 5, status: "final", isOT: false, isPlayoff: true },
+    { id: "1708714", date: "2026-04-11", time: "12:00p", away: "loons", home: "seals", awayScore: 3, homeScore: 4, status: "final", isOT: false, isPlayoff: true },
+    { id: "1708715", date: "2026-04-12", time: "10:00a", away: "rink-rats", home: "yetis", awayScore: 4, homeScore: 3, status: "final", isOT: false, isPlayoff: true },
+    { id: "1708716", date: "2026-04-12", time: "12:00p", away: "seals", home: "loons", awayScore: 1, homeScore: 4, status: "final", isOT: false, isPlayoff: true },
+    { id: "1708717", date: "2026-04-18", time: "11:00a", away: "loons", home: "seals", awayScore: 6, homeScore: 4, status: "final", isOT: false, isPlayoff: true },
+    { id: "1708718", date: "2026-04-18", time: "12:00p", away: "tbd", home: "tbd", awayScore: null, homeScore: null, status: "upcoming", isOT: false, isPlayoff: true },
+    { id: "1708719", date: "2026-04-19", time: "11:00a", away: "tbd", home: "rink-rats", awayScore: null, homeScore: null, status: "upcoming", isOT: false, isPlayoff: true },
+    { id: "1708720", date: "2026-04-25", time: "11:00a", away: "tbd", home: "tbd", awayScore: null, homeScore: null, status: "upcoming", isOT: false, isPlayoff: true },
+    { id: "1708721", date: "2026-04-26", time: "11:00a", away: "tbd", home: "tbd", awayScore: null, homeScore: null, status: "upcoming", isOT: false, isPlayoff: true },
   ]
 
   console.log(`Inserting ${games.length} games...`)
@@ -128,8 +129,11 @@ async function seed() {
       ON CONFLICT (id) DO UPDATE SET
         away_score = EXCLUDED.away_score,
         home_score = EXCLUDED.home_score,
+        away_team = EXCLUDED.away_team,
+        home_team = EXCLUDED.home_team,
         status = EXCLUDED.status,
-        is_overtime = EXCLUDED.is_overtime
+        is_overtime = EXCLUDED.is_overtime,
+        time = EXCLUDED.time
     `)
   }
   console.log("Games inserted.")

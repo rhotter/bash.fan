@@ -83,6 +83,7 @@ export async function PUT(request: NextRequest, context: RouteContext) {
       gameLength,
       defaultLocation,
       adminNotes,
+      statsOnly,
     } = body
 
     // Validate status transition
@@ -106,6 +107,7 @@ export async function PUT(request: NextRequest, context: RouteContext) {
     if (gameLength !== undefined) updates.gameLength = gameLength
     if (defaultLocation !== undefined) updates.defaultLocation = defaultLocation
     if (adminNotes !== undefined) updates.adminNotes = adminNotes
+    if (statsOnly !== undefined) updates.statsOnly = statsOnly
 
     // Auto-set is_current when activating
     if (status === "active" && existing.status === "draft") {

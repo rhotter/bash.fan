@@ -2,17 +2,19 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { Loader2, Check, AlertTriangle } from "lucide-react"
+import { Loader2, Check, AlertTriangle, HelpCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 
 const STANDINGS_OPTIONS = [
-  { value: "pts-pbla", label: "Points (PBLA)" },
-  { value: "pts-standard", label: "Points (Standard)" },
-  { value: "win-pct", label: "Win Percentage" },
-  { value: "pts-custom", label: "Custom Points" },
+  { value: "pts-pbla", label: "Points (PBLA)", description: "W=3, OTW=2, OTL=1, L=0 (BASH default)" },
+  { value: "pts-standard", label: "Points (Standard)", description: "W=2, T=1, OTL=1, L=0" },
+  { value: "win-pct", label: "Win Percentage", description: "Strictly Win-Loss percentage. Ties excluded." },
+  { value: "pts-custom", label: "Custom Points", description: "Custom points calculation." },
 ]
 
 interface SeasonFormProps {
@@ -26,6 +28,7 @@ interface SeasonFormProps {
     gameLength: number | null
     defaultLocation: string | null
     adminNotes: string | null
+    statsOnly: boolean
   }
 }
 
@@ -43,6 +46,7 @@ export function SeasonForm({ season }: SeasonFormProps) {
     gameLength: season.gameLength || 60,
     defaultLocation: season.defaultLocation || "",
     adminNotes: season.adminNotes || "",
+    statsOnly: season.statsOnly || false,
   })
 
   async function handleSave() {
@@ -127,7 +131,19 @@ export function SeasonForm({ season }: SeasonFormProps) {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
-            <Label className="text-xs text-muted-foreground">Standings Method</Label>
+            <div className="flex items-center gap-1.5">
+              <Label className="text-xs text-muted-foreground cursor-help">Standings Method</Label>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <HelpCircle className="h-3 w-3 text-muted-foreground/50 hover:text-foreground cursor-help transition-colors" />
+                  </TooltipTrigger>
+                  <TooltipContent className="text-center w-64 text-sm" side="top">
+                    {STANDINGS_OPTIONS.find((opt) => opt.value === form.standingsMethod)?.description || "The method used to calculate team points."}
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
             <select
               value={form.standingsMethod}
               onChange={(e) => setForm((f) => ({ ...f, standingsMethod: e.target.value }))}
@@ -169,6 +185,22 @@ export function SeasonForm({ season }: SeasonFormProps) {
               className="w-full rounded-md border bg-background px-3 py-2 text-sm resize-none"
               placeholder="Internal notes about this season..."
             />
+          </div>
+
+          <div className="flex items-center gap-2 pt-2">
+            <Checkbox
+              id="statsOnly"
+              checked={form.statsOnly}
+              onCheckedChange={(checked) => setForm((f) => ({ ...f, statsOnly: checked === true }))}
+            />
+            <div className="grid gap-1.5 leading-none">
+              <Label htmlFor="statsOnly" className="text-sm font-medium leading-none cursor-pointer">
+                Stats-only season
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Check this if the season only tracks aggregate stats (no individual game schedules)
+              </p>
+            </div>
           </div>
         </CardContent>
       </Card>

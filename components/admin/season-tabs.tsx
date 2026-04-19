@@ -19,11 +19,13 @@ interface SeasonTabsProps {
     gameLength: number | null
     defaultLocation: string | null
     adminNotes: string | null
+    statsOnly: boolean
     isCurrent: boolean
     teams: { teamSlug: string; teamName: string }[]
     gameCount: number
     completedGameCount: number
     playerCount: number
+    recentGames?: { id: number; date: string; time: string | null; awayTeam: string; homeTeam: string; location: string | null }[]
     upcomingGames?: { id: number; date: string; time: string | null; awayTeam: string; homeTeam: string; location: string | null }[]
   }
 }
