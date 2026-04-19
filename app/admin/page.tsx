@@ -22,8 +22,19 @@ async function getDashboardData() {
     ORDER BY s.is_current DESC, s.id DESC
   `)
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return rows as any[]
+  // Parse and map to plain objects safely, coercing counts to numbers
+  // This avoids Next.js Server Components serialization errors (BigInt, objects, etc)
+  return rows.map(row => ({
+    id: row.id,
+    name: row.name,
+    seasonType: row.seasonType,
+    status: row.status,
+    isCurrent: row.isCurrent,
+    teamCount: Number(row.teamCount || 0),
+    gameCount: Number(row.gameCount || 0),
+    completedGameCount: Number(row.completedGameCount || 0),
+    playerCount: Number(row.playerCount || 0),
+  }))
 }
 
 export default async function AdminDashboardPage() {
