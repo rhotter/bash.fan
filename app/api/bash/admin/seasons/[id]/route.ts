@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { db, schema } from "@/lib/db"
 import { eq, sql } from "drizzle-orm"
 import { getSession } from "@/lib/admin-session"
-import { invalidateSeasonCache } from "@/lib/seasons"
+import { revalidateTag } from "next/cache"
 
 interface RouteContext {
   params: Promise<{ id: string }>
@@ -130,8 +130,8 @@ export async function PUT(request: NextRequest, context: RouteContext) {
         .where(eq(schema.seasons.id, id))
     })
 
-    // Bust the in-memory season cache so subsequent reads see fresh data
-    invalidateSeasonCache()
+    // Bust the Next.js season cache so subsequent reads see fresh data
+    revalidateTag("seasons")
 
     return NextResponse.json({ ok: true })
   } catch {
