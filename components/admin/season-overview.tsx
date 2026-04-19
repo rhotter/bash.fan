@@ -2,6 +2,8 @@
 
 import { Users, UserCheck, Gamepad2, CheckCircle, MapPin, Timer, Trophy, StickyNote } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import Link from "next/link"
 
 interface SeasonOverviewProps {
   season: {
@@ -23,6 +25,13 @@ const STANDINGS_LABELS: Record<string, string> = {
   "pts-standard": "Points (Standard)",
   "win-pct": "Win Percentage",
   "pts-custom": "Custom Points",
+}
+
+const STANDINGS_DESCRIPTIONS: Record<string, string> = {
+  "pts-pbla": "W=3, OTW=2, OTL=1, L=0 (BASH default)",
+  "pts-standard": "W=2, T=1, OTL=1, L=0",
+  "win-pct": "Strictly Win-Loss percentage. Ties excluded.",
+  "pts-custom": "Custom points calculation.",
 }
 
 export function SeasonOverview({ season }: SeasonOverviewProps) {
@@ -75,7 +84,13 @@ export function SeasonOverview({ season }: SeasonOverviewProps) {
                       {game.awayTeam} @ {game.homeTeam}
                     </span>
                   </div>
-                  <span className="text-xs text-muted-foreground">{game.location}</span>
+                  <Link 
+                    href={`/scorekeeper/${game.id}`} 
+                    target="_blank" 
+                    className="text-[10px] uppercase tracking-wider font-bold text-primary hover:underline px-2 py-1 bg-primary/10 rounded"
+                  >
+                    Scorekeeper
+                  </Link>
                 </div>
               ))}
             </div>
@@ -90,13 +105,22 @@ export function SeasonOverview({ season }: SeasonOverviewProps) {
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-2 gap-3 text-sm">
-            <div className="flex items-start gap-2">
-              <Trophy className="h-3.5 w-3.5 mt-0.5 text-muted-foreground" />
-              <div>
-                <p className="font-medium">{STANDINGS_LABELS[season.standingsMethod || "pts-pbla"] || season.standingsMethod}</p>
-                <p className="text-xs text-muted-foreground">Standings method</p>
-              </div>
-            </div>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="flex items-start gap-2 cursor-help group">
+                    <Trophy className="h-3.5 w-3.5 mt-0.5 text-muted-foreground group-hover:text-foreground transition-colors" />
+                    <div className="text-left">
+                      <p className="font-medium decoration-dotted underline decoration-muted-foreground underline-offset-4 group-hover:decoration-foreground transition-colors">{STANDINGS_LABELS[season.standingsMethod || "pts-pbla"] || season.standingsMethod}</p>
+                      <p className="text-xs text-muted-foreground">Standings method</p>
+                    </div>
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent side="top" className="text-center">
+                  <p>{STANDINGS_DESCRIPTIONS[season.standingsMethod || "pts-pbla"] || "The method used to calculate team points."}</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
             <div className="flex items-start gap-2">
               <Timer className="h-3.5 w-3.5 mt-0.5 text-muted-foreground" />
               <div>

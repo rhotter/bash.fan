@@ -24,6 +24,7 @@ export const seasons = pgTable("seasons", {
   gameLength: integer("game_length").notNull().default(60),
   defaultLocation: text("default_location"),
   adminNotes: text("admin_notes"),
+  statsOnly: boolean("stats_only").notNull().default(false),
 })
 
 // ─── Teams ──────────────────────────────────────────────────────────────────

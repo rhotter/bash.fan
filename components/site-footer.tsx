@@ -21,16 +21,25 @@ export function SiteFooter() {
           Scorekeeper
         </Link>
         {isAdmin ? (
-          <button
-            onClick={logout}
+          <>
+            <Link href="/admin" className="text-xs text-primary font-medium hover:text-primary/80 transition-colors">
+              Dashboard
+            </Link>
+            <button
+              onClick={logout}
+              className="text-xs text-muted-foreground/30 hover:text-muted-foreground transition-colors cursor-pointer"
+            >
+              Exit Admin
+            </button>
+          </>
+        ) : (
+          <button 
+            onClick={() => setPinDialogOpen(true)}
             className="text-xs text-muted-foreground/30 hover:text-muted-foreground transition-colors cursor-pointer"
           >
-            Exit Admin
+            Admin
           </button>
-        ) : null}
-        <Link href="/admin" className="text-xs text-muted-foreground/30 hover:text-muted-foreground transition-colors">
-          Admin
-        </Link>
+        )}
         </div>
       </div>
       <PinDialog

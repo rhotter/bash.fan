@@ -117,20 +117,21 @@ export const seasons = pgTable("seasons", {
 
 **Migration strategy**: All existing seasons get `status = 'completed'` except the current season which gets `status = 'active'`. This can be done via a Drizzle migration or a one-time script.
 
-### 2.4 Phase 2 Data Migration: Read-Through Fallback
+### 2.4 Phase 2 Data Migration: Single Source of Truth
 
-Currently, seasons are **hardcoded** in `lib/seasons.ts` as a static `SEASONS` array. This is the source of truth for the public site.
+Currently, historical seasons are **hardcoded** in `lib/seasons.ts` as a static `SEASONS` array, which acts as the source of truth for the public site.
 
-For Phase 1, the admin will manage new seasons entirely in the **database** (`seasons` table). To gradually migrate the public frontend to the database without requiring a massive data import script, we will use a **Read-Through Fallback (Union)** strategy in a future Phase 2 update.
+For Phase 1, the admin will manage new seasons entirely in the **database** (`seasons` table), and the database will serve as the source of truth for new operations.
 
-When Phase 2 updates `app/api/bash/seasons/route.ts`, it will:
-1. **Query both sources**: Fetch all non-draft seasons from the database.
-2. **Merge and Deduplicate**: Pull the hardcoded `getAllSeasons()` from `lib/seasons.ts` and append them, filtering out any hardcoded seasons that have matching IDs in the database. The database is always authoritative.
-3. **Sort**: Alphabetically sort the combined list descending by ID (e.g. `2026-summer` > `2025-2026`) so the newest seasons bubble to the top.
-4. **Wire up `isCurrent`**: Read the `is_current` boolean directly from the database rows to identify the current season for the UI rather than relying on a hardcoded ID.
+In Phase 2, we will fully migrate all historical data to the database to ensure a **single source of truth**, eliminating the need for `lib/seasons.ts`.
+
+When Phase 2 is implemented, it will:
+1. **Seed the Database**: A one-time script will loop through the `SEASONS` array in `lib/seasons.ts` and `INSERT` all 30+ historical seasons into the database. They will all be marked with `status = 'completed'` and historical flags (`statsOnly`).
+2. **Refactor the Frontend**: Update getters like `getSeasonById()`, `getAllSeasons()`, and `getCurrentSeason()` (and API like `app/api/bash/seasons/route.ts`) to exclusively query the database using Drizzle (`db.select().from(schema.seasons)`).
+3. **Deprecate File**: Completely remove the hardcoded `lib/seasons.ts`.
 
 > [!IMPORTANT]
-> This pattern allows us to immediately reap the benefits of the admin dashboard for all upcoming seasons while keeping 30+ years of historical data strictly intact.
+> Migrating entirely to the DB removes the complexity of managing a split-brain architecture (database vs. static file). Once completed, the Admin Dashboard can manage 100% of BASH data without requiring codebase deployments.
 
 ---
 

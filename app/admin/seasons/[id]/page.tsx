@@ -88,16 +88,6 @@ export default async function SeasonDetailPage({ params }: SeasonDetailPageProps
             {season.leagueId && ` · League ID: ${season.leagueId}`}
           </p>
         </div>
-        {season.status !== "draft" && (
-          <Link
-            href={`/?season=${season.id}`}
-            target="_blank"
-            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground px-3 py-1.5 rounded-md border hover:bg-muted transition-colors"
-          >
-            View Public Site
-            <ExternalLink className="h-3 w-3" />
-          </Link>
-        )}
       </div>
 
       {/* Tabs */}

@@ -3,6 +3,7 @@ import { sql } from "drizzle-orm"
 import { SiteHeader } from "@/components/site-header"
 import { ScorekeeperApp } from "@/components/scorekeeper/scorekeeper-app"
 import type { RosterPlayer } from "@/lib/scorekeeper-types"
+import { getSession } from "@/lib/admin-session"
 
 export const dynamic = "force-dynamic"
 
@@ -68,6 +69,7 @@ export default async function ScorekeeperPage({ params }: { params: Promise<{ id
       homeRoster={homeRoster}
       awayRoster={awayRoster}
       existingState={liveRows.length > 0 ? liveRows[0].state : null}
+      initialAuthenticated={await getSession()}
     />
     </>
   )

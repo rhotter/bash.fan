@@ -2,18 +2,20 @@ import { NextResponse } from "next/server"
 import { db, schema, rawSql } from "@/lib/db"
 import { eq, sql } from "drizzle-orm"
 import { createInitialState } from "@/lib/scorekeeper-types"
+import { getSession } from "@/lib/admin-session"
 
-function validatePin(request: Request): boolean {
+async function validateAuth(request: Request): Promise<boolean> {
   const pin = request.headers.get("x-pin")
-  return !!pin && pin === process.env.SCOREKEEPER_PIN
+  if (pin && pin === process.env.SCOREKEEPER_PIN) return true
+  return await getSession()
 }
 
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  if (!validatePin(request)) {
-    return NextResponse.json({ error: "Invalid PIN" }, { status: 401 })
+  if (!(await validateAuth(request))) {
+    return NextResponse.json({ error: "Invalid PIN or session" }, { status: 401 })
   }
 
   const { id } = await params
