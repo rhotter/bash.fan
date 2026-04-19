@@ -16,9 +16,15 @@ import {
 export const seasons = pgTable("seasons", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
-  leagueId: text("league_id").notNull(),
+  leagueId: text("league_id"),
   isCurrent: boolean("is_current").notNull().default(false),
   seasonType: text("season_type").notNull().default("fall"),
+  status: text("status").notNull().default("active"),
+  standingsMethod: text("standings_method").notNull().default("pts-pbla"),
+  gameLength: integer("game_length").notNull().default(60),
+  defaultLocation: text("default_location"),
+  adminNotes: text("admin_notes"),
+  statsOnly: boolean("stats_only").notNull().default(false),
 })
 
 // ─── Teams ──────────────────────────────────────────────────────────────────
