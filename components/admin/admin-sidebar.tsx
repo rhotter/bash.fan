@@ -3,7 +3,7 @@
 import Link from "next/link"
 import Image from "next/image"
 import { usePathname } from "next/navigation"
-import { LayoutDashboard, CalendarDays, Users, Shield, Trophy } from "lucide-react"
+import { LayoutDashboard, CalendarDays, Trophy } from "lucide-react"
 import {
   Sidebar,
   SidebarContent,
@@ -21,8 +21,6 @@ import { SyncButton } from "@/components/admin/sync-button"
 const NAV_ITEMS = [
   { label: "Dashboard", href: "/admin", icon: LayoutDashboard },
   { label: "Seasons", href: "/admin/seasons", icon: CalendarDays },
-  { label: "Players", href: "/admin/players", icon: Users },
-  { label: "Teams", href: "/admin/teams", icon: Shield },
   { label: "Awards", href: "/admin/awards", icon: Trophy },
 ]
 

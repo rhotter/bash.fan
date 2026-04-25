@@ -69,23 +69,23 @@ There is no centralized place for commissioners to manage the league — seasons
 
 ### Phase 2 — Extended Management
 
-#### 4.5 Player Management (`/admin/players`)
-- Searchable player list
-- Merge duplicate players (bring `scripts/merge-duplicates.ts` logic into the UI)
-- Edit player details
-- View player season assignments
-
-#### 4.6 Team Management (`/admin/teams`)
-- List teams, edit names/slugs
-- Assign teams to seasons
-
-#### 4.7 Awards & Hall of Fame (`/admin/awards`)
+#### 4.5 Awards & Hall of Fame (`/admin/awards`)
 - View/edit player awards by season
 - Manage Hall of Fame inductees
 
 ---
 
 ### Phase 3 — Advanced
+
+#### 4.6 Player Management (`/admin/players`)
+- Searchable player list
+- Merge duplicate players (bring `scripts/merge-duplicates.ts` logic into the UI)
+- Edit player details
+- View player season assignments
+
+#### 4.7 Team Management (`/admin/teams`)
+- List teams, edit names/slugs
+- Assign teams to seasons
 
 #### 4.8 Action Items / Alert Panel (`/admin` dashboard)
 - Auto-generated alerts surfacing issues needing commissioner attention
