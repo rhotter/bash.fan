@@ -9,7 +9,17 @@ import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 const STANDINGS_OPTIONS = [
   { value: "pts-pbla", label: "Points (PBLA)", description: "W=3, OTW=2, OTL=1, L=0 (BASH default)" },
   { value: "pts-standard", label: "Points (Standard)", description: "W=2, T=1, OTL=1, L=0" },
@@ -38,6 +48,13 @@ export function SeasonForm({ season }: SeasonFormProps) {
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState("")
+
+  const [confirmDialog, setConfirmDialog] = useState<{
+    open: boolean
+    status: string
+    title: string
+    description: string
+  }>({ open: false, status: "", title: "", description: "" })
 
   const [form, setForm] = useState({
     name: season.name,
@@ -78,8 +95,27 @@ export function SeasonForm({ season }: SeasonFormProps) {
     }
   }
 
-  async function handleStatusTransition(newStatus: string) {
-    if (!confirm(`Transition season to "${newStatus}"?`)) return
+  function promptStatusTransition(newStatus: string) {
+    if (newStatus === "completed") {
+      setConfirmDialog({
+        open: true,
+        status: "completed",
+        title: "Mark season as completed?",
+        description: "This is a permanent action that will close the books on this season. It will remain the 'current' season on the public site until you activate a new one.",
+      })
+    } else if (newStatus === "active") {
+      setConfirmDialog({
+        open: true,
+        status: "active",
+        title: "Activate this season?",
+        description: "This will make it the current active season and lock season settings like team count, and playoff configuration.",
+      })
+    }
+  }
+
+  async function executeStatusTransition() {
+    const newStatus = confirmDialog.status
+    setConfirmDialog({ ...confirmDialog, open: false })
     setSaving(true)
     try {
       const res = await fetch(`/api/bash/admin/seasons/${season.id}`, {
@@ -121,6 +157,21 @@ export function SeasonForm({ season }: SeasonFormProps) {
                 onChange={(e) => setForm((f) => ({ ...f, leagueId: e.target.value }))}
                 placeholder="Sportability reference"
               />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs text-muted-foreground">Season Type</Label>
+              <Select
+                value={form.seasonType}
+                onValueChange={(v) => setForm((f) => ({ ...f, seasonType: v }))}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="fall">Fall</SelectItem>
+                  <SelectItem value="summer">Summer</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
         </CardContent>
@@ -247,7 +298,7 @@ export function SeasonForm({ season }: SeasonFormProps) {
         <div className="flex gap-2">
           {season.status === "draft" && (
             <Button
-              onClick={() => handleStatusTransition("active")}
+              onClick={() => promptStatusTransition("active")}
               disabled={saving}
               variant="outline"
               size="sm"
@@ -258,7 +309,7 @@ export function SeasonForm({ season }: SeasonFormProps) {
           )}
           {season.status === "active" && (
             <Button
-              onClick={() => handleStatusTransition("completed")}
+              onClick={() => promptStatusTransition("completed")}
               disabled={saving}
               variant="outline"
               size="sm"
@@ -282,6 +333,24 @@ export function SeasonForm({ season }: SeasonFormProps) {
           </Button>
         </div>
       </div>
+
+      <AlertDialog open={confirmDialog.open} onOpenChange={(open) => !open && setConfirmDialog({ ...confirmDialog, open: false })}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{confirmDialog.title}</AlertDialogTitle>
+            <AlertDialogDescription className="whitespace-pre-wrap">
+              {confirmDialog.description}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={executeStatusTransition} disabled={saving}>
+              {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Continue
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
