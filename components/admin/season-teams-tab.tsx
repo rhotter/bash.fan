@@ -7,6 +7,8 @@ import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { toast } from "sonner"
 import { TeamLogo } from "@/components/team-logo"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import { Label } from "@/components/ui/label"
 
 interface SeasonTeamsTabProps {
   seasonId: string
@@ -25,6 +27,11 @@ export function SeasonTeamsTab({ seasonId, seasonStatus, initialTeams }: SeasonT
   const [isLoading, setIsLoading] = useState(true)
   const [search, setSearch] = useState("")
   const [isProcessing, setIsProcessing] = useState<string | null>(null)
+
+  const [createModalOpen, setCreateModalOpen] = useState(false)
+  const [createTeamForm, setCreateTeamForm] = useState({ name: "", slug: "" })
+  const [createTeamError, setCreateTeamError] = useState("")
+  const [isCreatingTeam, setIsCreatingTeam] = useState(false)
 
   const isEditable = seasonStatus === "draft"
 
@@ -89,6 +96,40 @@ export function SeasonTeamsTab({ seasonId, seasonStatus, initialTeams }: SeasonT
       toast.error("Failed to remove team")
     } finally {
       setIsProcessing(null)
+    }
+  }
+
+  const handleCreateTeam = async () => {
+    if (!createTeamForm.name || !createTeamForm.slug) {
+      setCreateTeamError("Both Name and Slug are required")
+      return
+    }
+    setIsCreatingTeam(true)
+    setCreateTeamError("")
+    try {
+      const res = await fetch("/api/bash/admin/teams", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ slug: createTeamForm.slug, name: createTeamForm.name }),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        const newTeam = data.team
+        setAllTeams((prev) => [...prev, newTeam].sort((a, b) => a.name.localeCompare(b.name)))
+        toast.success(`Created franchise ${newTeam.name}`)
+        setCreateModalOpen(false)
+        setCreateTeamForm({ name: "", slug: "" })
+        
+        // Auto-assign to season
+        addTeam(newTeam)
+      } else {
+        const err = await res.json()
+        setCreateTeamError(err.error || "Failed to create team")
+      }
+    } catch {
+      setCreateTeamError("Connection error")
+    } finally {
+      setIsCreatingTeam(false)
     }
   }
 
@@ -157,9 +198,14 @@ export function SeasonTeamsTab({ seasonId, seasonStatus, initialTeams }: SeasonT
       {isEditable && (
         <Card className="bg-muted/30 border-dashed">
           <CardHeader className="pb-3 border-b border-dashed">
-            <CardTitle>Global Franchise Directory</CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle>Global Franchise Directory</CardTitle>
+              <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => setCreateModalOpen(true)}>
+                <Plus className="h-3 w-3 mr-1" /> Create Team
+              </Button>
+            </div>
             <CardDescription>
-              Assign franchises to this season. If a team doesn't exist, create it in Global Team Management first.
+              Assign franchises to this season. If a team doesn't exist, please create one.
             </CardDescription>
             <div className="pt-2">
               <div className="relative">
@@ -210,6 +256,50 @@ export function SeasonTeamsTab({ seasonId, seasonStatus, initialTeams }: SeasonT
           </CardContent>
         </Card>
       )}
+
+      <Dialog open={createModalOpen} onOpenChange={setCreateModalOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Create New Franchise</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Team Name</Label>
+              <Input
+                placeholder="e.g. Mighty Ducks"
+                value={createTeamForm.name}
+                onChange={(e) => {
+                  const newName = e.target.value
+                  setCreateTeamForm(f => ({
+                    ...f,
+                    name: newName,
+                    slug: f.slug === f.name.toLowerCase().replace(/[^a-z0-9]+/g, '-') ? newName.toLowerCase().replace(/[^a-z0-9]+/g, '-') : f.slug
+                  }))
+                }}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Team ID</Label>
+              <Input
+                placeholder="e.g. mighty-ducks"
+                value={createTeamForm.slug}
+                onChange={(e) => setCreateTeamForm(f => ({ ...f, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '') }))}
+              />
+              <p className="text-[10px] text-muted-foreground">Unique identifier used in URLs. Alphanumeric and hyphens only.</p>
+            </div>
+            {createTeamError && (
+              <div className="text-sm text-destructive">{createTeamError}</div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCreateModalOpen(false)}>Cancel</Button>
+            <Button onClick={handleCreateTeam} disabled={isCreatingTeam || !createTeamForm.name || !createTeamForm.slug}>
+              {isCreatingTeam ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Create & Assign
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

@@ -65,7 +65,7 @@ export function SeasonForm({ season }: SeasonFormProps) {
     defaultLocation: season.defaultLocation || "",
     adminNotes: season.adminNotes || "",
     statsOnly: season.statsOnly || false,
-    playoffTeams: season.playoffTeams ?? 4,
+    playoffTeams: season.playoffTeams as number | null,
   })
 
   async function handleSave() {

@@ -1,13 +1,23 @@
 import { NextResponse } from "next/server"
 import { db, schema } from "@/lib/db"
-import { asc } from "drizzle-orm"
+import { asc, ne, not, like, and } from "drizzle-orm"
 import { getSession } from "@/lib/admin-session"
 
 export async function GET() {
   const isAuthenticated = await getSession()
   if (!isAuthenticated) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
-  const allTeams = await db.select().from(schema.teams).orderBy(asc(schema.teams.name))
+  const allTeams = await db
+    .select()
+    .from(schema.teams)
+    .where(
+      and(
+        ne(schema.teams.slug, "tbd"),
+        not(like(schema.teams.slug, "seed-%"))
+      )
+    )
+    .orderBy(asc(schema.teams.name))
+
   return NextResponse.json({ teams: allTeams })
 }
 
