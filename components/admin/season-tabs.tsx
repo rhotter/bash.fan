@@ -5,6 +5,7 @@ import { SeasonOverview } from "./season-overview"
 import { SeasonForm } from "./season-form"
 import { PlaceholderCard } from "./placeholder-card"
 import { SeasonTeamsTab } from "./season-teams-tab"
+import { SeasonRosterTab } from "./season-roster-tab"
 
 type Tab = "Overview" | "Settings" | "Teams" | "Roster" | "Schedule" | "Draft" | "Registration"
 
@@ -31,6 +32,7 @@ interface SeasonTabsProps {
     playoffTeams: number | null
     isCurrent: boolean
     teams: { teamSlug: string; teamName: string }[]
+    roster: { playerId: number; playerName: string; teamSlug: string; isGoalie: boolean; isRookie: boolean }[]
     gameCount: number
     completedGameCount: number
     playerCount: number
@@ -67,7 +69,7 @@ export function SeasonTabs({ season }: SeasonTabsProps) {
         {activeTab === "Overview" && <SeasonOverview season={season} onEditSettings={() => setActiveTab("Settings")} />}
         {activeTab === "Settings" && <SeasonForm season={season} />}
         {activeTab === "Teams" && <SeasonTeamsTab seasonId={season.id} seasonStatus={season.status} initialTeams={season.teams} />}
-        {activeTab === "Roster" && <PlaceholderCard title="Roster Management" phase={2} />}
+        {activeTab === "Roster" && <SeasonRosterTab seasonId={season.id} seasonStatus={season.status} roster={season.roster} teams={season.teams} />}
         {activeTab === "Schedule" && <PlaceholderCard title="Schedule Editor" phase={2} />}
         {activeTab === "Draft" && (
           <PlaceholderCard

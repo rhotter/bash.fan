@@ -1,0 +1,1 @@
+ALTER TABLE "player_seasons" ADD COLUMN "is_rookie" boolean DEFAULT false NOT NULL;

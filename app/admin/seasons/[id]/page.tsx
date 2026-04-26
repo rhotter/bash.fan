@@ -24,6 +24,21 @@ async function getSeason(id: string) {
     .where(and(eq(schema.seasonTeams.seasonId, id), ne(schema.seasonTeams.teamSlug, "tbd")))
   const teams = allTeams.filter(t => !t.teamSlug.startsWith("seed-"))
 
+  const rawRoster = await db
+    .select({
+      playerId: schema.players.id,
+      playerName: schema.players.name,
+      teamSlug: schema.playerSeasons.teamSlug,
+      isGoalie: schema.playerSeasons.isGoalie,
+      isRookie: schema.playerSeasons.isRookie,
+    })
+    .from(schema.playerSeasons)
+    .innerJoin(schema.players, eq(schema.playerSeasons.playerId, schema.players.id))
+    .where(eq(schema.playerSeasons.seasonId, id))
+  
+  // Sort by player name
+  const roster = rawRoster.sort((a, b) => a.playerName.localeCompare(b.playerName))
+
   const [counts] = await rawSql(sql`
     SELECT
       (SELECT COUNT(*)::int FROM games WHERE season_id = ${id}) AS "gameCount",
@@ -52,6 +67,7 @@ async function getSeason(id: string) {
   return {
     ...season,
     teams,
+    roster,
     gameCount: counts?.gameCount ?? 0,
     completedGameCount: counts?.completedGameCount ?? 0,
     playerCount: counts?.playerCount ?? 0,

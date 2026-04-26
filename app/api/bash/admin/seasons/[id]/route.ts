@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { db, schema } from "@/lib/db"
-import { eq, sql } from "drizzle-orm"
+import { eq, sql, and } from "drizzle-orm"
 import { getSession } from "@/lib/admin-session"
 import { revalidateTag } from "next/cache"
 
@@ -116,6 +116,25 @@ export async function PUT(request: NextRequest, context: RouteContext) {
 
     // Auto-set is_current when activating
     if (status === "active" && existing.status === "draft") {
+      // Validate no players are 'tbd'
+      const unassignedPlayers = await db
+        .select({ id: schema.playerSeasons.playerId })
+        .from(schema.playerSeasons)
+        .where(
+          and(
+            eq(schema.playerSeasons.seasonId, id),
+            eq(schema.playerSeasons.teamSlug, 'tbd')
+          )
+        )
+        .limit(1)
+        
+      if (unassignedPlayers.length > 0) {
+        return NextResponse.json(
+          { error: "Cannot activate season while players are still unassigned." },
+          { status: 400 }
+        )
+      }
+
       updates.isCurrent = true
     }
 

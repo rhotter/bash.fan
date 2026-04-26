@@ -15,6 +15,13 @@
       "when": 1777158453763,
       "tag": "0001_marvelous_black_panther",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1777163542523,
+      "tag": "0002_magenta_namor",
+      "breakpoints": true
     }
   ]
 }
