@@ -138,20 +138,18 @@ export async function PUT(request: NextRequest, context: RouteContext) {
       updates.isCurrent = true
     }
 
-    await db.transaction(async (tx) => {
-      // If we are making this season current, unset all other current seasons first
-      if (updates.isCurrent === true) {
-        await tx
-          .update(schema.seasons)
-          .set({ isCurrent: false })
-          .where(eq(schema.seasons.isCurrent, true))
-      }
-
-      await tx
+    // If we are making this season current, unset all other current seasons first
+    if (updates.isCurrent === true) {
+      await db
         .update(schema.seasons)
-        .set(updates)
-        .where(eq(schema.seasons.id, id))
-    })
+        .set({ isCurrent: false })
+        .where(eq(schema.seasons.isCurrent, true))
+    }
+
+    await db
+      .update(schema.seasons)
+      .set(updates)
+      .where(eq(schema.seasons.id, id))
 
     // Bust the Next.js season cache so subsequent reads see fresh data
     // @ts-expect-error - Next.js canary changed the signature of revalidateTag
