@@ -31,6 +31,8 @@ The BASH Hockey repository is a full-stack Next.js application designed to displ
 - **Client Data Fetching**: SWR hooks for client-side caching and revalidation
 - **Deployment**: Vercel
 
+> **⚠️ Neon HTTP Driver Constraint:** The project uses the **stateless HTTP** driver (`@neondatabase/serverless` → `neon-http`), which **does not support `db.transaction()`**. All multi-step writes must use sequential `await db.*` calls. This is safe for admin operations on draft data but should be noted when writing new routes that modify multiple tables.
+
 ## Key Data Structures (Database Schema)
 
 Here is a high-level entity-relationship (ER) diagram of the database:
@@ -94,6 +96,13 @@ The Drizzle schema (`lib/db/schema.ts`) is designed around 15 core tables:
 
 ### 1. Data Sync (`app/api/bash/sync/route.ts`)
 Game data is primarily sourced from Sportability. A daily cron job (configured in `vercel.json`) calls the `/api/bash/sync` POST endpoint. This script scrapes Sportability HTML pages and upserts the latest schedule, scores, and boxscores into the Postgres database. The sync process intelligently skips any games that are being actively managed by the Live Scorekeeper to prevent overwriting manually entered live data.
+
+### 1a. Roster Import (`/api/bash/admin/seasons/[id]/roster/import-preview` + `import`)
+Admins import player rosters via **CSV** files exported from Sportability. The two-step flow:
+1. **Preview** (`import-preview`): Parses the CSV using a built-in RFC 4180 parser (no external dependencies), maps `FirstName`/`LastName`/`Team`/`ExpPos`/`Rookie` columns, validates team slugs, and returns stats (new vs existing players).
+2. **Import** (`import`): Upserts players into the global `players` table, then inserts `player_seasons` entries. Supports **Overwrite** (wipes season roster first) and **Append** (skips already-assigned players) modes.
+
+> **Note:** Sportability exports `.xlsx` files. Admins must convert to `.csv` before uploading (Excel → Save As CSV, or Google Sheets → Download as CSV). This avoids a heavy `xlsx` dependency that is incompatible with the Next.js server bundler.
 
 ### 2. Server-Side Data Fetching (`lib/fetch-*.ts`)
 The application heavily uses Next.js async Server Components. When a page loads, it fetches data using functions located in `lib/fetch-*.ts`, which execute Drizzle ORM queries against Neon Postgres. 

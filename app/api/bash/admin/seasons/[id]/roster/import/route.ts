@@ -86,7 +86,11 @@ export async function POST(request: NextRequest, context: RouteContext) {
     return NextResponse.json({ ok: true, count: players.length })
 
   } catch (error: unknown) {
-    console.error("Failed to import Sportability roster:", error instanceof Error ? error.message : error)
-    return NextResponse.json({ error: "Failed to import roster." }, { status: 500 })
+    const message = error instanceof Error ? error.message : String(error)
+    console.error("Failed to import Sportability roster:", message)
+    return NextResponse.json(
+      { error: `Import failed: ${message}` },
+      { status: 500 }
+    )
   }
 }
