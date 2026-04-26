@@ -129,21 +129,31 @@ export function SportabilityImportModal({ seasonId, seasonStatus }: Sportability
             <DialogHeader>
               <DialogTitle>Import Sportability Roster</DialogTitle>
               <DialogDescription>
-                Upload an exported <code>.xlsx</code> file from Sportability. The file must contain standard Sportability column headers.
+                Import players from a Sportability export file.
               </DialogDescription>
             </DialogHeader>
 
-            <div className="flex flex-col items-center justify-center border-2 border-dashed rounded-lg p-12 text-center space-y-4">
+            <div className="text-sm space-y-1.5 text-muted-foreground bg-muted/40 border rounded-md p-3">
+              <p className="font-medium text-foreground text-xs uppercase tracking-wider">How to prepare your file</p>
+              <ol className="list-decimal list-inside space-y-0.5 text-xs">
+                <li>In Sportability, go to <strong>Players → Export</strong> and download the <code>.xlsx</code> file</li>
+                <li>Open the file in Excel or Google Sheets</li>
+                <li>Save / export as <strong>CSV (.csv)</strong> format</li>
+                <li>Upload the <code>.csv</code> file below</li>
+              </ol>
+            </div>
+
+            <div className="flex flex-col items-center justify-center border-2 border-dashed rounded-lg p-10 text-center space-y-4">
               <div className="rounded-full bg-primary/10 p-4">
                 <FileUp className="h-8 w-8 text-primary" />
               </div>
               <div className="space-y-1">
                 <p className="text-sm font-medium">Click to upload or drag and drop</p>
-                <p className="text-xs text-muted-foreground">.xlsx files only</p>
+                <p className="text-xs text-muted-foreground">.csv files only</p>
               </div>
               <input
                 type="file"
-                accept=".xlsx"
+                accept=".csv"
                 className="hidden"
                 ref={fileInputRef}
                 onChange={handleFileUpload}

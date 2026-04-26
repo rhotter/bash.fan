@@ -1,11 +1,77 @@
 import { NextRequest, NextResponse } from "next/server"
 import { db, schema } from "@/lib/db"
 import { getSession } from "@/lib/admin-session"
-import * as xlsx from "xlsx"
 import { inArray, eq, and } from "drizzle-orm"
 
 interface RouteContext {
   params: Promise<{ id: string }>
+}
+
+/**
+ * Parse a CSV string into an array of objects keyed by header names.
+ * Handles quoted fields (including fields with commas and newlines inside quotes).
+ */
+function parseCsv(text: string): Record<string, string>[] {
+  const lines: string[] = []
+  let current = ""
+  let inQuotes = false
+
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i]
+    if (ch === '"') {
+      if (inQuotes && text[i + 1] === '"') {
+        current += '"'
+        i++ // skip escaped quote
+      } else {
+        inQuotes = !inQuotes
+      }
+    } else if (ch === "\n" && !inQuotes) {
+      lines.push(current)
+      current = ""
+    } else if (ch === "\r" && !inQuotes) {
+      // skip carriage return
+    } else {
+      current += ch
+    }
+  }
+  if (current.trim()) lines.push(current)
+
+  if (lines.length < 2) return []
+
+  const headers = splitCsvRow(lines[0])
+  return lines.slice(1).map((line) => {
+    const values = splitCsvRow(line)
+    const row: Record<string, string> = {}
+    headers.forEach((h, i) => {
+      row[h.trim()] = (values[i] || "").trim()
+    })
+    return row
+  })
+}
+
+function splitCsvRow(line: string): string[] {
+  const fields: string[] = []
+  let current = ""
+  let inQuotes = false
+
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i]
+    if (ch === '"') {
+      if (inQuotes && line[i + 1] === '"') {
+        current += '"'
+        i++
+      } else {
+        inQuotes = !inQuotes
+      }
+    } else if (ch === "," && !inQuotes) {
+      fields.push(current)
+      current = ""
+    } else {
+      current += ch
+    }
+  }
+  fields.push(current)
+  return fields
 }
 
 export async function POST(request: NextRequest, context: RouteContext) {
@@ -22,14 +88,15 @@ export async function POST(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: "No file uploaded" }, { status: 400 })
     }
 
-    const buffer = Buffer.from(await file.arrayBuffer())
-    const workbook = xlsx.read(buffer, { type: "buffer" })
-    
-    const sheetName = workbook.SheetNames[0]
-    const sheet = workbook.Sheets[sheetName]
-    
-    // Read raw data
-    const rawData = xlsx.utils.sheet_to_json<Record<string, unknown>>(sheet)
+    const text = await file.text()
+    const rawData = parseCsv(text)
+
+    if (rawData.length === 0) {
+      return NextResponse.json({ error: "CSV file is empty or has no data rows." }, { status: 400 })
+    }
+
+    // Log available headers for debugging if expected columns are missing
+    const headers = Object.keys(rawData[0])
 
     // Fetch all existing team slugs to validate team assignments
     const allTeams = await db.select({ slug: schema.teams.slug }).from(schema.teams)
@@ -38,23 +105,23 @@ export async function POST(request: NextRequest, context: RouteContext) {
     // 1. Data Mapping
     const mappedPlayers = rawData.map((row) => {
       // Name
-      const firstName = row["FirstName"]?.toString().trim() || ""
-      const lastName = row["LastName"]?.toString().trim() || ""
+      const firstName = row["FirstName"]?.trim() || ""
+      const lastName = row["LastName"]?.trim() || ""
       const playerName = `${firstName} ${lastName}`.trim()
 
       // Team
-      const rawTeam = row["Team"]?.toString().trim() || ""
+      const rawTeam = row["Team"]?.trim() || ""
       let teamSlug = rawTeam.toLowerCase().replace(/\s+/g, '-')
       if (!validTeamSlugs.has(teamSlug)) {
         teamSlug = "tbd"
       }
 
       // Position
-      const positionStr = (row["ExpPos"] || row["Position"] || "").toString().toLowerCase()
+      const positionStr = (row["ExpPos"] || row["Position"] || "").toLowerCase()
       const isGoalie = positionStr.includes("goalie")
 
       // Rookie (trust sportability)
-      const rookieStr = (row["Rookie"] || "0").toString()
+      const rookieStr = row["Rookie"] || "0"
       const isRookie = rookieStr === "1" || rookieStr.toLowerCase() === "true" || rookieStr.toLowerCase() === "yes"
 
       return {
@@ -66,11 +133,8 @@ export async function POST(request: NextRequest, context: RouteContext) {
     }).filter(p => p.playerName.length > 0) // filter out empty rows
 
     if (mappedPlayers.length === 0) {
-      console.log("DEBUG: No mapped players found. Raw Data sample (first 2 rows):", rawData.slice(0, 2))
-      if (rawData.length > 0) {
-        console.log("DEBUG: Available column headers in the first row:", Object.keys(rawData[0]))
-      }
-      return NextResponse.json({ error: "Unable to find valid player names. If Sportability has changed their export format, please reach out to the Bash devs." }, { status: 400 })
+      console.log("DEBUG: No mapped players found. Available headers:", headers)
+      return NextResponse.json({ error: "Unable to find valid player names. Ensure the CSV has 'FirstName' and 'LastName' columns (Sportability export format)." }, { status: 400 })
     }
 
     // 2. Database Comparison (Stats)
@@ -132,6 +196,6 @@ export async function POST(request: NextRequest, context: RouteContext) {
 
   } catch (error: unknown) {
     console.error("Failed to parse Sportability file:", error)
-    return NextResponse.json({ error: "Failed to process file. Ensure it is a valid Sportability .xlsx export." }, { status: 500 })
+    return NextResponse.json({ error: "Failed to process file. Ensure it is a valid Sportability CSV export." }, { status: 500 })
   }
 }
