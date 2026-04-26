@@ -27,6 +27,17 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { toast } from "sonner"
@@ -103,6 +114,7 @@ export function SeasonRosterTab({ seasonId, seasonStatus, roster, teams }: Seaso
 
   // Edit Player State
   const [isEditPlayerOpen, setIsEditPlayerOpen] = useState(false)
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
   const [editingPlayer, setEditingPlayer] = useState<RosterPlayer | null>(null)
   const [editPlayerName, setEditPlayerName] = useState("")
@@ -148,6 +160,32 @@ export function SeasonRosterTab({ seasonId, seasonStatus, roster, teams }: Seaso
       }
 
       toast.success("Player updated successfully")
+      setIsEditPlayerOpen(false)
+      router.refresh()
+    } catch (err: any) {
+      toast.error(err.message)
+    } finally {
+      setIsEditing(false)
+    }
+  }
+
+  const handleDeletePlayer = async () => {
+    if (!editingPlayer?.playerId) return
+
+    setIsEditing(true)
+    try {
+      const res = await fetch(`/api/bash/admin/seasons/${seasonId}/roster?playerId=${editingPlayer.playerId}`, {
+        method: "DELETE",
+      })
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to remove player")
+      }
+
+      toast.success("Player removed from season")
+      setIsDeleteDialogOpen(false)
       setIsEditPlayerOpen(false)
       router.refresh()
     } catch (err: any) {
@@ -351,17 +389,51 @@ export function SeasonRosterTab({ seasonId, seasonStatus, roster, teams }: Seaso
                   </Label>
                 </div>
               </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setIsEditPlayerOpen(false)}>
-                  Cancel
+              <DialogFooter className="flex sm:justify-between w-full">
+                <Button 
+                  variant="destructive" 
+                  onClick={(e) => {
+                    e.preventDefault()
+                    setIsDeleteDialogOpen(true)
+                  }}
+                  disabled={isEditing}
+                >
+                  Remove Player
                 </Button>
-                <Button onClick={handleSaveEdit} disabled={isEditing || !editPlayerName || !editPlayerTeam}>
-                  {isEditing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
-                  Save Changes
-                </Button>
+                <div className="flex justify-end gap-2">
+                  <Button variant="outline" onClick={() => setIsEditPlayerOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button onClick={handleSaveEdit} disabled={isEditing || !editPlayerName || !editPlayerTeam}>
+                    {isEditing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+                    Save Changes
+                  </Button>
+                </div>
               </DialogFooter>
             </DialogContent>
           </Dialog>
+
+          {/* Delete Confirmation Alert Dialog */}
+          <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This will remove {editPlayerName} from the {seasonId} season roster. This action cannot be undone.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel disabled={isEditing}>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={(e) => {
+                  e.preventDefault()
+                  handleDeletePlayer()
+                }} disabled={isEditing} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                  {isEditing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+                  Remove Player
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
       </CardHeader>
       <CardContent className="space-y-4">

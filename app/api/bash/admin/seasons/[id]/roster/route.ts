@@ -143,3 +143,34 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     return NextResponse.json({ error: "Failed to update player" }, { status: 500 })
   }
 }
+
+export async function DELETE(request: NextRequest, context: RouteContext) {
+  const isAuthenticated = await getSession()
+  if (!isAuthenticated) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  }
+
+  const { id: seasonId } = await context.params
+  const url = new URL(request.url)
+  const playerId = url.searchParams.get("playerId")
+
+  if (!playerId) {
+    return NextResponse.json({ error: "playerId is required" }, { status: 400 })
+  }
+
+  try {
+    await db
+      .delete(schema.playerSeasons)
+      .where(
+        and(
+          eq(schema.playerSeasons.playerId, parseInt(playerId)),
+          eq(schema.playerSeasons.seasonId, seasonId)
+        )
+      )
+
+    return NextResponse.json({ ok: true })
+  } catch (err: any) {
+    console.error("Failed to remove player from season:", err)
+    return NextResponse.json({ error: "Failed to remove player" }, { status: 500 })
+  }
+}
