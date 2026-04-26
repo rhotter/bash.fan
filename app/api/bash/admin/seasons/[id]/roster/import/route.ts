@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { db, schema } from "@/lib/db"
 import { getSession } from "@/lib/admin-session"
-import { eq, inArray, and } from "drizzle-orm"
+import { eq, inArray } from "drizzle-orm"
 
 interface RouteContext {
   params: Promise<{ id: string }>
@@ -26,7 +26,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ ok: true, count: 0 })
     }
 
-    const uniqueNames = Array.from(new Set(players.map((p: any) => p.playerName)))
+    const uniqueNames = Array.from(new Set(players.map((p: { playerName: string }) => p.playerName)))
 
     await db.transaction(async (tx) => {
       // 1. If Overwrite, wipe the existing roster for this season
@@ -90,8 +90,8 @@ export async function POST(request: NextRequest, context: RouteContext) {
 
     return NextResponse.json({ ok: true, count: players.length })
 
-  } catch (error: any) {
-    console.error("Failed to import Sportability roster:", error)
+  } catch (error: unknown) {
+    console.error("Failed to import Sportability roster:", error instanceof Error ? error.message : error)
     return NextResponse.json({ error: "Failed to import roster." }, { status: 500 })
   }
 }

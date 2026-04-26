@@ -46,7 +46,7 @@ export function SeasonTeamsTab({ seasonId, seasonStatus, initialTeams }: SeasonT
         const data = await res.json()
         setAllTeams(data.teams || [])
       }
-    } catch (e) {
+    } catch {
       toast.error("Failed to fetch available teams")
     } finally {
       setIsLoading(false)

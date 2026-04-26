@@ -87,9 +87,9 @@ export async function POST(request: NextRequest, context: RouteContext) {
     })
 
     return NextResponse.json({ ok: true }, { status: 201 })
-  } catch (err: any) {
+  } catch (err: unknown) {
     // If unique constraint violation (player already on a team this season)
-    if (err.code === '23505') {
+    if (typeof err === 'object' && err !== null && (err as { code?: string }).code === '23505') {
         return NextResponse.json({ error: "Player is already assigned to a team this season" }, { status: 400 })
     }
     console.error("Failed to add player:", err)
@@ -135,8 +135,8 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       )
 
     return NextResponse.json({ ok: true })
-  } catch (err: any) {
-    if (err.code === '23505') {
+  } catch (err: unknown) {
+    if (typeof err === 'object' && err !== null && (err as { code?: string }).code === '23505') {
       return NextResponse.json({ error: "Player is already assigned to this team" }, { status: 400 })
     }
     console.error("Failed to update player:", err)
@@ -169,7 +169,7 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
       )
 
     return NextResponse.json({ ok: true })
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("Failed to remove player from season:", err)
     return NextResponse.json({ error: "Failed to remove player" }, { status: 500 })
   }

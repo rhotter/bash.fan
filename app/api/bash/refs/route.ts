@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { db, schema } from "@/lib/db"
-import { eq, count, sum, asc, desc, countDistinct } from "drizzle-orm"
+import { eq, sum, asc, desc, countDistinct } from "drizzle-orm"
 
 export interface RefStat {
   name: string

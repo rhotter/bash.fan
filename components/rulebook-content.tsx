@@ -218,7 +218,7 @@ function RulebookSidebar({
                                     )}
                                     <a
                                         href={`#${section.id}`}
-                                        onClick={(e) => {
+                                        onClick={() => {
                                             if (!isExpanded) toggleSection(sectionIdx)
                                             onLinkClick?.()
                                         }}

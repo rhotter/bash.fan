@@ -41,7 +41,6 @@ export async function POST(
     const initialState = createInitialState()
 
     // Default goalies: player with most goalie games in this season for each team
-    const game = gameRows[0] as { id: string; status: string }
     const gameInfo = await rawSql(sql`
       SELECT home_team, away_team, season_id FROM games WHERE id = ${id}
     `)

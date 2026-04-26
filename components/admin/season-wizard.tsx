@@ -74,7 +74,7 @@ export function SeasonWizard() {
         const data = await res.json()
         setError(data.error || "Failed to create season")
       }
-    } catch (err) {
+    } catch {
       setError("An unexpected error occurred. Please try again.")
     } finally {
       setCreating(false)

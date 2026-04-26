@@ -7,7 +7,7 @@ import Link from "next/link"
 import { playerSlug } from "@/lib/player-slug"
 import { useRouter } from "next/navigation"
 import type { TeamDetail } from "@/app/api/bash/team/[slug]/route"
-import { useSort, SortableTh, statsRowClass, SectionHeader } from "@/components/stats-table"
+import { useSort, SortableTh, SectionHeader } from "@/components/stats-table"
 import { TeamLogo } from "@/components/team-logo"
 
 type SkaterSortKey = "points" | "goals" | "assists" | "pim" | "gp" | "gwg" | "ppg" | "shg" | "eng" | "hatTricks" | "pen" | "ptsPg"

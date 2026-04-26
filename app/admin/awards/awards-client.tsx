@@ -77,6 +77,7 @@ export function AwardsClient({ seasons, allPlayers }: { seasons: Season[], allPl
     } else if (activeTab === "hof" && hof.length === 0) {
       fetchHof()
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, selectedSeason])
 
   const fetchAwards = async () => {

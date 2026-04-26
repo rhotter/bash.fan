@@ -114,7 +114,7 @@ export function ShootoutEditor({ state, onChange, homeSlug, awaySlug, homeTeam, 
               </tr>
             </thead>
             <tbody>
-              {allAttempts.map((a, i) => (
+              {allAttempts.map((a) => (
                 <tr key={`${a.team}-${a.index}`} className="border-t border-border/20 hover:bg-muted/50">
                   <td className="py-1.5 pr-2">{a.teamName}</td>
                   <td className="py-1.5 px-2 font-medium">{nameById(a.playerId)}</td>

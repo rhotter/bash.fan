@@ -8,6 +8,8 @@ export function StandingsContent({ initialData }: { initialData?: BashApiData })
   const searchParams = useSearchParams()
   const season = searchParams.get("season") || undefined
 
+  const { standings, isLoading } = useBashData(season, initialData)
+
   if (season === "all") {
     return (
       <div className="flex items-center justify-center py-16">
@@ -15,8 +17,6 @@ export function StandingsContent({ initialData }: { initialData?: BashApiData })
       </div>
     )
   }
-
-  const { standings, isLoading } = useBashData(season, initialData)
 
   return <StandingsTab standings={standings} isLoading={isLoading} />
 }

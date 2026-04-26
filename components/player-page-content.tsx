@@ -1,10 +1,10 @@
 "use client"
 
-import { formatGameDate, formatGameDateShort } from "@/lib/format-time"
+import { formatGameDateShort } from "@/lib/format-time"
 import { cn } from "@/lib/utils"
 import Link from "next/link"
 import type { PlayerDetail, SkaterStats, GoalieStats, SeasonSkaterStats, SeasonGoalieStats, SkaterGameLog, GoalieGameLog } from "@/app/api/bash/player/[slug]/route"
-import { SectionHeader, statsRowClass } from "@/components/stats-table"
+import { SectionHeader } from "@/components/stats-table"
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip"
 import { Trophy, Star, Award } from "lucide-react"
 import { getAwardLabel } from "@/lib/awards"
@@ -16,7 +16,6 @@ export function PlayerPageContent({ player }: { player: PlayerDetail }) {
 
   const hasPlayoffSkaterData = player.playoffPerSeasonStats.length > 0 || player.playoffAllTimeStats
   const hasPlayoffGoalieData = player.playoffPerSeasonGoalieStats.length > 0 || player.playoffAllTimeGoalieStats
-  const hasPlayoffData = hasPlayoffSkaterData || hasPlayoffGoalieData || player.playoffGames.length > 0 || player.playoffGoalieGames.length > 0
 
   return (
     <div className="flex flex-col gap-8">

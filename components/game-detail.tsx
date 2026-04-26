@@ -11,7 +11,7 @@ import { playerSlug } from "@/lib/player-slug"
 import { formatGoalieTime } from "@/lib/format-goalie-time"
 import type { PlayerBoxScore, GoalieBoxScore } from "@/app/api/bash/game/[id]/route"
 import { useSort, SortableTh, SectionHeader } from "@/components/stats-table"
-import type { LiveGameState, GoalEvent, PenaltyEvent, RosterPlayer } from "@/lib/scorekeeper-types"
+import type { LiveGameState, GoalEvent, RosterPlayer } from "@/lib/scorekeeper-types"
 import { periodLabel, formatClock, computeCurrentClock, parseClockString, clockToElapsedDisplay } from "@/lib/scorekeeper-types"
 import { AdminGameEditor } from "@/components/admin-editor/admin-game-editor"
 import { useAdmin } from "@/lib/admin-context"
@@ -513,7 +513,7 @@ function EventLog({ state, homeSlug, awaySlug, homeTeam, awayTeam, playerNames }
   )
 }
 
-function PenaltyLog({ state, homeSlug, awaySlug, homeTeam, awayTeam, playerNames }: {
+function PenaltyLog({ state, homeSlug, awaySlug: _awaySlug, homeTeam, awayTeam, playerNames }: {
   state: LiveGameState; homeSlug: string; awaySlug: string; homeTeam: string; awayTeam: string
   playerNames: Record<number, string>
 }) {

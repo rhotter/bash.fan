@@ -84,7 +84,7 @@ function normalize(name: string): string {
 
 function fuzzyNormalize(name: string): string {
   return normalize(name)
-    .replace(/['\u2019.\-]/g, "")
+    .replace(/['\u2019.-]/g, "")
     .replace(/\s+/g, " ")
     .trim()
 }

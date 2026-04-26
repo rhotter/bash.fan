@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils"
 import { Loader2, SearchIcon } from "lucide-react"
 import Link from "next/link"
 import { playerSlug } from "@/lib/player-slug"
-import { useSort, SortableTh, statsRowClass } from "@/components/stats-table"
+import { useSort, SortableTh } from "@/components/stats-table"
 import { TeamLogo } from "@/components/team-logo"
 
 type SortKey = "points" | "goals" | "assists" | "pim" | "gp" | "gwg" | "ppg" | "shg" | "eng" | "hatTricks" | "pen" | "ptsPg"

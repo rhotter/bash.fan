@@ -378,7 +378,7 @@ function normalize(name: string): string {
   return name
     .trim()
     .toLowerCase()
-    .replace(/['\u2019.\-]/g, "")
+    .replace(/['\u2019.-]/g, "")
     .replace(/\s+/g, " ")
 }
 

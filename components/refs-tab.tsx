@@ -1,7 +1,6 @@
 "use client"
 
 import { useRefStats } from "@/lib/hockey-data"
-import { cn } from "@/lib/utils"
 import { Loader2 } from "lucide-react"
 import { useSort, SortableTh, statsRowClass } from "@/components/stats-table"
 

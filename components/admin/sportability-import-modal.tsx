@@ -30,8 +30,8 @@ export function SportabilityImportModal({ seasonId, seasonStatus }: Sportability
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Preview Data
-  const [stats, setStats] = useState<any>(null)
-  const [mappedPlayers, setMappedPlayers] = useState<any[]>([])
+  const [stats, setStats] = useState<Record<string, number> | null>(null)
+  const [mappedPlayers, setMappedPlayers] = useState<Record<string, unknown>[]>([])
 
   const resetState = () => {
     setStep("upload")
@@ -71,9 +71,10 @@ export function SportabilityImportModal({ seasonId, seasonStatus }: Sportability
       setStats(data.stats)
       setMappedPlayers(data.mappedPlayers)
       setStep("preview")
-    } catch (err: any) {
-      setErrorMsg(err.message)
-      toast.error(err.message)
+    } catch (err: unknown) {
+      const error = err instanceof Error ? err : new Error(String(err))
+      setErrorMsg(error.message)
+      toast.error(error.message)
       if (fileInputRef.current) fileInputRef.current.value = ""
     } finally {
       setIsProcessing(false)
@@ -103,9 +104,10 @@ export function SportabilityImportModal({ seasonId, seasonStatus }: Sportability
       setIsOpen(false)
       resetState()
       router.refresh()
-    } catch (err: any) {
-      setErrorMsg(err.message)
-      toast.error(err.message)
+    } catch (err: unknown) {
+      const error = err instanceof Error ? err : new Error(String(err))
+      setErrorMsg(error.message)
+      toast.error(error.message)
     } finally {
       setIsProcessing(false)
     }

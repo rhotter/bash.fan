@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { db, schema } from "@/lib/db"
-import { eq, desc } from "drizzle-orm"
+import { desc } from "drizzle-orm"
 import { getSession } from "@/lib/admin-session"
 
 export async function GET() {

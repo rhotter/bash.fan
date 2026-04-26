@@ -45,11 +45,11 @@ async function cleanup() {
 
   // Delete in FK order
   if (brokenGameIds.length > 0) {
-    const delOfficials = await rawSql(sql`DELETE FROM game_officials WHERE game_id IN ${brokenGameIds}`)
+    await rawSql(sql`DELETE FROM game_officials WHERE game_id IN ${brokenGameIds}`)
     console.log(`  Deleted game_officials for broken games`)
-    const delPGS = await rawSql(sql`DELETE FROM player_game_stats WHERE game_id IN ${brokenGameIds}`)
+    await rawSql(sql`DELETE FROM player_game_stats WHERE game_id IN ${brokenGameIds}`)
     console.log(`  Deleted player_game_stats for broken games`)
-    const delGGS = await rawSql(sql`DELETE FROM goalie_game_stats WHERE game_id IN ${brokenGameIds}`)
+    await rawSql(sql`DELETE FROM goalie_game_stats WHERE game_id IN ${brokenGameIds}`)
     console.log(`  Deleted goalie_game_stats for broken games`)
     await rawSql(sql`DELETE FROM games WHERE id IN ${brokenGameIds}`)
     console.log(`  Deleted ${brokenGameIds.length} broken games`)

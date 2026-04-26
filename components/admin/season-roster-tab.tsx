@@ -36,7 +36,6 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
@@ -105,8 +104,9 @@ export function SeasonRosterTab({ seasonId, seasonStatus, roster, teams }: Seaso
       setNewPlayerTeam("")
       setNewPlayerPosition("skater")
       router.refresh()
-    } catch (err: any) {
-      toast.error(err.message)
+    } catch (err: unknown) {
+      if (err instanceof Error) toast.error(err.message)
+      else toast.error("An unknown error occurred")
     } finally {
       setIsAdding(false)
     }
@@ -162,8 +162,9 @@ export function SeasonRosterTab({ seasonId, seasonStatus, roster, teams }: Seaso
       toast.success("Player updated successfully")
       setIsEditPlayerOpen(false)
       router.refresh()
-    } catch (err: any) {
-      toast.error(err.message)
+    } catch (err: unknown) {
+      if (err instanceof Error) toast.error(err.message)
+      else toast.error("An unknown error occurred")
     } finally {
       setIsEditing(false)
     }
@@ -188,8 +189,9 @@ export function SeasonRosterTab({ seasonId, seasonStatus, roster, teams }: Seaso
       setIsDeleteDialogOpen(false)
       setIsEditPlayerOpen(false)
       router.refresh()
-    } catch (err: any) {
-      toast.error(err.message)
+    } catch (err: unknown) {
+      if (err instanceof Error) toast.error(err.message)
+      else toast.error("An unknown error occurred")
     } finally {
       setIsEditing(false)
     }
@@ -223,9 +225,8 @@ export function SeasonRosterTab({ seasonId, seasonStatus, roster, teams }: Seaso
   // Sort the roster
   const sortedRoster = [...filteredRoster].sort((a, b) => {
     if (!sortConfig) return 0
-    
-    let aValue: any = a[sortConfig.key as keyof RosterPlayer]
-    let bValue: any = b[sortConfig.key as keyof RosterPlayer]
+    let aValue: string | number | boolean = a[sortConfig.key as keyof RosterPlayer]
+    let bValue: string | number | boolean = b[sortConfig.key as keyof RosterPlayer]
     
     if (sortConfig.key === "teamName") {
       aValue = getTeamName(a.teamSlug)

@@ -12,6 +12,7 @@ export async function GET(request: Request) {
 
   let query = db.select().from(schema.playerAwards)
   if (seasonId) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     query = query.where(eq(schema.playerAwards.seasonId, seasonId)) as any
   }
 
