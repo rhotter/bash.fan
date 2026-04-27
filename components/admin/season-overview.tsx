@@ -165,7 +165,7 @@ export function SeasonOverview({ season, onEditSettings }: SeasonOverviewProps) 
                   <span className="text-xs text-muted-foreground tabular-nums whitespace-nowrap leading-tight">
                     {game.date}
                     {game.time && <br />}
-                    {game.time && <span>{game.time}</span>}
+                      {game.time && <span>{formatGameTime(game.time)}</span>}
                   </span>
                   
                   <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 min-w-0">

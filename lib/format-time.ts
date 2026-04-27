@@ -17,7 +17,6 @@ export function formatGameDateShort(dateStr: string): string {
 }
 
 export function formatGameTime(time: string): string {
-  if (time.endsWith("a")) return `${time.slice(0, -1)} am`
-  if (time.endsWith("p")) return `${time.slice(0, -1)} pm`
-  return time
+  // Strip trailing am/pm or a/p to keep all schedule times uniform
+  return time.replace(/\s*(a|p|am|pm)$/i, "")
 }

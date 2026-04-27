@@ -48,6 +48,14 @@ export async function POST(request: NextRequest, context: RouteContext) {
       ))
     }
 
+    // Ensure the sentinel "tbd" team exists for placeholder games
+    const hasTbd = games.some((g: Record<string, unknown>) => g.homeTeam === "tbd" || g.awayTeam === "tbd")
+    if (hasTbd) {
+      await db.insert(schema.teams)
+        .values({ slug: "tbd", name: "(TBD)" })
+        .onConflictDoNothing()
+    }
+
     // Insert new games
     if (games.length > 0) {
       const insertData = games.map(g => ({
