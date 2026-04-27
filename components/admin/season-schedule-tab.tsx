@@ -1,10 +1,9 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
-import { Search, Loader2, Plus, Calendar, Trash2, Edit, ClipboardList, Shuffle, Trophy } from "lucide-react"
+import { Loader2, Plus, Calendar, Trash2, Edit, ClipboardList, Shuffle, Trophy } from "lucide-react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import {
   Select,
@@ -38,7 +37,7 @@ interface SeasonScheduleTabProps {
   initialTeams: { teamSlug: string; teamName: string }[]
 }
 
-interface ScheduleGame {
+export interface ScheduleGame {
   id: string
   date: string
   time: string
@@ -56,6 +55,7 @@ interface ScheduleGame {
   isOvertime: boolean
   hasShootout: boolean
   isForfeit: boolean
+  isPlayoff: boolean
   notes: string | null
   homeNotes: string | null
   awayNotes: string | null
@@ -65,7 +65,7 @@ export function SeasonScheduleTab({ seasonId, seasonStatus, initialTeams }: Seas
   const [games, setGames] = useState<ScheduleGame[]>([])
   const [isLoading, setIsLoading] = useState(true)
   
-  const [search, setSearch] = useState("")
+
   const [teamFilter, setTeamFilter] = useState("all")
   
   const [modalOpen, setModalOpen] = useState(false)
@@ -84,14 +84,16 @@ export function SeasonScheduleTab({ seasonId, seasonStatus, initialTeams }: Seas
   const isEditable = seasonStatus === "draft" || seasonStatus === "active"
 
   const fetchGames = useCallback(async () => {
+    setIsLoading(true)
     try {
-      const res = await fetch(`/api/bash/admin/seasons/${seasonId}/schedule`)
+      const res = await fetch(`/api/bash/admin/seasons/${seasonId}/schedule?_t=${Date.now()}`)
       if (res.ok) {
         const data = await res.json()
         setGames(data || [])
       }
-    } catch {
-      toast.error("Failed to fetch schedule")
+    } catch (err) {
+      console.error(err)
+      toast.error("Failed to load schedule")
     } finally {
       setIsLoading(false)
     }
@@ -178,17 +180,9 @@ export function SeasonScheduleTab({ seasonId, seasonStatus, initialTeams }: Seas
   }
 
   const filteredGames = games.filter(g => {
-    // Search filter (date, time, location, notes)
-    const matchesSearch = 
-      g.date.includes(search) || 
-      g.time.toLowerCase().includes(search.toLowerCase()) || 
-      g.location.toLowerCase().includes(search.toLowerCase()) ||
-      (g.notes && g.notes.toLowerCase().includes(search.toLowerCase()))
-    
     // Team filter
     const matchesTeam = teamFilter === "all" || g.homeSlug === teamFilter || g.awaySlug === teamFilter
-
-    return matchesSearch && matchesTeam
+    return matchesTeam
   })
 
   // Group by date
@@ -212,19 +206,15 @@ export function SeasonScheduleTab({ seasonId, seasonStatus, initialTeams }: Seas
   const totalUpcoming = games.filter(g => g.status === "upcoming").length
   const totalToDelete = deleteScheduleMode === "all" ? games.length : totalUpcoming
 
+  const lastRegularSeasonGame = games
+    .filter(g => g.gameType === "regular" && g.date)
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0]
+  const lastRegularSeasonDate = lastRegularSeasonGame?.date || null
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between gap-4">
         <div className="flex gap-2 flex-1">
-          <div className="relative flex-1 max-w-sm">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search date, time, location..."
-              className="pl-8"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-          </div>
           <Select value={teamFilter} onValueChange={setTeamFilter}>
             <SelectTrigger className="w-[180px]">
               <SelectValue placeholder="Filter by team" />
@@ -237,7 +227,7 @@ export function SeasonScheduleTab({ seasonId, seasonStatus, initialTeams }: Seas
             </SelectContent>
           </Select>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {isEditable && (
             <>
               <Button variant="outline" onClick={() => setRrWizardOpen(true)}>
@@ -422,6 +412,8 @@ export function SeasonScheduleTab({ seasonId, seasonStatus, initialTeams }: Seas
         teams={initialTeams}
         seasonId={seasonId}
         defaultLocation="James Lick Arena"
+        lastRegularSeasonDate={lastRegularSeasonDate}
+        games={games}
         onSaved={fetchGames}
       />
 

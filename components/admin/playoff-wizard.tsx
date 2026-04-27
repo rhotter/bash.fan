@@ -19,6 +19,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -33,6 +34,7 @@ import { Badge } from "@/components/ui/badge"
 import { toast } from "sonner"
 import { ChevronLeft, ChevronRight, Trophy, Loader2, ArrowRight } from "lucide-react"
 import { generateBracket, type BracketGame } from "@/lib/schedule-utils"
+import type { ScheduleGame } from "./season-schedule-tab"
 
 interface PlayoffWizardProps {
   open: boolean
@@ -40,6 +42,8 @@ interface PlayoffWizardProps {
   teams: { teamSlug: string; teamName: string }[]
   seasonId: string
   defaultLocation: string
+  lastRegularSeasonDate: string | null
+  games: ScheduleGame[]
   onSaved: () => void
 }
 
@@ -49,21 +53,24 @@ export function PlayoffWizard({
   teams,
   seasonId,
   defaultLocation,
+  lastRegularSeasonDate,
+  games,
   onSaved,
 }: PlayoffWizardProps) {
   const [step, setStep] = useState(1)
+  const [wizardMode, setWizardMode] = useState<"generate" | "resolve">("generate")
   const [isSaving, setIsSaving] = useState(false)
   const [showConfirm, setShowConfirm] = useState(false)
 
-  // Step 1: Format & Teams
+  // Step 2 (Generate): Format & Teams
   const [numTeams, setNumTeams] = useState(Math.min(teams.length, 4))
   const [playIn, setPlayIn] = useState(false)
   const [quarterSeriesLength, setQuarterSeriesLength] = useState<1 | 3>(1)
   const [semiSeriesLength, setSemiSeriesLength] = useState<1 | 3>(1)
   const [finalSeriesLength, setFinalSeriesLength] = useState<1 | 3>(1)
-  const [usePlaceholders, setUsePlaceholders] = useState(false)
+  const [usePlaceholders, setUsePlaceholders] = useState(true)
 
-  // Step 2: Seeding — ordered list of team slugs
+  // Step 3 (Generate): Seeding — ordered list of team slugs
   const [seeds, setSeeds] = useState<string[]>(() =>
     teams.slice(0, Math.min(teams.length, 8)).map((t) => t.teamSlug)
   )
@@ -81,10 +88,25 @@ export function PlayoffWizard({
     })
   }, [numTeams, playIn, quarterSeriesLength, semiSeriesLength, finalSeriesLength, seeds, usePlaceholders])
 
-  // Step 3: Game details (mutable dates/times/locations per bracket game)
+  // Step 4 (Generate): Game details
   const [gameDetails, setGameDetails] = useState<
     Record<string, { date: string; time: string; location: string }>
   >({})
+
+  // Resolve mode state
+  const [resolveMappings, setResolveMappings] = useState<Record<string, string>>({})
+  const uniquePlaceholders = useMemo(() => {
+    const set = new Set<string>()
+    if (games) {
+      games.forEach((g) => {
+        if (g.gameType === "playoff" || g.isPlayoff) {
+          if (g.homeSlug?.toLowerCase() === "tbd" && g.homePlaceholder) set.add(g.homePlaceholder)
+          if (g.awaySlug?.toLowerCase() === "tbd" && g.awayPlaceholder) set.add(g.awayPlaceholder)
+        }
+      })
+    }
+    return Array.from(set).sort()
+  }, [games])
 
   // ─── Helpers ──────────────────────────────────────────────────────────────
 
@@ -107,47 +129,75 @@ export function PlayoffWizard({
     }
   }
 
-  // Group bracket games by round for display
+  // Group bracket games by round for display, sorted by game number then series ID
   const gamesByRound = useMemo(() => {
     const grouped: Record<string, BracketGame[]> = {}
     for (const g of bracketGames) {
       if (!grouped[g.bracketRound]) grouped[g.bracketRound] = []
       grouped[g.bracketRound].push(g)
     }
+
+    // Sort each round's games
+    for (const round of Object.keys(grouped)) {
+      grouped[round].sort((a, b) => {
+        if (a.gameNumber !== b.gameNumber) {
+          return a.gameNumber - b.gameNumber
+        }
+        return a.seriesId.localeCompare(b.seriesId)
+      })
+    }
+
     return grouped
   }, [bracketGames])
 
   const roundOrder = ["play-in", "quarterfinal", "semifinal", "final"]
 
+  const defaultDateStr = useMemo(() => {
+    if (!lastRegularSeasonDate) return ""
+    const d = new Date(lastRegularSeasonDate + "T12:00:00")
+    d.setDate(d.getDate() + 1)
+    return d.toISOString().split("T")[0]
+  }, [lastRegularSeasonDate])
+
   // ─── Navigation ───────────────────────────────────────────────────────────
 
-  const totalSteps = 4
+  const totalSteps = wizardMode === "generate" ? 5 : 2
   const canGoNext = (): boolean => {
-    switch (step) {
-      case 1: return numTeams >= 4
-      case 2: return seeds.filter(Boolean).length >= numTeams
-      case 3: return true
-      case 4: return bracketGames.length > 0
-      default: return false
+    if (step === 1) return true
+    if (wizardMode === "resolve") {
+      if (step === 2) {
+        return Object.values(resolveMappings).filter(v => v !== "").length > 0
+      }
+    } else {
+      switch (step) {
+        case 2: return numTeams >= 4
+        case 3: return usePlaceholders || seeds.filter(Boolean).length >= numTeams
+        case 4: return true
+        case 5: return bracketGames.length > 0
+      }
     }
+    return false
   }
 
   const handleNext = () => {
-    if (step === 1 && seeds.length < numTeams) {
-      // Pad seeds
-      const padded = [...seeds]
-      while (padded.length < numTeams) padded.push("")
-      setSeeds(padded)
-    }
-    if (step === 2) {
-      // Initialize game details with defaults
-      const initial: Record<string, { date: string; time: string; location: string }> = {}
-      for (const g of bracketGames) {
-        if (!gameDetails[g.id]) {
-          initial[g.id] = { date: "", time: "TBD", location: defaultLocation }
-        }
+    if (wizardMode === "generate") {
+      if (step === 2 && !usePlaceholders && seeds.length < numTeams) {
+        // Pad seeds
+        const padded = [...seeds]
+        while (padded.length < numTeams) padded.push("")
+        setSeeds(padded)
       }
-      setGameDetails((prev) => ({ ...initial, ...prev }))
+      if (step === 3) {
+        // Initialize game details with defaults
+        const initial: Record<string, { date: string; time: string; location: string }> = {}
+        for (const g of bracketGames) {
+          if (!gameDetails[g.id]) {
+            const defaultTime = g.seriesId === "sf-b" ? "13:00" : "11:00"
+            initial[g.id] = { date: defaultDateStr, time: defaultTime, location: defaultLocation }
+          }
+        }
+        setGameDetails((prev) => ({ ...initial, ...prev }))
+      }
     }
     setStep((s) => Math.min(s + 1, totalSteps))
   }
@@ -156,29 +206,46 @@ export function PlayoffWizard({
   const handleSave = async () => {
     setIsSaving(true)
     try {
-      // Merge game details into bracket games
-      const payload = bracketGames.map((g) => {
-        const details = gameDetails[g.id] || { date: "", time: "TBD", location: defaultLocation }
-        return {
-          ...g,
-          date: details.date,
-          time: details.time,
-          location: details.location,
+      if (wizardMode === "resolve") {
+        const payload = Object.entries(resolveMappings).filter(([_, v]) => v !== "")
+        if (payload.length === 0) throw new Error("No mappings selected")
+
+        const res = await fetch(`/api/bash/admin/seasons/${seasonId}/schedule/resolve-seeds`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ mappings: resolveMappings }),
+        })
+        if (!res.ok) {
+          const data = await res.json()
+          throw new Error(data.error || "Failed to resolve seeds")
         }
-      })
+        toast.success("Playoff seeds resolved successfully!")
+      } else {
+        // Generate mode
+        const payload = bracketGames.map((g) => {
+          const details = gameDetails[g.id] || { date: defaultDateStr, time: "11:00", location: defaultLocation }
+          return {
+            ...g,
+            date: details.date,
+            time: details.time,
+            location: details.location,
+          }
+        })
 
-      const res = await fetch(`/api/bash/admin/seasons/${seasonId}/schedule/playoffs`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ games: payload }),
-      })
+        const res = await fetch(`/api/bash/admin/seasons/${seasonId}/schedule/playoffs`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ games: payload }),
+        })
 
-      if (!res.ok) {
-        const data = await res.json()
-        throw new Error(data.error || "Failed to generate playoffs")
+        if (!res.ok) {
+          const data = await res.json()
+          throw new Error(data.error || "Failed to generate playoffs")
+        }
+
+        toast.success(`Generated ${bracketGames.length} playoff games`)
       }
-
-      toast.success(`Generated ${bracketGames.length} playoff games`)
+      
       onSaved()
       handleReset()
       onOpenChange(false)
@@ -192,6 +259,7 @@ export function PlayoffWizard({
   const handleReset = () => {
     setStep(1)
     setGameDetails({})
+    setResolveMappings({})
   }
 
   const moveSeed = (fromIndex: number, toIndex: number) => {
@@ -204,7 +272,9 @@ export function PlayoffWizard({
 
   // ─── Render ───────────────────────────────────────────────────────────────
 
-  const stepTitles = ["Format & Teams", "Assign Seeds", "Game Details", "Review & Save"]
+  const stepTitlesGenerate = ["Action", "Format & Teams", "Assign Seeds", "Game Details", "Review & Save"]
+  const stepTitlesResolve = ["Action", "Resolve Seeds"]
+  const stepTitles = wizardMode === "generate" ? stepTitlesGenerate : stepTitlesResolve
 
   return (
     <>
@@ -233,8 +303,112 @@ export function PlayoffWizard({
           <div className="py-2 min-h-[300px]">
             <h3 className="font-semibold text-base mb-4">{stepTitles[step - 1]}</h3>
 
-            {/* ─── Step 1: Format & Teams ─── */}
+            {/* ─── Step 1: Action ─── */}
             {step === 1 && (
+              <div className="space-y-4">
+                <p className="text-sm text-muted-foreground">
+                  Would you like to generate a new playoff schedule or assign actual teams to an existing one?
+                </p>
+                <RadioGroup
+                  value={wizardMode}
+                  onValueChange={(v: "generate" | "resolve") => setWizardMode(v)}
+                  className="space-y-3 pt-2"
+                >
+                  <div className="flex items-start space-x-3 border p-4 rounded-lg bg-card">
+                    <RadioGroupItem value="generate" id="generate" className="mt-1" />
+                    <div>
+                      <Label htmlFor="generate" className="font-semibold text-base cursor-pointer">
+                        Create / Replace Bracket
+                      </Label>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        Build a fresh bracket using either placeholders or actual teams. This will replace any existing unplayed playoff games.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-start space-x-3 border p-4 rounded-lg bg-card">
+                    <RadioGroupItem value="resolve" id="resolve" className="mt-1" />
+                    <div>
+                      <Label htmlFor="resolve" className="font-semibold text-base cursor-pointer">
+                        Resolve Existing Seeds
+                      </Label>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        Select this if you generated a placeholder bracket at the start of the year and now want to swap the "Seed" placeholders with the actual teams.
+                      </p>
+                    </div>
+                  </div>
+                </RadioGroup>
+              </div>
+            )}
+
+            {/* ─── Resolve Mode: Step 2 ─── */}
+            {step === 2 && wizardMode === "resolve" && (() => {
+              // Sort: "Seed N" first by number, then everything else alphabetically
+              const seedPlaceholders = uniquePlaceholders
+                .filter((p) => /^seed\s+\d+$/i.test(p))
+                .sort((a, b) => parseInt(a.match(/\d+/)![0]) - parseInt(b.match(/\d+/)![0]))
+              const otherPlaceholders = uniquePlaceholders
+                .filter((p) => !/^seed\s+\d+$/i.test(p))
+                .sort()
+
+              const renderRow = (placeholder: string) => (
+                <div key={placeholder} className="flex items-center gap-2 py-1.5 px-2 rounded-md hover:bg-muted/40 transition-colors">
+                  <span className="text-sm font-medium w-36 shrink-0 truncate" title={placeholder}>
+                    {placeholder}
+                  </span>
+                  <ArrowRight className="h-3 w-3 text-muted-foreground shrink-0" />
+                  <Select
+                    value={resolveMappings[placeholder] || ""}
+                    onValueChange={(val) => setResolveMappings((prev) => ({ ...prev, [placeholder]: val }))}
+                  >
+                    <SelectTrigger className="flex-1 h-8 text-sm">
+                      <SelectValue placeholder="Select team..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {teams.map((t) => (
+                        <SelectItem key={t.teamSlug} value={t.teamSlug}>
+                          {t.teamName}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )
+
+              return (
+                <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2">
+                  <p className="text-sm text-muted-foreground">
+                    Map your placeholder seeds to actual teams. This automatically updates all upcoming playoff games.
+                  </p>
+                  {uniquePlaceholders.length === 0 ? (
+                    <div className="text-center p-6 border rounded-lg bg-muted/20">
+                      <p className="text-sm text-muted-foreground">No placeholder seeds found in the schedule.</p>
+                    </div>
+                  ) : (
+                    <>
+                      {seedPlaceholders.length > 0 && (
+                        <div className="space-y-0.5">
+                          <Label className="text-xs uppercase tracking-wider text-muted-foreground">Seedings</Label>
+                          <div className="border rounded-lg divide-y">
+                            {seedPlaceholders.map(renderRow)}
+                          </div>
+                        </div>
+                      )}
+                      {otherPlaceholders.length > 0 && (
+                        <div className="space-y-0.5">
+                          <Label className="text-xs uppercase tracking-wider text-muted-foreground">Advancement Slots</Label>
+                          <div className="border rounded-lg divide-y">
+                            {otherPlaceholders.map(renderRow)}
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              )
+            })()}
+
+            {/* ─── Generate Mode: Step 2: Format & Teams ─── */}
+            {step === 2 && wizardMode === "generate" && (
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
@@ -325,13 +499,25 @@ export function PlayoffWizard({
                   </div>
                 </div>
 
-                <div className="flex items-center gap-3">
-                  <Switch
-                    checked={usePlaceholders}
-                    onCheckedChange={setUsePlaceholders}
-                    id="placeholders"
-                  />
-                  <Label htmlFor="placeholders">Use placeholder labels (Seed 1, Seed 2…) instead of team names</Label>
+                <div className="space-y-3 pt-2">
+                  <Label className="text-base">Are playoff teams known?</Label>
+                  <RadioGroup
+                    value={usePlaceholders ? "no" : "yes"}
+                    onValueChange={(v) => setUsePlaceholders(v === "no")}
+                    className="flex gap-6"
+                  >
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="yes" id="known-yes" />
+                      <Label htmlFor="known-yes" className="cursor-pointer">Yes</Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="no" id="known-no" />
+                      <Label htmlFor="known-no" className="cursor-pointer">No</Label>
+                    </div>
+                  </RadioGroup>
+                  <p className="text-sm text-muted-foreground">
+                    If &quot;No&quot;, the schedule will be generated using placeholder labels (e.g. Seed 1 vs Seed 2).
+                  </p>
                 </div>
 
                 <div className="p-3 border rounded-lg text-sm bg-muted/30">
@@ -345,66 +531,73 @@ export function PlayoffWizard({
               </div>
             )}
 
-            {/* ─── Step 2: Assign Seeds ─── */}
-            {step === 2 && (
+            {/* ─── Generate Mode: Step 3: Assign Seeds ─── */}
+            {step === 3 && wizardMode === "generate" && (
               <div className="space-y-4">
-                <p className="text-sm text-muted-foreground">
-                  Assign seeding for the playoff bracket. Drag to reorder or use the dropdown to
-                  change each seed.
-                </p>
-                <div className="space-y-2">
-                  {Array.from({ length: numTeams }, (_, i) => (
-                    <div key={i} className="flex items-center gap-3 p-2 border rounded-lg">
-                      <Badge className="w-8 h-8 flex items-center justify-center rounded-full text-xs">
-                        #{i + 1}
-                      </Badge>
-                      <Select
-                        value={seeds[i] || ""}
-                        onValueChange={(v) => {
-                          const next = [...seeds]
-                          // Swap if this team is already assigned elsewhere
-                          const existingIdx = next.indexOf(v)
-                          if (existingIdx !== -1 && existingIdx !== i) {
-                            next[existingIdx] = next[i]
-                          }
-                          next[i] = v
-                          setSeeds(next)
-                        }}
-                      >
-                        <SelectTrigger className="flex-1">
-                          <SelectValue placeholder="Select team..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {teams.map((t) => (
-                            <SelectItem key={t.teamSlug} value={t.teamSlug}>
-                              {t.teamName}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <div className="flex gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7"
-                          disabled={i === 0}
-                          onClick={() => moveSeed(i, i - 1)}
-                        >
-                          ↑
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7"
-                          disabled={i === numTeams - 1}
-                          onClick={() => moveSeed(i, i + 1)}
-                        >
-                          ↓
-                        </Button>
-                      </div>
+                {usePlaceholders ? (
+                  <p className="text-sm text-muted-foreground">
+                    Playoff teams are not yet known. The bracket will be generated using placeholder seeds.
+                  </p>
+                ) : (
+                  <>
+                    <p className="text-sm text-muted-foreground">
+                      Assign seeding for the playoff bracket. Drag to reorder or use the dropdown to
+                      change each seed.
+                    </p>
+                    <div className="space-y-2">
+                      {Array.from({ length: numTeams }, (_, i) => (
+                        <div key={i} className="flex items-center gap-3 p-2 border rounded-lg">
+                          <Badge className="w-8 h-8 flex items-center justify-center rounded-full text-xs">
+                            #{i + 1}
+                          </Badge>
+                          <Select
+                            value={seeds[i] || ""}
+                            onValueChange={(v) => {
+                              const next = [...seeds]
+                              const existingIdx = next.indexOf(v)
+                              if (existingIdx !== -1 && existingIdx !== i) {
+                                next[existingIdx] = next[i]
+                              }
+                              next[i] = v
+                              setSeeds(next)
+                            }}
+                          >
+                            <SelectTrigger className="flex-1">
+                              <SelectValue placeholder="Select team..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {teams.map((t) => (
+                                <SelectItem key={t.teamSlug} value={t.teamSlug}>
+                                  {t.teamName}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <div className="flex gap-1">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7"
+                              disabled={i === 0}
+                              onClick={() => moveSeed(i, i - 1)}
+                            >
+                              ↑
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7"
+                              disabled={i === numTeams - 1}
+                              onClick={() => moveSeed(i, i + 1)}
+                            >
+                              ↓
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
+                  </>
+                )}
 
                 {/* Visual bracket preview */}
                 <div className="p-3 border rounded-lg text-sm bg-muted/30 space-y-1">
@@ -422,12 +615,19 @@ export function PlayoffWizard({
               </div>
             )}
 
-            {/* ─── Step 3: Game Details ─── */}
-            {step === 3 && (
+            {/* ─── Generate Mode: Step 4: Game Details ─── */}
+            {step === 4 && wizardMode === "generate" && (
               <div className="space-y-6 max-h-[400px] overflow-y-auto pr-2">
-                <p className="text-sm text-muted-foreground">
-                  Set dates, times, and locations for each playoff game.
-                </p>
+                <div className="flex flex-col gap-1">
+                  <p className="text-sm text-muted-foreground">
+                    Set dates, times, and locations for each playoff game. Each game date and time can be edited via the schedule page any time before the game is played.
+                  </p>
+                  {lastRegularSeasonDate && (
+                    <p className="text-xs font-medium text-primary">
+                      For reference: The final regular season game is scheduled for {new Date(lastRegularSeasonDate + "T12:00:00").toLocaleDateString(undefined, { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })}.
+                    </p>
+                  )}
+                </div>
                 {roundOrder
                   .filter((r) => gamesByRound[r])
                   .map((round) => (
@@ -440,8 +640,8 @@ export function PlayoffWizard({
                       </h4>
                       {gamesByRound[round].map((g) => {
                         const details = gameDetails[g.id] || {
-                          date: "",
-                          time: "TBD",
+                          date: defaultDateStr,
+                          time: "11:00",
                           location: defaultLocation,
                         }
                         return (
@@ -502,8 +702,8 @@ export function PlayoffWizard({
               </div>
             )}
 
-            {/* ─── Step 4: Review & Save ─── */}
-            {step === 4 && (
+            {/* ─── Generate Mode: Step 5: Review & Save ─── */}
+            {step === 5 && wizardMode === "generate" && (
               <div className="space-y-4">
                 {/* Visual bracket */}
                 <div className="p-4 bg-muted/30 rounded-lg space-y-3">

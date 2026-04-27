@@ -3,7 +3,7 @@
 import Link from "next/link"
 import Image from "next/image"
 import { usePathname } from "next/navigation"
-import { LayoutDashboard, CalendarDays, Trophy } from "lucide-react"
+import { LayoutDashboard, CalendarDays, Trophy, BookOpen } from "lucide-react"
 import {
   Sidebar,
   SidebarContent,
@@ -22,6 +22,7 @@ const NAV_ITEMS = [
   { label: "Dashboard", href: "/admin", icon: LayoutDashboard },
   { label: "Seasons", href: "/admin/seasons", icon: CalendarDays },
   { label: "Awards", href: "/admin/awards", icon: Trophy },
+  { label: "Cerberus Playbook", href: "/admin/playbook", icon: BookOpen },
 ]
 
 export function AdminSidebar() {
@@ -31,7 +32,7 @@ export function AdminSidebar() {
     <Sidebar>
       <SidebarHeader className="border-b px-4 py-3">
         <Link href="/admin" className="flex items-center gap-2">
-          <Image src="/logo.png" alt="BASH" width={24} height={24} />
+          <Image src="/logo.png" alt="BASH" width={24} height={24} className="w-6 h-6 object-contain" />
           <div className="flex flex-col">
             <span className="text-sm font-bold">BASH Admin</span>
             <span className="text-[9px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
