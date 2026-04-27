@@ -190,7 +190,7 @@ async function syncFullSchedule(leagueId: string, seasonId: string) {
     if (!awayName || !homeName || awayName.length < 2 || homeName.length < 2) continue
 
     // Find location cell — skip the game cell (which may contain team names like "Rink Rats")
-    let location = "James Lick Arena"
+    let location = "The Lick"
     for (const cell of cells) {
       if (cell === gameCellHtml) continue
       const loc = stripHtml(cell).trim()

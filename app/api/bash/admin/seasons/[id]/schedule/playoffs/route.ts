@@ -8,6 +8,22 @@ interface RouteContext {
   params: Promise<{ id: string }>
 }
 
+interface PlayoffGamePayload {
+  id: string
+  date: string
+  time: string
+  homeTeam: string
+  awayTeam: string
+  homePlaceholder: string | null
+  awayPlaceholder: string | null
+  location: string | null
+  bracketRound: string | null
+  seriesId: string | null
+  seriesGameNumber: number | null
+  nextGameId: string | null
+  nextGameSlot: string | null
+}
+
 export async function POST(request: NextRequest, context: RouteContext) {
   const isAuthenticated = await getSession()
   if (!isAuthenticated) {
@@ -33,7 +49,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
     ))
 
     // Ensure the sentinel "tbd" team exists for placeholder games
-    const hasTbd = games.some((g: Record<string, unknown>) => g.homeTeam === "tbd" || g.awayTeam === "tbd")
+    const hasTbd = games.some((g: PlayoffGamePayload) => g.homeTeam === "tbd" || g.awayTeam === "tbd")
     if (hasTbd) {
       await db.insert(schema.teams)
         .values({ slug: "tbd", name: "(TBD)" })
@@ -49,24 +65,24 @@ export async function POST(request: NextRequest, context: RouteContext) {
 
     // Insert new playoff games
     if (games.length > 0) {
-      const insertData = games.map((g: Record<string, unknown>) => ({
-        id: idMap.get(g.id as string) as string,
+      const insertData = games.map((g: PlayoffGamePayload) => ({
+        id: idMap.get(g.id) as string,
         seasonId,
-        date: g.date as string,
-        time: g.time as string,
-        homeTeam: g.homeTeam as string,
-        awayTeam: g.awayTeam as string,
-        homePlaceholder: (g.homePlaceholder as string | null) ?? null,
-        awayPlaceholder: (g.awayPlaceholder as string | null) ?? null,
-        location: (g.location as string) || "James Lick Arena",
+        date: g.date,
+        time: g.time,
+        homeTeam: g.homeTeam,
+        awayTeam: g.awayTeam,
+        homePlaceholder: g.homePlaceholder ?? null,
+        awayPlaceholder: g.awayPlaceholder ?? null,
+        location: g.location || "The Lick",
         gameType: "playoff" as const,
         isPlayoff: true,
         status: "upcoming" as const,
-        bracketRound: (g.bracketRound as string | null) ?? null,
-        seriesId: (g.seriesId as string | null) ?? null,
-        seriesGameNumber: (g.seriesGameNumber as number | null) ?? null,
-        nextGameId: g.nextGameId ? idMap.get(g.nextGameId as string) ?? null : null,
-        nextGameSlot: (g.nextGameSlot as string | null) ?? null,
+        bracketRound: g.bracketRound ?? null,
+        seriesId: g.seriesId ?? null,
+        seriesGameNumber: g.seriesGameNumber ?? null,
+        nextGameId: g.nextGameId ? idMap.get(g.nextGameId) ?? null : null,
+        nextGameSlot: g.nextGameSlot ?? null,
       }))
 
       // Topological sort: insert games that are referenced by nextGameId first
@@ -99,7 +115,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
         .where(eq(schema.seasons.id, seasonId))
     }
 
-    // @ts-expect-error - Next.js canary changed the signature of revalidateTag
+    // @ts-expect-error - Next.js canary changed revalidateTag signature // TODO: Remove after Next.js stabilizes
     revalidateTag("seasons")
     return NextResponse.json({ success: true, count: games.length })
   } catch (error) {

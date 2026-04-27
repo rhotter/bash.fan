@@ -31,7 +31,7 @@ export function SportabilityImportModal({ seasonId, seasonStatus }: Sportability
 
   // Preview Data
   const [stats, setStats] = useState<Record<string, number> | null>(null)
-  const [mappedPlayers, setMappedPlayers] = useState<Record<string, unknown>[]>([])
+  const [mappedPlayers, setMappedPlayers] = useState<{ playerName: string; teamSlug: string; isGoalie: boolean; isRookie: boolean; [key: string]: unknown }[]>([])
 
   const resetState = () => {
     setStep("upload")

@@ -40,11 +40,13 @@ import { toast } from "sonner"
 import { EditGameModal, GameFormData } from "./edit-game-modal"
 import { RoundRobinWizard } from "./round-robin-wizard"
 import { PlayoffWizard } from "./playoff-wizard"
+import { formatGameTime } from "@/lib/format-time"
 
 interface SeasonScheduleTabProps {
   seasonId: string
   seasonStatus: string
   initialTeams: { teamSlug: string; teamName: string }[]
+  defaultLocation: string
 }
 
 export interface ScheduleGame {
@@ -71,7 +73,7 @@ export interface ScheduleGame {
   awayNotes: string | null
 }
 
-export function SeasonScheduleTab({ seasonId, seasonStatus, initialTeams }: SeasonScheduleTabProps) {
+export function SeasonScheduleTab({ seasonId, seasonStatus, initialTeams, defaultLocation }: SeasonScheduleTabProps) {
   const [games, setGames] = useState<ScheduleGame[]>([])
   const [isLoading, setIsLoading] = useState(true)
   
@@ -214,19 +216,6 @@ export function SeasonScheduleTab({ seasonId, seasonStatus, initialTeams }: Seas
     return teamName
   }
 
-  const formatTime = (time: string) => {
-    // Normalize times like "12:00p", "9:00a", "12:00 PM" into HH:MM 24h format
-    const cleaned = time.trim().toLowerCase()
-    const match = cleaned.match(/^(\d{1,2}):(\d{2})\s*(a|p|am|pm)?$/)
-    if (!match) return time
-    const [, hStr, min, meridiem] = match
-    let h = parseInt(hStr, 10)
-    if (meridiem) {
-      if (meridiem.startsWith('p') && h !== 12) h += 12
-      if (meridiem.startsWith('a') && h === 12) h = 0
-    }
-    return `${h.toString().padStart(2, '0')}:${min}`
-  }
 
   const totalUpcoming = games.filter(g => g.status === "upcoming").length
   const totalToDelete = deleteScheduleMode === "all" ? games.length : totalUpcoming
@@ -330,7 +319,7 @@ export function SeasonScheduleTab({ seasonId, seasonStatus, initialTeams }: Seas
                       <TableRow key={g.id}>
                         <TableCell className="whitespace-nowrap font-medium text-xs">
                           {new Date(g.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' })} 
-                          <span className="text-muted-foreground ml-2">{formatTime(g.time)}</span>
+                          <span className="text-muted-foreground ml-2">{formatGameTime(g.time)}</span>
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-1.5">
@@ -413,7 +402,7 @@ export function SeasonScheduleTab({ seasonId, seasonStatus, initialTeams }: Seas
                         <div className="flex-1 grid grid-cols-1 sm:grid-cols-12 gap-2 sm:gap-4 items-center w-full">
                           
                           <div className="sm:col-span-2 text-sm font-medium">
-                            {formatTime(g.time)}
+                            {formatGameTime(g.time)}
                           </div>
                           
                           <div className="sm:col-span-3 text-right">
@@ -463,7 +452,7 @@ export function SeasonScheduleTab({ seasonId, seasonStatus, initialTeams }: Seas
                           </div>
                           
                           <div className="sm:col-span-1 text-xs text-muted-foreground truncate">
-                            {g.location !== "James Lick Arena" && g.location}
+                            {g.location !== defaultLocation && g.location}
                           </div>
 
                         </div>
@@ -509,7 +498,7 @@ export function SeasonScheduleTab({ seasonId, seasonStatus, initialTeams }: Seas
         game={editingGame}
         teams={initialTeams}
         seasonId={seasonId}
-        defaultLocation="James Lick Arena"
+        defaultLocation={defaultLocation}
         onSaved={fetchGames}
       />
 
@@ -540,7 +529,7 @@ export function SeasonScheduleTab({ seasonId, seasonStatus, initialTeams }: Seas
         onOpenChange={setRrWizardOpen}
         teams={initialTeams}
         seasonId={seasonId}
-        defaultLocation="James Lick Arena"
+        defaultLocation={defaultLocation}
         onSaved={fetchGames}
       />
 
@@ -549,7 +538,7 @@ export function SeasonScheduleTab({ seasonId, seasonStatus, initialTeams }: Seas
         onOpenChange={setPlayoffWizardOpen}
         teams={initialTeams}
         seasonId={seasonId}
-        defaultLocation="James Lick Arena"
+        defaultLocation={defaultLocation}
         lastRegularSeasonDate={lastRegularSeasonDate}
         games={games}
         onSaved={fetchGames}

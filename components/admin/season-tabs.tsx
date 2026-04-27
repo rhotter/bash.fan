@@ -70,7 +70,7 @@ export function SeasonTabs({ season }: SeasonTabsProps) {
         {activeTab === "Settings" && <SeasonForm season={season} />}
         {activeTab === "Teams" && <SeasonTeamsTab seasonId={season.id} seasonStatus={season.status} initialTeams={season.teams} />}
         {activeTab === "Roster" && <SeasonRosterTab seasonId={season.id} seasonStatus={season.status} roster={season.roster} teams={season.teams} />}
-        {activeTab === "Schedule" && <SeasonScheduleTab seasonId={season.id} seasonStatus={season.status} initialTeams={season.teams} />}
+        {activeTab === "Schedule" && <SeasonScheduleTab seasonId={season.id} seasonStatus={season.status} initialTeams={season.teams} defaultLocation={season.defaultLocation || "The Lick"} />}
         {activeTab === "Draft" && (
           <PlaceholderCard
             title="Draft Setup"

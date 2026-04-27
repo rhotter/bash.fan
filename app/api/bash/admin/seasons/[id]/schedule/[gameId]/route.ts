@@ -25,15 +25,27 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       isPlayoff = body.gameType === "playoff" || body.gameType === "championship"
     }
 
-    const updateData = {
-      ...body,
-      ...(isPlayoff !== undefined ? { isPlayoff } : {})
-    }
-
-    // Clean up empty strings to nulls for certain fields
-    if (updateData.notes === "") updateData.notes = null
-    if (updateData.homeNotes === "") updateData.homeNotes = null
-    if (updateData.awayNotes === "") updateData.awayNotes = null
+    // Allowlist editable fields to prevent mass-assignment
+    const updateData: Record<string, unknown> = {}
+    if (body.date !== undefined) updateData.date = body.date
+    if (body.time !== undefined) updateData.time = body.time
+    if (body.homeTeam !== undefined) updateData.homeTeam = body.homeTeam
+    if (body.awayTeam !== undefined) updateData.awayTeam = body.awayTeam
+    if (body.homeScore !== undefined) updateData.homeScore = body.homeScore
+    if (body.awayScore !== undefined) updateData.awayScore = body.awayScore
+    if (body.status !== undefined) updateData.status = body.status
+    if (body.isOvertime !== undefined) updateData.isOvertime = body.isOvertime
+    if (body.isForfeit !== undefined) updateData.isForfeit = body.isForfeit
+    if (body.location !== undefined) updateData.location = body.location
+    if (body.hasBoxscore !== undefined) updateData.hasBoxscore = body.hasBoxscore
+    if (body.gameType !== undefined) updateData.gameType = body.gameType
+    if (body.hasShootout !== undefined) updateData.hasShootout = body.hasShootout
+    if (body.notes !== undefined) updateData.notes = body.notes === "" ? null : body.notes
+    if (body.homeNotes !== undefined) updateData.homeNotes = body.homeNotes === "" ? null : body.homeNotes
+    if (body.awayNotes !== undefined) updateData.awayNotes = body.awayNotes === "" ? null : body.awayNotes
+    if (body.homePlaceholder !== undefined) updateData.homePlaceholder = body.homePlaceholder
+    if (body.awayPlaceholder !== undefined) updateData.awayPlaceholder = body.awayPlaceholder
+    if (isPlayoff !== undefined) updateData.isPlayoff = isPlayoff
 
     // 1. Update the target game
     await db.update(schema.games)
@@ -57,11 +69,13 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
             eq(schema.games.seriesId, game.seriesId)
           ))
 
-        // Count wins per team in the series
-        const winCounts: Record<string, number> = {}
-        const seriesLength = seriesGames.length
+        // Derive the intended series length from the max game number, not row count
+        // This is more robust if an admin manually deletes a game from the series
+        const maxGameNum = Math.max(...seriesGames.map(sg => sg.seriesGameNumber ?? 1))
+        const seriesLength = maxGameNum
         const winsNeededToClinch = Math.ceil(seriesLength / 2)
 
+        const winCounts: Record<string, number> = {}
         for (const sg of seriesGames) {
           if (sg.status === "final" && !sg.isForfeit) {
             // Determine winner of this game
@@ -102,7 +116,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       }
     }
 
-    // @ts-expect-error - Next.js canary changed the signature of revalidateTag
+    // @ts-expect-error - Next.js canary changed revalidateTag signature // TODO: Remove after Next.js stabilizes
     revalidateTag("seasons")
     return NextResponse.json({ success: true })
   } catch (error) {
@@ -142,13 +156,18 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
     await db.delete(schema.gameOfficials).where(eq(schema.gameOfficials.gameId, gameId))
     await db.delete(schema.gameLive).where(eq(schema.gameLive.gameId, gameId))
 
+    // Null out any nextGameId references pointing to this game
+    await db.update(schema.games)
+      .set({ nextGameId: null, nextGameSlot: null })
+      .where(eq(schema.games.nextGameId, gameId))
+
     // Delete the game itself
     await db.delete(schema.games).where(and(
       eq(schema.games.id, gameId),
       eq(schema.games.seasonId, seasonId)
     ))
 
-    // @ts-expect-error - Next.js canary changed the signature of revalidateTag
+    // @ts-expect-error - Next.js canary changed revalidateTag signature // TODO: Remove after Next.js stabilizes
     revalidateTag("seasons")
     return NextResponse.json({ success: true })
   } catch (error) {

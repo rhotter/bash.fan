@@ -38,6 +38,7 @@ export interface BracketConfig {
   finalSeriesLength: 1 | 3
   seeds: string[]           // team slugs in seeded order (index 0 = #1 seed)
   usePlaceholders: boolean  // true → use "Seed 1" labels instead of real teams
+  defaultLocation?: string  // season default location (falls back to "The Lick")
 }
 
 export interface BracketGame {
@@ -225,7 +226,8 @@ export function mapRoundRobinToGames(
   slots: RoundRobinSlot[],
   teamSlugs: string[],
   weekDates: Record<number, { date: string; time: string; location: string }[]>,
-  gameType: string = "regular"
+  gameType: string = "regular",
+  defaultLocation: string = "The Lick"
 ): GeneratedGame[] {
   const games: GeneratedGame[] = []
 
@@ -243,7 +245,7 @@ export function mapRoundRobinToGames(
 
     for (let i = 0; i < weekSlots.length; i++) {
       const slot = weekSlots[i]
-      const dateInfo = dates[i] || { date: "", time: "TBD", location: "James Lick Arena" }
+      const dateInfo = dates[i] || { date: "", time: "TBD", location: defaultLocation }
 
       games.push({
         date: dateInfo.date,
@@ -279,6 +281,7 @@ export function generateBracket(config: BracketConfig): BracketGame[] {
   const {
     numTeams, playIn, quarterSeriesLength, semiSeriesLength,
     finalSeriesLength, seeds, usePlaceholders,
+    defaultLocation: loc = "The Lick",
   } = config
 
   const games: BracketGame[] = []
@@ -317,7 +320,7 @@ export function generateBracket(config: BracketConfig): BracketGame[] {
         status: "upcoming",
         date: "",
         time: "TBD",
-        location: "James Lick Arena",
+        location: loc,
       })
     }
     return ids
@@ -367,7 +370,7 @@ export function generateBracket(config: BracketConfig): BracketGame[] {
         bracketRound: "semifinal", seriesId: "sf-a", seriesGameNumber: g + 1,
         nextGameId: g === 0 ? finalFirstId : null,
         nextGameSlot: g === 0 ? "home" : null,
-        gameType: "playoff", status: "upcoming", date: "", time: "TBD", location: "James Lick Arena",
+        gameType: "playoff", status: "upcoming", date: "", time: "TBD", location: loc,
       })
     }
     // SF-B
@@ -381,7 +384,7 @@ export function generateBracket(config: BracketConfig): BracketGame[] {
         bracketRound: "semifinal", seriesId: "sf-b", seriesGameNumber: g + 1,
         nextGameId: g === 0 ? finalFirstId : null,
         nextGameSlot: g === 0 ? "away" : null,
-        gameType: "playoff", status: "upcoming", date: "", time: "TBD", location: "James Lick Arena",
+        gameType: "playoff", status: "upcoming", date: "", time: "TBD", location: loc,
       })
     }
   } else {
@@ -448,7 +451,7 @@ export function generateBracket(config: BracketConfig): BracketGame[] {
         bracketRound: "semifinal", seriesId: "sf-a", seriesGameNumber: g + 1,
         nextGameId: g === 0 ? finalFirstId : null,
         nextGameSlot: g === 0 ? "home" : null,
-        gameType: "playoff", status: "upcoming", date: "", time: "TBD", location: "James Lick Arena",
+        gameType: "playoff", status: "upcoming", date: "", time: "TBD", location: loc,
       })
     }
 
@@ -469,7 +472,7 @@ export function generateBracket(config: BracketConfig): BracketGame[] {
         bracketRound: "semifinal", seriesId: "sf-b", seriesGameNumber: g + 1,
         nextGameId: g === 0 ? finalFirstId : null,
         nextGameSlot: g === 0 ? "away" : null,
-        gameType: "playoff", status: "upcoming", date: "", time: "TBD", location: "James Lick Arena",
+        gameType: "playoff", status: "upcoming", date: "", time: "TBD", location: loc,
       })
     }
   }
@@ -486,7 +489,7 @@ export function generateBracket(config: BracketConfig): BracketGame[] {
       awayPlaceholder: g % 2 === 0 ? fAway.placeholder : fHome.placeholder,
       bracketRound: "final", seriesId: "final", seriesGameNumber: g + 1,
       nextGameId: null, nextGameSlot: null,
-      gameType: "playoff", status: "upcoming", date: "", time: "TBD", location: "James Lick Arena",
+      gameType: "playoff", status: "upcoming", date: "", time: "TBD", location: loc,
     })
   }
 

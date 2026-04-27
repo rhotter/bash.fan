@@ -70,7 +70,7 @@ export async function POST(request: NextRequest) {
     const defaultLocation =
       seasonType === "summer"
         ? "Dolores Park Multi-purpose Court"
-        : "James Lick Arena"
+        : "The Lick"
 
     await db.insert(schema.seasons).values({
       id,
@@ -86,7 +86,7 @@ export async function POST(request: NextRequest) {
     })
 
     // Bust the Next.js season cache so subsequent reads see the new season
-    // @ts-expect-error - Next.js canary changed the signature of revalidateTag
+    // @ts-expect-error - Next.js canary changed revalidateTag signature // TODO: Remove after Next.js stabilizes
     revalidateTag("seasons")
 
     return NextResponse.json({ id, name, status: "draft" }, { status: 201 })

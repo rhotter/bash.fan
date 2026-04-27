@@ -74,7 +74,7 @@ The following decisions have been finalized after design review:
 
 5.  **Playoff Bracket → Up to 8 teams.** The bracket uses standard seeding (#1 vs #8, #4 vs #5 on A-side; #2 vs #7, #3 vs #6 on B-side) with byes for team counts under 8 and auto play-in for odd counts. Default is 4 teams.
 
-6.  **Topological DB Constraints.** Because playoff games reference downstream games via the `nextGameId` foreign key, we insert them using a topological sort. Child games (like Finals) are inserted before parent games (like Semi-finals) to satisfy foreign-key constraints and ensure referential integrity.
+6.  **Topological Insertion Order.** Because playoff games reference downstream games via the `nextGameId` soft reference (application-enforced, not a DB-level FK), we insert them using a topological sort. Child games (like Finals) are inserted before parent games (like Semi-finals) to ensure referential correctness and enable future FK enforcement if needed.
 
 7.  **Dynamic ID Generation.** To prevent cross-season primary key collisions, schedule generation (both Round Robin and Playoff) uses dynamic `gen-[UUID]` IDs on the server side instead of static IDs like `playoff-1`.
 
@@ -110,8 +110,9 @@ All changes are **additive** — no existing columns are modified or removed, an
     *   Display-only text for unresolved teams (e.g., "Seed 1", "Winner #2").
     *   `homeTeam`/`awayTeam` remain `NOT NULL`. For games with unresolved teams, they will reference a sentinel `"tbd"` team slug (which already exists in our system and is filtered out of standings by `computeStandings()`).
 
-5.  **Add `nextGameId` (text, nullable, self-referential FK)**
+5.  **Add `nextGameId` (text, nullable, soft self-reference)**
     *   Links playoff games in a bracket tree. When a game is completed, the winner is pushed to the downstream game.
+    *   This is an application-enforced reference (not a DB-level FK) to simplify deletion workflows. The topological insertion sort ensures correctness.
 
 6.  **Add `nextGameSlot` (text, nullable)**
     *   Values: `"home"` or `"away"`. Indicates which slot of the `nextGameId` game the winner of this game feeds into.

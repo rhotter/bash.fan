@@ -69,7 +69,7 @@ export function PlayoffWizard({
   const [quarterSeriesLength, setQuarterSeriesLength] = useState<1 | 3>(1)
   const [semiSeriesLength, setSemiSeriesLength] = useState<1 | 3>(1)
   const [finalSeriesLength, setFinalSeriesLength] = useState<1 | 3>(1)
-  const [usePlaceholders, setUsePlaceholders] = useState(usingPlaceholderTeams ? true : true)
+  const [usePlaceholders, setUsePlaceholders] = useState(true)
 
   // Step 3 (Generate): Seeding — ordered list of team slugs
   const [seeds, setSeeds] = useState<string[]>(() =>
@@ -88,8 +88,9 @@ export function PlayoffWizard({
       finalSeriesLength,
       seeds: seeds.slice(0, numTeams),
       usePlaceholders,
+      defaultLocation,
     })
-  }, [numTeams, playIn, quarterSeriesLength, semiSeriesLength, finalSeriesLength, seeds, usePlaceholders])
+  }, [numTeams, playIn, quarterSeriesLength, semiSeriesLength, finalSeriesLength, seeds, usePlaceholders, defaultLocation])
 
   // Step 4 (Generate): Game details
   const [gameDetails, setGameDetails] = useState<
@@ -143,8 +144,8 @@ export function PlayoffWizard({
     // Sort each round's games
     for (const round of Object.keys(grouped)) {
       grouped[round].sort((a, b) => {
-        if (a.gameNumber !== b.gameNumber) {
-          return a.gameNumber - b.gameNumber
+        if (a.seriesGameNumber !== b.seriesGameNumber) {
+          return a.seriesGameNumber - b.seriesGameNumber
         }
         return a.seriesId.localeCompare(b.seriesId)
       })

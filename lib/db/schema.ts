@@ -73,7 +73,7 @@ export const games = pgTable(
     isOvertime: boolean("is_overtime").notNull().default(false),
     isPlayoff: boolean("is_playoff").notNull().default(false),
     isForfeit: boolean("is_forfeit").notNull().default(false),
-    location: text("location").default("James Lick Arena"),
+    location: text("location").default("The Lick"),
     hasBoxscore: boolean("has_boxscore").notNull().default(false),
     notes: text("notes"),
     // ─── Schedule Management (additive) ─────────────────────────────────

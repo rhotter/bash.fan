@@ -42,7 +42,7 @@ export default function PlaybookPage() {
               <ul className="list-disc pl-5 space-y-2 text-sm text-muted-foreground">
                 <li><strong>Placeholders vs Known Teams:</strong> If you are scheduling playoffs before the final standings are locked in, leave the default "Placeholders" option checked. This will create generic matchups (e.g., "1st Seed vs 4th Seed") utilizing a temporary `tbd` sentinel team to safely preserve matchups. You can bulk-resolve these into real teams later using the <strong>Resolve Seeds</strong> button.</li>
                 <li><strong>Default Dates:</strong> The wizard automatically looks at the final regular season game and defaults your playoff games to start the very next day.</li>
-                <li><strong>Topological Database Integrity:</strong> Rest assured that when you build complex brackets, the system securely anchors final championship games before earlier rounds so your playoff tree's downstream references (e.g., "Winner SF-A") remain structurally intact.</li>
+                <li><strong>Topological Insertion Order:</strong> Rest assured that when you build complex brackets, the system securely anchors final championship games before earlier rounds so your playoff tree's downstream references (e.g., &quot;Winner SF-A&quot;) remain structurally intact.</li>
               </ul>
             </div>
 

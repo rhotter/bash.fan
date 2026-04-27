@@ -776,7 +776,6 @@ export function ScorekeeperApp({
       clockStartedAt: null,
       shootout: { homeAttempts: [], awayAttempts: [] },
     }))
-    setShowShootout(true)
   }
 
   function addShootoutAttempt(team: string, playerId: number, scored: boolean) {

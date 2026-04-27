@@ -32,7 +32,7 @@ export function GamePageContent({ initialDetail, initialLiveData, homeRoster, aw
     livePeriod: (initialLiveData?.state as { period?: number })?.period ?? null,
     liveClockSeconds: (initialLiveData?.state as { clockSeconds?: number })?.clockSeconds ?? null,
     liveClockRunning: (initialLiveData?.state as { clockRunning?: boolean })?.clockRunning ?? null,
-    liveClockStartedAt: (initialLiveData?.state as { clockStartedAt?: string })?.clockStartedAt ?? null,
+    liveClockStartedAt: Number((initialLiveData?.state as { clockStartedAt?: string | number })?.clockStartedAt) || null,
     gameType: "regular",
     hasShootout: false,
     homePlaceholder: null,

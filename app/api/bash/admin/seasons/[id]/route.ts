@@ -152,7 +152,7 @@ export async function PUT(request: NextRequest, context: RouteContext) {
       .where(eq(schema.seasons.id, id))
 
     // Bust the Next.js season cache so subsequent reads see fresh data
-    // @ts-expect-error - Next.js canary changed the signature of revalidateTag
+    // @ts-expect-error - Next.js canary changed revalidateTag signature // TODO: Remove after Next.js stabilizes
     revalidateTag("seasons")
 
     return NextResponse.json({ ok: true })
@@ -221,7 +221,7 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
     // Delete the season itself
     await db.delete(schema.seasons).where(eq(schema.seasons.id, id))
 
-    // @ts-expect-error - Next.js canary changed the signature of revalidateTag
+    // @ts-expect-error - Next.js canary changed revalidateTag signature // TODO: Remove after Next.js stabilizes
     revalidateTag("seasons")
 
     return NextResponse.json({ ok: true, deleted: id })

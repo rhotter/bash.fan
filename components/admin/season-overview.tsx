@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import Link from "next/link"
 import { TeamLogo } from "@/components/team-logo"
+import { formatGameTime } from "@/lib/format-time"
 import { Button } from "@/components/ui/button"
 
 interface SeasonOverviewProps {

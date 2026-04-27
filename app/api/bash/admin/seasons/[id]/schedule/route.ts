@@ -97,7 +97,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
       time,
       homeTeam,
       awayTeam,
-      location: location || "James Lick Arena",
+      location: location || "The Lick",
       gameType: gameType || "regular",
       status: status || "upcoming",
       homeScore: homeScore ?? null,
@@ -111,7 +111,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
       awayNotes: awayNotes || null,
     })
 
-    // @ts-expect-error - Next.js canary changed the signature of revalidateTag
+    // @ts-expect-error - Next.js canary changed revalidateTag signature // TODO: Remove after Next.js stabilizes
     revalidateTag("seasons")
 
     return NextResponse.json({ success: true, gameId })
@@ -133,6 +133,19 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
 
   try {
     if (mode === "upcoming") {
+      // Null out nextGameId pointers from surviving games to upcoming games being deleted
+      const upcomingIds = (await db.select({ id: schema.games.id })
+        .from(schema.games)
+        .where(and(eq(schema.games.seasonId, id), eq(schema.games.status, "upcoming")))).map(g => g.id)
+      
+      if (upcomingIds.length > 0) {
+        for (const uid of upcomingIds) {
+          await db.update(schema.games)
+            .set({ nextGameId: null, nextGameSlot: null })
+            .where(eq(schema.games.nextGameId, uid))
+        }
+      }
+
       await db.delete(schema.games).where(
         and(eq(schema.games.seasonId, id), eq(schema.games.status, "upcoming"))
       )
@@ -142,7 +155,7 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: "Invalid mode" }, { status: 400 })
     }
 
-    // @ts-expect-error - Next.js canary changed the signature of revalidateTag
+    // @ts-expect-error - Next.js canary changed revalidateTag signature // TODO: Remove after Next.js stabilizes
     revalidateTag("seasons")
 
     return NextResponse.json({ success: true })

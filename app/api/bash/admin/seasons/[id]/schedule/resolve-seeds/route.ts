@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { db, schema } from "@/lib/db"
-import { eq, and } from "drizzle-orm"
+import { eq, and, inArray } from "drizzle-orm"
 import { getSession } from "@/lib/admin-session"
 import { revalidateTag } from "next/cache"
 
@@ -21,6 +21,20 @@ export async function POST(request: NextRequest, context: RouteContext) {
 
     if (!mappings || Object.keys(mappings).length === 0) {
       return NextResponse.json({ error: "Invalid payload" }, { status: 400 })
+    }
+
+    // Pre-validate all target team slugs exist
+    const targetSlugs = [...new Set(Object.values(mappings))] as string[]
+    const existingTeams = await db.select({ slug: schema.teams.slug })
+      .from(schema.teams)
+      .where(inArray(schema.teams.slug, targetSlugs))
+    const validSlugs = new Set(existingTeams.map(t => t.slug))
+    const invalidSlugs = targetSlugs.filter(s => !validSlugs.has(s))
+    if (invalidSlugs.length > 0) {
+      return NextResponse.json(
+        { error: `Unknown team slug(s): ${invalidSlugs.join(", ")}` },
+        { status: 400 }
+      )
     }
 
     const playoffGames = await db.select().from(schema.games).where(

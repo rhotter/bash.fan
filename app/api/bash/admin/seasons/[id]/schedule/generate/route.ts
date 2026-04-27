@@ -68,7 +68,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
       await db.insert(schema.games).values(insertData)
     }
 
-    // @ts-expect-error - Next.js canary changed the signature of revalidateTag
+    // @ts-expect-error - Next.js canary changed revalidateTag signature // TODO: Remove after Next.js stabilizes
     revalidateTag("seasons")
     return NextResponse.json({ success: true, count: games.length })
   } catch (error) {
