@@ -63,16 +63,19 @@ export function PlayoffWizard({
   const [showConfirm, setShowConfirm] = useState(false)
 
   // Step 2 (Generate): Format & Teams
-  const [numTeams, setNumTeams] = useState(Math.min(teams.length, 4))
+  const usingPlaceholderTeams = teams.length < 2
+  const [numTeams, setNumTeams] = useState(usingPlaceholderTeams ? 4 : Math.min(teams.length, 4))
   const [playIn, setPlayIn] = useState(false)
   const [quarterSeriesLength, setQuarterSeriesLength] = useState<1 | 3>(1)
   const [semiSeriesLength, setSemiSeriesLength] = useState<1 | 3>(1)
   const [finalSeriesLength, setFinalSeriesLength] = useState<1 | 3>(1)
-  const [usePlaceholders, setUsePlaceholders] = useState(true)
+  const [usePlaceholders, setUsePlaceholders] = useState(usingPlaceholderTeams ? true : true)
 
   // Step 3 (Generate): Seeding — ordered list of team slugs
   const [seeds, setSeeds] = useState<string[]>(() =>
-    teams.slice(0, Math.min(teams.length, 8)).map((t) => t.teamSlug)
+    usingPlaceholderTeams
+      ? Array.from({ length: 8 }, (_, i) => `seed-${i + 1}`)
+      : teams.slice(0, Math.min(teams.length, 8)).map((t) => t.teamSlug)
   )
 
   // Generated bracket
@@ -427,10 +430,10 @@ export function PlayoffWizard({
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="4">4 teams</SelectItem>
-                        {teams.length >= 5 && <SelectItem value="5">5 teams</SelectItem>}
-                        {teams.length >= 6 && <SelectItem value="6">6 teams</SelectItem>}
-                        {teams.length >= 7 && <SelectItem value="7">7 teams</SelectItem>}
-                        {teams.length >= 8 && <SelectItem value="8">8 teams</SelectItem>}
+                        {(usingPlaceholderTeams || teams.length >= 5) && <SelectItem value="5">5 teams</SelectItem>}
+                        {(usingPlaceholderTeams || teams.length >= 6) && <SelectItem value="6">6 teams</SelectItem>}
+                        {(usingPlaceholderTeams || teams.length >= 7) && <SelectItem value="7">7 teams</SelectItem>}
+                        {(usingPlaceholderTeams || teams.length >= 8) && <SelectItem value="8">8 teams</SelectItem>}
                       </SelectContent>
                     </Select>
                   </div>
@@ -516,7 +519,9 @@ export function PlayoffWizard({
                     </div>
                   </RadioGroup>
                   <p className="text-sm text-muted-foreground">
-                    If &quot;No&quot;, the schedule will be generated using placeholder labels (e.g. Seed 1 vs Seed 2).
+                    {usingPlaceholderTeams
+                      ? "No teams assigned yet. The schedule will be generated using placeholder labels (e.g. Seed 1 vs Seed 2)."
+                      : 'If "No", the schedule will be generated using placeholder labels (e.g. Seed 1 vs Seed 2).'}
                   </p>
                 </div>
 

@@ -120,6 +120,8 @@ Pure utility functions (no side effects, no DB calls) used by the admin wizards:
 - **`generateBracket()`**: Builds a linked playoff bracket for 4–8 teams using standard seeding (#1v#8, #4v#5, #2v#7, #3v#6) with byes and auto play-in for odd counts. Supports per-round series lengths (best-of-1 or best-of-3).
 - **`checkSeriesClinch()`**: Determines if a best-of-N series has been decided.
 
+> **Topological Generation Constraints**: When playoff brackets are generated, child nodes (like Finals) are topologically sorted and inserted before parent nodes (like Semi-finals) to satisfy the `nextGameId` foreign-key constraints. Additionally, dynamic `gen-[UUID]` IDs are used to avoid cross-season primary-key collisions, and a sentinel `"tbd"` team slug is automatically upserted to safely support Placeholder Mode database constraints before real team seedings are resolved.
+
 ### 5. Routing Structure
 The App Router maps URLs directly to server components:
 - `/` -> Home page (Scoreboard)

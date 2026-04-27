@@ -69,8 +69,21 @@ export function RoundRobinWizard({
   const [isSaving, setIsSaving] = useState(false)
   const [showOverwriteConfirm, setShowOverwriteConfirm] = useState(false)
 
+  // Placeholder mode: when no real teams are assigned, allow specifying a count
+  const [placeholderTeamCount, setPlaceholderTeamCount] = useState(teams.length >= 2 ? teams.length : 6)
+  const usingPlaceholders = teams.length < 2
+
+  // Effective teams: real teams or generated placeholders
+  const effectiveTeams = useMemo(() => {
+    if (!usingPlaceholders) return teams
+    return Array.from({ length: placeholderTeamCount }, (_, i) => ({
+      teamSlug: `placeholder-${i + 1}`,
+      teamName: `Team ${i + 1}`,
+    }))
+  }, [teams, usingPlaceholders, placeholderTeamCount])
+
   // Step 1: Parameters
-  const [gamesPerWeek, setGamesPerWeek] = useState(Math.floor(teams.length / 2))
+  const [gamesPerWeek, setGamesPerWeek] = useState(Math.floor((teams.length >= 2 ? teams.length : 6) / 2))
   const [lengthMode, setLengthMode] = useState<"cycles" | "gamesPerTeam">("cycles")
   const [cycles, setCycles] = useState(3)
   const [gamesPerTeam, setGamesPerTeam] = useState(20)
@@ -94,14 +107,14 @@ export function RoundRobinWizard({
 
   const slots = useMemo(() => {
     if (lengthMode === "cycles") {
-      return generateRoundRobin(teams.length, gamesPerWeek, cycles)
+      return generateRoundRobin(effectiveTeams.length, gamesPerWeek, cycles)
     } else {
-      const totalGames = Math.floor((teams.length * gamesPerTeam) / 2)
+      const totalGames = Math.floor((effectiveTeams.length * gamesPerTeam) / 2)
       // Generous max cycles so we have enough games to slice
-      const maxCycles = Math.ceil(gamesPerTeam / Math.max(1, teams.length - 1)) + 1
-      return generateRoundRobin(teams.length, gamesPerWeek, maxCycles, totalGames)
+      const maxCycles = Math.ceil(gamesPerTeam / Math.max(1, effectiveTeams.length - 1)) + 1
+      return generateRoundRobin(effectiveTeams.length, gamesPerWeek, maxCycles, totalGames)
     }
-  }, [teams.length, gamesPerWeek, lengthMode, cycles, gamesPerTeam])
+  }, [effectiveTeams.length, gamesPerWeek, lengthMode, cycles, gamesPerTeam])
 
   // Group slots by week/round
   const slotsByWeek = useMemo(() => {
@@ -195,11 +208,16 @@ export function RoundRobinWizard({
         const slot = weekGames[i]
         const slotInfo = slotsForWeek[i] || { date: baseDate, time: "TBD", location: defaultLocation }
 
+        const homeTeam = effectiveTeams[slot.home]
+        const awayTeam = effectiveTeams[slot.away]
+
         result.push({
           date: slotInfo.date || baseDate,
           time: slotInfo.time || "TBD",
-          homeTeam: teams[slot.home]?.teamSlug ?? "tbd",
-          awayTeam: teams[slot.away]?.teamSlug ?? "tbd",
+          homeTeam: usingPlaceholders ? "tbd" : (homeTeam?.teamSlug ?? "tbd"),
+          awayTeam: usingPlaceholders ? "tbd" : (awayTeam?.teamSlug ?? "tbd"),
+          homePlaceholder: usingPlaceholders ? (homeTeam?.teamName ?? null) : null,
+          awayPlaceholder: usingPlaceholders ? (awayTeam?.teamName ?? null) : null,
           location: slotInfo.location || defaultLocation,
           gameType: "regular",
           status: "upcoming",
@@ -207,14 +225,14 @@ export function RoundRobinWizard({
       }
     }
     return result
-  }, [activeWeeks, slotsByWeek, weekSlots, weekDates, teams, defaultLocation])
+  }, [activeWeeks, slotsByWeek, weekSlots, weekDates, effectiveTeams, defaultLocation, usingPlaceholders])
 
   // ─── Navigation ───────────────────────────────────────────────────────────
 
   const totalSteps = 4
   const canGoNext = (): boolean => {
     switch (step) {
-      case 1: return teams.length >= 2 && gamesPerWeek >= 1 && cycles >= 1 && startDate !== ""
+      case 1: return effectiveTeams.length >= 2 && gamesPerWeek >= 1 && cycles >= 1 && startDate !== ""
       case 2: return activeWeeks.length > 0
       case 3: return true
       case 4: return previewGames.length > 0
@@ -371,22 +389,43 @@ export function RoundRobinWizard({
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label>Teams in League</Label>
-                      <div className="text-2xl font-bold">{teams.length}</div>
-                      <p className="text-xs text-muted-foreground">
-                        {teams.map((t) => t.teamName).join(", ")}
-                      </p>
+                      {usingPlaceholders ? (
+                        <>
+                          <Input
+                            type="number"
+                            min={2}
+                            max={12}
+                            value={placeholderTeamCount}
+                            onChange={(e) => {
+                              const count = Math.max(2, Math.min(12, parseInt(e.target.value) || 2))
+                              setPlaceholderTeamCount(count)
+                              setGamesPerWeek(Math.floor(count / 2))
+                            }}
+                          />
+                          <p className="text-xs text-muted-foreground">
+                            No teams assigned yet — using placeholder names
+                          </p>
+                        </>
+                      ) : (
+                        <>
+                          <div className="text-2xl font-bold">{effectiveTeams.length}</div>
+                          <p className="text-xs text-muted-foreground">
+                            {effectiveTeams.map((t) => t.teamName).join(", ")}
+                          </p>
+                        </>
+                      )}
                     </div>
                     <div className="space-y-2">
                       <Label>Games Per Week</Label>
                       <Input
                         type="number"
                         min={1}
-                        max={Math.floor(teams.length / 2)}
+                        max={Math.floor(effectiveTeams.length / 2)}
                         value={gamesPerWeek}
                         onChange={(e) => setGamesPerWeek(Math.max(1, parseInt(e.target.value) || 1))}
                       />
                       <p className="text-xs text-muted-foreground">
-                        Max {Math.floor(teams.length / 2)} (each team plays once per week)
+                        Max {Math.floor(effectiveTeams.length / 2)} (each team plays once per week)
                       </p>
                     </div>
                   </div>
@@ -411,11 +450,11 @@ export function RoundRobinWizard({
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="1">1 cycle ({teams.length - 1} rounds)</SelectItem>
-                            <SelectItem value="2">2 cycles ({(teams.length - 1) * 2} rounds)</SelectItem>
-                            <SelectItem value="3">3 cycles ({(teams.length - 1) * 3} rounds)</SelectItem>
-                            <SelectItem value="4">4 cycles ({(teams.length - 1) * 4} rounds)</SelectItem>
-                            <SelectItem value="5">5 cycles ({(teams.length - 1) * 5} rounds)</SelectItem>
+                            <SelectItem value="1">1 cycle ({effectiveTeams.length - 1} rounds)</SelectItem>
+                            <SelectItem value="2">2 cycles ({(effectiveTeams.length - 1) * 2} rounds)</SelectItem>
+                            <SelectItem value="3">3 cycles ({(effectiveTeams.length - 1) * 3} rounds)</SelectItem>
+                            <SelectItem value="4">4 cycles ({(effectiveTeams.length - 1) * 4} rounds)</SelectItem>
+                            <SelectItem value="5">5 cycles ({(effectiveTeams.length - 1) * 5} rounds)</SelectItem>
                           </SelectContent>
                         </Select>
                       ) : (
@@ -613,7 +652,7 @@ export function RoundRobinWizard({
                         {weekGames.map((slot, i) => (
                           <div key={i} className="grid grid-cols-12 gap-2 items-center text-sm">
                             <div className="col-span-3 text-muted-foreground truncate">
-                              {teams[slot.away]?.teamName ?? "?"} @ {teams[slot.home]?.teamName ?? "?"}
+                              {effectiveTeams[slot.away]?.teamName ?? "?"} @ {effectiveTeams[slot.home]?.teamName ?? "?"}
                             </div>
                             <div className="col-span-3">
                               <Input
@@ -702,11 +741,11 @@ export function RoundRobinWizard({
                           <td className="p-2">{g.date}</td>
                           <td className="p-2">{g.time}</td>
                           <td className="p-2">
-                            {teams.find((t) => t.teamSlug === g.awayTeam)?.teamName ?? g.awayTeam}
+                            {effectiveTeams.find((t) => t.teamSlug === g.awayTeam)?.teamName ?? g.awayPlaceholder ?? g.awayTeam}
                           </td>
                           <td className="p-2 text-center text-muted-foreground">@</td>
                           <td className="p-2">
-                            {teams.find((t) => t.teamSlug === g.homeTeam)?.teamName ?? g.homeTeam}
+                            {effectiveTeams.find((t) => t.teamSlug === g.homeTeam)?.teamName ?? g.homePlaceholder ?? g.homeTeam}
                           </td>
                           <td className="p-2">
                             <Badge variant="outline" className="capitalize text-[10px]">

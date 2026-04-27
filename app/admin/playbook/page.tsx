@@ -30,6 +30,7 @@ export default function PlaybookPage() {
               <ul className="list-disc pl-5 space-y-2 text-sm text-muted-foreground">
                 <li><strong>Holidays:</strong> The wizard highlights standard US holidays. Use the "Skip Week" feature to easily push games past a holiday weekend.</li>
                 <li><strong>Mistakes happen:</strong> If you realize you messed up the dates or missed a holiday after saving, simply use the <strong>Delete Schedule</strong> button at the bottom of the schedule page to clear all <em>upcoming</em> games and run the wizard again.</li>
+                <li><strong>Placeholder Mode:</strong> You can generate a schedule before teams are finalized by checking "Use Placeholders". Once your teams are drafted, use the <strong>Resolve Seeds</strong> button to bulk-swap your placeholders (e.g. "Team 1") into actual teams (e.g. "Thunder").</li>
               </ul>
             </div>
 
@@ -39,8 +40,9 @@ export default function PlaybookPage() {
                 When the regular season is wrapping up, use the <strong>Generate Playoffs</strong> wizard.
               </p>
               <ul className="list-disc pl-5 space-y-2 text-sm text-muted-foreground">
-                <li><strong>Placeholders vs Known Teams:</strong> If you are scheduling playoffs before the final standings are locked in, leave the default "Placeholders" option checked. This will create generic matchups (e.g., "1st Seed vs 4th Seed"). You can edit the games later to swap in the real teams.</li>
+                <li><strong>Placeholders vs Known Teams:</strong> If you are scheduling playoffs before the final standings are locked in, leave the default "Placeholders" option checked. This will create generic matchups (e.g., "1st Seed vs 4th Seed") utilizing a temporary `tbd` sentinel team to safely preserve matchups. You can bulk-resolve these into real teams later using the <strong>Resolve Seeds</strong> button.</li>
                 <li><strong>Default Dates:</strong> The wizard automatically looks at the final regular season game and defaults your playoff games to start the very next day.</li>
+                <li><strong>Topological Database Integrity:</strong> Rest assured that when you build complex brackets, the system securely anchors final championship games before earlier rounds so your playoff tree's downstream references (e.g., "Winner SF-A") remain structurally intact.</li>
               </ul>
             </div>
 

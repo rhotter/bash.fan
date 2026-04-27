@@ -74,6 +74,13 @@ The following decisions have been finalized after design review:
 
 5.  **Playoff Bracket → Up to 8 teams.** The bracket uses standard seeding (#1 vs #8, #4 vs #5 on A-side; #2 vs #7, #3 vs #6 on B-side) with byes for team counts under 8 and auto play-in for odd counts. Default is 4 teams.
 
+6.  **Topological DB Constraints.** Because playoff games reference downstream games via the `nextGameId` foreign key, we insert them using a topological sort. Child games (like Finals) are inserted before parent games (like Semi-finals) to satisfy foreign-key constraints and ensure referential integrity.
+
+7.  **Dynamic ID Generation.** To prevent cross-season primary key collisions, schedule generation (both Round Robin and Playoff) uses dynamic `gen-[UUID]` IDs on the server side instead of static IDs like `playoff-1`.
+
+8.  **TBD Sentinel Upserts.** The `tbd` sentinel team is automatically upserted before playoff and round-robin scheduling to satisfy foreign-key constraints on `homeTeam` and `awayTeam` when utilizing Placeholder Mode.
+
+
 ---
 
 ## Current BASH Data Model (`games` table)
@@ -162,8 +169,10 @@ UPDATE games SET game_type = 'regular' WHERE is_playoff = false;
 *   **[NEW]** `POST /api/bash/admin/seasons/[id]/schedule/generate` — Bulk insert for the Round Robin Wizard. Supports two modes:
     *   **Overwrite**: Deletes existing games (only those with `status != "final"` unless force-confirmed) and inserts the new schedule.
     *   **Append**: Inserts new games alongside existing ones.
-    *   Generated game IDs should use a `gen-` prefix to avoid collision with Sportability-synced numeric IDs.
-*   **[NEW]** `POST /api/bash/admin/seasons/[id]/schedule/playoffs` — Bulk insert for the Playoff Wizard. Creates linked games with `nextGameId`/`nextGameSlot`/`seriesId`/`bracketRound` references. Supports 4–8 teams with standard bracket seeding, configurable series length per round (quarterfinals, semi-finals, finals: 1 or 3), and auto play-in for odd team counts. For best-of-3 rounds, generates all potential games (1, 2, 3). Overwrites any existing playoff games for the season (after confirmation).
+    *   Generated game IDs use a dynamic `gen-[UUID]` format to avoid cross-season primary key collisions.
+    *   Automatically upserts the `tbd` sentinel team to satisfy foreign key constraints for Placeholder Mode.
+*   **[NEW]** `POST /api/bash/admin/seasons/[id]/schedule/playoffs` — Bulk insert for the Playoff Wizard. Creates linked games with `nextGameId`/`nextGameSlot`/`seriesId`/`bracketRound` references. Applies topological sorting prior to bulk DB insertion to ensure child games (Finals) are inserted before parent games (Semi-finals). Supports 4–8 teams with standard bracket seeding, configurable series length per round (quarterfinals, semi-finals, finals: 1 or 3), and auto play-in for odd team counts.
+*   **[NEW]** `POST /api/bash/admin/seasons/[id]/schedule/resolve-seeds` — Replaces placeholder teams (e.g., "Seed 1") with actual team IDs throughout the bracket based on a provided mapping payload.
 
 ### 3. Frontend Components
 

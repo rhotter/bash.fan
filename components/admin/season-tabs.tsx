@@ -11,11 +11,10 @@ import { SeasonScheduleTab } from "./season-schedule-tab"
 type Tab = "Overview" | "Settings" | "Teams" | "Roster" | "Schedule" | "Draft" | "Registration"
 
 function getTabsForStatus(status: string): Tab[] {
-  const base: Tab[] = ["Overview", "Settings", "Teams", "Roster", "Schedule"]
   if (status === "draft") {
-    return [...base, "Draft", "Registration"]
+    return ["Overview", "Schedule", "Teams", "Registration", "Draft", "Roster", "Settings"]
   }
-  return base
+  return ["Overview", "Schedule", "Teams", "Roster", "Settings"]
 }
 
 interface SeasonTabsProps {
