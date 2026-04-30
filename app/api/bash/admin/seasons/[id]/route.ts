@@ -34,9 +34,9 @@ export async function GET(_request: NextRequest, context: RouteContext) {
 
   const [counts] = await db
     .select({
-      gameCount: sql<number>`(SELECT COUNT(*) FROM games WHERE season_id = ${id})`,
-      completedGameCount: sql<number>`(SELECT COUNT(*) FROM games WHERE season_id = ${id} AND status = 'final')`,
-      playerCount: sql<number>`(SELECT COUNT(DISTINCT player_id) FROM player_seasons WHERE season_id = ${id})`,
+      gameCount: sql<number>`(SELECT COUNT(*)::int FROM games WHERE season_id = ${id})`,
+      completedGameCount: sql<number>`(SELECT COUNT(*)::int FROM games WHERE season_id = ${id} AND status = 'final')`,
+      playerCount: sql<number>`(SELECT COUNT(DISTINCT player_id)::int FROM player_seasons WHERE season_id = ${id})`,
     })
     .from(sql`(SELECT 1) AS _`)
 

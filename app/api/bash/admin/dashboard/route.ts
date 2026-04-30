@@ -17,10 +17,10 @@ export async function GET() {
       status: schema.seasons.status,
       isCurrent: schema.seasons.isCurrent,
       // TODO: Remove seed-* filtering once legacy seed teams are cleaned from production
-      teamCount: sql<number>`(SELECT COUNT(*)::int FROM season_teams WHERE season_id = ${schema.seasons.id} AND team_slug != 'tbd' AND team_slug NOT LIKE 'seed-%')`,
-      gameCount: sql<number>`(SELECT COUNT(*) FROM games WHERE season_id = ${schema.seasons.id})`,
-      completedGameCount: sql<number>`(SELECT COUNT(*) FROM games WHERE season_id = ${schema.seasons.id} AND status = 'final')`,
-      playerCount: sql<number>`(SELECT COUNT(DISTINCT player_id) FROM player_seasons WHERE season_id = ${schema.seasons.id})`,
+      teamCount: sql<number>`(SELECT COUNT(*)::int FROM season_teams WHERE season_teams.season_id = seasons.id AND team_slug != 'tbd' AND team_slug NOT LIKE 'seed-%')`,
+      gameCount: sql<number>`(SELECT COUNT(*)::int FROM games WHERE games.season_id = seasons.id)`,
+      completedGameCount: sql<number>`(SELECT COUNT(*)::int FROM games WHERE games.season_id = seasons.id AND games.status = 'final')`,
+      playerCount: sql<number>`(SELECT COUNT(DISTINCT player_id)::int FROM player_seasons WHERE player_seasons.season_id = seasons.id)`,
     })
     .from(schema.seasons)
     .where(inArray(schema.seasons.status, ["active", "draft"]))
