@@ -5,8 +5,6 @@ import Image from "next/image"
 import { useSearchParams } from "next/navigation"
 import { Suspense } from "react"
 import { PlayerSearch } from "@/components/player-search"
-import { useAdmin } from "@/lib/admin-context"
-import { Shield } from "lucide-react"
 
 const NAV_ITEMS = [
   { label: "Scores", href: "/" },
@@ -19,26 +17,9 @@ function SiteHeaderInner({ activeTab }: { activeTab?: string }) {
   const searchParams = useSearchParams()
   const season = searchParams.get("season")
   const seasonQuery = season ? `?season=${season}` : ""
-  const { isAdmin, logout } = useAdmin()
 
   return (
     <header className="sticky top-0 z-50">
-      {isAdmin && (
-        <div className="bg-amber-500/90 text-amber-950">
-          <div className="mx-auto flex h-7 max-w-6xl items-center justify-between px-2 sm:px-4">
-            <div className="flex items-center gap-1.5">
-              <Shield className="h-3 w-3" />
-              <span className="text-[10px] font-bold uppercase tracking-widest">Admin Mode</span>
-            </div>
-            <button
-              onClick={logout}
-              className="text-[10px] font-medium hover:underline"
-            >
-              Exit
-            </button>
-          </div>
-        </div>
-      )}
       <div className="border-b border-border/60 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="mx-auto flex h-12 max-w-6xl items-center gap-1.5 px-2 sm:gap-3 sm:px-4 md:h-14">
           <Link href={`/${seasonQuery}`} className="flex items-center gap-1.5 sm:gap-2 group shrink-0 min-w-0">
