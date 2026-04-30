@@ -31,7 +31,7 @@ export function SportabilityImportModal({ seasonId, seasonStatus }: Sportability
 
   // Preview Data
   const [stats, setStats] = useState<Record<string, number> | null>(null)
-  const [mappedPlayers, setMappedPlayers] = useState<{ playerName: string; teamSlug: string; isGoalie: boolean; isRookie: boolean; [key: string]: unknown }[]>([])
+  const [mappedPlayers, setMappedPlayers] = useState<{ playerName: string; teamSlug: string; isGoalie: boolean; [key: string]: unknown }[]>([])
 
   const resetState = () => {
     setStep("upload")
@@ -238,7 +238,6 @@ export function SportabilityImportModal({ seasonId, seasonStatus }: Sportability
                     </div>
                     <div className="col-span-3 flex justify-end gap-1">
                       {p.isGoalie && <Badge variant="outline" className="text-[10px] px-1 py-0">Goalie</Badge>}
-                      {p.isRookie && <Badge className="text-[10px] px-1 py-0 bg-green-600">Rookie</Badge>}
                     </div>
                   </div>
                 ))}

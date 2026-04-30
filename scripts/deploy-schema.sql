@@ -41,7 +41,9 @@ ALTER TABLE games ADD COLUMN IF NOT EXISTS series_game_number integer;
 ALTER TABLE games ALTER COLUMN location SET DEFAULT 'The Lick';
 
 -- ─── player_seasons ─────────────────────────────────────────────────────────
-ALTER TABLE player_seasons ADD COLUMN IF NOT EXISTS is_rookie boolean NOT NULL DEFAULT false;
+-- Rookie status is derived on read (see app/admin/seasons/[id]/page.tsx) — no column needed.
+-- DROP IF EXISTS in case any environment already had this column applied.
+ALTER TABLE player_seasons DROP COLUMN IF EXISTS is_rookie;
 
 -- ─── tbd team (sentinel for unassigned/seed placeholders) ───────────────────
 INSERT INTO teams (slug, name) VALUES ('tbd', '(TBD)') ON CONFLICT (slug) DO NOTHING;

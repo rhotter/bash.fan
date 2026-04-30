@@ -75,7 +75,6 @@ export async function POST(request: NextRequest, context: RouteContext) {
         seasonId,
         teamSlug: p.teamSlug,
         isGoalie: p.isGoalie,
-        isRookie: p.isRookie,
       })
     }
 

@@ -42,7 +42,6 @@ import { Label } from "@/components/ui/label"
 import { toast } from "sonner"
 import { TeamLogo } from "@/components/team-logo"
 import { Badge } from "@/components/ui/badge"
-import { Checkbox } from "@/components/ui/checkbox"
 import { SportabilityImportModal } from "@/components/admin/sportability-import-modal"
 
 interface RosterPlayer {
@@ -120,7 +119,6 @@ export function SeasonRosterTab({ seasonId, seasonStatus, roster, teams }: Seaso
   const [editPlayerName, setEditPlayerName] = useState("")
   const [editPlayerTeam, setEditPlayerTeam] = useState("")
   const [editPlayerPosition, setEditPlayerPosition] = useState("skater")
-  const [editPlayerRookie, setEditPlayerRookie] = useState(false)
 
   const handleEditClick = (player: RosterPlayer) => {
     if (seasonStatus !== "draft") return
@@ -128,7 +126,6 @@ export function SeasonRosterTab({ seasonId, seasonStatus, roster, teams }: Seaso
     setEditPlayerName(player.playerName)
     setEditPlayerTeam(player.teamSlug)
     setEditPlayerPosition(player.isGoalie ? "goalie" : "skater")
-    setEditPlayerRookie(player.isRookie)
     setIsEditPlayerOpen(true)
   }
 
@@ -149,7 +146,6 @@ export function SeasonRosterTab({ seasonId, seasonStatus, roster, teams }: Seaso
           playerName: editPlayerName.trim(),
           teamSlug: editPlayerTeam,
           isGoalie: editPlayerPosition === "goalie",
-          isRookie: editPlayerRookie,
         }),
       })
 
@@ -339,7 +335,7 @@ export function SeasonRosterTab({ seasonId, seasonStatus, roster, teams }: Seaso
               <DialogHeader>
                 <DialogTitle>Edit Player</DialogTitle>
                 <DialogDescription>
-                  Update the player's name, team assignment, or rookie status.
+                  Update the player's name, team assignment, or position. Rookie status is computed from prior fall-season participation.
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4 py-4">
@@ -378,16 +374,6 @@ export function SeasonRosterTab({ seasonId, seasonStatus, roster, teams }: Seaso
                       <SelectItem value="goalie">Goalie</SelectItem>
                     </SelectContent>
                   </Select>
-                </div>
-                <div className="flex items-center space-x-2 pt-2">
-                  <Checkbox 
-                    id="editPlayerRookie" 
-                    checked={editPlayerRookie} 
-                    onCheckedChange={(c) => setEditPlayerRookie(!!c)} 
-                  />
-                  <Label htmlFor="editPlayerRookie" className="font-normal cursor-pointer">
-                    Mark as Rookie
-                  </Label>
                 </div>
               </div>
               <DialogFooter className="flex sm:justify-between w-full">

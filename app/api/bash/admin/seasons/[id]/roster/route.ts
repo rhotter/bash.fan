@@ -36,9 +36,8 @@ export async function POST(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: "Can only add players to draft seasons" }, { status: 400 })
     }
 
-    // 1. Find or create player
-    let playerId: number | null = null
-    let isRookie = false
+    // 1. Find or create player. Rookie status is derived on read, not stored.
+    let playerId: number
 
     const existingPlayers = await db
       .select({ id: schema.players.id })
@@ -48,33 +47,12 @@ export async function POST(request: NextRequest, context: RouteContext) {
 
     if (existingPlayers.length > 0) {
       playerId = existingPlayers[0].id
-      
-      // If it's a fall season, check if they have played in a previous fall season
-      if (season.seasonType === "fall") {
-        const priorFallSeasons = await db
-          .select({ id: schema.playerSeasons.seasonId })
-          .from(schema.playerSeasons)
-          .innerJoin(schema.seasons, eq(schema.playerSeasons.seasonId, schema.seasons.id))
-          .where(and(
-            eq(schema.playerSeasons.playerId, playerId),
-            eq(schema.seasons.seasonType, "fall")
-          ))
-          .limit(1)
-          
-        isRookie = priorFallSeasons.length === 0
-      }
     } else {
-      // Create new player
       const [newPlayer] = await db
         .insert(schema.players)
         .values({ name: playerName })
         .returning({ id: schema.players.id })
       playerId = newPlayer.id
-      
-      // Brand new player in a fall season is a rookie
-      if (season.seasonType === "fall") {
-        isRookie = true
-      }
     }
 
     // 2. Add to roster
@@ -83,7 +61,6 @@ export async function POST(request: NextRequest, context: RouteContext) {
       seasonId,
       teamSlug,
       isGoalie: isGoalie ?? false,
-      isRookie,
     })
 
     return NextResponse.json({ ok: true }, { status: 201 })
@@ -106,7 +83,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
   const { id: seasonId } = await context.params
 
   try {
-    const { playerId, oldTeamSlug, playerName, teamSlug, isGoalie, isRookie } = await request.json()
+    const { playerId, oldTeamSlug, playerName, teamSlug, isGoalie } = await request.json()
 
     if (!playerId || !oldTeamSlug || !playerName || !teamSlug) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
@@ -124,7 +101,6 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       .set({
         teamSlug,
         isGoalie: isGoalie ?? false,
-        isRookie: isRookie ?? false,
       })
       .where(
         and(

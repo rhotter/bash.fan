@@ -120,15 +120,10 @@ export async function POST(request: NextRequest, context: RouteContext) {
       const positionStr = (row["ExpPos"] || row["Position"] || "").toLowerCase()
       const isGoalie = positionStr.includes("goalie")
 
-      // Rookie (trust sportability)
-      const rookieStr = row["Rookie"] || "0"
-      const isRookie = rookieStr === "1" || rookieStr.toLowerCase() === "true" || rookieStr.toLowerCase() === "yes"
-
       return {
         playerName,
         teamSlug,
         isGoalie,
-        isRookie
       }
     }).filter(p => p.playerName.length > 0) // filter out empty rows
 

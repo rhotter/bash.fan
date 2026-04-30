@@ -24,13 +24,25 @@ async function getSeason(id: string) {
     .where(and(eq(schema.seasonTeams.seasonId, id), ne(schema.seasonTeams.teamSlug, "tbd")))
   const teams = allTeams.filter(t => !t.teamSlug.startsWith("seed-"))
 
+  // isRookie is derived: a player is a rookie iff they have no prior fall-season
+  // participation. Only meaningful for fall seasons; summer rosters never have rookies.
+  const isRookieExpr = season.seasonType === "fall"
+    ? sql<boolean>`NOT EXISTS (
+        SELECT 1 FROM player_seasons ps2
+        JOIN seasons s2 ON s2.id = ps2.season_id
+        WHERE ps2.player_id = players.id
+          AND s2.season_type = 'fall'
+          AND ps2.season_id < ${id}
+      )`
+    : sql<boolean>`false`
+
   const rawRoster = await db
     .select({
       playerId: schema.players.id,
       playerName: schema.players.name,
       teamSlug: schema.playerSeasons.teamSlug,
       isGoalie: schema.playerSeasons.isGoalie,
-      isRookie: schema.playerSeasons.isRookie,
+      isRookie: isRookieExpr,
     })
     .from(schema.playerSeasons)
     .innerJoin(schema.players, eq(schema.playerSeasons.playerId, schema.players.id))
