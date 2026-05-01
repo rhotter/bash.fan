@@ -6,6 +6,7 @@ import { PlaceholderCard } from "./placeholder-card"
 import { SeasonTeamsTab } from "./season-teams-tab"
 import { SeasonRosterTab } from "./season-roster-tab"
 import { SeasonScheduleTab } from "./season-schedule-tab"
+import { SeasonRegistrationTab, type PeriodForTab } from "./season-registration-tab"
 
 type Tab = "Settings" | "Teams" | "Roster" | "Schedule" | "Draft" | "Registration"
 
@@ -13,7 +14,9 @@ function getTabsForStatus(status: string): Tab[] {
   if (status === "draft") {
     return ["Schedule", "Teams", "Registration", "Draft", "Roster", "Settings"]
   }
-  return ["Schedule", "Teams", "Roster", "Settings"]
+  // Registration is also useful on active seasons (open registration mid-season is rare,
+  // but reading the config / closing registration should still be possible).
+  return ["Schedule", "Teams", "Roster", "Registration", "Settings"]
 }
 
 interface SeasonTabsProps {
@@ -32,6 +35,13 @@ interface SeasonTabsProps {
     isCurrent: boolean
     teams: { teamSlug: string; teamName: string }[]
     roster: { playerId: number; playerName: string; teamSlug: string; isGoalie: boolean; isRookie: boolean }[]
+    registration: {
+      period: PeriodForTab | null
+      notices: { id: number; title: string; ackType: string; version: number }[]
+      extras: { id: number; name: string; price: number; active: boolean }[]
+      discounts: { id: number; code: string; amountOff: number; active: boolean }[]
+      otherPeriods: { id: string; seasonName: string }[]
+    }
   }
 }
 
@@ -72,10 +82,13 @@ export function SeasonTabs({ season }: SeasonTabsProps) {
           />
         )}
         {activeTab === "Registration" && (
-          <PlaceholderCard
-            title="Player Registration"
-            phase={2}
-            description="Manage player registration for the upcoming season. Track veteran returns, free agent declarations, rookie signups from pickups, and registration fee status."
+          <SeasonRegistrationTab
+            seasonId={season.id}
+            period={season.registration.period}
+            notices={season.registration.notices}
+            extras={season.registration.extras}
+            discounts={season.registration.discounts}
+            otherPeriods={season.registration.otherPeriods}
           />
         )}
       </div>
