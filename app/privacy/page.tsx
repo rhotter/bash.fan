@@ -3,7 +3,7 @@ import { SiteHeader } from "@/components/site-header"
 
 export const metadata: Metadata = {
   title: "Privacy Policy — BASH",
-  description: "Privacy policy for bayareastreethockey.com and the BASH Hockey Stats app.",
+  description: "Privacy policy for www.bayareastreethockey.com and the BASH Hockey Stats app.",
 }
 
 export default function PrivacyPage() {
@@ -17,7 +17,7 @@ export default function PrivacyPage() {
 
           <h2 className="text-base font-semibold text-foreground mt-6">What we collect</h2>
           <p>
-            bayareastreethockey.com and the BASH Hockey Stats app display publicly available Bay Area Street Hockey (BASH) league data
+            www.bayareastreethockey.com and the BASH Hockey Stats app display publicly available Bay Area Street Hockey (BASH) league data
             including game scores, standings, player statistics, and historical records. This data is sourced from
             Sportability and league scorekeepers.
           </p>

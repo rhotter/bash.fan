@@ -9,6 +9,6 @@ export default function robots(): MetadataRoute.Robots {
         disallow: ['/admin/', '/scorekeeper/', '/api/'],
       },
     ],
-    sitemap: 'https://bayareastreethockey.com/sitemap.xml',
+    sitemap: 'https://www.bayareastreethockey.com/sitemap.xml',
   }
 }

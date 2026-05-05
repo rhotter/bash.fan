@@ -4,7 +4,7 @@ import { getAllSeasons } from '@/lib/seasons'
 import { playerSlug } from '@/lib/player-slug'
 import { ne } from 'drizzle-orm'
 
-const BASE_URL = 'https://bayareastreethockey.com'
+const BASE_URL = 'https://www.bayareastreethockey.com'
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // ─── Static pages ───────────────────────────────────────────────────────────
