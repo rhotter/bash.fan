@@ -13,7 +13,7 @@ export default function PrivacyPage() {
       <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-8 md:py-12">
         <h1 className="text-2xl font-bold mb-6">Privacy Policy</h1>
         <div className="prose prose-sm prose-neutral dark:prose-invert space-y-4 text-sm text-muted-foreground">
-          <p><strong>Last updated:</strong> April 2, 2026</p>
+          <p><strong>Last updated:</strong> May 4, 2026</p>
 
           <h2 className="text-base font-semibold text-foreground mt-6">What we collect</h2>
           <p>
