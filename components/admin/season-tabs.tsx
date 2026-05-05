@@ -6,6 +6,7 @@ import { PlaceholderCard } from "./placeholder-card"
 import { SeasonTeamsTab } from "./season-teams-tab"
 import { SeasonRosterTab } from "./season-roster-tab"
 import { SeasonScheduleTab } from "./season-schedule-tab"
+import { DraftTab } from "./draft-tab"
 
 type Tab = "Settings" | "Teams" | "Roster" | "Schedule" | "Draft" | "Registration"
 
@@ -65,10 +66,11 @@ export function SeasonTabs({ season }: SeasonTabsProps) {
         {activeTab === "Roster" && <SeasonRosterTab seasonId={season.id} seasonStatus={season.status} roster={season.roster} teams={season.teams} />}
         {activeTab === "Schedule" && <SeasonScheduleTab seasonId={season.id} seasonStatus={season.status} initialTeams={season.teams} defaultLocation={season.defaultLocation || "The Lick"} />}
         {activeTab === "Draft" && (
-          <PlaceholderCard
-            title="Draft Setup"
-            phase={2}
-            description="Configure the draft format: number of rounds, protection list sizes (2–10 per BASH rules), draft order based on previous season standings, and supplemental draft rules."
+          <DraftTab
+            seasonId={season.id}
+            seasonStatus={season.status}
+            seasonType={season.seasonType}
+            teams={season.teams}
           />
         )}
         {activeTab === "Registration" && (
