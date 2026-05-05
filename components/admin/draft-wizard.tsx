@@ -17,13 +17,14 @@ interface DraftWizardProps {
   seasonId: string
   seasonType: string
   teams: { teamSlug: string; teamName: string }[]
+  rosterCount: number
   onComplete: () => void
 }
 
 interface WizardForm {
   name: string
   draftType: "snake" | "linear"
-  rounds: number
+  rounds: number | null
   timerSeconds: number
   maxKeepers: number
   draftDate: string
@@ -39,25 +40,30 @@ function suggestDraftName(seasonType: string): string {
   return `${year}-${year + 1} BASH Draft`
 }
 
-export function DraftWizard({ open, onOpenChange, seasonId, seasonType, teams, onComplete }: DraftWizardProps) {
+export function DraftWizard({ open, onOpenChange, seasonId, seasonType, teams, rosterCount, onComplete }: DraftWizardProps) {
   const [step, setStep] = useState(0)
   const [creating, setCreating] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  // Suggested rounds: ceil(rosterCount / teamCount), minimum 1
+  const suggestedRounds = teams.length > 0
+    ? Math.max(1, Math.ceil(rosterCount / teams.length))
+    : seasonType === "summer" ? 10 : 14
+
   const [form, setForm] = useState<WizardForm>({
     name: suggestDraftName(seasonType),
     draftType: "snake",
-    rounds: seasonType === "summer" ? 10 : 14,
+    rounds: null,
     timerSeconds: 120,
     maxKeepers: seasonType === "summer" ? 1 : 8,
     draftDate: "",
-    draftTime: "",
+    draftTime: "19:00",
     location: "",
     teamOrder: teams.map((t) => ({ ...t })),
   })
 
   const canNext = () => {
-    if (step === 0) return !!form.name && form.rounds > 0 && form.timerSeconds > 0
+    if (step === 0) return !!form.name && form.timerSeconds > 0
     return true
   }
 
@@ -109,7 +115,7 @@ export function DraftWizard({ open, onOpenChange, seasonId, seasonType, teams, o
         body: JSON.stringify({
           name: form.name,
           draftType: form.draftType,
-          rounds: form.rounds,
+          rounds: form.rounds ?? suggestedRounds,
           timerSeconds: form.timerSeconds,
           maxKeepers: form.maxKeepers,
           draftDate,
@@ -129,11 +135,11 @@ export function DraftWizard({ open, onOpenChange, seasonId, seasonType, teams, o
         setForm({
           name: suggestDraftName(seasonType),
           draftType: "snake",
-          rounds: seasonType === "summer" ? 10 : 14,
+          rounds: null,
           timerSeconds: 120,
           maxKeepers: seasonType === "summer" ? 1 : 8,
           draftDate: "",
-          draftTime: "",
+          draftTime: "19:00",
           location: "",
           teamOrder: teams.map((t) => ({ ...t })),
         })
@@ -180,8 +186,8 @@ export function DraftWizard({ open, onOpenChange, seasonId, seasonType, teams, o
 
         {/* Step Content */}
         <div className="space-y-4 min-h-[200px]">
-          {step === 0 && <StepSettings form={form} setForm={setForm} seasonType={seasonType} />}
-          {step === 1 && <StepPool />}
+          {step === 0 && <StepSettings form={form} setForm={setForm} seasonType={seasonType} rosterCount={rosterCount} teamCount={teams.length} suggestedRounds={suggestedRounds} />}
+          {step === 1 && <StepPool rosterCount={rosterCount} teamCount={teams.length} />}
           {step === 2 && <StepTeams teams={form.teamOrder} />}
           {step === 3 && (
             <StepOrder
@@ -190,7 +196,7 @@ export function DraftWizard({ open, onOpenChange, seasonId, seasonType, teams, o
               onMove={moveTeam}
             />
           )}
-          {step === 4 && <StepReview form={form} />}
+          {step === 4 && <StepReview form={form} rosterCount={rosterCount} suggestedRounds={suggestedRounds} />}
         </div>
 
         {error && (
@@ -221,11 +227,14 @@ export function DraftWizard({ open, onOpenChange, seasonId, seasonType, teams, o
 // ─── Step Components ──────────────────────────────────────────────────────────
 
 function StepSettings({
-  form, setForm, seasonType: _seasonType,
+  form, setForm, seasonType: _seasonType, rosterCount, teamCount, suggestedRounds,
 }: {
   form: WizardForm
   setForm: React.Dispatch<React.SetStateAction<WizardForm>>
   seasonType: string
+  rosterCount: number
+  teamCount: number
+  suggestedRounds: number
 }) {
   return (
     <div className="space-y-4">
@@ -254,6 +263,7 @@ function StepSettings({
             value={form.draftTime}
             onChange={(e) => setForm(f => ({ ...f, draftTime: e.target.value }))}
           />
+          <p className="text-[10px] text-muted-foreground">Default: 7:00 PM</p>
         </div>
       </div>
 
@@ -294,9 +304,18 @@ function StepSettings({
             type="number"
             min={1}
             max={30}
-            value={form.rounds}
-            onChange={(e) => setForm(f => ({ ...f, rounds: parseInt(e.target.value) || 1 }))}
+            value={form.rounds ?? ""}
+            placeholder={String(suggestedRounds)}
+            onChange={(e) => {
+              const val = e.target.value
+              setForm(f => ({ ...f, rounds: val === "" ? null : (parseInt(val) || null) }))
+            }}
           />
+          <p className="text-[10px] text-muted-foreground">
+            {form.rounds === null
+              ? `Auto: ${suggestedRounds} (${rosterCount} ÷ ${teamCount} teams)`
+              : "Leave empty to auto-calculate"}
+          </p>
         </div>
         <div className="space-y-2">
           <Label>Timer (sec)</Label>
@@ -324,11 +343,32 @@ function StepSettings({
   )
 }
 
-function StepPool() {
+function StepPool({ rosterCount, teamCount }: { rosterCount: number; teamCount: number }) {
+  const suggestedRounds = teamCount > 0 ? Math.max(1, Math.ceil(rosterCount / teamCount)) : 0
   return (
-    <div className="text-center py-8 text-sm text-muted-foreground border rounded-md border-dashed">
-      <p className="mb-2">Player pool management is available after creating the draft.</p>
-      <p className="text-xs">You can add players via search or CSV import from the Draft tab.</p>
+    <div className="space-y-4">
+      <div className="p-4 border rounded-md bg-muted/30">
+        <div className="grid grid-cols-2 gap-3 mb-3">
+          <div className="p-3 rounded-md bg-background">
+            <p className="text-2xl font-bold">{rosterCount}</p>
+            <p className="text-xs text-muted-foreground">Season Roster Players</p>
+          </div>
+          <div className="p-3 rounded-md bg-background">
+            <p className="text-2xl font-bold">{suggestedRounds}</p>
+            <p className="text-xs text-muted-foreground">Suggested Rounds</p>
+          </div>
+        </div>
+        <p className="text-sm text-muted-foreground">
+          All <strong>{rosterCount}</strong> players currently on the season roster will be automatically added to the draft pool.
+        </p>
+      </div>
+
+      <div className="border rounded-md border-dashed p-4">
+        <p className="text-sm font-medium mb-1">Sportability CSV Import (optional)</p>
+        <p className="text-xs text-muted-foreground">
+          After creating the draft, you can import a Sportability registration CSV to enrich pool players with skill levels, positions, game commitment, and other registration data. This is available via the <strong>Import CSV</strong> button on the draft card.
+        </p>
+      </div>
     </div>
   )
 }
@@ -411,22 +451,24 @@ function StepOrder({
   )
 }
 
-function StepReview({ form }: { form: WizardForm }) {
+function StepReview({ form, rosterCount, suggestedRounds }: { form: WizardForm; rosterCount: number; suggestedRounds: number }) {
+  const resolvedRounds = form.rounds ?? suggestedRounds
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3 text-sm">
         <ReviewItem label="Name" value={form.name} />
         <ReviewItem label="Format" value={form.draftType === "snake" ? "Snake" : "Linear"} />
-        <ReviewItem label="Rounds" value={form.rounds} />
+        <ReviewItem label="Rounds" value={form.rounds === null ? `${resolvedRounds} (auto)` : resolvedRounds} />
         <ReviewItem label="Timer" value={`${form.timerSeconds}s`} />
         <ReviewItem label="Max Keepers" value={form.maxKeepers} />
         <ReviewItem label="Teams" value={form.teamOrder.length} />
+        <ReviewItem label="Pool Size" value={rosterCount} />
         {form.draftDate && (
           <ReviewItem
             label="Date"
-            value={new Date(form.draftDate).toLocaleDateString("en-US", {
+            value={`${new Date(form.draftDate).toLocaleDateString("en-US", {
               month: "short", day: "numeric", year: "numeric",
-            })}
+            })} at ${form.draftTime || "19:00"}`}
           />
         )}
         {form.location && <ReviewItem label="Location" value={form.location} />}
@@ -444,7 +486,7 @@ function StepReview({ form }: { form: WizardForm }) {
       </div>
 
       <p className="text-xs text-muted-foreground">
-        The draft will be created in <strong>draft</strong> status. You can add players to the pool and edit all settings before publishing.
+        The draft will be created in <strong>draft</strong> status with <strong>{rosterCount}</strong> players auto-added to the pool from the season roster. You can enrich with Sportability CSV data and edit all settings before publishing.
       </p>
     </div>
   )

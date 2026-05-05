@@ -655,6 +655,7 @@ export const draftPool = pgTable(
     keeperTeamSlug: text("keeper_team_slug")
       .references(() => teams.slug),
     keeperRound: integer("keeper_round"),
+    registrationMeta: jsonb("registration_meta"),  // Sportability CSV import snapshot (see prd-draft.md §5.1)
   },
   (t) => [
     primaryKey({ columns: [t.draftId, t.playerId] }),

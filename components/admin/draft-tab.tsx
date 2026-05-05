@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react"
 import {
   Loader2, Plus, Users, ListOrdered, Trash2, Send, Clock,
-  MapPin, CalendarDays, Layers, ShieldCheck, MoreVertical,
+  MapPin, CalendarDays, Layers, ShieldCheck, MoreVertical, Upload,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -17,6 +17,19 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { toast } from "sonner"
 import { DraftWizard } from "./draft-wizard"
+import { DraftPoolImportModal } from "./draft-pool-import-modal"
+import { DraftPlayerCard, SkillBadge } from "./draft-player-card"
+import type { RegistrationMeta } from "@/lib/csv-utils"
+
+interface PoolPlayer {
+  playerId: number
+  playerName: string
+  isKeeper: boolean
+  keeperTeamSlug: string | null
+  keeperRound: number | null
+  registrationMeta: RegistrationMeta | null
+  isGoalie?: boolean
+}
 
 interface DraftInstance {
   id: string
@@ -33,6 +46,7 @@ interface DraftInstance {
   poolCount: number
   keeperCount: number
   teams: { teamSlug: string; position: number }[]
+  pool?: PoolPlayer[]
 }
 
 interface DraftTabProps {
@@ -40,6 +54,7 @@ interface DraftTabProps {
   seasonStatus: string
   seasonType: string
   teams: { teamSlug: string; teamName: string }[]
+  rosterCount: number
 }
 
 const STATUS_STYLES: Record<string, string> = {
@@ -50,7 +65,7 @@ const STATUS_STYLES: Record<string, string> = {
   completed: "bg-muted text-muted-foreground border-border",
 }
 
-export function DraftTab({ seasonId, seasonStatus, seasonType, teams }: DraftTabProps) {
+export function DraftTab({ seasonId, seasonStatus, seasonType, teams, rosterCount }: DraftTabProps) {
   const [drafts, setDrafts] = useState<DraftInstance[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [wizardOpen, setWizardOpen] = useState(false)
@@ -58,6 +73,11 @@ export function DraftTab({ seasonId, seasonStatus, seasonType, teams }: DraftTab
   const [publishTarget, setPublishTarget] = useState<DraftInstance | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
   const [isPublishing, setIsPublishing] = useState(false)
+  const [importDraftId, setImportDraftId] = useState<string | null>(null)
+  const [selectedPlayer, setSelectedPlayer] = useState<PoolPlayer | null>(null)
+  const [playerCardOpen, setPlayerCardOpen] = useState(false)
+  const [expandedPool, setExpandedPool] = useState<string | null>(null)
+  const [poolData, setPoolData] = useState<Record<string, PoolPlayer[]>>({})
 
   const fetchDrafts = useCallback(async () => {
     try {
@@ -126,6 +146,32 @@ export function DraftTab({ seasonId, seasonStatus, seasonType, teams }: DraftTab
     fetchDrafts()
   }
 
+  const fetchPool = useCallback(async (draftId: string) => {
+    try {
+      const res = await fetch(`/api/bash/admin/seasons/${seasonId}/draft/${draftId}/pool`)
+      if (res.ok) {
+        const data = await res.json()
+        setPoolData(prev => ({ ...prev, [draftId]: data.pool || [] }))
+      }
+    } catch {
+      toast.error("Failed to load player pool")
+    }
+  }, [seasonId])
+
+  const togglePool = (draftId: string) => {
+    if (expandedPool === draftId) {
+      setExpandedPool(null)
+    } else {
+      setExpandedPool(draftId)
+      if (!poolData[draftId]) fetchPool(draftId)
+    }
+  }
+
+  const handlePlayerClick = (player: PoolPlayer) => {
+    setSelectedPlayer(player)
+    setPlayerCardOpen(true)
+  }
+
   if (isLoading) {
     return (
       <div className="flex justify-center py-12">
@@ -164,6 +210,7 @@ export function DraftTab({ seasonId, seasonStatus, seasonType, teams }: DraftTab
           seasonId={seasonId}
           seasonType={seasonType}
           teams={teams}
+          rosterCount={rosterCount}
           onComplete={handleWizardComplete}
         />
       </>
@@ -193,6 +240,16 @@ export function DraftTab({ seasonId, seasonStatus, seasonType, teams }: DraftTab
                   </CardDescription>
                 </div>
                 <div className="flex items-center gap-2">
+                  {draft.status === "draft" && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setImportDraftId(draft.id)}
+                    >
+                      <Upload className="h-3.5 w-3.5 mr-1.5" />
+                      Import CSV
+                    </Button>
+                  )}
                   {draft.status === "draft" && (
                     <Button
                       size="sm"
@@ -248,6 +305,70 @@ export function DraftTab({ seasonId, seasonStatus, seasonType, teams }: DraftTab
                   )}
                 </div>
               )}
+              {/* Player Pool Section */}
+              {draft.poolCount > 0 && (
+                <div className="mt-4 pt-4 border-t">
+                  <button
+                    onClick={() => togglePool(draft.id)}
+                    className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors w-full"
+                  >
+                    <Users className="h-3.5 w-3.5" />
+                    Player Pool ({draft.poolCount})
+                  </button>
+
+                  {expandedPool === draft.id && poolData[draft.id] && (
+                    <div className="mt-3 border rounded-md overflow-hidden animate-in slide-in-from-top-1 duration-200">
+                      <table className="w-full text-sm">
+                        <thead className="bg-muted/50">
+                          <tr>
+                            <th className="text-left p-2 font-medium">Player</th>
+                            <th className="text-left p-2 font-medium">Skill</th>
+                            <th className="text-left p-2 font-medium hidden sm:table-cell">Pos</th>
+                            <th className="text-left p-2 font-medium hidden md:table-cell">Games</th>
+                            <th className="text-left p-2 font-medium hidden md:table-cell">Playoffs</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {poolData[draft.id].map((player) => {
+                            const meta = player.registrationMeta
+                            return (
+                              <tr
+                                key={player.playerId}
+                                className="border-t hover:bg-muted/30 cursor-pointer transition-colors"
+                                onClick={() => handlePlayerClick(player)}
+                              >
+                                <td className="p-2">
+                                  <div className="flex items-center gap-1.5">
+                                    {player.playerName}
+                                    {player.isKeeper && (
+                                      <Badge variant="outline" className="text-[10px] bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">K</Badge>
+                                    )}
+                                    {meta?.isRookie && (
+                                      <Badge variant="outline" className="text-[10px] bg-sky-50 text-sky-700 dark:bg-sky-950 dark:text-sky-300">R</Badge>
+                                    )}
+                                  </div>
+                                </td>
+                                <td className="p-2">
+                                  <SkillBadge skillLevel={meta?.skillLevel} />
+                                </td>
+                                <td className="p-2 text-muted-foreground hidden sm:table-cell">
+                                  {meta?.positions || "—"}
+                                </td>
+                                <td className="p-2 text-muted-foreground hidden md:table-cell">
+                                  {meta?.gamesExpected || "—"}
+                                </td>
+                                <td className="p-2 text-muted-foreground hidden md:table-cell">
+                                  {meta?.playoffAvail || "—"}
+                                </td>
+                              </tr>
+                            )
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              )}
             </CardContent>
           </Card>
         ))}
@@ -294,6 +415,25 @@ export function DraftTab({ seasonId, seasonStatus, seasonType, teams }: DraftTab
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* CSV Import Modal */}
+      <DraftPoolImportModal
+        open={!!importDraftId}
+        onOpenChange={(open) => { if (!open) setImportDraftId(null) }}
+        seasonId={seasonId}
+        draftId={importDraftId || ""}
+        onImportComplete={() => {
+          fetchDrafts()
+          if (importDraftId) fetchPool(importDraftId)
+        }}
+      />
+
+      {/* Player Card Sheet */}
+      <DraftPlayerCard
+        player={selectedPlayer}
+        open={playerCardOpen}
+        onOpenChange={setPlayerCardOpen}
+      />
     </>
   )
 }

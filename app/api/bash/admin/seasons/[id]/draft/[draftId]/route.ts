@@ -46,6 +46,7 @@ export async function GET(_request: NextRequest, context: RouteContext) {
       isKeeper: schema.draftPool.isKeeper,
       keeperTeamSlug: schema.draftPool.keeperTeamSlug,
       keeperRound: schema.draftPool.keeperRound,
+      registrationMeta: schema.draftPool.registrationMeta,
     })
     .from(schema.draftPool)
     .innerJoin(schema.players, eq(schema.draftPool.playerId, schema.players.id))

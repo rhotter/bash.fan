@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useCallback } from "react"
 import { SeasonForm } from "./season-form"
 import { PlaceholderCard } from "./placeholder-card"
 import { SeasonTeamsTab } from "./season-teams-tab"
@@ -40,6 +40,14 @@ export function SeasonTabs({ season }: SeasonTabsProps) {
   const tabs = getTabsForStatus(season.status)
   const [activeTab, setActiveTab] = useState<Tab>(tabs[0])
 
+  // Lift teams into shared state so mutations propagate across tabs
+  const [teams, setTeams] = useState(season.teams)
+  const [roster] = useState(season.roster)
+
+  const handleTeamsChange = useCallback((updatedTeams: { teamSlug: string; teamName: string }[]) => {
+    setTeams(updatedTeams)
+  }, [])
+
   return (
     <div className="space-y-4">
       {/* Tab Buttons */}
@@ -62,15 +70,16 @@ export function SeasonTabs({ season }: SeasonTabsProps) {
       {/* Tab Content */}
       <div>
         {activeTab === "Settings" && <SeasonForm season={season} />}
-        {activeTab === "Teams" && <SeasonTeamsTab seasonId={season.id} seasonStatus={season.status} initialTeams={season.teams} />}
-        {activeTab === "Roster" && <SeasonRosterTab seasonId={season.id} seasonStatus={season.status} roster={season.roster} teams={season.teams} />}
-        {activeTab === "Schedule" && <SeasonScheduleTab seasonId={season.id} seasonStatus={season.status} initialTeams={season.teams} defaultLocation={season.defaultLocation || "The Lick"} />}
+        {activeTab === "Teams" && <SeasonTeamsTab seasonId={season.id} seasonStatus={season.status} initialTeams={teams} onTeamsChange={handleTeamsChange} />}
+        {activeTab === "Roster" && <SeasonRosterTab seasonId={season.id} seasonStatus={season.status} roster={roster} teams={teams} />}
+        {activeTab === "Schedule" && <SeasonScheduleTab seasonId={season.id} seasonStatus={season.status} initialTeams={teams} defaultLocation={season.defaultLocation || "The Lick"} />}
         {activeTab === "Draft" && (
           <DraftTab
             seasonId={season.id}
             seasonStatus={season.status}
             seasonType={season.seasonType}
-            teams={season.teams}
+            teams={teams}
+            rosterCount={roster.length}
           />
         )}
         {activeTab === "Registration" && (
@@ -84,4 +93,3 @@ export function SeasonTabs({ season }: SeasonTabsProps) {
     </div>
   )
 }
-

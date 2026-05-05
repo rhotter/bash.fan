@@ -134,7 +134,34 @@ export async function POST(request: NextRequest, context: RouteContext) {
       )
     }
 
-    return NextResponse.json({ draft, teamCount: teamRows.length }, { status: 201 })
+    // Auto-populate draft pool from season roster (player_seasons for this season)
+    const seasonPlayers = await db
+      .select({ playerId: schema.playerSeasons.playerId })
+      .from(schema.playerSeasons)
+      .where(eq(schema.playerSeasons.seasonId, seasonId))
+
+    const uniquePlayerIds = [...new Set(seasonPlayers.map((p) => p.playerId))]
+
+    if (uniquePlayerIds.length > 0) {
+      await db.insert(schema.draftPool).values(
+        uniquePlayerIds.map((playerId) => ({
+          draftId,
+          playerId,
+        }))
+      )
+    }
+
+    const poolCount = uniquePlayerIds.length
+    const suggestedRounds = teamRows.length > 0
+      ? Math.ceil(poolCount / teamRows.length)
+      : rounds
+
+    return NextResponse.json({
+      draft,
+      teamCount: teamRows.length,
+      poolCount,
+      suggestedRounds,
+    }, { status: 201 })
   } catch (err) {
     console.error("Failed to create draft:", err)
     return NextResponse.json({ error: "Failed to create draft" }, { status: 500 })

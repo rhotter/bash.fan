@@ -3,72 +3,10 @@ import { db, schema } from "@/lib/db"
 import { getSession } from "@/lib/admin-session"
 import { inArray, eq, and } from "drizzle-orm"
 import { canonicalizePlayerName, normalizePlayerName } from "@/lib/player-name"
+import { parseCsv } from "@/lib/csv-utils"
 
 interface RouteContext {
   params: Promise<{ id: string }>
-}
-
-function splitCsvRow(line: string): string[] {
-  const fields: string[] = []
-  let current = ""
-  let inQuotes = false
-
-  for (let i = 0; i < line.length; i++) {
-    const ch = line[i]
-    if (ch === '"') {
-      if (inQuotes && line[i + 1] === '"') {
-        current += '"'
-        i++ // skip escaped quote
-      } else {
-        inQuotes = !inQuotes
-      }
-    } else if (ch === "," && !inQuotes) {
-      fields.push(current)
-      current = ""
-    } else {
-      current += ch
-    }
-  }
-  fields.push(current)
-  return fields
-}
-
-function parseCsv(text: string): Record<string, string>[] {
-  const lines: string[] = []
-  let current = ""
-  let inQuotes = false
-
-  for (let i = 0; i < text.length; i++) {
-    const ch = text[i]
-    if (ch === '"') {
-      if (inQuotes && text[i + 1] === '"') {
-        current += '"'
-        i++
-      } else {
-        inQuotes = !inQuotes
-      }
-    } else if (ch === "\n" && !inQuotes) {
-      lines.push(current)
-      current = ""
-    } else if (ch === "\r" && !inQuotes) {
-      // skip
-    } else {
-      current += ch
-    }
-  }
-  if (current.trim()) lines.push(current)
-
-  if (lines.length < 2) return []
-
-  const headers = splitCsvRow(lines[0])
-  return lines.slice(1).map((line) => {
-    const values = splitCsvRow(line)
-    const row: Record<string, string> = {}
-    headers.forEach((h, i) => {
-      row[h.trim()] = (values[i] || "").trim()
-    })
-    return row
-  })
 }
 
 export async function POST(request: NextRequest, context: RouteContext) {

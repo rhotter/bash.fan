@@ -14,6 +14,7 @@ interface SeasonTeamsTabProps {
   seasonId: string
   seasonStatus: string
   initialTeams: { teamSlug: string; teamName: string }[]
+  onTeamsChange?: (teams: { teamSlug: string; teamName: string }[]) => void
 }
 
 interface Team {
@@ -21,7 +22,7 @@ interface Team {
   name: string
 }
 
-export function SeasonTeamsTab({ seasonId, seasonStatus, initialTeams }: SeasonTeamsTabProps) {
+export function SeasonTeamsTab({ seasonId, seasonStatus, initialTeams, onTeamsChange }: SeasonTeamsTabProps) {
   const [allTeams, setAllTeams] = useState<Team[]>([])
   const [assignedTeams, setAssignedTeams] = useState<{ teamSlug: string; teamName: string }[]>(initialTeams)
   const [isLoading, setIsLoading] = useState(true)
@@ -63,7 +64,9 @@ export function SeasonTeamsTab({ seasonId, seasonStatus, initialTeams }: SeasonT
         body: JSON.stringify({ teamSlug: team.slug }),
       })
       if (res.ok) {
-        setAssignedTeams([...assignedTeams, { teamSlug: team.slug, teamName: team.name }].sort((a, b) => a.teamName.localeCompare(b.teamName)))
+        const updated = [...assignedTeams, { teamSlug: team.slug, teamName: team.name }].sort((a, b) => a.teamName.localeCompare(b.teamName))
+        setAssignedTeams(updated)
+        onTeamsChange?.(updated)
         toast.success(`Added ${team.name}`)
       } else {
         const err = await res.json()
@@ -86,7 +89,9 @@ export function SeasonTeamsTab({ seasonId, seasonStatus, initialTeams }: SeasonT
         body: JSON.stringify({ teamSlug: slug }),
       })
       if (res.ok) {
-        setAssignedTeams(assignedTeams.filter(t => t.teamSlug !== slug))
+        const updated = assignedTeams.filter(t => t.teamSlug !== slug)
+        setAssignedTeams(updated)
+        onTeamsChange?.(updated)
         toast.success(`Removed ${name}`)
       } else {
         const err = await res.json()

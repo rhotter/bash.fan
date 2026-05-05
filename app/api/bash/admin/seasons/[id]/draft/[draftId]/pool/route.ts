@@ -23,6 +23,7 @@ export async function GET(_request: NextRequest, context: RouteContext) {
       isKeeper: schema.draftPool.isKeeper,
       keeperTeamSlug: schema.draftPool.keeperTeamSlug,
       keeperRound: schema.draftPool.keeperRound,
+      registrationMeta: schema.draftPool.registrationMeta,
       isGoalie: schema.playerSeasons.isGoalie,
     })
     .from(schema.draftPool)
