@@ -1,7 +1,7 @@
 "use client"
 
-import { useState } from "react"
-import { ArrowLeft, ArrowRight, Check, Loader2, Shuffle, GripVertical } from "lucide-react"
+import { useState, useRef } from "react"
+import { ArrowLeft, ArrowRight, Check, Loader2, Shuffle, GripVertical, Upload, X, FileCheck } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -44,6 +44,7 @@ export function DraftWizard({ open, onOpenChange, seasonId, seasonType, teams, r
   const [step, setStep] = useState(0)
   const [creating, setCreating] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [csvFile, setCsvFile] = useState<File | null>(null)
 
   // Suggested rounds: ceil(rosterCount / teamCount), minimum 1
   const suggestedRounds = teams.length > 0
@@ -128,10 +129,50 @@ export function DraftWizard({ open, onOpenChange, seasonId, seasonType, teams, r
       })
 
       if (res.ok) {
-        toast.success("Draft created!")
+        const draftData = await res.json()
+
+        // Auto-import staged CSV if one was selected
+        const newDraftId = draftData.draft?.id
+        if (csvFile && newDraftId) {
+          try {
+            // Step 1: Preview to get mapped players
+            const previewForm = new FormData()
+            previewForm.append("file", csvFile)
+            const previewRes = await fetch(
+              `/api/bash/admin/seasons/${seasonId}/draft/${newDraftId}/pool/import-csv?action=preview`,
+              { method: "POST", body: previewForm }
+            )
+            if (previewRes.ok) {
+              const previewData = await previewRes.json()
+              // Step 2: Confirm the import (append mode)
+              const confirmRes = await fetch(
+                `/api/bash/admin/seasons/${seasonId}/draft/${newDraftId}/pool/import-csv?action=confirm`,
+                {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ players: previewData.mappedPlayers, mode: "append" }),
+                }
+              )
+              if (confirmRes.ok) {
+                const importResult = await confirmRes.json()
+                toast.success(`Draft created! CSV imported: ${importResult.added} added, ${importResult.skipped} enriched.`)
+              } else {
+                toast.success("Draft created! CSV import had an issue — you can retry from the draft card.")
+              }
+            } else {
+              toast.success("Draft created! CSV parsing failed — you can retry from the draft card.")
+            }
+          } catch {
+            toast.success("Draft created! CSV import failed — you can retry from the draft card.")
+          }
+        } else {
+          toast.success("Draft created!")
+        }
+
         onComplete()
         // Reset wizard
         setStep(0)
+        setCsvFile(null)
         setForm({
           name: suggestDraftName(seasonType),
           draftType: "snake",
@@ -187,7 +228,7 @@ export function DraftWizard({ open, onOpenChange, seasonId, seasonType, teams, r
         {/* Step Content */}
         <div className="space-y-4 min-h-[200px]">
           {step === 0 && <StepSettings form={form} setForm={setForm} seasonType={seasonType} rosterCount={rosterCount} teamCount={teams.length} suggestedRounds={suggestedRounds} />}
-          {step === 1 && <StepPool rosterCount={rosterCount} teamCount={teams.length} />}
+          {step === 1 && <StepPool rosterCount={rosterCount} teamCount={teams.length} csvFile={csvFile} onCsvFileChange={setCsvFile} />}
           {step === 2 && <StepTeams teams={form.teamOrder} />}
           {step === 3 && (
             <StepOrder
@@ -343,8 +384,15 @@ function StepSettings({
   )
 }
 
-function StepPool({ rosterCount, teamCount }: { rosterCount: number; teamCount: number }) {
+function StepPool({ rosterCount, teamCount, csvFile, onCsvFileChange }: {
+  rosterCount: number
+  teamCount: number
+  csvFile: File | null
+  onCsvFileChange: (file: File | null) => void
+}) {
   const suggestedRounds = teamCount > 0 ? Math.max(1, Math.ceil(rosterCount / teamCount)) : 0
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
   return (
     <div className="space-y-4">
       <div className="p-4 border rounded-md bg-muted/30">
@@ -364,10 +412,48 @@ function StepPool({ rosterCount, teamCount }: { rosterCount: number; teamCount: 
       </div>
 
       <div className="border rounded-md border-dashed p-4">
-        <p className="text-sm font-medium mb-1">Sportability CSV Import (optional)</p>
-        <p className="text-xs text-muted-foreground">
-          After creating the draft, you can import a Sportability registration CSV to enrich pool players with skill levels, positions, game commitment, and other registration data. This is available via the <strong>Import CSV</strong> button on the draft card.
+        <p className="text-sm font-medium mb-2">Sportability CSV Import (optional)</p>
+        <p className="text-xs text-muted-foreground mb-3">
+          Upload a Sportability registration CSV to enrich pool players with skill levels, positions, and other registration data. The CSV will be imported automatically after the draft is created.
         </p>
+
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".csv"
+          className="hidden"
+          onChange={(e) => {
+            const f = e.target.files?.[0]
+            if (f) onCsvFileChange(f)
+          }}
+        />
+
+        {csvFile ? (
+          <div className="flex items-center gap-2 p-2.5 rounded-md bg-emerald-50 dark:bg-emerald-950 border border-emerald-200 dark:border-emerald-800">
+            <FileCheck className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+            <span className="text-sm text-emerald-800 dark:text-emerald-200 flex-1 truncate">{csvFile.name}</span>
+            <button
+              type="button"
+              onClick={() => {
+                onCsvFileChange(null)
+                if (fileInputRef.current) fileInputRef.current.value = ""
+              }}
+              className="p-0.5 rounded-sm hover:bg-emerald-200 dark:hover:bg-emerald-800 transition-colors"
+            >
+              <X className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+            </button>
+          </div>
+        ) : (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => fileInputRef.current?.click()}
+          >
+            <Upload className="h-3.5 w-3.5 mr-1.5" />
+            Select CSV File
+          </Button>
+        )}
       </div>
     </div>
   )
