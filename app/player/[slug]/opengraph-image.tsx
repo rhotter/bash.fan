@@ -10,7 +10,7 @@ export default async function OGImage({ params }: { params: Promise<{ slug: stri
   const player = await fetchPlayerDetail(slug)
 
   if (!player) {
-    return generateTeamOGImage('Player Not Found', '', 'bash.fan')
+    return generateTeamOGImage('Player Not Found', '', 'bayareastreethockey.com')
   }
 
   const subtitle = player.seasonStats

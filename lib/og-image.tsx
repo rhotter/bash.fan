@@ -34,7 +34,7 @@ function BashWatermark() {
         gap: 10,
       }}
     >
-      <div style={{ fontSize: 20, fontWeight: 600, color: '#999' }}>www.bayareastreethockey.com</div>
+      <div style={{ fontSize: 24, fontWeight: 600, color: '#999' }}>bayareastreethockey.com</div>
       <img src={bashLogoBase64()} width={36} height={36} alt="" />
     </div>
   )
