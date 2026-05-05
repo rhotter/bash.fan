@@ -131,6 +131,7 @@ export const playerSeasons = pgTable(
       .references(() => teams.slug),
     isGoalie: boolean("is_goalie").notNull().default(false),
     isCaptain: boolean("is_captain").notNull().default(false),
+    isRookie: boolean("is_rookie").notNull().default(false),
   },
   (t) => [
     primaryKey({ columns: [t.playerId, t.seasonId, t.teamSlug] }),

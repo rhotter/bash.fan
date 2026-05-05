@@ -339,17 +339,21 @@ export const seasonTeams = pgTable(
 // ─── player_seasons (existing table — add isCaptain) ────────────────────────
 
 // Migration: ALTER TABLE player_seasons ADD COLUMN is_captain boolean NOT NULL DEFAULT false;
+// Migration: ALTER TABLE player_seasons ADD COLUMN is_rookie boolean NOT NULL DEFAULT false;
 //
-// Designates 1–2 players per team per season as team captains (BASH Rule 102).
+// isCaptain: Designates 1–2 players per team per season as team captains (BASH Rule 102).
 // Set during draft setup (Step 2: Teams & Captains) for the upcoming season.
 // Used by the draft keeper entry phase to auto-suggest and validate that
 // captains are included in each team's keeper list (BASH Rule 203).
+//
+// isRookie: Designates players who are in their first season of BASH (legacy support).
 
 export const playerSeasons = pgTable(
   "player_seasons",
   {
     // ... existing fields (playerId, seasonId, teamSlug, isGoalie) ...
     isCaptain: boolean("is_captain").notNull().default(false),  // NEW
+    isRookie: boolean("is_rookie").notNull().default(false),  // NEW
   },
 )
 ```
@@ -419,6 +423,7 @@ export const draftPool = pgTable(
     keeperTeamSlug: text("keeper_team_slug")         // team keeping this player
       .references(() => teams.slug),
     keeperRound: integer("keeper_round"),             // round they're slotted into (e.g., 1, 2, 12)
+    registrationMeta: jsonb("registration_meta"),     // Sportability import snapshot (see §5.1)
   },
   (t) => [
     primaryKey({ columns: [t.draftId, t.playerId] }),
@@ -461,6 +466,96 @@ export const draftPicks = pgTable(
   ]
 )
 
+```
+
+### 5.1 Sportability Registration Import (Interim Solution)
+
+> [!IMPORTANT]
+> This is a **temporary bridge** for pre-draft planning. The Sportability CSV export is the only registration data source until the native Registration module ([prd-registration.md](./prd-registration.md)) is built. Once the registration module is live, both tools will share the same normalized `registrations` table fields, and the draft pool import will read directly from registration data instead of CSV. See §9 (PR 2) for implementation scope.
+
+#### Field Mapping (Sportability CSV → `registration_meta` JSONB)
+
+Field names are intentionally aligned with the `registrations` table columns defined in [prd-registration.md](./prd-registration.md) §2.3 so that the migration to native registration data requires only changing the data source, not the UI or display logic.
+
+| Sportability CSV Column | `registration_meta` Key | Registration PRD Field | Type | Tier |
+|---|---|---|---|---|
+| `Birthdate` | `birthdate` | `registrations.birthdate` | `string \| null` (ISO date) | Primary |
+| (computed from Birthdate) | `age` | (computed) | `number \| null` | Primary |
+| `ExpSkill` | `skillLevel` | `registrations.skillLevel` | `string \| null` | Primary |
+| `ExpPos` | `positions` | `registrations.positions` | `string \| null` | Primary |
+| `CustomQ1` | `gamesExpected` | `registrationAnswers` (Q1) | `string \| null` | Primary |
+| `CustomQ3` | `playoffAvail` | `registrationAnswers` (Q3) | `string \| null` | Primary |
+| `CustomQ2` | `goalieWilling` | `registrationAnswers` (Q2) | `string \| null` | Secondary |
+| `Rookie` | `isRookie` | (derived — see reg PRD §3.9) | `boolean` | Secondary |
+| `CustomRestr` | `isNewToBash` | (derived from restriction) | `boolean \| null` | Secondary |
+| `Gender` | `gender` | `registrations.gender` | `string \| null` | Secondary |
+| `Buddy Req` | `buddyReq` | — | `string \| null` | Secondary |
+| `Captain` | `captainPrev` | `player_seasons.isCaptain` | `string \| null` | Secondary |
+| `ExpYrs` | `yearsPlayed` | `registrations.yearsPlayed` | `number \| null` | Context |
+| `ExpLeague` | `lastLeague` | `registrations.lastLeague` | `string \| null` | Context |
+| `ExpTeam` | `lastTeam` | `registrations.lastTeam` | `string \| null` | Context |
+| `Notes` | `miscNotes` | `registrations.miscNotes` | `string \| null` | Context |
+| `TShirt` | `tshirtSize` | `registrations.tshirtSize` | `string \| null` | Admin |
+
+> [!NOTE]
+> **Custom Question Labels** — Sportability CSV headers are generic (`CustomQ1`, `CustomQ2`, `CustomQ3`). The actual BASH question text is hardcoded for this interim solution:
+> - **Q1**: "How many games do you expect to play?"
+> - **Q2**: "Are you open to playing goalie?"
+> - **Q3**: "Will you make playoffs?"
+>
+> When the registration module is built, these will be dynamic per-period via `registrationQuestions`.
+
+#### `registration_meta` JSONB Shape
+
+```typescript
+interface RegistrationMeta {
+  // Primary (above the fold in player card)
+  age: number | null
+  birthdate: string | null       // ISO date
+  skillLevel: string | null      // "Novice" | "Intermediate -" | "Intermediate +" | "Advanced"
+  positions: string | null       // raw: "D", "Forward, Wing", "G"
+  gamesExpected: string | null   // CustomQ1
+  playoffAvail: string | null    // CustomQ3
+
+  // Secondary (below the fold in player card)
+  goalieWilling: string | null   // CustomQ2
+  isRookie: boolean
+  isNewToBash: boolean | null    // from CustomRestr
+  gender: string | null          // "M" | "F"
+  buddyReq: string | null
+  captainPrev: string | null     // "", "Asst", "1"
+
+  // Context (expanded detail)
+  yearsPlayed: number | null
+  lastLeague: string | null
+  lastTeam: string | null
+  miscNotes: string | null
+  tshirtSize: string | null
+}
+```
+
+#### Player Card UI (Draft Board)
+
+When a player in the draft pool is clicked, a **Sheet** (slide-over panel from the right) opens with tiered registration data:
+
+- **Header**: Player name, age, skill level badge, primary position
+- **Primary section**: Games expected, playoff availability, experience years, previous team/league
+- **Secondary section** (collapsible): Goalie willingness, new-to-BASH flag, gender, buddy request
+- **Notes section**: Misc notes (availability, personality info from registration)
+- **Flags**: Badge chips for Rookie, Captain (prev), Keeper
+
+The player pool list in the draft board also displays inline: **Skill** (color-coded badge), **Position**, **Games Expected**, and **Playoff Avail**.
+
+#### Skill Level Badge Colors
+
+| Level | Badge Style |
+|---|---|
+| Novice | `bg-slate-100 text-slate-700` |
+| Intermediate - | `bg-blue-100 text-blue-700` |
+| Intermediate + | `bg-indigo-100 text-indigo-700` |
+| Advanced | `bg-amber-100 text-amber-700` |
+
+```typescript
 // ─── Draft Trades ───────────────────────────────────────────────────────────
 
 export const draftTrades = pgTable("draft_trades", {
@@ -626,7 +721,7 @@ app/
 | **Keeper on traded round** | During keeper entry, the round assignment dropdown only shows rounds the team currently owns (accounting for trades). If a team traded away R3, that round is not available for keeper assignment. Validation message: "Round 3 is owned by [Team] (Trade #1). Choose a different round." |
 | **Keeper count varies by team** | Teams may have 1–8 keepers (minimum 1 — the captain). The board and draft order engine handle asymmetric keeper counts gracefully — teams with fewer keepers simply have more open picks in early rounds. |
 | **Captain not kept** | Captains are auto-populated as keepers. If manually removed, a validation error prevents proceeding: "Each team must keep at least their captain(s) per BASH rules." The commissioner cannot override this — captains must always be keepers. |
-| **No registration module yet** | Draft pool can be populated manually (CSV upload or admin entry) without requiring the registration module to be built first. |
+| **No registration module yet** | Draft pool is populated via Sportability CSV import (interim solution, see §5.1) or manual entry. Registration metadata is stored as a JSONB snapshot on `draft_pool.registration_meta`. When the native registration module is built, the import will read from `registrations` table directly. |
 | **Simulation data leaking** | All simulation picks/trades are tagged with `isSimulation: true`. Publishing auto-deletes all rows where `isSimulation = true`. Reset button does the same. All queries on `draftPicks`, `draftTrades`, and `draftLog` must include `WHERE isSimulation = false` by default (use `withoutSimulation` helper). |
 | **Accidental publish during simulation** | Publishing requires an `AlertDialog` confirmation ("This will clear all simulation data and make the draft page public. Continue?"). |
 | **Timer expiry** | Timer shows "0:00" with blinking red indicator. Commissioner can still make the pick (advisory timer). Timer resets only when next pick is confirmed. |
@@ -652,7 +747,7 @@ The following BASH rules (Rulebook 2019) directly inform draft wizard behavior:
 ## 9. Implementation Phases
 
 ### PR 1 — Schema + PRD ✅ (completed — `torres_draft` branch)
-- Database schema migration: `franchises` table, `franchise_slug` on `season_teams`, `is_captain` on `player_seasons`, all new draft tables (`draftInstances`, `draftTeamOrder`, `draftPool`, `draftPicks`, `draftTrades`, `draftTradeItems`, `draftLog`)
+- Database schema migration: `franchises` table, `franchise_slug` on `season_teams`, `is_captain` and `is_rookie` on `player_seasons`, all new draft tables (`draftInstances`, `draftTeamOrder`, `draftPool`, `draftPicks`, `draftTrades`, `draftTradeItems`, `draftLog`)
 - Draft PRD document (`docs/prd-draft.md`)
 - Schema validation script (`scripts/test-draft-schema.ts`)
 - **Status**: Pending PR merge
@@ -660,14 +755,23 @@ The following BASH rules (Rulebook 2019) directly inform draft wizard behavior:
 ### PR 2 — Draft Wizard (Steps 1-5) + CRUD
 - Draft creation wizard (5-step form): Settings, Player Pool, Teams & Captains, Draft Order & Pre-Draft Trades, Review & Create
 - Draft instance CRUD (create, edit, delete)
-- Draft pool management (manual player entry + CSV import)
+- Draft pool management (manual player entry + Sportability CSV import with `registration_meta`)
+- **Sportability CSV → Draft Pool Import** (interim registration data, see §5.1):
+  - Add `registration_meta` JSONB column to `draft_pool` table
+  - Build import endpoint: parse CSV, resolve/create players, store registration metadata as JSONB
+  - Reuse existing `parseCsv` / `splitCsvRow` helpers from roster import
+  - Two-step flow: preview (stats + parsed players) → confirm (insert into pool)
+- **Player Card (Sheet)**: Click-to-inspect player detail panel in draft board
+  - Reads `registration_meta` from pool entry
+  - Tiered layout: Primary (skill, position, games, playoffs) → Secondary (goalie, rookie, gender, buddy) → Notes → Flags
+  - Inline skill-level badges on pool list rows
 - Draft state machine: `draft → published` transitions
 - Franchise management view in admin (view season_teams list, assign/edit/remove franchise associations)
 - Add `seasonType`, `timerCountdown`, `timerRunning`, `timerStartedAt` columns to `draftInstances` (additive schema migration)
 - Add `round`, `position` columns to `draftTradeItems` (additive)
 - Add `uq_draft_picks_slot` unique constraint, `idx_draft_pool_draft_player` index
 - Replace admin Draft tab placeholder with real draft management page
-- **Smoke test**: Create a draft via wizard, verify pool import, edit/delete draft
+- **Smoke test**: Create a draft via wizard, import Sportability CSV, verify player cards with registration data, edit/delete draft
 
 ### PR 3 — Admin Presentation View (Simulation + Keeper Entry)
 - Simulation mode: full admin presentation view in `draft` state with "SIMULATION MODE" banner
@@ -718,7 +822,8 @@ The following BASH rules (Rulebook 2019) directly inform draft wizard behavior:
 ## 10. Resolved Questions
 
 - [x] **Timer default**: 2 minutes per pick. Single timer selector in Step 1 — does not vary by round.
-- [x] **Player pool source**: Sportability Roster CSV import is preferred when no registration period exists. Manual entry also supported.
+- [x] **Player pool source**: Sportability Roster CSV import is preferred when no registration period exists. Manual entry also supported. Registration metadata is stored as JSONB on `draft_pool.registration_meta` using field names aligned with [prd-registration.md](./prd-registration.md) `registrations` table. When the registration module is built, the draft import will read directly from `registrations` instead of CSV.
+- [x] **Registration field alignment**: `registration_meta` JSONB keys use the same names as `registrations` table columns (`skillLevel`, `positions`, `yearsPlayed`, `lastLeague`, `lastTeam`, `birthdate`, `gender`, `tshirtSize`, `miscNotes`) to minimize migration work when the native registration module is implemented.
 - [x] **Public URL structure**: Season-based URLs (e.g., `/draft/2026-2027`).
 - [x] **TV casting**: Presentation mode toggle on the public view — fullscreen, chrome-free layout for TV casting.
 - [x] **Draft day logistics**: WiFi available at draft location. 5-second SWR polling for live draft.

@@ -8,10 +8,31 @@ interface RouteContext {
   params: Promise<{ id: string }>
 }
 
-/**
- * Parse a CSV string into an array of objects keyed by header names.
- * Handles quoted fields (including fields with commas and newlines inside quotes).
- */
+function splitCsvRow(line: string): string[] {
+  const fields: string[] = []
+  let current = ""
+  let inQuotes = false
+
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i]
+    if (ch === '"') {
+      if (inQuotes && line[i + 1] === '"') {
+        current += '"'
+        i++ // skip escaped quote
+      } else {
+        inQuotes = !inQuotes
+      }
+    } else if (ch === "," && !inQuotes) {
+      fields.push(current)
+      current = ""
+    } else {
+      current += ch
+    }
+  }
+  fields.push(current)
+  return fields
+}
+
 function parseCsv(text: string): Record<string, string>[] {
   const lines: string[] = []
   let current = ""
@@ -22,7 +43,7 @@ function parseCsv(text: string): Record<string, string>[] {
     if (ch === '"') {
       if (inQuotes && text[i + 1] === '"') {
         current += '"'
-        i++ // skip escaped quote
+        i++
       } else {
         inQuotes = !inQuotes
       }
@@ -30,7 +51,7 @@ function parseCsv(text: string): Record<string, string>[] {
       lines.push(current)
       current = ""
     } else if (ch === "\r" && !inQuotes) {
-      // skip carriage return
+      // skip
     } else {
       current += ch
     }
@@ -48,31 +69,6 @@ function parseCsv(text: string): Record<string, string>[] {
     })
     return row
   })
-}
-
-function splitCsvRow(line: string): string[] {
-  const fields: string[] = []
-  let current = ""
-  let inQuotes = false
-
-  for (let i = 0; i < line.length; i++) {
-    const ch = line[i]
-    if (ch === '"') {
-      if (inQuotes && line[i + 1] === '"') {
-        current += '"'
-        i++
-      } else {
-        inQuotes = !inQuotes
-      }
-    } else if (ch === "," && !inQuotes) {
-      fields.push(current)
-      current = ""
-    } else {
-      current += ch
-    }
-  }
-  fields.push(current)
-  return fields
 }
 
 export async function POST(request: NextRequest, context: RouteContext) {
@@ -121,10 +117,18 @@ export async function POST(request: NextRequest, context: RouteContext) {
       const positionStr = (row["ExpPos"] || row["Position"] || "").toLowerCase()
       const isGoalie = positionStr.includes("goalie")
 
+      // Roles
+      const rookieStr = (row["Rookie"] || "").toLowerCase()
+      const captainStr = (row["Captain"] || "").toLowerCase()
+      const isRookie = rookieStr === "1" || rookieStr === "yes" || rookieStr === "true"
+      const isCaptain = captainStr === "1" || captainStr === "yes" || captainStr === "true"
+
       return {
         playerName,
         teamSlug,
         isGoalie,
+        isRookie,
+        isCaptain,
       }
     }).filter(p => p.playerName.length > 0) // filter out empty rows
 
