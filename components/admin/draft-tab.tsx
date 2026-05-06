@@ -302,14 +302,6 @@ export function DraftTab({ seasonId, seasonStatus, seasonType, teams, rosterCoun
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      {(draft.status === "published" || draft.status === "live") && (
-                        <DropdownMenuItem
-                          onClick={() => window.open(`/draft/${draft.id}`, "_blank")}
-                        >
-                          <ExternalLink className="h-4 w-4 mr-2" />
-                          View Public Draft
-                        </DropdownMenuItem>
-                      )}
                       {draft.status === "published" && (
                         <DropdownMenuItem
                           onClick={() => setUnpublishTarget(draft)}
