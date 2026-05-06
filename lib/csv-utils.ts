@@ -28,6 +28,24 @@ export function splitCsvRow(line: string): string[] {
   return fields
 }
 
+/**
+ * Parse a CSV string into an array of header-keyed row objects.
+ *
+ * This function handles two concerns:
+ *   1. Splitting the raw text into logical lines (respecting quoted fields
+ *      that may contain newlines).
+ *   2. Delegating per-line field parsing to `splitCsvRow`.
+ *
+ * IMPORTANT — Quote Preservation (2025-05 fix):
+ * The line splitter MUST preserve quote characters (`"`) in the output.
+ * Previously, this loop consumed `"` chars to track `inQuotes` state but
+ * did NOT emit them into `current`. That stripped quotes from lines before
+ * `splitCsvRow` could see them. The result: any field containing a comma
+ * inside quotes (e.g. `"Yes, I am new to BASH"`) was silently split into
+ * multiple fields, shifting ALL subsequent column values by 1+. This caused
+ * Sportability CSV imports to map `ExpSkill` → league names and `ExpPos` →
+ * skill levels instead of the correct values.
+ */
 export function parseCsv(text: string): Record<string, string>[] {
   const lines: string[] = []
   let current = ""
@@ -36,17 +54,22 @@ export function parseCsv(text: string): Record<string, string>[] {
   for (let i = 0; i < text.length; i++) {
     const ch = text[i]
     if (ch === '"') {
+      // Toggle quote tracking for multi-line field detection.
+      // Crucially, we emit the quote into `current` so that splitCsvRow
+      // can still identify quoted fields and protect interior commas.
       if (inQuotes && text[i + 1] === '"') {
-        current += '"'
+        // Escaped quote ("") — keep both so splitCsvRow can unescape.
+        current += '""'
         i++
       } else {
         inQuotes = !inQuotes
+        current += '"'
       }
     } else if (ch === "\n" && !inQuotes) {
       lines.push(current)
       current = ""
     } else if (ch === "\r" && !inQuotes) {
-      // skip
+      // skip carriage returns
     } else {
       current += ch
     }

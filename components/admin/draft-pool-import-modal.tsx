@@ -197,44 +197,12 @@ export function DraftPoolImportModal({
         {/* Step 2: Preview */}
         {step === "preview" && stats && (
           <div className="space-y-4">
-            {/* Stats summary */}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="p-3 rounded-md bg-muted/50">
-                <p className="text-2xl font-bold">{stats.totalParsed}</p>
-                <p className="text-xs text-muted-foreground">Players Parsed</p>
-              </div>
-              <div className="p-3 rounded-md bg-muted/50">
-                <p className="text-2xl font-bold">{stats.alreadyInPool}</p>
-                <p className="text-xs text-muted-foreground">Matched in Pool</p>
-              </div>
-              <div className="p-3 rounded-md bg-muted/50">
-                <p className="text-2xl font-bold">{stats.willAdd}</p>
-                <p className="text-xs text-muted-foreground">Not Yet in Pool</p>
-              </div>
-              <div className="p-3 rounded-md bg-muted/50">
-                <p className="text-2xl font-bold">{stats.newPlayers}</p>
-                <p className="text-xs text-muted-foreground">New to System</p>
-              </div>
-            </div>
-
-            {/* Skill breakdown */}
-            {Object.keys(stats.skillBreakdown).length > 0 && (
-              <div>
-                <h4 className="text-xs font-semibold uppercase text-muted-foreground mb-2">
-                  Skill Breakdown
-                </h4>
-                <div className="flex flex-wrap gap-2">
-                  {Object.entries(stats.skillBreakdown)
-                    .sort(([a], [b]) => a.localeCompare(b))
-                    .map(([skill, count]) => (
-                      <div key={skill} className="flex items-center gap-1.5">
-                        <SkillBadge skillLevel={skill === "Unknown" ? null : skill} />
-                        <span className="text-xs text-muted-foreground">× {count}</span>
-                      </div>
-                    ))}
-                </div>
-              </div>
-            )}
+            {/* Summary line */}
+            <p className="text-sm text-muted-foreground">
+              Parsed <strong>{stats.totalParsed}</strong> players from CSV.
+              {stats.alreadyInPool > 0 && <> <strong>{stats.alreadyInPool}</strong> already in pool.</>}
+              {stats.willAdd > 0 && <> <strong>{stats.willAdd}</strong> new to pool.</>}
+            </p>
 
             {/* Warnings */}
             {stats.newPlayers > 0 && (
@@ -257,7 +225,7 @@ export function DraftPoolImportModal({
               </h4>
               <div className="max-h-48 overflow-y-auto border rounded-md">
                 <table className="w-full text-sm">
-                  <thead className="bg-muted/50 sticky top-0">
+                  <thead className="bg-muted sticky top-0 z-10">
                     <tr>
                       <th className="text-left p-2 font-medium">Name</th>
                       <th className="text-left p-2 font-medium">Skill</th>

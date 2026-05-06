@@ -255,6 +255,44 @@ async function handleConfirm(request: NextRequest, draftId: string) {
     removed = toRemove.length
   }
 
+  // Recalculate rounds based on the new pool size
+  // Fetch current pool count and team count, then update if rounds were auto-calculated
+  const [draft] = await db
+    .select()
+    .from(schema.draftInstances)
+    .where(eq(schema.draftInstances.id, draftId))
+    .limit(1)
+
+  if (draft) {
+    const updatedPool = await db
+      .select({ playerId: schema.draftPool.playerId })
+      .from(schema.draftPool)
+      .where(eq(schema.draftPool.draftId, draftId))
+
+    const teamOrder = await db
+      .select({ teamSlug: schema.draftTeamOrder.teamSlug })
+      .from(schema.draftTeamOrder)
+      .where(eq(schema.draftTeamOrder.draftId, draftId))
+
+    const newPoolCount = updatedPool.length
+    const teamCount = teamOrder.length
+
+    if (teamCount > 0) {
+      const newSuggestedRounds = Math.max(1, Math.ceil(newPoolCount / teamCount))
+
+      // Update rounds if they matched the old auto-calculated value
+      // (i.e. user never manually overrode them)
+      const oldSuggestedRounds = Math.max(1, Math.ceil(existingPool.length / teamCount))
+
+      if (draft.rounds === oldSuggestedRounds && newSuggestedRounds !== draft.rounds) {
+        await db
+          .update(schema.draftInstances)
+          .set({ rounds: newSuggestedRounds, updatedAt: new Date() })
+          .where(eq(schema.draftInstances.id, draftId))
+      }
+    }
+  }
+
   return NextResponse.json({
     added,
     created,
