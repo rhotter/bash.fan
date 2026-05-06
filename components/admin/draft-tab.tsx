@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react"
 import {
   Loader2, Plus, Users, ListOrdered, Trash2, Send, Clock,
   MapPin, CalendarDays, Layers, ShieldCheck, MoreVertical, Upload,
+  ExternalLink, ArchiveRestore,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -78,6 +79,8 @@ export function DraftTab({ seasonId, seasonStatus, seasonType, teams, rosterCoun
   const [playerCardOpen, setPlayerCardOpen] = useState(false)
   const [expandedPool, setExpandedPool] = useState<string | null>(null)
   const [poolData, setPoolData] = useState<Record<string, PoolPlayer[]>>({})
+  const [unpublishTarget, setUnpublishTarget] = useState<DraftInstance | null>(null)
+  const [isUnpublishing, setIsUnpublishing] = useState(false)
 
   const fetchDrafts = useCallback(async () => {
     try {
@@ -144,6 +147,29 @@ export function DraftTab({ seasonId, seasonStatus, seasonType, teams, rosterCoun
   const handleWizardComplete = () => {
     setWizardOpen(false)
     fetchDrafts()
+  }
+
+  const handleUnpublish = async () => {
+    if (!unpublishTarget) return
+    setIsUnpublishing(true)
+    try {
+      const res = await fetch(
+        `/api/bash/admin/seasons/${seasonId}/draft/${unpublishTarget.id}/publish`,
+        { method: "DELETE" }
+      )
+      if (res.ok) {
+        toast.success("Draft unpublished — moved back to draft status")
+        fetchDrafts()
+      } else {
+        const err = await res.json()
+        toast.error(err.error || "Failed to unpublish")
+      }
+    } catch {
+      toast.error("Connection error")
+    } finally {
+      setIsUnpublishing(false)
+      setUnpublishTarget(null)
+    }
   }
 
   const fetchPool = useCallback(async (draftId: string) => {
@@ -259,6 +285,16 @@ export function DraftTab({ seasonId, seasonStatus, seasonType, teams, rosterCoun
                       Publish
                     </Button>
                   )}
+                  {(draft.status === "published" || draft.status === "live") && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => window.open(`/draft/${draft.id}`, "_blank")}
+                    >
+                      <ExternalLink className="h-3.5 w-3.5 mr-1.5" />
+                      View Public Draft
+                    </Button>
+                  )}
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button variant="ghost" size="icon" className="h-8 w-8">
@@ -266,15 +302,37 @@ export function DraftTab({ seasonId, seasonStatus, seasonType, teams, rosterCoun
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      {draft.status === "draft" && (
+                      {(draft.status === "published" || draft.status === "live") && (
                         <DropdownMenuItem
-                          className="text-destructive focus:text-destructive"
-                          onClick={() => setDeleteTarget(draft)}
+                          onClick={() => window.open(`/draft/${draft.id}`, "_blank")}
                         >
-                          <Trash2 className="h-4 w-4 mr-2" />
-                          Delete Draft
+                          <ExternalLink className="h-4 w-4 mr-2" />
+                          View Public Draft
                         </DropdownMenuItem>
                       )}
+                      {draft.status === "published" && (
+                        <DropdownMenuItem
+                          onClick={() => setUnpublishTarget(draft)}
+                        >
+                          <ArchiveRestore className="h-4 w-4 mr-2" />
+                          Unpublish to Draft
+                        </DropdownMenuItem>
+                      )}
+                      {draft.status === "draft" && (
+                        <DropdownMenuItem
+                          onClick={() => setImportDraftId(draft.id)}
+                        >
+                          <Upload className="h-4 w-4 mr-2" />
+                          Import CSV
+                        </DropdownMenuItem>
+                      )}
+                      <DropdownMenuItem
+                        className="text-destructive focus:text-destructive"
+                        onClick={() => setDeleteTarget(draft)}
+                      >
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Delete Draft
+                      </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </div>
@@ -411,6 +469,25 @@ export function DraftTab({ seasonId, seasonStatus, seasonType, teams, rosterCoun
             <AlertDialogAction onClick={handlePublish} disabled={isPublishing}>
               {isPublishing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Publish Draft
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Unpublish Confirmation */}
+      <AlertDialog open={!!unpublishTarget} onOpenChange={(open) => !open && setUnpublishTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Unpublish &ldquo;{unpublishTarget?.name}&rdquo;?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will move the draft back to draft status. The public draft page will no longer be accessible until you publish again.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isUnpublishing}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleUnpublish} disabled={isUnpublishing}>
+              {isUnpublishing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Unpublish
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

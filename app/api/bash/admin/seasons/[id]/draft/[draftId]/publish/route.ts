@@ -92,3 +92,45 @@ export async function POST(_request: NextRequest, context: RouteContext) {
     return NextResponse.json({ error: "Failed to publish draft" }, { status: 500 })
   }
 }
+
+// DELETE — Unpublish draft (published → draft)
+export async function DELETE(_request: NextRequest, context: RouteContext) {
+  const isAuthenticated = await getSession()
+  if (!isAuthenticated) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  }
+
+  const { draftId } = await context.params
+
+  const [draft] = await db
+    .select()
+    .from(schema.draftInstances)
+    .where(eq(schema.draftInstances.id, draftId))
+    .limit(1)
+
+  if (!draft) {
+    return NextResponse.json({ error: "Draft not found" }, { status: 404 })
+  }
+
+  if (draft.status !== "published") {
+    return NextResponse.json(
+      { error: `Cannot unpublish from '${draft.status}' status. Must be in 'published' status.` },
+      { status: 400 }
+    )
+  }
+
+  try {
+    await db
+      .update(schema.draftInstances)
+      .set({
+        status: "draft",
+        updatedAt: new Date(),
+      })
+      .where(eq(schema.draftInstances.id, draftId))
+
+    return NextResponse.json({ ok: true, status: "draft" })
+  } catch (err) {
+    console.error("Failed to unpublish draft:", err)
+    return NextResponse.json({ error: "Failed to unpublish draft" }, { status: 500 })
+  }
+}
