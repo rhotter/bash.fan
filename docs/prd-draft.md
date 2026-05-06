@@ -761,7 +761,7 @@ The following BASH rules (Rulebook 2019) directly inform draft wizard behavior:
 - Schema validation script (`scripts/test-draft-schema.ts`)
 - **Status**: Pending PR merge
 
-### PR 2 — Draft Wizard (Steps 1-5) + CRUD
+### PR 2 — Draft Wizard (Steps 1-5) + CRUD ✅ (completed — `torres_draft2` branch)
 - Draft creation wizard (5-step form): Settings, Player Pool, Teams & Captains, Draft Order & Pre-Draft Trades, Review & Create
 - Draft instance CRUD (create, edit, delete)
 - Draft pool management (manual player entry + Sportability CSV import with `registration_meta`)
@@ -774,13 +774,14 @@ The following BASH rules (Rulebook 2019) directly inform draft wizard behavior:
   - Reads `registration_meta` from pool entry
   - Tiered layout: Primary (skill, position, games, playoffs) → Secondary (goalie, rookie, gender, buddy) → Notes → Flags
   - Inline skill-level badges on pool list rows
-- Draft state machine: `draft → published` transitions
-- Franchise management view in admin (view season_teams list, assign/edit/remove franchise associations)
+- Draft state machine: `draft → published` transitions (with unpublish support)
+- **Chain trade resolution engine** (`lib/draft-trade-resolver.ts`): Sequential ownership tracking for pre-draft trades, including acquired-pick `(via Team)` annotations in the wizard UI
+- Multi-captain support: up to 2 captains per team with persistent search
 - Add `seasonType`, `timerCountdown`, `timerRunning`, `timerStartedAt` columns to `draftInstances` (additive schema migration)
 - Add `round`, `position` columns to `draftTradeItems` (additive)
 - Add `uq_draft_picks_slot` unique constraint, `idx_draft_pool_draft_player` index
 - Replace admin Draft tab placeholder with real draft management page
-- **Smoke test**: Create a draft via wizard, import Sportability CSV, verify player cards with registration data, edit/delete draft
+- **Smoke test**: ✅ Create a draft via wizard, import Sportability CSV, verify player cards with registration data, publish/unpublish/delete draft
 
 ### PR 3 — Admin Presentation View (Simulation + Keeper Entry)
 - Simulation mode: full admin presentation view in `draft` state with "SIMULATION MODE" banner
@@ -806,14 +807,15 @@ The following BASH rules (Rulebook 2019) directly inform draft wizard behavior:
 - Mobile completed view: same table format without ticker
 - **Smoke test**: Full draft (15 rounds, 4 teams), verify timer, public view, mobile layout
 
-### PR 5 — Trades, Export & Roster Push
+### PR 5 — Trades, Export, Roster Push & Franchise Wiring
 - Pick swap functionality (update `teamSlug` on pre-generated picks)
 - Player trade functionality
 - Trade history log + Draft Log tab (admin, with filter dropdown)
 - CSV export of results
 - Roster push to `player_seasons` / `season_teams` (upsert pattern)
 - Presentation mode toggle (fullscreen, chrome-free)
-- **Smoke test**: Execute trade during draft, verify CSV export, push rosters, check `player_seasons`
+- **Franchise ↔ Season Team assignment**: Admin Franchises page enhanced with season team wiring — assign/edit/remove franchise associations on `season_teams.franchiseSlug`. Basic franchise CRUD (create, edit name/color, delete) already implemented in PR 2.
+- **Smoke test**: Execute trade during draft, verify CSV export, push rosters, check `player_seasons`, verify franchise colors on board
 
 ### 🎯 Milestone: Draft Day Rehearsal
 - Full end-to-end simulation with real player data on staging
