@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { db, schema } from "@/lib/db"
-import { eq } from "drizzle-orm"
+import { eq, and } from "drizzle-orm"
 import { getSession } from "@/lib/admin-session"
 
 interface RouteContext {
@@ -79,6 +79,8 @@ export async function POST(request: NextRequest, context: RouteContext) {
       draftDate,
       location,
       teams, // [{ teamSlug, position }]
+      captains, // [{ teamSlug, playerId, playerName }] — optional
+      preDraftTrades, // [{ teamASlug, teamARound, teamBSlug, teamBRound }] — optional
     } = body
 
     if (!name) {
@@ -149,6 +151,84 @@ export async function POST(request: NextRequest, context: RouteContext) {
           playerId,
         }))
       )
+    }
+
+    // ── Captain assignments ─────────────────────────────────────────────────
+    // Mark captains as keepers in the draft pool and set isCaptain on player_seasons.
+    // Captains become mandatory round-1 keepers for their team.
+    if (Array.isArray(captains) && captains.length > 0) {
+      for (const cap of captains) {
+        const { teamSlug: capTeamSlug, playerId: capPlayerId } = cap as { teamSlug: string; playerId: number }
+        // Update the draft pool row to mark as keeper
+        if (uniquePlayerIds.includes(capPlayerId)) {
+          await db
+            .update(schema.draftPool)
+            .set({ isKeeper: true, keeperTeamSlug: capTeamSlug, keeperRound: 1 })
+            .where(
+              and(
+                eq(schema.draftPool.draftId, draftId),
+                eq(schema.draftPool.playerId, capPlayerId)
+              )
+            )
+        }
+        // Set isCaptain on the player_seasons row
+        await db
+          .update(schema.playerSeasons)
+          .set({ isCaptain: true })
+          .where(
+            and(
+              eq(schema.playerSeasons.seasonId, seasonId),
+              eq(schema.playerSeasons.playerId, capPlayerId),
+              eq(schema.playerSeasons.teamSlug, capTeamSlug)
+            )
+          )
+      }
+    }
+
+    // ── Pre-draft trades ────────────────────────────────────────────────────
+    // Store pick swaps agreed upon before draft day. Each trade references picks
+    // by their ORIGINAL slot owner (not current owner), enabling the sequential
+    // resolution engine to correctly handle chain trades where a pick acquired
+    // in one trade is subsequently traded again.
+    if (Array.isArray(preDraftTrades) && preDraftTrades.length > 0) {
+      for (const trade of preDraftTrades) {
+        const {
+          teamASlug, teamARound, teamAOriginalOwner,
+          teamBSlug, teamBRound, teamBOriginalOwner,
+        } = trade as {
+          teamASlug: string; teamARound: number; teamAOriginalOwner?: string
+          teamBSlug: string; teamBRound: number; teamBOriginalOwner?: string
+        }
+        // Default originalOwner to the trading team if not specified (simple swap)
+        const origOwnerA = teamAOriginalOwner || teamASlug
+        const origOwnerB = teamBOriginalOwner || teamBSlug
+        const viaA = origOwnerA !== teamASlug ? ` (via ${origOwnerA})` : ""
+        const viaB = origOwnerB !== teamBSlug ? ` (via ${origOwnerB})` : ""
+
+        const tradeId = `trade-${crypto.randomUUID()}`
+        await db.insert(schema.draftTrades).values({
+          id: tradeId,
+          draftId,
+          teamASlug,
+          teamBSlug,
+          tradeType: "pre_draft_pick_swap",
+          description: `Pre-draft: ${teamASlug} Rd ${teamARound}${viaA} ↔ ${teamBSlug} Rd ${teamBRound}${viaB}`,
+        })
+        // Item 1: Original pick slot (origOwnerA, round) → goes to teamBSlug
+        await db.insert(schema.draftTradeItems).values({
+          tradeId,
+          fromTeamSlug: origOwnerA,  // original slot owner
+          toTeamSlug: teamBSlug,
+          round: teamARound,
+        })
+        // Item 2: Original pick slot (origOwnerB, round) → goes to teamASlug
+        await db.insert(schema.draftTradeItems).values({
+          tradeId,
+          fromTeamSlug: origOwnerB,  // original slot owner
+          toTeamSlug: teamASlug,
+          round: teamBRound,
+        })
+      }
     }
 
     const poolCount = uniquePlayerIds.length

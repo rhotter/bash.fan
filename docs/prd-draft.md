@@ -76,6 +76,15 @@ A dedicated, interactive draft system for managing the BASH league draft process
 - **Draft Order & Pre-Draft Trades** (Step 4): After teams are defined, the commissioner sets the pick order and configures any trades that were agreed upon before the draft:
   - **Draft order**: Drag teams to set pick order (first pick → last pick). Per BASH Rule 204, last-place team picks first, champion picks last — but this is manually set for now (auto-calculation from standings is P2).
   - **Pre-draft trades**: Configure pick swaps agreed upon before draft day (e.g., Team A trades their Round 3 pick to Team B for Team B's Round 5 pick). These are recorded in the `draftTrades` table and reflected on the board from the start.
+  - **Chain trades**: Trades are entered in order and support chain scenarios where a pick acquired in one trade is traded again in a subsequent trade. For example:
+    - Trade 1: Team A trades Rd 1 pick ↔ Team B trades Rd 3 pick
+    - Trade 2: Team B trades Rd 1 pick (acquired from Team A in Trade 1) ↔ Team C trades Rd 4 pick
+  - **Display vs Resolution**: The UI stores and displays trades in their human-readable swap format (as entered by the admin). Under the hood, a **sequential resolution engine** processes trades top-to-bottom to compute the net pick ownership map:
+    1. Initialize an ownership map: each `{originalTeamSlug, round}` slot → owned by `originalTeamSlug`
+    2. For each trade in order, look up the current owner of both picks and swap ownership
+    3. The final ownership map determines `teamSlug` on pre-generated `draftPicks` rows
+  - **Acquired-pick indicator**: When configuring Trade N, if a pick's current owner differs from its original owner (due to a prior trade), the UI shows a `(via OriginalTeam)` annotation so the admin can verify the chain is correct
+  - Each side of a trade specifies: the team trading, the round, and the **original owner** of the pick (defaults to the trading team's own pick; set to a different team for acquired picks)
 
 - **Keeper Lists (Draft-Day Entry)**: Keepers are entered in the admin presentation view on draft day — not during setup — because keeper decisions are typically finalized only hours before the draft starts. Each team can designate up to the configured max keepers (set in Step 1, default 8) from the previous season's roster, pre-slotted into specific draft rounds:
   - The admin presentation view opens in a **"Pre-Draft: Enter Keepers"** phase before the commissioner starts the draft

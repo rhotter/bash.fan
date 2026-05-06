@@ -1,15 +1,48 @@
 "use client"
 
-import { useState, useRef } from "react"
-import { ArrowLeft, ArrowRight, Check, Loader2, Shuffle, GripVertical, Upload, X, FileCheck } from "lucide-react"
+import { useState, useRef, useEffect } from "react"
+import {
+  ArrowLeft, ArrowRight, Check, Loader2, Shuffle, GripVertical,
+  Upload, X, FileCheck, Search, Crown, ArrowLeftRight, Plus, Trash2,
+} from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { toast } from "sonner"
 
 const STEPS = ["Settings", "Player Pool", "Teams & Captains", "Draft Order", "Review & Create"]
+
+/** Lightweight roster player — fetched lazily for the captain picker */
+interface RosterPlayer {
+  playerId: number
+  playerName: string
+  teamSlug: string
+}
+
+/** Captain assignment: one player assigned as captain of one team */
+interface CaptainAssignment {
+  teamSlug: string
+  playerId: number
+  playerName: string
+}
+
+/**
+ * Pre-draft pick swap between two teams.
+ * `teamAOriginalOwner` identifies who originally owned the pick Team A is trading.
+ * Defaults to teamASlug (their own pick), but differs for acquired/chain-traded picks.
+ */
+interface PreDraftTrade {
+  teamASlug: string
+  teamARound: number
+  teamAOriginalOwner: string  // original slot owner — differs from teamASlug for acquired picks
+  teamBSlug: string
+  teamBRound: number
+  teamBOriginalOwner: string  // original slot owner — differs from teamBSlug for acquired picks
+}
 
 interface DraftWizardProps {
   open: boolean
@@ -31,6 +64,8 @@ interface WizardForm {
   draftTime: string
   location: string
   teamOrder: { teamSlug: string; teamName: string }[]
+  captains: CaptainAssignment[]
+  preDraftTrades: PreDraftTrade[]
 }
 
 function suggestDraftName(seasonType: string): string {
@@ -51,6 +86,10 @@ export function DraftWizard({ open, onOpenChange, seasonId, seasonType, teams, r
     ? Math.max(1, Math.ceil(rosterCount / teams.length))
     : seasonType === "summer" ? 10 : 14
 
+  // Roster players fetched lazily for captain picker (Step 3)
+  const [rosterPlayers, setRosterPlayers] = useState<RosterPlayer[]>([])
+  const [rosterLoading, setRosterLoading] = useState(false)
+
   const [form, setForm] = useState<WizardForm>({
     name: suggestDraftName(seasonType),
     draftType: "snake",
@@ -61,7 +100,21 @@ export function DraftWizard({ open, onOpenChange, seasonId, seasonType, teams, r
     draftTime: "19:00",
     location: "",
     teamOrder: teams.map((t) => ({ ...t })),
+    captains: [],
+    preDraftTrades: [],
   })
+
+  // Fetch roster players when entering Step 3 (Teams & Captains)
+  useEffect(() => {
+    if (step === 2 && rosterPlayers.length === 0 && !rosterLoading) {
+      setRosterLoading(true)
+      fetch(`/api/bash/admin/seasons/${seasonId}/draft/roster-players`)
+        .then(res => res.ok ? res.json() : { players: [] })
+        .then(data => setRosterPlayers(data.players || []))
+        .catch(() => {})
+        .finally(() => setRosterLoading(false))
+    }
+  }, [step, seasonId, rosterPlayers.length, rosterLoading])
 
   const canNext = () => {
     if (step === 0) return !!form.name && form.timerSeconds > 0
@@ -125,6 +178,8 @@ export function DraftWizard({ open, onOpenChange, seasonId, seasonType, teams, r
             teamSlug: t.teamSlug,
             position: i + 1,
           })),
+          captains: form.captains,
+          preDraftTrades: form.preDraftTrades,
         }),
       })
 
@@ -183,6 +238,8 @@ export function DraftWizard({ open, onOpenChange, seasonId, seasonType, teams, r
           draftTime: "19:00",
           location: "",
           teamOrder: teams.map((t) => ({ ...t })),
+          captains: [],
+          preDraftTrades: [],
         })
       } else {
         const data = await res.json()
@@ -229,12 +286,23 @@ export function DraftWizard({ open, onOpenChange, seasonId, seasonType, teams, r
         <div className="space-y-4 min-h-[200px]">
           {step === 0 && <StepSettings form={form} setForm={setForm} seasonType={seasonType} rosterCount={rosterCount} teamCount={teams.length} suggestedRounds={suggestedRounds} />}
           {step === 1 && <StepPool rosterCount={rosterCount} teamCount={teams.length} csvFile={csvFile} onCsvFileChange={setCsvFile} />}
-          {step === 2 && <StepTeams teams={form.teamOrder} />}
+          {step === 2 && (
+            <StepTeamsCaptains
+              teams={form.teamOrder}
+              captains={form.captains}
+              rosterPlayers={rosterPlayers}
+              rosterLoading={rosterLoading}
+              onCaptainsChange={(c) => setForm(f => ({ ...f, captains: c }))}
+            />
+          )}
           {step === 3 && (
-            <StepOrder
+            <StepOrderTrades
               teamOrder={form.teamOrder}
+              preDraftTrades={form.preDraftTrades}
+              resolvedRounds={form.rounds ?? suggestedRounds}
               onRandomize={randomizeOrder}
               onMove={moveTeam}
+              onTradesChange={(t) => setForm(f => ({ ...f, preDraftTrades: t }))}
             />
           )}
           {step === 4 && <StepReview form={form} rosterCount={rosterCount} suggestedRounds={suggestedRounds} />}
@@ -459,7 +527,23 @@ function StepPool({ rosterCount, teamCount, csvFile, onCsvFileChange }: {
   )
 }
 
-function StepTeams({ teams }: { teams: { teamSlug: string; teamName: string }[] }) {
+function StepTeamsCaptains({
+  teams,
+  captains,
+  rosterPlayers,
+  rosterLoading,
+  onCaptainsChange,
+}: {
+  teams: { teamSlug: string; teamName: string }[]
+  captains: CaptainAssignment[]
+  rosterPlayers: RosterPlayer[]
+  rosterLoading: boolean
+  onCaptainsChange: (captains: CaptainAssignment[]) => void
+}) {
+  const [searchTerms, setSearchTerms] = useState<Record<string, string>>({})
+
+  const MAX_CAPTAINS_PER_TEAM = 2
+
   if (teams.length === 0) {
     return (
       <div className="text-center py-8 text-sm text-muted-foreground border rounded-md border-dashed">
@@ -467,71 +551,391 @@ function StepTeams({ teams }: { teams: { teamSlug: string; teamName: string }[] 
       </div>
     )
   }
+
+  /** Get all captains assigned to a given team */
+  const getCaptains = (teamSlug: string) => captains.filter(c => c.teamSlug === teamSlug)
+
+  /** Add a captain to a team (up to MAX_CAPTAINS_PER_TEAM) */
+  const addCaptain = (teamSlug: string, player: RosterPlayer) => {
+    const teamCaptains = getCaptains(teamSlug)
+    if (teamCaptains.length >= MAX_CAPTAINS_PER_TEAM) return
+    onCaptainsChange([
+      ...captains,
+      { teamSlug, playerId: player.playerId, playerName: player.playerName },
+    ])
+    // Clear search for this team after selection
+    setSearchTerms(prev => ({ ...prev, [teamSlug]: "" }))
+  }
+
+  /** Remove a specific captain from a team */
+  const removeCaptain = (teamSlug: string, playerId: number) => {
+    onCaptainsChange(captains.filter(c => !(c.teamSlug === teamSlug && c.playerId === playerId)))
+  }
+
+  /** Filter roster players for search — exclude already-assigned captains across all teams */
+  const getFilteredPlayers = (teamSlug: string) => {
+    const term = (searchTerms[teamSlug] || "").toLowerCase()
+    const assignedIds = new Set(captains.map(c => c.playerId))
+    return rosterPlayers
+      .filter(p => !assignedIds.has(p.playerId))
+      .filter(p => !term || p.playerName.toLowerCase().includes(term))
+      .slice(0, 8) // Limit dropdown results
+  }
+
   return (
     <div className="space-y-3">
       <p className="text-sm text-muted-foreground">
-        These teams from the season will participate in the draft. Captain designation is available after creation.
+        Assign up to {MAX_CAPTAINS_PER_TEAM} captains per team. Captains become mandatory keepers in the draft.
+        {rosterLoading && <span className="ml-1 text-muted-foreground/60">(Loading roster…)</span>}
       </p>
       <div className="space-y-2">
-        {teams.map(t => (
-          <div key={t.teamSlug} className="flex items-center gap-3 p-2.5 border rounded-md">
-            <div className="w-7 h-7 rounded bg-muted flex items-center justify-center text-xs font-bold">
-              {t.teamName.charAt(0)}
+        {teams.map(t => {
+          const teamCaptains = getCaptains(t.teamSlug)
+          const search = searchTerms[t.teamSlug] || ""
+          const canAddMore = teamCaptains.length < MAX_CAPTAINS_PER_TEAM
+          const showSearch = canAddMore && rosterPlayers.length > 0
+          const filtered = showSearch && search.length > 0 ? getFilteredPlayers(t.teamSlug) : []
+
+          return (
+            <div key={t.teamSlug} className="border rounded-md p-2.5 space-y-2">
+              <div className="flex items-center gap-3">
+                <div className="w-7 h-7 rounded bg-muted flex items-center justify-center text-xs font-bold shrink-0">
+                  {t.teamName.charAt(0)}
+                </div>
+                <span className="text-sm font-medium flex-1">{t.teamName}</span>
+                {/* Show all assigned captain badges */}
+                {teamCaptains.length > 0 && (
+                  <div className="flex items-center gap-1 flex-wrap justify-end">
+                    {teamCaptains.map(cap => (
+                      <div key={cap.playerId} className="flex items-center gap-0.5">
+                        <Badge variant="outline" className="text-[10px] bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300 gap-1">
+                          <Crown className="h-3 w-3" />
+                          {cap.playerName}
+                        </Badge>
+                        <button
+                          type="button"
+                          onClick={() => removeCaptain(t.teamSlug, cap.playerId)}
+                          className="p-0.5 rounded hover:bg-muted transition-colors"
+                        >
+                          <X className="h-3 w-3 text-muted-foreground" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Captain search input — shown while under the captain limit */}
+              {showSearch && (
+                <div className="relative">
+                  <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+                  <Input
+                    placeholder={teamCaptains.length === 0 ? "Search player to assign as captain…" : "Search for a 2nd captain…"}
+                    className="h-8 pl-7 text-xs"
+                    value={search}
+                    onChange={(e) => setSearchTerms(prev => ({ ...prev, [t.teamSlug]: e.target.value }))}
+                  />
+                  {/* Dropdown results */}
+                  {filtered.length > 0 && (
+                    <div className="absolute z-20 top-full mt-1 left-0 right-0 bg-background border rounded-md shadow-lg max-h-32 overflow-y-auto">
+                      {filtered.map(p => (
+                        <button
+                          key={p.playerId}
+                          type="button"
+                          className="w-full text-left px-3 py-1.5 text-xs hover:bg-muted transition-colors"
+                          onClick={() => addCaptain(t.teamSlug, p)}
+                        >
+                          {p.playerName}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Loading placeholder */}
+              {teamCaptains.length === 0 && rosterPlayers.length === 0 && rosterLoading && (
+                <div className="flex items-center gap-2 text-xs text-muted-foreground py-1">
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  Loading roster players…
+                </div>
+              )}
             </div>
-            <span className="text-sm font-medium">{t.teamName}</span>
-          </div>
-        ))}
+          )
+        })}
       </div>
+      <p className="text-[10px] text-muted-foreground">
+        Captain designation is optional during wizard setup. You can also assign captains after creation.
+      </p>
     </div>
   )
 }
 
-function StepOrder({
+function StepOrderTrades({
   teamOrder,
+  preDraftTrades,
+  resolvedRounds,
   onRandomize,
   onMove,
+  onTradesChange,
 }: {
   teamOrder: { teamSlug: string; teamName: string }[]
+  preDraftTrades: PreDraftTrade[]
+  resolvedRounds: number
   onRandomize: () => void
   onMove: (index: number, direction: "up" | "down") => void
+  onTradesChange: (trades: PreDraftTrade[]) => void
 }) {
+  const teamSlugs = teamOrder.map(t => t.teamSlug)
+  const teamNameMap: Record<string, string> = {}
+  teamOrder.forEach(t => { teamNameMap[t.teamSlug] = t.teamName })
+
+  /**
+   * Compute pick ownership state BEFORE a given trade index.
+   * Used to show "(via Team)" annotations for acquired picks.
+   */
+  const getOwnershipBefore = (tradeIndex: number): Map<string, string> => {
+    const ownership = new Map<string, string>()
+    for (const slug of teamSlugs) {
+      for (let r = 1; r <= resolvedRounds; r++) {
+        ownership.set(`${slug}::${r}`, slug)
+      }
+    }
+    // Process trades [0..tradeIndex-1]
+    for (let i = 0; i < tradeIndex; i++) {
+      const t = preDraftTrades[i]
+      const keyA = `${t.teamAOriginalOwner}::${t.teamARound}`
+      const keyB = `${t.teamBOriginalOwner}::${t.teamBRound}`
+      const ownerA = ownership.get(keyA)
+      const ownerB = ownership.get(keyB)
+      if (ownerA !== undefined && ownerB !== undefined) {
+        ownership.set(keyA, ownerB)
+        ownership.set(keyB, ownerA)
+      }
+    }
+    return ownership
+  }
+
+  /**
+   * For a given trade, check if either side involves an acquired pick
+   * and return the original owner's team name for the "(via X)" label.
+   */
+  const getViaLabels = (tradeIndex: number) => {
+    const trade = preDraftTrades[tradeIndex]
+    return {
+      sideA: trade.teamAOriginalOwner !== trade.teamASlug
+        ? teamNameMap[trade.teamAOriginalOwner] || trade.teamAOriginalOwner
+        : null,
+      sideB: trade.teamBOriginalOwner !== trade.teamBSlug
+        ? teamNameMap[trade.teamBOriginalOwner] || trade.teamBOriginalOwner
+        : null,
+    }
+  }
+
+  /**
+   * Find picks currently owned by a team at a given trade index.
+   * Returns list of { originalOwner, round } for populating the "acquired picks" options.
+   */
+  const getPicksOwnedByTeam = (teamSlug: string, tradeIndex: number) => {
+    const ownership = getOwnershipBefore(tradeIndex)
+    const picks: { originalOwner: string; round: number }[] = []
+    for (const [key, owner] of ownership) {
+      if (owner === teamSlug) {
+        const [orig, rd] = key.split("::")
+        picks.push({ originalOwner: orig, round: parseInt(rd) })
+      }
+    }
+    picks.sort((a, b) => a.round - b.round)
+    return picks
+  }
+
+  const addTrade = () => {
+    if (teamOrder.length < 2) return
+    onTradesChange([
+      ...preDraftTrades,
+      {
+        teamASlug: teamOrder[0].teamSlug,
+        teamARound: 1,
+        teamAOriginalOwner: teamOrder[0].teamSlug,
+        teamBSlug: teamOrder[1].teamSlug,
+        teamBRound: 1,
+        teamBOriginalOwner: teamOrder[1].teamSlug,
+      },
+    ])
+  }
+
+  /** Update a trade field, auto-syncing originalOwner when team changes */
+  const updateTrade = (index: number, field: keyof PreDraftTrade, value: string | number) => {
+    const updated = [...preDraftTrades]
+    const trade = { ...updated[index], [field]: value }
+
+    // When the team changes, reset originalOwner to the new team (their own pick)
+    if (field === "teamASlug") trade.teamAOriginalOwner = value as string
+    if (field === "teamBSlug") trade.teamBOriginalOwner = value as string
+
+    updated[index] = trade
+    onTradesChange(updated)
+  }
+
+  /** Update the pick being traded (round + originalOwner together) */
+  const updateTradePick = (index: number, side: "A" | "B", pickKey: string) => {
+    const [originalOwner, roundStr] = pickKey.split("::")
+    const updated = [...preDraftTrades]
+    if (side === "A") {
+      updated[index] = { ...updated[index], teamAOriginalOwner: originalOwner, teamARound: parseInt(roundStr) }
+    } else {
+      updated[index] = { ...updated[index], teamBOriginalOwner: originalOwner, teamBRound: parseInt(roundStr) }
+    }
+    onTradesChange(updated)
+  }
+
+  const removeTrade = (index: number) => {
+    onTradesChange(preDraftTrades.filter((_, i) => i !== index))
+  }
+
   return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">First pick at top, last pick at bottom.</p>
-        <Button variant="outline" size="sm" onClick={onRandomize}>
-          <Shuffle className="h-3.5 w-3.5 mr-1.5" />
-          Randomize
-        </Button>
-      </div>
-      <div className="space-y-1.5">
-        {teamOrder.map((t, i) => (
-          <div key={t.teamSlug} className="flex items-center gap-2 p-2 border rounded-md group">
-            <span className="w-6 text-center text-xs font-mono text-muted-foreground">{i + 1}</span>
-            <GripVertical className="h-4 w-4 text-muted-foreground/50" />
-            <span className="text-sm font-medium flex-1">{t.teamName}</span>
-            <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-6 w-6"
-                onClick={() => onMove(i, "up")}
-                disabled={i === 0}
-              >
-                ↑
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-6 w-6"
-                onClick={() => onMove(i, "down")}
-                disabled={i === teamOrder.length - 1}
-              >
-                ↓
-              </Button>
+    <div className="space-y-5">
+      {/* Draft Order Section */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <p className="text-sm text-muted-foreground">First pick at top, last pick at bottom.</p>
+          <Button variant="outline" size="sm" onClick={onRandomize}>
+            <Shuffle className="h-3.5 w-3.5 mr-1.5" />
+            Randomize
+          </Button>
+        </div>
+        <div className="space-y-1.5">
+          {teamOrder.map((t, i) => (
+            <div key={t.teamSlug} className="flex items-center gap-2 p-2 border rounded-md group">
+              <span className="w-6 text-center text-xs font-mono text-muted-foreground">{i + 1}</span>
+              <GripVertical className="h-4 w-4 text-muted-foreground/50" />
+              <span className="text-sm font-medium flex-1">{t.teamName}</span>
+              <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => onMove(i, "up")} disabled={i === 0}>↑</Button>
+                <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => onMove(i, "down")} disabled={i === teamOrder.length - 1}>↓</Button>
+              </div>
             </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Pre-Draft Trades Section */}
+      <div className="space-y-3 pt-3 border-t">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+              <ArrowLeftRight className="h-3.5 w-3.5" />
+              Pre-Draft Pick Swaps
+            </p>
+            <p className="text-[10px] text-muted-foreground mt-0.5">
+              Configure pick trades agreed upon before draft day. Trades are processed in order.
+            </p>
           </div>
-        ))}
+          <Button variant="outline" size="sm" onClick={addTrade} disabled={teamOrder.length < 2}>
+            <Plus className="h-3.5 w-3.5 mr-1" />
+            Add Swap
+          </Button>
+        </div>
+
+        {preDraftTrades.length === 0 ? (
+          <div className="text-center py-4 text-xs text-muted-foreground border rounded-md border-dashed">
+            No pre-draft pick swaps configured. This is optional.
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {preDraftTrades.map((trade, i) => {
+              const viaLabels = getViaLabels(i)
+              const picksA = getPicksOwnedByTeam(trade.teamASlug, i)
+              const picksB = getPicksOwnedByTeam(trade.teamBSlug, i)
+              const currentPickKeyA = `${trade.teamAOriginalOwner}::${trade.teamARound}`
+              const currentPickKeyB = `${trade.teamBOriginalOwner}::${trade.teamBRound}`
+
+              return (
+                <div key={i} className="border rounded-md bg-muted/30">
+                  {/* Trade header */}
+                  <div className="px-2.5 pt-2 pb-1 text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
+                    Trade {i + 1}
+                  </div>
+                  <div className="flex items-center gap-2 px-2.5 pb-2.5">
+                    {/* Side A: Team + Pick */}
+                    <div className="flex-1 space-y-1">
+                      <Select value={trade.teamASlug} onValueChange={(v) => updateTrade(i, "teamASlug", v)}>
+                        <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {teamOrder.map(t => (
+                            <SelectItem key={t.teamSlug} value={t.teamSlug} className="text-xs">{t.teamName}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Select value={currentPickKeyA} onValueChange={(v) => updateTradePick(i, "A", v)}>
+                        <SelectTrigger className="h-7 text-xs">
+                          <SelectValue placeholder="Select pick" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {picksA.map(p => {
+                            const isAcquired = p.originalOwner !== trade.teamASlug
+                            const label = isAcquired
+                              ? `Rd ${p.round} (via ${teamNameMap[p.originalOwner] || p.originalOwner})`
+                              : `Rd ${p.round}`
+                            return (
+                              <SelectItem key={`${p.originalOwner}::${p.round}`} value={`${p.originalOwner}::${p.round}`} className="text-xs">
+                                {label}
+                              </SelectItem>
+                            )
+                          })}
+                        </SelectContent>
+                      </Select>
+                      {viaLabels.sideA && (
+                        <p className="text-[10px] text-amber-600 dark:text-amber-400 pl-1">via {viaLabels.sideA}</p>
+                      )}
+                    </div>
+
+                    {/* Swap icon */}
+                    <ArrowLeftRight className="h-4 w-4 text-muted-foreground shrink-0" />
+
+                    {/* Side B: Team + Pick */}
+                    <div className="flex-1 space-y-1">
+                      <Select value={trade.teamBSlug} onValueChange={(v) => updateTrade(i, "teamBSlug", v)}>
+                        <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {teamOrder.map(t => (
+                            <SelectItem key={t.teamSlug} value={t.teamSlug} className="text-xs">{t.teamName}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Select value={currentPickKeyB} onValueChange={(v) => updateTradePick(i, "B", v)}>
+                        <SelectTrigger className="h-7 text-xs">
+                          <SelectValue placeholder="Select pick" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {picksB.map(p => {
+                            const isAcquired = p.originalOwner !== trade.teamBSlug
+                            const label = isAcquired
+                              ? `Rd ${p.round} (via ${teamNameMap[p.originalOwner] || p.originalOwner})`
+                              : `Rd ${p.round}`
+                            return (
+                              <SelectItem key={`${p.originalOwner}::${p.round}`} value={`${p.originalOwner}::${p.round}`} className="text-xs">
+                                {label}
+                              </SelectItem>
+                            )
+                          })}
+                        </SelectContent>
+                      </Select>
+                      {viaLabels.sideB && (
+                        <p className="text-[10px] text-amber-600 dark:text-amber-400 pl-1">via {viaLabels.sideB}</p>
+                      )}
+                    </div>
+
+                    {/* Remove */}
+                    <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={() => removeTrade(i)}>
+                      <Trash2 className="h-3.5 w-3.5 text-muted-foreground" />
+                    </Button>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
       </div>
     </div>
   )
@@ -549,6 +953,7 @@ function StepReview({ form, rosterCount, suggestedRounds }: { form: WizardForm; 
         <ReviewItem label="Max Keepers" value={form.maxKeepers} />
         <ReviewItem label="Teams" value={form.teamOrder.length} />
         <ReviewItem label="Pool Size" value={rosterCount} />
+        <ReviewItem label="Captains" value={form.captains.length > 0 ? form.captains.length : "None"} />
         {form.draftDate && (
           <ReviewItem
             label="Date"
@@ -570,6 +975,35 @@ function StepReview({ form, rosterCount, suggestedRounds }: { form: WizardForm; 
           ))}
         </div>
       </div>
+
+      {form.preDraftTrades.length > 0 && (
+        <div className="space-y-1.5">
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Pre-Draft Pick Swaps</p>
+          <div className="space-y-1">
+            {form.preDraftTrades.map((trade, i) => {
+              const teamA = form.teamOrder.find(t => t.teamSlug === trade.teamASlug)?.teamName || trade.teamASlug
+              const teamB = form.teamOrder.find(t => t.teamSlug === trade.teamBSlug)?.teamName || trade.teamBSlug
+              const viaA = trade.teamAOriginalOwner !== trade.teamASlug
+                ? form.teamOrder.find(t => t.teamSlug === trade.teamAOriginalOwner)?.teamName || trade.teamAOriginalOwner
+                : null
+              const viaB = trade.teamBOriginalOwner !== trade.teamBSlug
+                ? form.teamOrder.find(t => t.teamSlug === trade.teamBOriginalOwner)?.teamName || trade.teamBOriginalOwner
+                : null
+              return (
+                <div key={i} className="text-xs bg-muted/50 px-2 py-1.5 rounded-md flex items-center gap-1.5 flex-wrap">
+                  <span className="font-medium">{teamA}</span>
+                  <span>Rd {trade.teamARound}</span>
+                  {viaA && <span className="text-amber-600 dark:text-amber-400">(via {viaA})</span>}
+                  <ArrowLeftRight className="h-3 w-3 text-muted-foreground" />
+                  <span className="font-medium">{teamB}</span>
+                  <span>Rd {trade.teamBRound}</span>
+                  {viaB && <span className="text-amber-600 dark:text-amber-400">(via {viaB})</span>}
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       <p className="text-xs text-muted-foreground">
         The draft will be created in <strong>draft</strong> status with <strong>{rosterCount}</strong> players auto-added to the pool from the season roster. You can enrich with Sportability CSV data and edit all settings before publishing.

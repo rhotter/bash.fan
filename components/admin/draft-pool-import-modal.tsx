@@ -140,7 +140,7 @@ export function DraftPoolImportModal({
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+      <DialogContent className="max-w-lg max-h-[85vh] flex flex-col overflow-hidden">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Upload className="h-5 w-5" />
@@ -163,7 +163,7 @@ export function DraftPoolImportModal({
 
         {/* Step 1: Upload */}
         {step === "upload" && (
-          <div className="space-y-4">
+          <div className="space-y-4 min-w-0">
             <div className="border-2 border-dashed border-muted rounded-lg p-6 text-center">
               <input
                 type="file"
@@ -196,9 +196,9 @@ export function DraftPoolImportModal({
 
         {/* Step 2: Preview */}
         {step === "preview" && stats && (
-          <div className="space-y-4">
+          <div className="flex flex-col gap-4 min-h-0 min-w-0 overflow-y-auto pr-1">
             {/* Summary line */}
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm text-muted-foreground shrink-0">
               Parsed <strong>{stats.totalParsed}</strong> players from CSV.
               {stats.alreadyInPool > 0 && <> <strong>{stats.alreadyInPool}</strong> already in pool.</>}
               {stats.willAdd > 0 && <> <strong>{stats.willAdd}</strong> new to pool.</>}
@@ -206,31 +206,31 @@ export function DraftPoolImportModal({
 
             {/* Warnings */}
             {stats.newPlayers > 0 && (
-              <div className="flex items-center gap-2 p-3 rounded-md bg-amber-50 text-amber-800 dark:bg-amber-950 dark:text-amber-200 text-sm">
+              <div className="flex items-center gap-2 p-3 rounded-md bg-amber-50 text-amber-800 dark:bg-amber-950 dark:text-amber-200 text-sm shrink-0">
                 <AlertTriangle className="h-4 w-4 shrink-0" />
                 {stats.newPlayers} new player record{stats.newPlayers > 1 ? "s" : ""} will be created.
               </div>
             )}
             {stats.alreadyInPool > 0 && (
-              <div className="flex items-center gap-2 p-3 rounded-md bg-blue-50 text-blue-800 dark:bg-blue-950 dark:text-blue-200 text-sm">
+              <div className="flex items-center gap-2 p-3 rounded-md bg-blue-50 text-blue-800 dark:bg-blue-950 dark:text-blue-200 text-sm shrink-0">
                 <FileCheck className="h-4 w-4 shrink-0" />
                 {stats.alreadyInPool} player{stats.alreadyInPool > 1 ? "s" : ""} already in pool — their registration data will be updated.
               </div>
             )}
 
-            {/* Player list preview (first 20) */}
-            <div>
+            {/* Player list preview */}
+            <div className="min-h-0 shrink">
               <h4 className="text-xs font-semibold uppercase text-muted-foreground mb-2">
                 Players ({players.length})
               </h4>
-              <div className="max-h-48 overflow-y-auto border rounded-md">
-                <table className="w-full text-sm">
+              <div className="max-h-48 overflow-y-auto overflow-x-hidden border rounded-md">
+                <table className="w-full text-sm table-fixed">
                   <thead className="bg-muted sticky top-0 z-10">
                     <tr>
-                      <th className="text-left p-2 font-medium">Name</th>
-                      <th className="text-left p-2 font-medium">Skill</th>
-                      <th className="text-left p-2 font-medium">Pos</th>
-                      <th className="text-left p-2 font-medium">Status</th>
+                      <th className="text-left p-2 font-medium w-[35%]">Name</th>
+                      <th className="text-left p-2 font-medium w-[25%]">Skill</th>
+                      <th className="text-left p-2 font-medium w-[22%]">Pos</th>
+                      <th className="text-left p-2 font-medium w-[18%]">Status</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -238,19 +238,19 @@ export function DraftPoolImportModal({
                       const meta = p.registrationMeta as Record<string, unknown>
                       return (
                         <tr key={i} className="border-t">
-                          <td className="p-2">{p.playerName}</td>
+                          <td className="p-2 truncate">{p.playerName}</td>
                           <td className="p-2">
                             <SkillBadge skillLevel={meta?.skillLevel as string || null} />
                           </td>
-                          <td className="p-2 text-muted-foreground">
+                          <td className="p-2 text-muted-foreground truncate">
                             {(meta?.positions as string) || "—"}
                           </td>
                           <td className="p-2">
                             {p.alreadyInPool && (
-                              <Badge variant="outline" className="text-xs">In Pool</Badge>
+                              <Badge variant="outline" className="text-[10px]">In Pool</Badge>
                             )}
                             {p.isNew && (
-                              <Badge variant="outline" className="text-xs bg-amber-50 text-amber-700">New</Badge>
+                              <Badge variant="outline" className="text-[10px] bg-amber-50 text-amber-700">New</Badge>
                             )}
                           </td>
                         </tr>
@@ -262,7 +262,7 @@ export function DraftPoolImportModal({
             </div>
 
             {/* Import mode toggle */}
-            <div className="space-y-2">
+            <div className="space-y-2 shrink-0">
               <Label className="text-xs font-semibold uppercase text-muted-foreground">Import Mode</Label>
               <RadioGroup
                 value={importMode}
@@ -286,13 +286,13 @@ export function DraftPoolImportModal({
             </div>
 
             {importMode === "overwrite" && stats.alreadyInPool < stats.totalParsed && (
-              <div className="flex items-center gap-2 p-3 rounded-md bg-destructive/10 text-destructive text-sm">
+              <div className="flex items-center gap-2 p-3 rounded-md bg-destructive/10 text-destructive text-sm shrink-0">
                 <AlertTriangle className="h-4 w-4 shrink-0" />
                 Pool players not matched in this CSV will be removed from the draft pool.
               </div>
             )}
 
-            <DialogFooter>
+            <DialogFooter className="shrink-0">
               <Button variant="outline" onClick={reset}>
                 Back
               </Button>
