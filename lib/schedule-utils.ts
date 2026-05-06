@@ -149,6 +149,42 @@ export function generateRoundRobin(
 }
 
 /**
+ * Compute which team (by 0-based index) has a bye each week/round.
+ *
+ * For even team counts every team plays every round, so there are no byes.
+ * For odd team counts, exactly one team sits out each round because the
+ * Berger tables algorithm adds a phantom "bye" sentinel and skips those matches.
+ *
+ * @param slots       Output of generateRoundRobin()
+ * @param numTeams    The REAL team count (before padding to even)
+ * @returns           Map of weekNumber → team index with bye (or undefined if no bye)
+ */
+export function computeByeTeams(
+  slots: RoundRobinSlot[],
+  numTeams: number
+): Record<number, number | undefined> {
+  if (numTeams % 2 === 0) return {} // Even team count — no byes
+
+  const byWeek: Record<number, Set<number>> = {}
+  for (const s of slots) {
+    if (!byWeek[s.round]) byWeek[s.round] = new Set()
+    byWeek[s.round].add(s.home)
+    byWeek[s.round].add(s.away)
+  }
+
+  const result: Record<number, number | undefined> = {}
+  for (const [weekStr, playing] of Object.entries(byWeek)) {
+    for (let t = 0; t < numTeams; t++) {
+      if (!playing.has(t)) {
+        result[Number(weekStr)] = t
+        break
+      }
+    }
+  }
+  return result
+}
+
+/**
  * Generate a list of major US holidays (and some key dates like Super Bowl) for a given year.
  */
 export function getHolidaysForYear(year: number): Holiday[] {

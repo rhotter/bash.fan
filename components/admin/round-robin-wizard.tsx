@@ -36,6 +36,7 @@ import { toast } from "sonner"
 import { ChevronLeft, ChevronRight, Calendar, Loader2, Info } from "lucide-react"
 import {
   generateRoundRobin,
+  computeByeTeams,
   getHolidaysForYear,
   type RoundRobinSlot,
   type Holiday,
@@ -129,6 +130,13 @@ export function RoundRobinWizard({
   const weekNumbers = useMemo(
     () => Object.keys(slotsByWeek).map(Number).sort((a, b) => a - b),
     [slotsByWeek]
+  )
+
+  // Compute which team has a bye each week (only relevant for odd team counts)
+  const isOddTeams = effectiveTeams.length % 2 !== 0
+  const byeTeamsByWeek = useMemo(
+    () => computeByeTeams(slots, effectiveTeams.length),
+    [slots, effectiveTeams.length]
   )
 
   // Compute holidays for the start year and next year
@@ -508,6 +516,17 @@ export function RoundRobinWizard({
                     )}
                   </div>
                 </div>
+                {isOddTeams && (
+                  <div className="p-3 border border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-950/30 rounded-lg text-sm flex items-start gap-2">
+                    <Info className="h-4 w-4 mt-0.5 text-amber-600 dark:text-amber-400 shrink-0" />
+                    <div>
+                      <span className="font-medium text-amber-800 dark:text-amber-300">Odd number of teams ({effectiveTeams.length})</span>
+                      <span className="text-amber-700 dark:text-amber-400">
+                        {" "}— one team will have a bye each week. Byes rotate so every team sits out an equal number of times per cycle.
+                      </span>
+                    </div>
+                  </div>
+                )}
                 <div className="p-3 border rounded-lg text-sm bg-muted/10">
                   <strong>Preview:</strong>{" "}
                   {slots.length} total games across {weekNumbers.length} weeks
@@ -681,6 +700,17 @@ export function RoundRobinWizard({
                             </div>
                           </div>
                         ))}
+                        {/* Bye annotation for odd team counts */}
+                        {isOddTeams && byeTeamsByWeek[week] !== undefined && (
+                          <div className="flex items-center gap-2 text-sm text-amber-700 dark:text-amber-400 pt-1 border-t border-dashed mt-1">
+                            <Badge variant="outline" className="text-[10px] bg-amber-50 text-amber-700 border-amber-300 dark:bg-amber-950 dark:text-amber-400 dark:border-amber-700">
+                              BYE
+                            </Badge>
+                            <span className="text-xs text-muted-foreground">
+                              {effectiveTeams[byeTeamsByWeek[week]!]?.teamName ?? `Team ${byeTeamsByWeek[week]! + 1}`}
+                            </span>
+                          </div>
+                        )}
                       </div>
                     )
                   })}
@@ -754,6 +784,35 @@ export function RoundRobinWizard({
                           </td>
                         </tr>
                       ))}
+                      {/* Bye rows in review table */}
+                      {isOddTeams && (() => {
+                        // Group preview games by date to show bye per game-date
+                        const dateSet = new Set(previewGames.map(g => g.date))
+                        const sortedGameDates = [...dateSet].sort()
+                        return sortedGameDates.map(date => {
+                          // Find which week this date belongs to
+                          const weekEntry = Object.entries(weekDates).find(([, d]) => d === date)
+                          if (!weekEntry) return null
+                          const weekNum = Number(weekEntry[0])
+                          const byeIdx = byeTeamsByWeek[weekNum]
+                          if (byeIdx === undefined) return null
+                          const byeTeam = effectiveTeams[byeIdx]
+                          return (
+                            <tr key={`bye-${date}`} className="border-b last:border-0 bg-amber-50/50 dark:bg-amber-950/20">
+                              <td className="p-2 text-muted-foreground">{date}</td>
+                              <td className="p-2"></td>
+                              <td className="p-2 text-right text-muted-foreground italic" colSpan={3}>
+                                {byeTeam?.teamName ?? `Team ${byeIdx + 1}`} — BYE
+                              </td>
+                              <td className="p-2">
+                                <Badge variant="outline" className="text-[10px] bg-amber-50 text-amber-700 border-amber-300 dark:bg-amber-950 dark:text-amber-400 dark:border-amber-700">
+                                  bye
+                                </Badge>
+                              </td>
+                            </tr>
+                          )
+                        })
+                      })()}
                     </tbody>
                   </table>
                 </div>

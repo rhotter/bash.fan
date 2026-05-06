@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useMemo } from "react"
 import { Loader2, Plus, Calendar, Trash2, Edit, Shuffle, Trophy } from "lucide-react"
 import Link from "next/link"
 import { TeamLogo } from "@/components/team-logo"
@@ -173,6 +173,36 @@ export function SeasonScheduleTab({ seasonId, seasonStatus, initialTeams, defaul
 
   const sortedDates = Object.keys(groupedGames).sort()
 
+  // Compute bye teams per game date for odd team counts.
+  // For each regular-season date, find which season teams are NOT playing.
+  const byesByDate = useMemo(() => {
+    const isOdd = initialTeams.length % 2 !== 0
+    if (!isOdd || initialTeams.length < 3) return {} as Record<string, string[]>
+
+    const result: Record<string, string[]> = {}
+    const allSlugs = new Set(initialTeams.map(t => t.teamSlug))
+
+    for (const [date, dateGames] of Object.entries(groupedGames)) {
+      // Only annotate byes on regular-season game dates
+      if (!dateGames.some(g => g.gameType === "regular")) continue
+
+      const playingSlugs = new Set<string>()
+      for (const g of dateGames) {
+        if (g.gameType === "regular") {
+          playingSlugs.add(g.homeSlug)
+          playingSlugs.add(g.awaySlug)
+        }
+      }
+
+      const byes: string[] = []
+      for (const slug of allSlugs) {
+        if (!playingSlugs.has(slug)) byes.push(slug)
+      }
+      if (byes.length > 0) result[date] = byes
+    }
+    return result
+  }, [groupedGames, initialTeams])
+
 
 
   const getTeamDisplay = (teamName: string, placeholder: string | null) => {
@@ -326,6 +356,20 @@ export function SeasonScheduleTab({ seasonId, seasonStatus, initialTeams, defaul
                       </div>
                     ))}
                   </div>
+                  {/* Bye annotations for odd team counts */}
+                  {byesByDate[date] && byesByDate[date].length > 0 && (
+                    <div className="mt-2 flex items-center gap-2 px-3 py-2 border border-dashed border-amber-300 dark:border-amber-700 rounded-lg bg-amber-50/50 dark:bg-amber-950/20">
+                      <Badge variant="outline" className="text-[10px] bg-amber-50 text-amber-700 border-amber-300 dark:bg-amber-950 dark:text-amber-400 dark:border-amber-700 shrink-0">
+                        BYE
+                      </Badge>
+                      <span className="text-xs text-muted-foreground">
+                        {byesByDate[date].map(slug => {
+                          const team = initialTeams.find(t => t.teamSlug === slug)
+                          return team?.teamName ?? slug
+                        }).join(", ")}
+                      </span>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
