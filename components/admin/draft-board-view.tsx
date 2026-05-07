@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ArrowLeft, RotateCcw, Play, Loader2, Crown, Search, X, Check } from "lucide-react"
 
@@ -86,6 +87,15 @@ interface DraftBoardViewProps {
 
 // ─── Component ──────────────────────────────────────────────────────────────
 
+function formatPlayerName(name: string | null) {
+  if (!name) return "—"
+  if (name.length > 14 && name.includes(" ")) {
+    const parts = name.split(" ")
+    return `${parts[0][0]}. ${parts.slice(1).join(" ")}`
+  }
+  return name
+}
+
 export function DraftBoardView({
   seasonId,
   seasonName,
@@ -105,6 +115,7 @@ export function DraftBoardView({
   const [isStarting, setIsStarting] = useState(false)
   const [showClearKeepersConfirm, setShowClearKeepersConfirm] = useState(false)
   const [isClearingKeepers, setIsClearingKeepers] = useState(false)
+  const [isUndoing, setIsUndoing] = useState(false)
 
   // Keeper entry state
   const [selectedTeam, setSelectedTeam] = useState<string>(teams[0]?.teamSlug || "")
@@ -118,6 +129,19 @@ export function DraftBoardView({
   const [livePlayerSearch, setLivePlayerSearch] = useState("")
   const [isSubmittingPick, setIsSubmittingPick] = useState(false)
   const [selectedPlayerId, setSelectedPlayerId] = useState<number | null>(null)
+  
+  // Dialog state
+  const [tradeDialogOpen, setTradeDialogOpen] = useState(false)
+  const [tradeTeam1, setTradeTeam1] = useState<string>("")
+  const [tradePick1, setTradePick1] = useState<string>("")
+  const [tradeTeam2, setTradeTeam2] = useState<string>("")
+  const [tradePick2, setTradePick2] = useState<string>("")
+  const [isTrading, setIsTrading] = useState(false)
+
+  const [editOrderDialogOpen, setEditOrderDialogOpen] = useState(false)
+  const [editOrderPickId, setEditOrderPickId] = useState<string>("")
+  const [editOrderTeamSlug, setEditOrderTeamSlug] = useState<string>("")
+  const [isEditingOrder, setIsEditingOrder] = useState(false)
 
   // Compute available players for live draft
   const availableForDraft = useMemo(() => {
@@ -264,6 +288,91 @@ export function DraftBoardView({
       toast.error(msg)
     } finally {
       setIsSubmittingPick(false)
+    }
+  }
+
+  const handleUndo = async () => {
+    setIsUndoing(true)
+    try {
+      const res = await fetch(`/api/bash/admin/seasons/${seasonId}/draft/${draft.id}/undo`, {
+        method: "POST"
+      })
+      
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.error || "Failed to undo pick")
+      }
+      
+      const result = await res.json()
+      setPicks(result.picks)
+      setDraft(result.draft)
+      setSelectedPlayerId(null)
+      toast.success("Pick undone")
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "An error occurred"
+      toast.error(msg)
+    } finally {
+      setIsUndoing(false)
+    }
+  }
+
+  const upcomingPicks = useMemo(() => {
+    return picks.filter(p => p.playerId === null && !p.isKeeper)
+  }, [picks])
+
+  const handleTrade = async () => {
+    if (!tradePick1 || !tradePick2) return
+    setIsTrading(true)
+    try {
+      const res = await fetch(`/api/bash/admin/seasons/${seasonId}/draft/${draft.id}/trade`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "pick_swap", pickIds: [tradePick1, tradePick2] })
+      })
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.error || "Failed to execute trade")
+      }
+      const result = await res.json()
+      setPicks(result.picks)
+      setTradeDialogOpen(false)
+      setTradeTeam1("")
+      setTradePick1("")
+      setTradeTeam2("")
+      setTradePick2("")
+      toast.success("Trade executed successfully")
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "An error occurred"
+      toast.error(msg)
+    } finally {
+      setIsTrading(false)
+    }
+  }
+
+  const handleEditOrder = async () => {
+    if (!editOrderPickId || !editOrderTeamSlug) return
+    setIsEditingOrder(true)
+    try {
+      const res = await fetch(`/api/bash/admin/seasons/${seasonId}/draft/${draft.id}/pick/${editOrderPickId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ teamSlug: editOrderTeamSlug })
+      })
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.error || "Failed to edit order")
+      }
+      const result = await res.json()
+      setPicks(result.picks)
+      setEditOrderDialogOpen(false)
+      setEditOrderPickId("")
+      setEditOrderTeamSlug("")
+      toast.success("Pick order updated")
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "An error occurred"
+      toast.error(msg)
+    } finally {
+      setIsEditingOrder(false)
     }
   }
 
@@ -496,10 +605,11 @@ export function DraftBoardView({
       }
     }
 
-    // Fill with actual picks
+    // Fill with actual picks — key by originalTeamSlug so picks stay
+    // in their original column even after trades
     for (const pick of picks) {
       if (grid[pick.round]) {
-        grid[pick.round][pick.teamSlug] = pick
+        grid[pick.round][pick.originalTeamSlug] = pick
       }
     }
 
@@ -619,6 +729,152 @@ export function DraftBoardView({
           )}
         </div>
       </div>
+
+      {/* Trade Dialog */}
+      <Dialog open={tradeDialogOpen} onOpenChange={setTradeDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Swap Picks</DialogTitle>
+            <DialogDescription>Select two upcoming picks to swap their assigned teams.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            {/* Side A */}
+            <div className="rounded-lg border bg-muted/30 p-3 space-y-2">
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">Team</label>
+                <Select value={tradeTeam1} onValueChange={(val) => { setTradeTeam1(val); setTradePick1(""); }}>
+                  <SelectTrigger className="bg-background">
+                    <SelectValue placeholder="Select team" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {teams.map(t => (
+                      <SelectItem key={`t1-${t.teamSlug}`} value={t.teamSlug}>
+                        {t.teamName}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">Pick to trade away</label>
+                <Select value={tradePick1} onValueChange={setTradePick1} disabled={!tradeTeam1}>
+                  <SelectTrigger className="bg-background">
+                    <SelectValue placeholder={tradeTeam1 ? "Select pick" : "Select a team first"} />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-[250px]">
+                    {upcomingPicks.filter(p => p.teamSlug === tradeTeam1).map(p => (
+                      <SelectItem key={p.id} value={p.id}>
+                        Round {p.round}, Pick {p.pickNumber}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {/* Divider */}
+            <div className="flex items-center gap-3 px-2">
+              <div className="h-px flex-1 bg-border" />
+              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">for</span>
+              <div className="h-px flex-1 bg-border" />
+            </div>
+
+            {/* Side B */}
+            <div className="rounded-lg border bg-muted/30 p-3 space-y-2">
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">Team</label>
+                <Select value={tradeTeam2} onValueChange={(val) => { setTradeTeam2(val); setTradePick2(""); }}>
+                  <SelectTrigger className="bg-background">
+                    <SelectValue placeholder="Select team" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {teams.map(t => (
+                      <SelectItem key={`t2-${t.teamSlug}`} value={t.teamSlug}>
+                        {t.teamName}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">Pick to trade away</label>
+                <Select value={tradePick2} onValueChange={setTradePick2} disabled={!tradeTeam2}>
+                  <SelectTrigger className="bg-background">
+                    <SelectValue placeholder={tradeTeam2 ? "Select pick" : "Select a team first"} />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-[250px]">
+                    {upcomingPicks.filter(p => p.teamSlug === tradeTeam2).map(p => (
+                      <SelectItem key={p.id} value={p.id}>
+                        Round {p.round}, Pick {p.pickNumber}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setTradeDialogOpen(false)}>Cancel</Button>
+            <Button onClick={handleTrade} disabled={isTrading || !tradePick1 || !tradePick2 || tradePick1 === tradePick2}>
+              {isTrading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+              Execute Trade
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Order Dialog */}
+      <Dialog open={editOrderDialogOpen} onOpenChange={setEditOrderDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Pick Order</DialogTitle>
+            <DialogDescription>Assign a different team to an upcoming pick slot.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Pick Slot</label>
+              <Select value={editOrderPickId} onValueChange={setEditOrderPickId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select an open pick" />
+                </SelectTrigger>
+                <SelectContent className="max-h-[300px]">
+                  {upcomingPicks.map(p => {
+                    const t = teams.find(team => team.teamSlug === p.teamSlug)
+                    return (
+                      <SelectItem key={p.id} value={p.id}>
+                        R{p.round}P{p.pickNumber} — Currently: {t?.teamName}
+                      </SelectItem>
+                    )
+                  })}
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div className="space-y-2">
+              <label className="text-sm font-medium">New Team</label>
+              <Select value={editOrderTeamSlug} onValueChange={setEditOrderTeamSlug}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select team" />
+                </SelectTrigger>
+                <SelectContent>
+                  {teams.map(t => (
+                    <SelectItem key={t.teamSlug} value={t.teamSlug}>
+                      {t.teamName}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditOrderDialogOpen(false)}>Cancel</Button>
+            <Button onClick={handleEditOrder} disabled={isEditingOrder || !editOrderPickId || !editOrderTeamSlug}>
+              {isEditingOrder ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+              Save Changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Keeper entry panel (shown in draft or published state) */}
       {(isSimulation || isPreDraft) && (
@@ -831,16 +1087,23 @@ export function DraftBoardView({
                     </td>
                     {teams.map((t) => {
                       const pick = boardGrid[round]?.[t.teamSlug]
-                      const isTraded = pick && pick.originalTeamSlug !== pick.teamSlug
+                      const isTradedAway = pick && pick.teamSlug !== t.teamSlug
+                      const newOwnerTeam = isTradedAway ? teams.find(tm => tm.teamSlug === pick.teamSlug) : null
+                      const playerInPool = pick?.playerId ? pool.find(p => p.playerId === pick.playerId) : null
+                      const isRookie = playerInPool?.registrationMeta?.isRookie === true
+                      const isGoalie = typeof playerInPool?.registrationMeta?.positions === "string" && playerInPool.registrationMeta.positions.includes("G")
+
                       return (
                         <td
                           key={t.teamSlug}
-                          className={`border p-1.5 text-center text-xs ${
+                          className={`border p-1.5 text-left text-xs ${
                             pick?.playerId
                               ? pick.isKeeper
                                 ? "bg-amber-500/5"
                                 : "bg-green-500/5"
-                              : ""
+                              : isTradedAway
+                                ? "bg-blue-500/5"
+                                : "text-center"
                           }`}
                           style={{
                             backgroundColor: pick?.playerId && t.color
@@ -849,9 +1112,9 @@ export function DraftBoardView({
                           }}
                         >
                           {pick?.playerId ? (
-                            <div className="flex flex-col items-center gap-0.5">
-                              <span className="font-medium truncate max-w-[100px]">
-                                {pick.playerName}
+                            <div className="flex flex-col items-start gap-0.5 pl-1">
+                              <span className="font-medium truncate max-w-[120px]" title={pick.playerName || ""}>
+                                {formatPlayerName(pick.playerName)}
                               </span>
                               <div className="flex gap-0.5">
                                 {pick.isKeeper && (
@@ -859,12 +1122,28 @@ export function DraftBoardView({
                                     K
                                   </Badge>
                                 )}
-                                {isTraded && (
+                                {isTradedAway && newOwnerTeam && (
                                   <Badge variant="outline" className="text-[8px] px-1 py-0 border-blue-500/50 text-blue-600">
-                                    via {pick.originalTeamSlug}
+                                    → {newOwnerTeam.teamName}
+                                  </Badge>
+                                )}
+                                {isRookie && (
+                                  <Badge variant="outline" className="text-[8px] px-1 py-0 border-green-500/50 text-green-600 bg-green-50/50">
+                                    R
+                                  </Badge>
+                                )}
+                                {isGoalie && (
+                                  <Badge variant="outline" className="text-[8px] px-1 py-0 border-purple-500/50 text-purple-600 bg-purple-50/50">
+                                    G
                                   </Badge>
                                 )}
                               </div>
+                            </div>
+                          ) : isTradedAway && newOwnerTeam ? (
+                            <div className="flex flex-col items-start gap-0.5 pl-1">
+                              <Badge variant="outline" className="text-[8px] px-1 py-0 border-blue-500/50 text-blue-600">
+                                → {newOwnerTeam.teamName}
+                              </Badge>
                             </div>
                           ) : (
                             <span className="text-muted-foreground/30">—</span>
@@ -950,7 +1229,7 @@ export function DraftBoardView({
                       </div>
                     ) : (
                       availableForDraft.slice(0, 50).map(p => {
-                        const ageStr = p.registrationMeta?.age ? `${p.registrationMeta.age}` : ""
+                        const positionStr = typeof p.registrationMeta?.positions === "string" ? p.registrationMeta.positions : ""
                         const isSelected = p.playerId === selectedPlayerId
                         
                         return (
@@ -966,7 +1245,7 @@ export function DraftBoardView({
                             <div className="flex justify-between items-start">
                               <span className="font-medium text-sm">{p.playerName}</span>
                               <Badge variant="secondary" className="text-[10px] bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300 hover:bg-orange-100">
-                                {ageStr ? `Age ${ageStr}` : "Player"}
+                                {positionStr || "Player"}
                               </Badge>
                             </div>
                             <span className="text-xs text-muted-foreground mt-1">Prev: —</span>
@@ -986,9 +1265,31 @@ export function DraftBoardView({
                 </Button>
 
                 <div className="grid grid-cols-3 gap-2">
-                  <Button variant="outline" size="sm" className="text-xs shadow-none border-border">Trade</Button>
-                  <Button variant="outline" size="sm" className="text-xs shadow-none border-border">Edit Order</Button>
-                  <Button variant="outline" size="sm" className="text-xs shadow-none border-border text-red-500 hover:text-red-600">Undo Last</Button>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="text-xs shadow-none border-border"
+                    onClick={() => setTradeDialogOpen(true)}
+                  >
+                    Trade
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="text-xs shadow-none border-border"
+                    onClick={() => setEditOrderDialogOpen(true)}
+                  >
+                    Edit Order
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="text-xs shadow-none border-border text-red-500 hover:text-red-600"
+                    disabled={isUndoing}
+                    onClick={handleUndo}
+                  >
+                    Undo Last
+                  </Button>
                 </div>
 
                 <div className="pt-4 space-y-3">
@@ -1044,16 +1345,23 @@ export function DraftBoardView({
                       </td>
                       {teams.map((t) => {
                         const pick = boardGrid[round]?.[t.teamSlug]
-                        const isTraded = pick && pick.originalTeamSlug !== pick.teamSlug
+                        const isTradedAway = pick && pick.teamSlug !== t.teamSlug
+                        const newOwnerTeam = isTradedAway ? teams.find(tm => tm.teamSlug === pick.teamSlug) : null
+                        const playerInPool = pick?.playerId ? pool.find(p => p.playerId === pick.playerId) : null
+                        const isRookie = playerInPool?.registrationMeta?.isRookie === true
+                        const isGoalie = typeof playerInPool?.registrationMeta?.positions === "string" && playerInPool.registrationMeta.positions.includes("G")
+
                         return (
                           <td
                             key={t.teamSlug}
-                            className={`border p-1.5 text-center text-xs ${
+                            className={`border p-1.5 text-left text-xs ${
                               pick?.playerId
                                 ? pick.isKeeper
                                   ? "bg-amber-500/5"
                                   : "bg-green-500/5"
-                                : ""
+                                : isTradedAway
+                                  ? "bg-blue-500/5"
+                                  : "text-center"
                             }`}
                             style={{
                               backgroundColor: pick?.playerId && t.color
@@ -1062,9 +1370,9 @@ export function DraftBoardView({
                             }}
                           >
                             {pick?.playerId ? (
-                              <div className="flex flex-col items-center gap-0.5">
-                                <span className="font-medium truncate max-w-[100px]">
-                                  {pick.playerName}
+                              <div className="flex flex-col items-start gap-0.5 pl-1">
+                                <span className="font-medium truncate max-w-[120px]" title={pick.playerName || ""}>
+                                  {formatPlayerName(pick.playerName)}
                                 </span>
                                 <div className="flex gap-0.5">
                                   {pick.isKeeper && (
@@ -1072,12 +1380,28 @@ export function DraftBoardView({
                                       K
                                     </Badge>
                                   )}
-                                  {isTraded && (
+                                  {isTradedAway && newOwnerTeam && (
                                     <Badge variant="outline" className="text-[8px] px-1 py-0 border-blue-500/50 text-blue-600">
-                                      via {pick.originalTeamSlug}
+                                      → {newOwnerTeam.teamName}
+                                    </Badge>
+                                  )}
+                                  {isRookie && (
+                                    <Badge variant="outline" className="text-[8px] px-1 py-0 border-green-500/50 text-green-600 bg-green-50/50">
+                                      R
+                                    </Badge>
+                                  )}
+                                  {isGoalie && (
+                                    <Badge variant="outline" className="text-[8px] px-1 py-0 border-purple-500/50 text-purple-600 bg-purple-50/50">
+                                      G
                                     </Badge>
                                   )}
                                 </div>
+                              </div>
+                            ) : isTradedAway && newOwnerTeam ? (
+                              <div className="flex flex-col items-start gap-0.5 pl-1">
+                                <Badge variant="outline" className="text-[8px] px-1 py-0 border-blue-500/50 text-blue-600">
+                                  → {newOwnerTeam.teamName}
+                                </Badge>
                               </div>
                             ) : (
                               <span className="text-muted-foreground/30">—</span>
