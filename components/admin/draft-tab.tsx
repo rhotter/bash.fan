@@ -6,6 +6,7 @@ import {
   Loader2, Plus, Users, ListOrdered, Trash2, Send, Clock,
   MapPin, CalendarDays, Layers, ShieldCheck, MoreVertical, Upload,
   ExternalLink, ArchiveRestore, Play, Monitor, Download, UploadCloud, Settings,
+  EyeOff, Eye,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -66,6 +67,7 @@ const STATUS_STYLES: Record<string, string> = {
   live: "bg-green-500/10 text-green-700 border-green-500/30",
   paused: "bg-orange-500/10 text-orange-700 border-orange-500/30",
   completed: "bg-muted text-muted-foreground border-border",
+  archived: "bg-slate-500/10 text-slate-500 border-slate-500/30",
 }
 
 export function DraftTab({ seasonId, seasonStatus, seasonType, teams, rosterCount }: DraftTabProps) {
@@ -325,7 +327,7 @@ export function DraftTab({ seasonId, seasonStatus, seasonType, teams, rosterCoun
                       onClick={() => router.push(`/admin/seasons/${seasonId}/draft/${draft.id}/board`)}
                     >
                       <Monitor className="h-3.5 w-3.5 mr-1.5" />
-                      Simulate
+                      View Admin Draft
                     </Button>
                   )}
                   {draft.status === "draft" && (
@@ -343,7 +345,7 @@ export function DraftTab({ seasonId, seasonStatus, seasonType, teams, rosterCoun
                       onClick={() => router.push(`/admin/seasons/${seasonId}/draft/${draft.id}/board`)}
                     >
                       <Play className="h-3.5 w-3.5 mr-1.5" />
-                      Open Board
+                      View Admin Draft
                     </Button>
                   )}
                   {draft.status === "live" && (
@@ -352,14 +354,34 @@ export function DraftTab({ seasonId, seasonStatus, seasonType, teams, rosterCoun
                       onClick={() => router.push(`/admin/seasons/${seasonId}/draft/${draft.id}/board`)}
                     >
                       <Monitor className="h-3.5 w-3.5 mr-1.5" />
-                      Live Board
+                      View Admin Draft
+                    </Button>
+                  )}
+                  {(draft.status === "completed" || draft.status === "archived") && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => router.push(`/admin/seasons/${seasonId}/draft/${draft.id}/board`)}
+                    >
+                      <Monitor className="h-3.5 w-3.5 mr-1.5" />
+                      View Admin Draft
+                    </Button>
+                  )}
+                  {(draft.status === "completed" || draft.status === "archived") && (
+                    <Button
+                      size="sm"
+                      variant={draft.status === "archived" ? "outline" : "default"}
+                      onClick={() => window.open(`/draft/${seasonId}`, "_blank")}
+                    >
+                      <ExternalLink className="h-3.5 w-3.5 mr-1.5" />
+                      View Draft Results
                     </Button>
                   )}
                   {(draft.status === "published" || draft.status === "live") && (
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() => window.open(`/draft/${draft.id}`, "_blank")}
+                      onClick={() => window.open(`/draft/${seasonId}`, "_blank")}
                     >
                       <ExternalLink className="h-3.5 w-3.5 mr-1.5" />
                       View Public Draft
@@ -394,6 +416,54 @@ export function DraftTab({ seasonId, seasonStatus, seasonType, teams, rosterCoun
                         >
                           <Upload className="h-4 w-4 mr-2" />
                           Import CSV
+                        </DropdownMenuItem>
+                      )}
+                      {draft.status === "completed" && (
+                        <DropdownMenuItem
+                          onClick={async () => {
+                            try {
+                              const res = await fetch(
+                                `/api/bash/admin/seasons/${seasonId}/draft/${draft.id}/archive`,
+                                { method: "POST" }
+                              )
+                              if (res.ok) {
+                                toast.success("Draft results removed from public navigation")
+                                fetchDrafts()
+                              } else {
+                                const err = await res.json()
+                                toast.error(err.error || "Failed to archive")
+                              }
+                            } catch {
+                              toast.error("Connection error")
+                            }
+                          }}
+                        >
+                          <EyeOff className="h-4 w-4 mr-2" />
+                          Archive Draft
+                        </DropdownMenuItem>
+                      )}
+                      {draft.status === "archived" && (
+                        <DropdownMenuItem
+                          onClick={async () => {
+                            try {
+                              const res = await fetch(
+                                `/api/bash/admin/seasons/${seasonId}/draft/${draft.id}/archive`,
+                                { method: "DELETE" }
+                              )
+                              if (res.ok) {
+                                toast.success("Draft results restored to public navigation")
+                                fetchDrafts()
+                              } else {
+                                const err = await res.json()
+                                toast.error(err.error || "Failed to restore")
+                              }
+                            } catch {
+                              toast.error("Connection error")
+                            }
+                          }}
+                        >
+                          <Eye className="h-4 w-4 mr-2" />
+                          Unarchive Draft
                         </DropdownMenuItem>
                       )}
                       <DropdownMenuItem
@@ -525,9 +595,29 @@ export function DraftTab({ seasonId, seasonStatus, seasonType, teams, rosterCoun
       <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete &ldquo;{deleteTarget?.name}&rdquo;?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will permanently delete the draft and all associated data (pool, team order, picks, trades, logs). This cannot be undone.
+            <AlertDialogTitle className={deleteTarget && deleteTarget.status !== "draft" ? "text-destructive" : ""}>
+              {deleteTarget && deleteTarget.status !== "draft"
+                ? `⚠️ Permanently Delete "${deleteTarget?.name}"?`
+                : `Delete "${deleteTarget?.name}"?`}
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3">
+                <p>
+                  This will permanently delete the draft and all associated data including the player pool, team order, picks, trades, and activity logs. This action cannot be undone.
+                </p>
+                {deleteTarget && deleteTarget.status !== "draft" && (
+                  <div className="rounded-md border border-destructive/50 bg-destructive/10 p-3 space-y-1.5">
+                    <p className="font-semibold text-destructive text-sm">
+                      Draft results will be permanently deleted
+                    </p>
+                    <p className="text-xs text-destructive/80">
+                      This draft is currently <strong>{deleteTarget.status}</strong>. All draft results,
+                      pick history, and the public draft results page will be removed and cannot be recovered.
+                      Consider exporting a backup first.
+                    </p>
+                  </div>
+                )}
+              </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -538,7 +628,9 @@ export function DraftTab({ seasonId, seasonStatus, seasonType, teams, rosterCoun
               disabled={isDeleting}
             >
               {isDeleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Delete Draft
+              {deleteTarget && deleteTarget.status !== "draft"
+                ? "Delete Draft & Results"
+                : "Delete Draft"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

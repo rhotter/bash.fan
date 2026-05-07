@@ -124,14 +124,11 @@ export function DraftBoardView({
   const [isClearingKeepers, setIsClearingKeepers] = useState(false)
   const [isUndoing, setIsUndoing] = useState(false)
 
-  // Timer state
-  const [timerRemaining, setTimerRemaining] = useState<number>(() => {
-    if (!initialDraft.timerRunning || !initialDraft.timerStartedAt) {
-      return initialDraft.timerCountdown ?? initialDraft.timerSeconds
-    }
-    const elapsed = Math.floor((Date.now() - new Date(initialDraft.timerStartedAt).getTime()) / 1000)
-    return Math.max(0, (initialDraft.timerCountdown ?? initialDraft.timerSeconds) - elapsed)
-  })
+  // Timer state — initialize with static value to avoid hydration mismatch.
+  // The useEffect below will immediately compute the correct elapsed time on mount.
+  const [timerRemaining, setTimerRemaining] = useState<number>(
+    initialDraft.timerCountdown ?? initialDraft.timerSeconds
+  )
   const timerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   // Sync timer when draft state updates (from picks, undo, etc.)
@@ -201,6 +198,7 @@ export function DraftBoardView({
   const [isEditingOrder, setIsEditingOrder] = useState(false)
   const [showPushConfirm, setShowPushConfirm] = useState(false)
   const [isPushingRosters, setIsPushingRosters] = useState(false)
+  const [draftCompleteModalOpen, setDraftCompleteModalOpen] = useState(false)
 
   // Compute available players for live draft
   const availableForDraft = useMemo(() => {
@@ -343,6 +341,11 @@ export function DraftBoardView({
       setDraft(result.draft)
       setSelectedPlayerId(null)
       toast.success("Pick confirmed")
+
+      // Show completion modal if draft auto-completed
+      if (result.draft?.status === "completed") {
+        setDraftCompleteModalOpen(true)
+      }
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "An error occurred"
       toast.error(msg)
@@ -1005,6 +1008,50 @@ export function DraftBoardView({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Draft Complete Modal */}
+      <Dialog open={draftCompleteModalOpen} onOpenChange={setDraftCompleteModalOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-center text-xl">🏒 Draft Complete!</DialogTitle>
+            <DialogDescription className="text-center">
+              All available players have been drafted. Here are your next steps:
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div className="flex items-start gap-3 p-3 rounded-md bg-muted/50">
+              <span className="text-lg font-bold text-muted-foreground">1</span>
+              <div>
+                <p className="font-medium text-sm">Export Draft Results</p>
+                <p className="text-xs text-muted-foreground">Download a backup of all picks, trades, and rosters for your records.</p>
+              </div>
+            </div>
+            <div className="flex items-start gap-3 p-3 rounded-md bg-muted/50">
+              <span className="text-lg font-bold text-muted-foreground">2</span>
+              <div>
+                <p className="font-medium text-sm">Push Rosters to Season</p>
+                <p className="text-xs text-muted-foreground">Assign all drafted players to their teams in the season roster. This sets team, goalie, rookie, and captain flags.</p>
+              </div>
+            </div>
+            <div className="flex items-start gap-3 p-3 rounded-md bg-muted/50">
+              <span className="text-lg font-bold text-muted-foreground">3</span>
+              <div>
+                <p className="font-medium text-sm">Review &amp; Publish Season</p>
+                <p className="text-xs text-muted-foreground">Verify rosters on the season page, then publish the season when ready.</p>
+              </div>
+            </div>
+          </div>
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button variant="outline" onClick={() => { handleExportCsv(); setDraftCompleteModalOpen(false) }}>
+              <Download className="h-4 w-4 mr-2" />
+              Export Results
+            </Button>
+            <Button onClick={() => { setDraftCompleteModalOpen(false); setShowPushConfirm(true) }}>
+              Push Rosters
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Keeper entry panel (shown in draft or published state) */}
       {(isSimulation || isPreDraft) && (

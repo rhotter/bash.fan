@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Button } from "@/components/ui/button"
-import { Search, Maximize2, Minimize2, Clock, MapPin, Users } from "lucide-react"
+import { Search, Maximize2, Minimize2, Clock, MapPin, Users, ArrowUpDown, ArrowUp, ArrowDown, Volume2, VolumeX } from "lucide-react"
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -114,6 +114,43 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
   // Track newly filled pick IDs for golden highlight
   const [highlightedPickIds, setHighlightedPickIds] = useState<Set<string>>(new Set())
 
+  // ─── Draft Chime Sound ──────────────────────────────────────────────────
+  const chimeRef = useRef<HTMLAudioElement | null>(null)
+  const isMutedRef = useRef(false)
+  const [isMuted, setIsMuted] = useState(() => {
+    if (typeof window === "undefined") return false
+    const stored = localStorage.getItem("bash-draft-muted") === "true"
+    isMutedRef.current = stored
+    return stored
+  })
+
+  useEffect(() => {
+    chimeRef.current = new Audio("/sounds/nhl-draft-chime.mp3")
+    chimeRef.current.preload = "auto"
+    return () => {
+      chimeRef.current?.pause()
+      chimeRef.current = null
+    }
+  }, [])
+
+  const toggleMute = useCallback(() => {
+    setIsMuted((prev) => {
+      const next = !prev
+      isMutedRef.current = next
+      localStorage.setItem("bash-draft-muted", String(next))
+      return next
+    })
+  }, [])
+
+  const playChime = useCallback(() => {
+    if (isMutedRef.current || !chimeRef.current) return
+    // Reset to start in case it's still playing from a previous pick
+    chimeRef.current.currentTime = 0
+    chimeRef.current.play().catch(() => {
+      // Browser may block autoplay until user interaction — silently ignore
+    })
+  }, [])
+
   // SWR polling — 5s for live, 30s otherwise
   const { data } = useSWR<DraftData>(
     `/api/bash/draft/${seasonSlug}`,
@@ -126,7 +163,7 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
     }
   )
 
-  const { draft, season, teams, picks, pool, trades: _trades, captainPlayerIds } = data || initialData
+  const { draft, season, teams, picks, pool, trades, captainPlayerIds } = data || initialData
 
   // Captain set for badge rendering
   const captainSet = useMemo(() => new Set(captainPlayerIds || []), [captainPlayerIds])
@@ -254,6 +291,9 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
           })
           setAnnouncementVisible(true)
 
+          // Play NHL draft chime
+          playChime()
+
           // Trigger golden highlight on the cell
           setHighlightedPickIds(new Set([newest.id]))
 
@@ -270,7 +310,7 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
       }
     }
     prevPickCountRef.current = currentCount
-  }, [picks, teams, draft.status])
+  }, [picks, teams, draft.status, playChime])
 
   // ─── Fullscreen Toggle ─────────────────────────────────────────────────
 
@@ -295,6 +335,38 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
   const totalPicks = picks.length
   const madePicks = picks.filter((p) => p.playerId !== null).length
   const progress = totalPicks > 0 ? Math.round((madePicks / totalPicks) * 100) : 0
+
+  // ─── Team Roster Sort (completed view) ──────────────────────────────────
+  type TeamSortKey = "pick" | "skill" | "pos" | "playoffs"
+  const [teamSortKey, setTeamSortKey] = useState<TeamSortKey>("pick")
+  const [teamSortDir, setTeamSortDir] = useState<"asc" | "desc">("asc")
+
+  const toggleTeamSort = useCallback((key: TeamSortKey) => {
+    if (teamSortKey === key) {
+      setTeamSortDir((d) => (d === "asc" ? "desc" : "asc"))
+    } else {
+      setTeamSortKey(key)
+      setTeamSortDir("asc")
+    }
+  }, [teamSortKey])
+
+  const sortTeamPicks = useCallback((teamPicks: typeof picks) => {
+    return [...teamPicks].sort((a, b) => {
+      const poolA = a.playerId ? pool.find((p) => p.playerId === a.playerId) : null
+      const poolB = b.playerId ? pool.find((p) => p.playerId === b.playerId) : null
+      const metaA = poolA?.registrationMeta as Record<string, unknown> | null
+      const metaB = poolB?.registrationMeta as Record<string, unknown> | null
+      const cmp =
+        teamSortKey === "skill"
+          ? ((metaA?.skillLevel as string) || "").localeCompare((metaB?.skillLevel as string) || "")
+          : teamSortKey === "pos"
+            ? ((metaA?.positions as string) || "").localeCompare((metaB?.positions as string) || "")
+            : teamSortKey === "playoffs"
+              ? ((metaA?.playoffAvail as string) || "").localeCompare((metaB?.playoffAvail as string) || "")
+              : a.pickNumber - b.pickNumber
+      return teamSortDir === "desc" ? -cmp : cmp
+    })
+  }, [teamSortKey, teamSortDir, pool])
 
   // ═══════════════════════════════════════════════════════════════════════════
   // PRE-DRAFT VIEW
@@ -417,6 +489,17 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
               <span className="text-xs text-muted-foreground tabular-nums font-medium">
                 {madePicks}/{totalPicks} picks ({progress}%)
               </span>
+              {isLive && (
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={toggleMute}
+                  className="h-8 w-8"
+                  title={isMuted ? "Unmute pick sound" : "Mute pick sound"}
+                >
+                  {isMuted ? <VolumeX className="h-3.5 w-3.5" /> : <Volume2 className="h-3.5 w-3.5" />}
+                </Button>
+              )}
               <Button variant="outline" size="icon" onClick={toggleFullscreen} className="hidden md:flex h-8 w-8">
                 {isFullscreen ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
               </Button>
@@ -566,7 +649,7 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
               { label: "Total Picks", value: String(madePicks) },
               { label: "Rounds", value: String(draft.rounds) },
               { label: "Teams", value: String(teams.length) },
-              { label: "Duration", value: "—" },
+              { label: "Trades", value: String(trades.length) },
             ].map((stat) => (
               <Card key={stat.label}>
                 <CardContent className="py-3 px-4 text-center">
@@ -579,7 +662,7 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
         )}
 
         {/* Tabs: Board + Available Players / By Team */}
-        <Tabs defaultValue={isCompleted ? "byteam" : "board"} value={mobileTab} onValueChange={setMobileTab}>
+        <Tabs id="draft-board-tabs" defaultValue={isCompleted ? "byteam" : "board"} value={mobileTab} onValueChange={setMobileTab}>
           <TabsList className={isCompleted ? "w-full md:w-auto" : "md:hidden w-full"}>
             {isCompleted && (
               <TabsTrigger value="byteam" className="flex-1 md:flex-none">By Team</TabsTrigger>
@@ -597,9 +680,22 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
               <TabsContent value="byteam" className="mt-0">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {teams.map((team) => {
-                    const teamPicks = picks
-                      .filter((p) => p.teamSlug === team.teamSlug && p.playerId !== null)
-                      .sort((a, b) => a.pickNumber - b.pickNumber)
+                    const teamPicks = sortTeamPicks(
+                      picks.filter((p) => p.teamSlug === team.teamSlug && p.playerId !== null)
+                    )
+                    const SortHeader = ({ label, sortKey, className }: { label: string; sortKey: TeamSortKey; className?: string }) => (
+                      <button
+                        onClick={() => toggleTeamSort(sortKey)}
+                        className={`flex items-center gap-0.5 font-semibold text-muted-foreground hover:text-foreground transition-colors ${className || ""}`}
+                      >
+                        {label}
+                        {teamSortKey === sortKey ? (
+                          teamSortDir === "asc" ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />
+                        ) : (
+                          <ArrowUpDown className="w-3 h-3 opacity-40" />
+                        )}
+                      </button>
+                    )
                     return (
                       <Card key={team.teamSlug} className="overflow-hidden">
                         <div
@@ -619,28 +715,47 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
                           </CardTitle>
                         </CardHeader>
                         <CardContent className="pt-0 pb-3">
+                          {/* Table header */}
+                          <div className="flex items-center gap-2 py-1 px-2 text-[10px] border-b border-border mb-0.5">
+                            <span className="w-6 shrink-0 text-right font-semibold text-muted-foreground">#</span>
+                            <span className="flex-1 font-semibold text-muted-foreground">Player</span>
+                            <SortHeader label="Skill" sortKey="skill" className="w-14 md:w-20 justify-center text-[10px]" />
+                            <SortHeader label="Pos" sortKey="pos" className="w-14 justify-center text-[10px]" />
+                            <SortHeader label="Playoffs?" sortKey="playoffs" className="w-14 justify-center text-[10px]" />
+                            <span className="w-10 shrink-0" />
+                          </div>
                           <div className="space-y-0">
                             {teamPicks.map((pick) => {
                               const playerInPool = pick.playerId ? pool.find((p) => p.playerId === pick.playerId) : null
-                              const isRookie = playerInPool?.registrationMeta?.isRookie === true
-                              const isGoalie = typeof playerInPool?.registrationMeta?.positions === "string" && playerInPool.registrationMeta.positions.includes("G")
+                              const meta = playerInPool?.registrationMeta as Record<string, unknown> | null
+                              const isRookie = meta?.isRookie === true
+                              const isGoalie = typeof meta?.positions === "string" && (meta.positions as string).includes("G")
+                              const skillLevel = (meta?.skillLevel as string) || "—"
+                              const position = (meta?.positions as string) || "—"
+                              const playoffAvail = (meta?.playoffAvail as string) || "—"
+                              // Shorten playoff value for display
+                              const playoffShort = playoffAvail.toLowerCase().startsWith("yes") ? "Y" : playoffAvail.toLowerCase().startsWith("no") ? "N" : playoffAvail === "—" ? "—" : "?"
                               return (
                                 <div
                                   key={pick.id}
-                                  className={`flex items-center gap-2 py-1.5 px-2 text-xs rounded-sm ${pick.isKeeper ? "bg-amber-50" : ""}`}
+                                  className={`flex items-center gap-2 py-1.5 px-2 text-xs rounded-sm ${pick.isKeeper ? "bg-amber-50 dark:bg-amber-950/20" : ""}`}
                                 >
                                   <span className="text-muted-foreground font-mono tabular-nums w-6 text-right shrink-0">#{pick.pickNumber}</span>
-                                  <span className="font-medium truncate flex-1">{pick.playerName}</span>
-                                  <div className="flex gap-0.5 shrink-0">
-                                    {pick.isKeeper && (
-                                      pick.playerId && captainSet.has(pick.playerId) ? (
-                                        <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 border-blue-400 text-blue-600">C</Badge>
-                                      ) : (
-                                        <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 border-amber-400 text-amber-600">K</Badge>
-                                      )
+                                  <div className="flex items-center gap-1 flex-1 min-w-0">
+                                    <span className="font-medium truncate">{pick.playerName}</span>
+                                    {pick.playerId && captainSet.has(pick.playerId) && (
+                                      <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 shrink-0 border-blue-400 text-blue-600">C</Badge>
                                     )}
                                     {isRookie && (
-                                      <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 border-green-400 text-green-600">R</Badge>
+                                      <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 shrink-0 border-green-400 text-green-600">R</Badge>
+                                    )}
+                                  </div>
+                                  <span title={skillLevel} className="w-14 md:w-20 text-center text-[10px] text-muted-foreground font-mono truncate cursor-default">{skillLevel}</span>
+                                  <span title={position} className="w-14 text-center text-[10px] text-muted-foreground font-mono truncate cursor-default">{position}</span>
+                                  <span title={playoffAvail} className={`w-14 text-center text-[10px] font-mono cursor-default ${playoffShort === "Y" ? "text-green-600" : playoffShort === "N" ? "text-red-500" : "text-muted-foreground"}`}>{playoffShort}</span>
+                                  <div className="flex flex-nowrap gap-0.5 shrink-0 w-10 justify-end">
+                                    {pick.isKeeper && (
+                                      <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 border-amber-400 text-amber-600">K</Badge>
                                     )}
                                     {isGoalie && (
                                       <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 border-purple-400 text-purple-600">G</Badge>
@@ -718,17 +833,16 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
                                 }`}
                               >
                                 {pick.playerId ? (
-                                  <div className="flex items-center gap-1">
+                                  <div className="flex flex-nowrap items-center gap-1">
                                     <span className="truncate max-w-[100px]">{formatPlayerName(pick.playerName)}</span>
-                                    {pick.isKeeper && (
-                                      pick.playerId && captainSet.has(pick.playerId) ? (
-                                        <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 border-blue-400 text-blue-600">C</Badge>
-                                      ) : (
-                                        <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 border-amber-400 text-amber-600">K</Badge>
-                                      )
+                                    {pick.playerId && captainSet.has(pick.playerId) && (
+                                      <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 border-blue-400 text-blue-600">C</Badge>
                                     )}
                                     {isRookie && (
                                       <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 border-green-400 text-green-600">R</Badge>
+                                    )}
+                                    {pick.isKeeper && (
+                                      <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 border-amber-400 text-amber-600">K</Badge>
                                     )}
                                     {isGoalie && (
                                       <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 border-purple-400 text-purple-600">G</Badge>
@@ -812,12 +926,7 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
           </div>
         </Tabs>
 
-        {/* Footer */}
-        {isCompleted && (
-          <div className="text-center text-xs text-muted-foreground py-4 border-t">
-            © {new Date().getFullYear()} BASH · Bay Area Street Hockey
-          </div>
-        )}
+
       </div>
     </div>
   )

@@ -132,6 +132,7 @@ A dedicated, interactive draft system for managing the BASH league draft process
     4. Simultaneously, the newly filled cell in the grid receives a **golden highlight flash** (`@keyframes` from amber-200 → transparent over 3 seconds) to draw the eye to where the pick landed on the board
     5. On mobile, the banner is compact (single line) and auto-dismisses after 2 seconds
     6. Keeper auto-confirms skip the banner animation (keepers are expected, not announced)
+  - **Draft chime audio**: An NHL-style draft chime (`public/sounds/nhl-draft-chime.mp3`, 3.5s trimmed clip with fade-out) plays automatically when a new pick is detected on the public board. The chime fires within the SWR pick-detection `useEffect` and gracefully handles browser autoplay restrictions (silent catch on play rejection). A **mute toggle** (🔊/🔇 button) is rendered in the live header, with the mute preference persisted via `localStorage` (`bash-draft-muted`). Uses `useRef` for mute state to avoid stale closures in the effect callback.
   - **Pick highlight animation**: All newly filled cells (detected by comparing previous SWR data with new data) receive a brief golden glow (`bg-amber-100` → transparent, 3s ease-out) to draw attention to board changes, even when the viewer's eyes are elsewhere.
   - **Available Players tab**: A secondary tab alongside the draft board showing all players in the eligible pool who have **not** yet been drafted. Includes a search input to filter by name. Selecting a player who has already been drafted shows their draft team and round in the player card. Players who are keepers display a "K" badge; goalies display a "G" badge (both badges shown simultaneously for keeper goalies).
   - Works well on desktop and mobile
@@ -270,8 +271,9 @@ A dedicated public page accessible via a shareable, season-based URL (e.g., `/dr
   - Team columns/rows are tinted with franchise colors for instant visual identification
   - The "on the clock" team's section pulses with an intensified franchise color glow
   - **Progressive grid disclosure**: Shows completed rounds + current round + 2 upcoming rounds; remaining rounds collapsed into a summary row. Grid auto-scrolls to keep the current pick visible.
-  - Keeper picks show a "K" badge with amber filled background; keeper goalies show both "K" and "G" badges. Badges are `w-5 h-5` for projector readability.
+  - Keeper picks show a "K" badge with amber filled background; keeper goalies show both "K" and "G" badges. Captain picks show a "C" badge with blue background. Badges are `w-5 h-5` for projector readability.
 - **"The Pick Is In" animation** — Broadcast-style pick announcement (see §3 P0 for full spec). Banner slides down with franchise color + player name, holds 1.5s, fades out. Grid cell receives golden highlight flash simultaneously.
+- **Draft chime audio** — NHL-style chime plays on each new pick with a mute toggle in the header (see §3 P0 for full spec).
 - **Available Players tab** — Tabbed alongside the board, showing all undrafted players with a search bar. Tapping a drafted player shows their assigned team. Goalies are badged.
 - Current team "on the clock" with visual highlight and contextual timer labels (Running / Expired / Paused / Awaiting)
 - **Recent picks ticker** (desktop) — Horizontally scrolling strip with most recent selections. Auto-scrolls to keep newest pick visible at the left edge.
@@ -836,7 +838,7 @@ The following BASH rules (Rulebook 2019) directly inform draft wizard behavior:
 - Edit draft order dialog
 - **Smoke test**: ✅ Make picks, execute trade, verify board reflects trades, verify draft log and recent activity
 
-### PR 5 — Public View, Timer, Export & Roster Push 🚧 (in progress — `torres_draft2` branch)
+### PR 5 — Public View, Timer, Export & Roster Push ✅ (completed — `torres_draft2` branch)
 - ✅ **Pick timer**: Live countdown computed from server state (`timerCountdown - elapsed`), synced via `useEffect` + `setInterval`. Background color transitions: neutral → red at ≤10s → pulsing red at 0:00.
 - ✅ **Pause / resume / reset controls**: `POST /api/.../timer` with `{ action: "pause" | "resume" | "reset" }`. Pause captures remaining seconds; resume restarts from remaining.
 - ✅ **Public presentation view** (`/draft/[season]`): Season-slug-based URL. Server component fetches all draft data, returns 404 for `draft` status. Three display modes:
@@ -849,9 +851,17 @@ The following BASH rules (Rulebook 2019) directly inform draft wizard behavior:
 - ✅ **Mobile layout**: Bottom tab bar ("Draft Results" / "Available Players"), responsive grid
 - ✅ **CSV export**: `GET /api/.../export` returns downloadable CSV with Round, Pick, Team, Player, Keeper, Traded From columns. Button in admin header.
 - ✅ **Roster push**: `POST /api/.../push-rosters` upserts draft picks into `player_seasons` with goalie/rookie/captain flags from `registration_meta`. AlertDialog confirmation. Marks draft completed. Button in admin header.
+- ✅ **Captain badge**: Public board grid cells display a "C" badge (blue background) for players designated as captains via `isCaptain` flag in `player_seasons`.
+- ✅ **Draft chime audio**: NHL-style pick announcement chime on the public board with persistent mute toggle (see §3 P0 for full spec).
+- ✅ **Pick display format**: Grid cells use abbreviated format (e.g., "C. Amorello") for consistency; pick numbers display as `R{round}P{pick}` in the recent ticker.
 - [ ] Player trade functionality (trading players between teams, not just picks) — deferred
 - [ ] **Franchise ↔ Season Team assignment**: Enhanced wiring in admin franchises page — deferred to PR 6
-- **Smoke test**: Full draft, verify timer, public view, mobile layout, CSV export, push rosters
+- **Smoke test**: ✅ Full draft, verify timer, public view, mobile layout, CSV export, push rosters, draft chime with mute
+
+### PR 5.1 — Season Deletion Cascade Fix ✅ (completed — `torres_draft2` branch)
+- ✅ **Draft artifact cleanup**: `DELETE /api/bash/admin/seasons/[id]` now explicitly deletes `draftInstances` for the season before deleting the season row. All draft child tables (`draftTeamOrder`, `draftPool`, `draftPicks`, `draftTrades`, `draftTradeItems`, `draftLog`) cascade automatically via `onDelete: "cascade"` on their FK to `draftInstances.id`.
+- ✅ **Registration artifact cleanup**: Deletes `registrations` (and their children: `registrationAnswers`, `registrationExtras`, `noticeAcknowledgements`) then `registrationPeriods` for the season. Neither FK (`registrationPeriods.seasonId`, `registrations.periodId`) has `ON DELETE CASCADE`, so explicit deletion in dependency order is required.
+- **Context**: Previously, deleting a season with draft or registration data caused a 500 error (PostgreSQL FK violation) because the handler only cleaned up games, player stats, and season teams.
 
 ### 🎯 Milestone: Draft Day Rehearsal
 - Full end-to-end simulation with real player data on staging
@@ -887,6 +897,7 @@ The following BASH rules (Rulebook 2019) directly inform draft wizard behavior:
 
 - [ ] **Player Detail Card**: Add an expandable or click-to-open player card in the draft player selector that surfaces all custom registration metadata fields (`skillLevel`, `positions`, `yearsPlayed`, `lastLeague`, `lastTeam`, `birthdate`, `gender`, `tshirtSize`, `miscNotes`, `isRookie`). This gives the commissioner full context on each player during live picks without leaving the draft board.
 - [ ] **Previous Team Display**: Show each player's previous season team in the player selector (requires joining `player_seasons` for the prior season and passing through the pool data).
-- [ ] **Real-Time Synchronization**: Replace manual state updates with real-time syncing via SWR polling or WebSockets so multiple commissioners/spectators see picks as they happen.
-- [ ] **Timer Persistence**: Connect the server-side `timerStartedAt` to the client-side countdown for accurate cross-device timer sync.
+- [x] **Real-Time Synchronization**: ~~Replace manual state updates with real-time syncing via SWR polling or WebSockets so multiple commissioners/spectators see picks as they happen.~~ Implemented via SWR polling (5s live, 30s published) with `revalidateOnFocus: true`. Public board auto-detects new picks and triggers chime + "Pick Is In" animation.
+- [x] **Timer Persistence**: ~~Connect the server-side `timerStartedAt` to the client-side countdown for accurate cross-device timer sync.~~ Server-side timer state (`timerCountdown` + `timerRunning` + `timerStartedAt`) drives client countdown via `remaining = timerCountdown - elapsed`. Supports pause/resume/reset via `POST /api/.../timer`.
 - [ ] **Draft Log Persistence**: Currently the Draft Log tab is built client-side from picks/trades props. A future enhancement could query the `draft_log` database table directly for a richer history including undo actions and simulation resets.
+- [ ] **Player Trades**: Trade drafted players between teams (not just picks). Currently deferred — only pick swaps are supported.

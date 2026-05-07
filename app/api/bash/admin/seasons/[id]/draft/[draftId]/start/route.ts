@@ -123,9 +123,20 @@ export async function POST(_request: NextRequest, context: RouteContext) {
       .where(eq(schema.draftPicks.draftId, draftId))
 
     // 6. Insert all pick slots, filling keeper picks
+    // Track assigned keeper players to prevent duplicates when traded slots
+    // cause the same team to own two slots in the same round.
+    const assignedKeeperPlayerIds = new Set<number>()
     const pickRows = pickSlots.map((slot) => {
       const keeperKey = `${slot.teamSlug}::${slot.round}`
-      const keeperPlayerId = keeperMap.get(keeperKey) || null
+      let keeperPlayerId = keeperMap.get(keeperKey) || null
+
+      // Prevent the same player from being assigned to multiple slots
+      if (keeperPlayerId && assignedKeeperPlayerIds.has(keeperPlayerId)) {
+        keeperPlayerId = null
+      }
+      if (keeperPlayerId) {
+        assignedKeeperPlayerIds.add(keeperPlayerId)
+      }
 
       return {
         id: `pick-${crypto.randomUUID()}`,

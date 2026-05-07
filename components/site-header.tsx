@@ -4,6 +4,7 @@ import Link from "next/link"
 import Image from "next/image"
 import { useSearchParams } from "next/navigation"
 import { Suspense } from "react"
+import useSWR from "swr"
 import { PlayerSearch } from "@/components/player-search"
 
 const NAV_ITEMS = [
@@ -13,10 +14,26 @@ const NAV_ITEMS = [
   { label: "About", href: "/about" },
 ]
 
+const fetcher = (url: string) => fetch(url).then((r) => r.json())
+
 function SiteHeaderInner({ activeTab }: { activeTab?: string }) {
   const searchParams = useSearchParams()
   const season = searchParams.get("season")
   const seasonQuery = season ? `?season=${season}` : ""
+
+  // Fetch draft status for conditional nav link
+  const { data: draftStatus } = useSWR<{ status: string | null; seasonSlug?: string }>(
+    "/api/bash/draft-status",
+    fetcher,
+    { revalidateOnFocus: false, dedupingInterval: 30000 }
+  )
+
+  // Draft link: shown in header for published/live, omitted for completed (goes to footer)
+  const showDraftInHeader = draftStatus?.status === "published" || draftStatus?.status === "live"
+  const draftLabel = draftStatus?.status === "live" ? "Live Draft" : "Draft"
+  const draftHref = draftStatus?.status === "published"
+    ? `/draft/${draftStatus.seasonSlug}`
+    : `/draft/${draftStatus?.seasonSlug}`
 
   return (
     <header className="sticky top-0 z-50">
@@ -45,6 +62,27 @@ function SiteHeaderInner({ activeTab }: { activeTab?: string }) {
           </Link>
           <nav className="ml-auto flex items-center gap-0 sm:gap-1">
             <PlayerSearch />
+            {showDraftInHeader && (
+              <Link
+                href={draftHref}
+                className={
+                  "text-[11px] sm:text-xs font-semibold px-2 sm:px-3 py-1.5 rounded-md transition-colors flex items-center gap-1.5 " +
+                  (activeTab === "draft"
+                    ? "text-foreground bg-secondary"
+                    : draftStatus?.status === "live"
+                      ? "text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300"
+                      : "text-muted-foreground/50 hover:text-muted-foreground")
+                }
+              >
+                {draftStatus?.status === "live" && (
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
+                  </span>
+                )}
+                {draftLabel}
+              </Link>
+            )}
             {NAV_ITEMS.filter((item) => season !== "all" || item.label === "Stats").map((item) => {
               const isActive = activeTab === item.label.toLowerCase()
               return (

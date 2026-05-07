@@ -172,13 +172,6 @@ export async function DELETE(_request: NextRequest, context: RouteContext) {
     return NextResponse.json({ error: "Draft not found" }, { status: 404 })
   }
 
-  if (existing.status !== "draft") {
-    return NextResponse.json(
-      { error: "Can only delete drafts in 'draft' status" },
-      { status: 400 }
-    )
-  }
-
   try {
     await db.delete(schema.draftInstances).where(eq(schema.draftInstances.id, draftId))
     return NextResponse.json({ ok: true })

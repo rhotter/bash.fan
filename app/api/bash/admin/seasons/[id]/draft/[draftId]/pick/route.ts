@@ -1,6 +1,6 @@
 import { db } from "@/lib/db"
-import { draftPicks, draftInstances, players } from "@/lib/db/schema"
-import { eq, and, isNull } from "drizzle-orm"
+import { draftPicks, draftInstances, draftPool, draftLog, players } from "@/lib/db/schema"
+import { eq, and, isNull, notInArray, sql } from "drizzle-orm"
 import { NextResponse } from "next/server"
 
 export async function POST(
@@ -54,14 +54,57 @@ export async function POST(
     return NextResponse.json({ error: "Pick is already made or does not exist" }, { status: 400 })
   }
 
-  // Reset the timer for the next pick
-  await db.update(draftInstances)
-    .set({
-      timerStartedAt: new Date(),
-      timerCountdown: draft.timerSeconds,
-      timerRunning: true
+  // ── Auto-complete check ─────────────────────────────────────────────────
+  // Count pool players who haven't been drafted yet
+  const draftedPlayerIds = db
+    .select({ playerId: draftPicks.playerId })
+    .from(draftPicks)
+    .where(
+      and(
+        eq(draftPicks.draftId, draftId),
+        eq(draftPicks.isSimulation, false)
+      )
+    )
+
+  const [remainingCount] = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(draftPool)
+    .where(
+      and(
+        eq(draftPool.draftId, draftId),
+        notInArray(draftPool.playerId, draftedPlayerIds)
+      )
+    )
+
+  const allPlayersDrafted = Number(remainingCount.count) === 0
+
+  if (allPlayersDrafted) {
+    // Auto-complete: stop timer and transition to completed
+    await db.update(draftInstances)
+      .set({
+        status: "completed",
+        timerRunning: false,
+        timerStartedAt: null,
+        updatedAt: new Date(),
+      })
+      .where(eq(draftInstances.id, draftId))
+
+    // Log completion
+    await db.insert(draftLog).values({
+      draftId,
+      action: "complete",
+      detail: { trigger: "auto", reason: "All pool players drafted" },
     })
-    .where(eq(draftInstances.id, draftId))
+  } else {
+    // Reset the timer for the next pick
+    await db.update(draftInstances)
+      .set({
+        timerStartedAt: new Date(),
+        timerCountdown: draft.timerSeconds,
+        timerRunning: true
+      })
+      .where(eq(draftInstances.id, draftId))
+  }
 
   // Fetch updated picks to send back
   const allPicks = await db
