@@ -118,14 +118,28 @@ A dedicated, interactive draft system for managing the BASH league draft process
 
 - **Live Draft Board (Public)**: A real-time presentation view displaying:
   - The draft grid/board showing all teams and their picks. Traded picks display the franchise color of the team that now owns the pick, making trade activity immediately visible on the board.
-  - **Placeholder cards**: Future rounds (below the current round) display faded/dimmed placeholder cells for each team. Picks that have been traded to a different team show a trade indicator on the placeholder card (e.g., "Trade #2: Loons pick here") so viewers can see upcoming trade impacts before the pick happens.
+  - **Progressive grid disclosure**: The board shows completed rounds + the current round + 2 upcoming rounds. Remaining future rounds are collapsed into a summary row ("8 rounds remaining"). This prevents empty rows from dominating the viewport — critical for projector displays where above-the-fold space is premium. The grid auto-scrolls to keep the current pick visible when new picks are made.
+  - **Placeholder cards**: Visible upcoming rounds (within the disclosed window) display faded/dimmed placeholder cells. Traded picks show a compact franchise-colored swap badge (⇄) instead of verbose text, with the acquiring team name on hover/tap.
+  - **Sticky team headers**: Team column headers remain fixed at the top of the grid when scrolling, ensuring team identification is always visible. A floating "Jump to current round" button appears when the active round is scrolled out of view.
   - Which team is currently on the clock, plus the next 3 teams on deck with upcoming picks
   - Full history of picks as they happen
   - Which team made each pick (team name and branding)
-  - Pick timer countdown
+  - Pick timer countdown with contextual state labels (see "Draft Timer" below)
+  - **"The Pick Is In" animation**: When a new pick is confirmed, a brief (2.5-second) broadcast-style announcement moment plays:
+    1. A full-width overlay banner slides down from the hero card area with the franchise color as background
+    2. The banner displays: team name (bold, uppercase) + "SELECT" + player name (large, white text)
+    3. The banner holds for 1.5 seconds, then fades out with a smooth opacity transition
+    4. Simultaneously, the newly filled cell in the grid receives a **golden highlight flash** (`@keyframes` from amber-200 → transparent over 3 seconds) to draw the eye to where the pick landed on the board
+    5. On mobile, the banner is compact (single line) and auto-dismisses after 2 seconds
+    6. Keeper auto-confirms skip the banner animation (keepers are expected, not announced)
+  - **Pick highlight animation**: All newly filled cells (detected by comparing previous SWR data with new data) receive a brief golden glow (`bg-amber-100` → transparent, 3s ease-out) to draw attention to board changes, even when the viewer's eyes are elsewhere.
   - **Available Players tab**: A secondary tab alongside the draft board showing all players in the eligible pool who have **not** yet been drafted. Includes a search input to filter by name. Selecting a player who has already been drafted shows their draft team and round in the player card. Players who are keepers display a "K" badge; goalies display a "G" badge (both badges shown simultaneously for keeper goalies).
   - Works well on desktop and mobile
-  - **Mobile layout**: The mobile view uses a tab-based interface with "Draft Results" (not "Draft Board") as the primary tab showing team-grouped pick cards, and an "Available Players" tab with the same search/filter functionality as desktop
+  - **Mobile layout**: The mobile view uses a tab-based interface with "Draft Board" and "Available Players" tabs. Layout from top to bottom:
+    - **Latest pick banner** — A single-line summary of the most recent pick (e.g., "R5P4: Loons → A. McGrath") replacing the horizontal ticker, which is too cramped on narrow screens. Tappable to expand into the last 5 picks.
+    - **On-the-clock card** — Compact hero card with team name, franchise color accent, round/pick info, and countdown timer
+    - **Draft Board tab** — Horizontally scrollable grid (same as desktop) with progressive disclosure. Team headers are sticky.
+    - **Available Players tab** — Searchable undrafted player list with position badges
 
 - **Commissioner Controls (Admin Presentation View)**: The admin view includes all public presentation content plus:
   - **Available Players tab** — Same as the public tab (searchable undrafted list with badges), but the commissioner uses it to locate players for pick entry
@@ -138,7 +152,11 @@ A dedicated, interactive draft system for managing the BASH league draft process
   - **Navigate to Previous Pick**: Return to any previous pick and edit it at any time
 
 - **Draft Timer**: Visual countdown clock for the current pick. Timer behavior:
-  - When time expires, the timer displays **"0:00"** with a **blinking red indicator** and the board flashes/pulses. No audible buzzer.
+  - **Timer state labels**: The timer display includes a contextual label to eliminate ambiguity:
+    - **Running**: Shows countdown digits only (e.g., `1:42`), no label needed
+    - **Expired**: Displays **"0:00"** with **"TIME'S UP"** label and a pulsing red indicator. No audible buzzer.
+    - **Paused**: Displays remaining time with an **"PAUSED"** label in amber
+    - **Awaiting**: When the timer hasn't started for the current pick (e.g., between picks or during keeper auto-advance), shows **"AWAITING PICK"** in muted text instead of digits
   - The timer **stays at 0:00** ("EXPIRED" state) — the commissioner can still make the pick at their leisure. The timer is advisory, not a hard cutoff.
   - The timer **only resets and starts** when the next pick is entered/confirmed by the commissioner. It does not auto-start.
   - Timer state is **persisted server-side** using the same pattern as the live scorekeeping tool: `timerSeconds` (countdown remaining), `timerRunning` (boolean), and `timerStartedAt` (timestamp). The client computes the current countdown as `remaining = timerSeconds - (now - timerStartedAt)`. This ensures crash recovery — if the commissioner's browser disconnects, reopening the admin view resumes the timer exactly where it was.
@@ -251,25 +269,28 @@ A dedicated public page accessible via a shareable, season-based URL (e.g., `/dr
 - **The Big Board** — Real-time grid of all teams and their picks
   - Team columns/rows are tinted with franchise colors for instant visual identification
   - The "on the clock" team's section pulses with an intensified franchise color glow
-  - Future rounds show faded placeholder cells; traded picks display a trade indicator (e.g., "Trade #2: Loons pick here") on the placeholder
-  - Keeper picks show a "K" badge; keeper goalies show both "K" and "G" badges
+  - **Progressive grid disclosure**: Shows completed rounds + current round + 2 upcoming rounds; remaining rounds collapsed into a summary row. Grid auto-scrolls to keep the current pick visible.
+  - Keeper picks show a "K" badge with amber filled background; keeper goalies show both "K" and "G" badges. Badges are `w-5 h-5` for projector readability.
+- **"The Pick Is In" animation** — Broadcast-style pick announcement (see §3 P0 for full spec). Banner slides down with franchise color + player name, holds 1.5s, fades out. Grid cell receives golden highlight flash simultaneously.
 - **Available Players tab** — Tabbed alongside the board, showing all undrafted players with a search bar. Tapping a drafted player shows their assigned team. Goalies are badged.
-- Current team "on the clock" with visual highlight and timer
-- Pick-by-pick ticker showing most recent selections with team attribution
-- Responsive layout: grid view on desktop, stacked card view on mobile
-- **Mobile**: Uses a **bottom tab bar only** (no duplicate top tabs) with two tabs: "Draft Results" and "Available Players". Layout from top to bottom:
-  - **Player ticker** — A horizontally scrolling strip at the very top showing the most recent picks (e.g., "R5P2: Cherry Bombs → Sarah Kim"). Provides at-a-glance activity without leaving the current tab.
-  - **On-the-clock card** — Fixed below the ticker with team name, franchise color accent, round/pick info, and countdown timer.
-  - **Draft Results tab** — Displays picks in a **compact table format** grouped by team (not loose stacked cards). Each team section has a franchise-colored header row, and picks are listed as tight table rows with round number, player name, and badges (K/G). This table format is more scannable on small screens than individual cards.
+- Current team "on the clock" with visual highlight and contextual timer labels (Running / Expired / Paused / Awaiting)
+- **Recent picks ticker** (desktop) — Horizontally scrolling strip with most recent selections. Auto-scrolls to keep newest pick visible at the left edge.
+- Responsive layout: grid view on desktop, optimized compact layout on mobile
+- **Mobile**: Layout from top to bottom:
+  - **Latest pick banner** — Single-line summary of the most recent pick (e.g., "R5P4: Loons → A. McGrath"). Tappable to expand into last 5 picks. Replaces the desktop ticker which is too cramped on narrow screens.
+  - **On-the-clock card** — Compact hero card with team name, franchise color accent, round/pick info, and countdown timer with state labels.
+  - **Tab bar** — "Draft Board" and "Available Players" tabs.
+  - **Draft Board tab** — Horizontally scrollable grid with progressive disclosure and sticky team headers.
   - **Available Players tab** — Searchable undrafted player list with position badges.
-  - **Bottom tab bar** — Fixed at bottom with "Draft Results" and "Available Players" tabs.
 - **Presentation mode**: A toggle that maximizes the board into a fullscreen, chrome-free layout optimized for casting to a TV at the draft party (hides nav, footer, and non-essential UI)
-- **Visual timer expiry signal** — board flashes/pulses when time runs out
+- **Paused state**: When the commissioner pauses the draft, the "LIVE" badge is replaced with an amber **"PAUSED"** badge. The board dims slightly (opacity 0.7) and the hero card timer area shows "DRAFT PAUSED". This prevents viewers from thinking their connection dropped.
 
 **After the draft** (completed):
-- Final board showing all picks by team and round
-- Link to the season roster page
-- **Mobile completed view**: Uses the same compact table format as the live view (team-grouped with franchise-colored headers), but without the ticker or on-the-clock card. Bottom tab bar shows "Draft Results" (default) and "Available Players" (showing full player list with draft team assignments).
+- **"Draft Complete" hero card** with summary stats: total picks, total rounds, number of teams, draft duration (computed from `createdAt` to last `pickedAt`). Replaces the "On the Clock" hero.
+- **"By Team" roster view** (default) — Team cards in a 2-column grid, each with a franchise-colored top border, listing all picks with round numbers and K/R/G badges. This is the primary post-draft view for captains checking rosters.
+- **"Full Board" view** — Final grid showing all picks by team and round. Available as a secondary tab.
+- Link to the season roster page ("View Full Rosters →" CTA)
+- **Mobile completed view**: Uses the same "By Team" card layout (team-grouped with franchise-colored headers), without the ticker or on-the-clock card. Tabs show "By Team" (default) and "Full Board".
 
 ### User Workflows
 
@@ -733,7 +754,11 @@ app/
 | **No registration module yet** | Draft pool is populated via Sportability CSV import (interim solution, see §5.1) or manual entry. Registration metadata is stored as a JSONB snapshot on `draft_pool.registration_meta`. When the native registration module is built, the import will read from `registrations` table directly. |
 | **Simulation data leaking** | All simulation picks/trades are tagged with `isSimulation: true`. Publishing auto-deletes all rows where `isSimulation = true`. Reset button does the same. All queries on `draftPicks`, `draftTrades`, and `draftLog` must include `WHERE isSimulation = false` by default (use `withoutSimulation` helper). |
 | **Accidental publish during simulation** | Publishing requires an `AlertDialog` confirmation ("This will clear all simulation data and make the draft page public. Continue?"). |
-| **Timer expiry** | Timer shows "0:00" with blinking red indicator. Commissioner can still make the pick (advisory timer). Timer resets only when next pick is confirmed. |
+| **Timer expiry** | Timer shows "0:00" with "TIME'S UP" label and pulsing red indicator. Commissioner can still make the pick (advisory timer). Timer resets only when next pick is confirmed. |
+| **Timer not started** | When the timer hasn't been started for the current pick (e.g., between picks), the hero card shows "AWAITING PICK" in muted text instead of "0:00" to avoid confusion with the expired state. |
+| **Draft paused** | When the commissioner pauses, the board dims (opacity 0.7), the LIVE badge is replaced with an amber PAUSED badge, and the timer shows the remaining time with a "PAUSED" label. This prevents viewers from thinking their connection dropped. |
+| **Long draft (20+ rounds)** | Progressive grid disclosure shows only completed + current + 2 upcoming rounds. Remaining rounds collapsed into a summary row. Sticky team headers stay fixed during scroll. A floating "Jump to current round" button appears when active round is out of view. |
+| **Pick announcement overlap** | If a new pick is confirmed while the "Pick Is In" banner is still visible (rapid-fire picks), the current banner immediately dismisses and is replaced by the new one. Keeper auto-confirms skip the banner entirely. |
 | **Roster push conflicts** | Roster push uses `INSERT ... ON CONFLICT DO UPDATE` (upsert) to handle players who already have `player_seasons` records. Discrepancies are logged. |
 | **Route visibility** | `/draft/[season]` returns 404 if the draft status is `draft` (admin-only). Implemented as middleware check. |
 

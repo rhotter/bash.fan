@@ -203,6 +203,7 @@ export default async function DraftBoardPage({ params }: BoardPageProps) {
   return (
     <DraftBoardView
       seasonId={seasonId}
+      seasonSlug={season?.id || seasonId}
       seasonName={season?.name || ""}
       draft={serializedDraft}
       teams={teamOrder.map((t) => ({

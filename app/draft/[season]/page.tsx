@@ -12,7 +12,7 @@ interface Props {
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { season: seasonSlug } = await params
   const seasonRow = await db.query.seasons.findFirst({
-    where: eq(schema.seasons.slug, seasonSlug),
+    where: eq(schema.seasons.id, seasonSlug),
   })
 
   return {
@@ -30,7 +30,7 @@ export default async function PublicDraftPage({ params }: Props) {
 
   // Resolve season
   const seasonRow = await db.query.seasons.findFirst({
-    where: eq(schema.seasons.slug, seasonSlug),
+    where: eq(schema.seasons.id, seasonSlug),
   })
 
   if (!seasonRow) notFound()
@@ -134,7 +134,7 @@ export default async function PublicDraftPage({ params }: Props) {
     season: {
       id: seasonRow.id,
       name: seasonRow.name,
-      slug: seasonRow.slug,
+      slug: seasonRow.id,
     },
     teams: teamOrder.map((t) => ({
       ...t,

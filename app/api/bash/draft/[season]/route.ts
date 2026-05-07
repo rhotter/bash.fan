@@ -11,7 +11,7 @@ export async function GET(
 
   // Resolve season slug (e.g. "2026-2027") to a season ID
   const seasonRow = await db.query.seasons.findFirst({
-    where: eq(schema.seasons.slug, seasonSlug),
+    where: eq(schema.seasons.id, seasonSlug),
   })
 
   if (!seasonRow) {
@@ -113,6 +113,18 @@ export async function GET(
     ),
   })
 
+  // Fetch captains for this season
+  const captainRows = await db
+    .select({ playerId: schema.playerSeasons.playerId })
+    .from(schema.playerSeasons)
+    .where(
+      and(
+        eq(schema.playerSeasons.seasonId, seasonRow.id),
+        eq(schema.playerSeasons.isCaptain, true)
+      )
+    )
+  const captainPlayerIds = captainRows.map((c) => c.playerId)
+
   return NextResponse.json(
     {
       draft: {
@@ -131,7 +143,7 @@ export async function GET(
       season: {
         id: seasonRow.id,
         name: seasonRow.name,
-        slug: seasonRow.slug,
+        slug: seasonRow.id,
       },
       teams: teamOrder.map((t) => ({
         ...t,
@@ -154,6 +166,7 @@ export async function GET(
         description: t.description,
         tradedAt: t.tradedAt?.toISOString() || null,
       })),
+      captainPlayerIds,
     },
     {
       headers: {

@@ -11,7 +11,8 @@ import { Input } from "@/components/ui/input"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { ArrowLeft, RotateCcw, Play, Pause, Loader2, Crown, Search, X, Check, Download, Upload } from "lucide-react"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { ArrowLeft, RotateCcw, Play, Pause, Loader2, Crown, Search, X, Check, Download, Upload, MoreVertical, LogOut, ExternalLink } from "lucide-react"
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -80,6 +81,7 @@ interface DraftInstance {
 
 interface DraftBoardViewProps {
   seasonId: string
+  seasonSlug: string
   seasonName: string
   draft: DraftInstance
   teams: Team[]
@@ -102,6 +104,7 @@ function formatPlayerName(name: string | null) {
 
 export function DraftBoardView({
   seasonId,
+  seasonSlug,
   seasonName,
   draft: initialDraft,
   teams,
@@ -802,30 +805,39 @@ export function DraftBoardView({
           </p>
         </div>
         <div className="flex gap-2">
-          {(isLive || draft.status === "completed") && (
-            <>
-              <Button variant="outline" size="sm" onClick={handleExportCsv}>
-                <Download className="h-4 w-4 mr-1" />
-                Export CSV
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-8 w-8">
+                <MoreVertical className="h-4 w-4" />
               </Button>
-              {draft.status !== "completed" && (
-                <Button variant="outline" size="sm" onClick={() => setShowPushConfirm(true)}>
-                  <Upload className="h-4 w-4 mr-1" />
-                  Push Rosters
-                </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+              {(isLive || draft.status === "completed") && (
+                <>
+                  <DropdownMenuItem onClick={handleExportCsv}>
+                    <Download className="h-4 w-4 mr-2" />
+                    Export CSV
+                  </DropdownMenuItem>
+                  {draft.status !== "completed" && (
+                    <DropdownMenuItem onClick={() => setShowPushConfirm(true)}>
+                      <Upload className="h-4 w-4 mr-2" />
+                      Push Rosters
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuSeparator />
+                </>
               )}
-            </>
-          )}
-          {!isSimulation && !isLive && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => router.push(`/admin/seasons/${seasonId}`)}
-            >
-              <ArrowLeft className="h-4 w-4 mr-1" />
-              Back
-            </Button>
-          )}
+              <DropdownMenuItem onClick={() => window.open(`/draft/${seasonSlug}`, "_blank")}>
+                <ExternalLink className="h-4 w-4 mr-2" />
+                View Public Page
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => router.push(`/admin/seasons/${seasonId}`)}>
+                <LogOut className="h-4 w-4 mr-2" />
+                Exit Draft
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
@@ -1296,7 +1308,7 @@ export function DraftBoardView({
                             time: p.pickedAt,
                             text: p.isKeeper
                               ? `${teamInfo?.teamName || p.teamSlug} keeper: ${p.playerName} (Round ${p.round})`
-                              : `R${p.round}P${p.pickNumber}: ${teamInfo?.teamName || p.teamSlug} select ${p.playerName}`,
+                              : `R${p.round}P${p.pickNumber - (p.round - 1) * teams.length}: ${teamInfo?.teamName || p.teamSlug} select ${p.playerName} (#${p.pickNumber} overall)`,
                             type: p.isKeeper ? "keeper" : "pick",
                           })
                         }
@@ -1367,13 +1379,14 @@ export function DraftBoardView({
                 {currentPick ? (
                   <div className="space-y-4">
                     <div className="space-y-1">
-                      <div className="text-lg font-medium">Round {currentPick.round} - Pick {currentPick.pickNumber}</div>
+                      <div className="text-lg font-medium">Round {currentPick.round} Pick {currentPick.pickNumber - (currentPick.round - 1) * teams.length}</div>
                       <div className="flex items-center gap-2">
                         <div 
                           className="w-3 h-3 rounded-full" 
                           style={{ backgroundColor: currentTeam?.color || "#ccc" }} 
                         />
                         <span className="text-sm text-muted-foreground">{currentTeam?.teamName}</span>
+                        <span className="text-xs text-muted-foreground/60">· #{currentPick.pickNumber} overall</span>
                       </div>
                     </div>
 
@@ -1523,7 +1536,7 @@ export function DraftBoardView({
                         return (
                           <div key={p.id} className="flex gap-2">
                             <span className="w-16 shrink-0 tabular-nums">{timeStr}</span>
-                            <span>R{p.round}P{p.pickNumber}: {teamInfo?.teamName || p.teamSlug} — {formatPlayerName(p.playerName)}</span>
+                            <span>R{p.round}P{p.pickNumber - (p.round - 1) * teams.length}: {teamInfo?.teamName || p.teamSlug} — {formatPlayerName(p.playerName)}</span>
                           </div>
                         )
                       })
