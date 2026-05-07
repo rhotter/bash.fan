@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ArrowLeft, RotateCcw, Play, Loader2, Crown, Search, X, Check } from "lucide-react"
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -739,12 +740,21 @@ export function DraftBoardView({
         </Card>
       )}
 
-      {/* The Big Board */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base">Draft Board</CardTitle>
-        </CardHeader>
-        <CardContent>
+      {/* Draft Board Content */}
+      {isLive ? (
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
+          <div className="lg:col-span-3">
+            <Tabs defaultValue="board" className="w-full">
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="board">Big Board</TabsTrigger>
+                <TabsTrigger value="log">Draft Log</TabsTrigger>
+              </TabsList>
+              <TabsContent value="board" className="mt-4">
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-base">Draft Board</CardTitle>
+                  </CardHeader>
+                  <CardContent>
           <div className="overflow-x-auto">
             <table className="w-full border-collapse text-sm">
               <thead>
@@ -822,7 +832,151 @@ export function DraftBoardView({
             </table>
           </div>
         </CardContent>
-      </Card>
+                </Card>
+              </TabsContent>
+              <TabsContent value="log" className="mt-4">
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-base">Draft Log</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-sm text-muted-foreground py-8 text-center border rounded-md border-dashed">
+                      Draft log activity will appear here...
+                    </div>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+            </Tabs>
+          </div>
+          
+          {/* Live Draft Control Panel */}
+          <div className="lg:col-span-1 space-y-4">
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">On the Clock</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="rounded-lg bg-muted/50 p-4 text-center space-y-1">
+                  <div className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Round 1 · Pick 1</div>
+                  <div className="text-lg font-bold">Team Name</div>
+                  <div className="text-2xl font-mono pt-2 font-semibold tabular-nums text-red-500">
+                    2:00
+                  </div>
+                </div>
+                
+                <div className="space-y-2">
+                  <div className="relative">
+                    <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input placeholder="Search players to draft..." className="pl-9" />
+                  </div>
+                  <div className="text-xs text-muted-foreground text-center py-4 border rounded-md border-dashed">
+                    Available players will appear here
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Draft Controls</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <div className="grid grid-cols-2 gap-2">
+                  <Button variant="outline" size="sm">Trade</Button>
+                  <Button variant="outline" size="sm">Edit Order</Button>
+                </div>
+                <Button variant="outline" size="sm" className="w-full text-red-600 hover:text-red-700 hover:bg-red-50">
+                  Undo Last Pick
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      ) : (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Draft Board</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse text-sm">
+                <thead>
+                  <tr>
+                    <th className="sticky left-0 z-10 bg-background border p-2 text-xs font-medium text-muted-foreground w-12">
+                      Rd
+                    </th>
+                    {teams.map((t) => (
+                      <th
+                        key={t.teamSlug}
+                        className="border p-2 text-xs font-semibold min-w-[120px]"
+                        style={{
+                          backgroundColor: t.color ? `${t.color}15` : undefined,
+                          borderBottomColor: t.color || undefined,
+                          borderBottomWidth: t.color ? "3px" : undefined,
+                        }}
+                      >
+                        {t.teamName}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {Array.from({ length: draft.rounds }, (_, i) => i + 1).map((round) => (
+                    <tr key={round}>
+                      <td className="sticky left-0 z-10 bg-background border p-2 text-center text-xs font-mono text-muted-foreground">
+                        {round}
+                      </td>
+                      {teams.map((t) => {
+                        const pick = boardGrid[round]?.[t.teamSlug]
+                        const isTraded = pick && pick.originalTeamSlug !== pick.teamSlug
+                        return (
+                          <td
+                            key={t.teamSlug}
+                            className={`border p-1.5 text-center text-xs ${
+                              pick?.playerId
+                                ? pick.isKeeper
+                                  ? "bg-amber-500/5"
+                                  : "bg-green-500/5"
+                                : ""
+                            }`}
+                            style={{
+                              backgroundColor: pick?.playerId && t.color
+                                ? `${t.color}08`
+                                : undefined,
+                            }}
+                          >
+                            {pick?.playerId ? (
+                              <div className="flex flex-col items-center gap-0.5">
+                                <span className="font-medium truncate max-w-[100px]">
+                                  {pick.playerName}
+                                </span>
+                                <div className="flex gap-0.5">
+                                  {pick.isKeeper && (
+                                    <Badge variant="outline" className="text-[8px] px-1 py-0 border-amber-500/50 text-amber-600">
+                                      K
+                                    </Badge>
+                                  )}
+                                  {isTraded && (
+                                    <Badge variant="outline" className="text-[8px] px-1 py-0 border-blue-500/50 text-blue-600">
+                                      via {pick.originalTeamSlug}
+                                    </Badge>
+                                  )}
+                                </div>
+                              </div>
+                            ) : (
+                              <span className="text-muted-foreground/30">—</span>
+                            )}
+                          </td>
+                        )
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Clear Keepers Confirmation */}
       <AlertDialog open={showClearKeepersConfirm} onOpenChange={setShowClearKeepersConfirm}>
