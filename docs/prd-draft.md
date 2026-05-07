@@ -783,39 +783,50 @@ The following BASH rules (Rulebook 2019) directly inform draft wizard behavior:
 - Replace admin Draft tab placeholder with real draft management page
 - **Smoke test**: ✅ Create a draft via wizard, import Sportability CSV, verify player cards with registration data, publish/unpublish/delete draft
 
-### PR 3 — Admin Presentation View (Simulation + Keeper Entry) 🚧 (in progress — `torres_draft2` branch)
+### PR 3 — Admin Presentation View (Simulation + Keeper Entry) ✅ (completed — `torres_draft2` branch)
 - Simulation mode: full admin presentation view in `draft` state with "SIMULATION MODE" banner
 - Simulation reset (clear all `isSimulation = true` rows)
 - Pre-draft keeper entry phase (team-by-team, round assignment with trade-aware validation, board preview)
 - Pick pre-generation logic (generate all pick slots when transitioning to `live`)
 - Keeper auto-population (captains as mandatory first keepers)
 - Draft backup/restore (JSON export/import from 3-dot menu)
+- Clear keepers confirmation dialog (AlertDialog pattern)
 - `withoutSimulation` query helper
-- **Smoke test**: Run full simulation, reset, enter keepers, verify board preview
+- **Smoke test**: ✅ Run full simulation, reset, enter keepers, verify board preview
 
-### PR 4 — Live Draft Board (Admin + Public)
+### PR 4 — Live Draft Board + Trades (Admin) ✅ (completed — `torres_draft2` branch)
 - Live pick entry (immediate confirm, no revert window)
 - Undo last pick
-- Navigate to / edit previous picks
-- Pick timer (server-side persistence via `timerCountdown`/`timerRunning`/`timerStartedAt`, matching scorekeeper pattern)
-- Timer expiry: blinking 0:00, advisory only, resets on next pick confirm
-- Pause / resume controls
-- Public presentation view (read-only) with 404 guard for `draft` state
-- Short-polling (5-second for live, 10-second for pre-draft) using `stateHash` diffing via `updatedAt`
-- Available Players tab (admin + public)
-- Mobile layout: ticker, on-the-clock card, compact table format, bottom tab bar
-- Mobile completed view: same table format without ticker
-- **Smoke test**: Full draft (15 rounds, 4 teams), verify timer, public view, mobile layout
+- Draft board grid: picks keyed by `originalTeamSlug` so traded picks remain in their original column
+- Player selector: alphabetical sort, position badges, age display, search filtering
+- Draft board badges: Keeper (K), Rookie (R), Goalie (G) indicators on grid cells
+- Player name abbreviation for long names (e.g. "C. Amorello")
+- **Pick swap (trade) functionality** (pulled forward from PR 5):
+  - Trade dialog with team-filtered pick dropdowns and `— FOR —` divider UX
+  - Trades visually reflected on board: blue `→ TeamName` badge on traded slots (empty and filled)
+  - Trade descriptions attribute picks to teams (e.g. "landsharks trades R8P47 to rink-rats for R9P49")
+  - Sequential DB updates (no `db.transaction` — unsupported by neon-http driver)
+- **Draft Log tab**: Chronological feed of picks, keepers, and trades built client-side from props; color-coded entries (picks default, keepers amber, trades blue)
+- **Recent Activity sidebar**: Last 8 picks with timestamps, replacing hardcoded placeholder
+- Edit draft order dialog
+- **Smoke test**: ✅ Make picks, execute trade, verify board reflects trades, verify draft log and recent activity
 
-### PR 5 — Trades, Export, Roster Push & Franchise Wiring
-- Pick swap functionality (update `teamSlug` on pre-generated picks)
-- Player trade functionality
-- Trade history log + Draft Log tab (admin, with filter dropdown)
-- CSV export of results
-- Roster push to `player_seasons` / `season_teams` (upsert pattern)
-- Presentation mode toggle (fullscreen, chrome-free)
-- **Franchise ↔ Season Team assignment**: Admin Franchises page enhanced with season team wiring — assign/edit/remove franchise associations on `season_teams.franchiseSlug`. Basic franchise CRUD (create, edit name/color, delete) already implemented in PR 2.
-- **Smoke test**: Execute trade during draft, verify CSV export, push rosters, check `player_seasons`, verify franchise colors on board
+### PR 5 — Public View, Timer, Export & Roster Push 🚧 (in progress — `torres_draft2` branch)
+- ✅ **Pick timer**: Live countdown computed from server state (`timerCountdown - elapsed`), synced via `useEffect` + `setInterval`. Background color transitions: neutral → red at ≤10s → pulsing red at 0:00.
+- ✅ **Pause / resume / reset controls**: `POST /api/.../timer` with `{ action: "pause" | "resume" | "reset" }`. Pause captures remaining seconds; resume restarts from remaining.
+- ✅ **Public presentation view** (`/draft/[season]`): Season-slug-based URL. Server component fetches all draft data, returns 404 for `draft` status. Three display modes:
+  - Pre-draft: countdown to draft day, team list, pool stats
+  - Live: real-time board grid with badges, on-the-clock card with timer, recent picks ticker
+  - Completed: final board
+- ✅ **SWR polling**: 5-second interval for live drafts, 30-second for published. `revalidateOnFocus: true`.
+- ✅ **Available Players tab**: Searchable undrafted player list with position badges (sidebar on desktop, tab on mobile)
+- ✅ **Presentation mode**: Fullscreen toggle via `requestFullscreen()` API, hides nav/chrome
+- ✅ **Mobile layout**: Bottom tab bar ("Draft Results" / "Available Players"), responsive grid
+- ✅ **CSV export**: `GET /api/.../export` returns downloadable CSV with Round, Pick, Team, Player, Keeper, Traded From columns. Button in admin header.
+- ✅ **Roster push**: `POST /api/.../push-rosters` upserts draft picks into `player_seasons` with goalie/rookie/captain flags from `registration_meta`. AlertDialog confirmation. Marks draft completed. Button in admin header.
+- [ ] Player trade functionality (trading players between teams, not just picks) — deferred
+- [ ] **Franchise ↔ Season Team assignment**: Enhanced wiring in admin franchises page — deferred to PR 6
+- **Smoke test**: Full draft, verify timer, public view, mobile layout, CSV export, push rosters
 
 ### 🎯 Milestone: Draft Day Rehearsal
 - Full end-to-end simulation with real player data on staging

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback, useMemo, useEffect } from "react"
+import { useState, useCallback, useMemo, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { ArrowLeft, RotateCcw, Play, Loader2, Crown, Search, X, Check } from "lucide-react"
+import { ArrowLeft, RotateCcw, Play, Pause, Loader2, Crown, Search, X, Check, Download, Upload } from "lucide-react"
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -73,6 +73,9 @@ interface DraftInstance {
   location: string | null
   currentRound: number | null
   currentPick: number | null
+  timerCountdown: number | null
+  timerRunning: boolean
+  timerStartedAt: string | null
 }
 
 interface DraftBoardViewProps {
@@ -118,6 +121,56 @@ export function DraftBoardView({
   const [isClearingKeepers, setIsClearingKeepers] = useState(false)
   const [isUndoing, setIsUndoing] = useState(false)
 
+  // Timer state
+  const [timerRemaining, setTimerRemaining] = useState<number>(() => {
+    if (!initialDraft.timerRunning || !initialDraft.timerStartedAt) {
+      return initialDraft.timerCountdown ?? initialDraft.timerSeconds
+    }
+    const elapsed = Math.floor((Date.now() - new Date(initialDraft.timerStartedAt).getTime()) / 1000)
+    return Math.max(0, (initialDraft.timerCountdown ?? initialDraft.timerSeconds) - elapsed)
+  })
+  const timerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  // Sync timer when draft state updates (from picks, undo, etc.)
+  useEffect(() => {
+    if (timerIntervalRef.current) clearInterval(timerIntervalRef.current)
+
+    if (draft.timerRunning && draft.timerStartedAt) {
+      const tick = () => {
+        const elapsed = Math.floor((Date.now() - new Date(draft.timerStartedAt!).getTime()) / 1000)
+        const remaining = Math.max(0, (draft.timerCountdown ?? draft.timerSeconds) - elapsed)
+        setTimerRemaining(remaining)
+      }
+      tick() // immediate first tick
+      timerIntervalRef.current = setInterval(tick, 1000)
+    } else {
+      setTimerRemaining(draft.timerCountdown ?? draft.timerSeconds)
+    }
+
+    return () => {
+      if (timerIntervalRef.current) clearInterval(timerIntervalRef.current)
+    }
+  }, [draft.timerRunning, draft.timerStartedAt, draft.timerCountdown, draft.timerSeconds])
+
+  const handleTimerAction = async (action: "pause" | "resume" | "reset") => {
+    try {
+      const res = await fetch(`/api/bash/admin/seasons/${seasonId}/draft/${draft.id}/timer`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action }),
+      })
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.error || "Timer action failed")
+      }
+      const result = await res.json()
+      setDraft(result.draft)
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "An error occurred"
+      toast.error(msg)
+    }
+  }
+
   // Keeper entry state
   const [selectedTeam, setSelectedTeam] = useState<string>(teams[0]?.teamSlug || "")
   const [keeperSearch, setKeeperSearch] = useState("")
@@ -143,11 +196,14 @@ export function DraftBoardView({
   const [editOrderPickId, setEditOrderPickId] = useState<string>("")
   const [editOrderTeamSlug, setEditOrderTeamSlug] = useState<string>("")
   const [isEditingOrder, setIsEditingOrder] = useState(false)
+  const [showPushConfirm, setShowPushConfirm] = useState(false)
+  const [isPushingRosters, setIsPushingRosters] = useState(false)
 
   // Compute available players for live draft
   const availableForDraft = useMemo(() => {
     return pool.filter(p => !picks.some(pick => pick.playerId === p.playerId))
                .filter(p => p.playerName.toLowerCase().includes(livePlayerSearch.toLowerCase()))
+               .sort((a, b) => a.playerName.localeCompare(b.playerName))
   }, [pool, picks, livePlayerSearch])
 
   // Find current pick
@@ -374,6 +430,34 @@ export function DraftBoardView({
       toast.error(msg)
     } finally {
       setIsEditingOrder(false)
+    }
+  }
+
+  const handleExportCsv = () => {
+    window.open(`/api/bash/admin/seasons/${seasonId}/draft/${draft.id}/export`, "_blank")
+  }
+
+  const handlePushRosters = async () => {
+    setIsPushingRosters(true)
+    try {
+      const res = await fetch(`/api/bash/admin/seasons/${seasonId}/draft/${draft.id}/push-rosters`, {
+        method: "POST",
+      })
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.error || "Failed to push rosters")
+      }
+      const result = await res.json()
+      toast.success(
+        `Rosters pushed: ${result.summary.inserted} added, ${result.summary.updated} updated, ${result.summary.skipped} skipped`
+      )
+      setShowPushConfirm(false)
+      setDraft((prev) => ({ ...prev, status: "completed" }))
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "An error occurred"
+      toast.error(msg)
+    } finally {
+      setIsPushingRosters(false)
     }
   }
 
@@ -718,6 +802,20 @@ export function DraftBoardView({
           </p>
         </div>
         <div className="flex gap-2">
+          {(isLive || draft.status === "completed") && (
+            <>
+              <Button variant="outline" size="sm" onClick={handleExportCsv}>
+                <Download className="h-4 w-4 mr-1" />
+                Export CSV
+              </Button>
+              {draft.status !== "completed" && (
+                <Button variant="outline" size="sm" onClick={() => setShowPushConfirm(true)}>
+                  <Upload className="h-4 w-4 mr-1" />
+                  Push Rosters
+                </Button>
+              )}
+            </>
+          )}
           {!isSimulation && !isLive && (
             <Button
               variant="ghost"
@@ -876,6 +974,25 @@ export function DraftBoardView({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Push Rosters Confirmation */}
+      <AlertDialog open={showPushConfirm} onOpenChange={setShowPushConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Push Rosters to Season</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will create player-season entries for all drafted players, setting their team, goalie, rookie, and captain flags. The draft will be marked as completed. This action is safe to run multiple times.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handlePushRosters} disabled={isPushingRosters}>
+              {isPushingRosters ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+              Push Rosters
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Keeper entry panel (shown in draft or published state) */}
       {(isSimulation || isPreDraft) && (
@@ -1187,11 +1304,15 @@ export function DraftBoardView({
 
                       // Add trades
                       for (const t of trades) {
-                        const teamA = teams.find(tm => tm.teamSlug === t.teamASlug)
-                        const teamB = teams.find(tm => tm.teamSlug === t.teamBSlug)
+                        const teamA = teams.find(tm => tm.teamSlug === t.teamASlug)?.teamName || t.teamASlug
+                        const teamB = teams.find(tm => tm.teamSlug === t.teamBSlug)?.teamName || t.teamBSlug
+                        // Use description if available, otherwise build a generic one
+                        const tradeText = t.description
+                          ? `Trade: ${t.description}`
+                          : `Trade: ${teamA} ↔ ${teamB}`
                         logEntries.push({
                           time: t.tradedAt || null,
-                          text: `Trade: ${teamA?.teamName || t.teamASlug} ↔ ${teamB?.teamName || t.teamBSlug}${t.description ? ` — ${t.description}` : ""}`,
+                          text: tradeText,
                           type: "trade",
                         })
                       }
@@ -1257,15 +1378,33 @@ export function DraftBoardView({
                     </div>
 
                     {/* Timer */}
-                    <div className="rounded-md bg-red-50 dark:bg-red-950/20 p-4 border border-red-100 dark:border-red-900 flex items-center justify-between">
-                      <div className="text-4xl font-mono tracking-tight font-semibold text-black dark:text-white">
-                        {Math.floor(draft.timerSeconds / 60)}:{(draft.timerSeconds % 60).toString().padStart(2, '0')}
+                    <div className={`rounded-md p-4 border flex items-center justify-between transition-colors ${
+                      timerRemaining === 0
+                        ? "bg-red-100 dark:bg-red-950/40 border-red-300 dark:border-red-800 animate-pulse"
+                        : timerRemaining <= 10
+                          ? "bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-900"
+                          : "bg-muted/30 border-border"
+                    }`}>
+                      <div className={`text-4xl font-mono tracking-tight font-semibold tabular-nums ${
+                        timerRemaining === 0
+                          ? "text-red-600 dark:text-red-400"
+                          : timerRemaining <= 10
+                            ? "text-red-500 dark:text-red-400"
+                            : "text-black dark:text-white"
+                      }`}>
+                        {Math.floor(timerRemaining / 60)}:{(timerRemaining % 60).toString().padStart(2, '0')}
                       </div>
                       <div className="flex gap-1 text-muted-foreground">
-                        <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-red-100/50 dark:hover:bg-red-900/50">
-                          <svg width="15" height="15" viewBox="0 0 15 15" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M5.5 3.5C5.22386 3.5 5 3.72386 5 4V11C5 11.2761 5.22386 11.5 5.5 11.5C5.77614 11.5 6 11.2761 6 11V4C6 3.72386 5.77614 3.5 5.5 3.5ZM9.5 3.5C9.22386 3.5 9 3.72386 9 4V11C9 11.2761 9.22386 11.5 9.5 11.5C9.77614 11.5 10 11.2761 10 11V4C10 3.72386 9.77614 3.5 9.5 3.5Z" fill="currentColor" fillRule="evenodd" clipRule="evenodd"></path></svg>
-                        </Button>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-red-100/50 dark:hover:bg-red-900/50">
+                        {draft.timerRunning ? (
+                          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleTimerAction("pause")}>
+                            <Pause className="h-4 w-4" />
+                          </Button>
+                        ) : (
+                          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleTimerAction("resume")}>
+                            <Play className="h-4 w-4" />
+                          </Button>
+                        )}
+                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleTimerAction("reset")}>
                           <RotateCcw className="h-4 w-4" />
                         </Button>
                       </div>

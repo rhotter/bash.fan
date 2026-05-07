@@ -63,7 +63,7 @@ export async function POST(
       teamASlug: team1,
       teamBSlug: team2,
       tradeType: "pick_swap",
-      description: `Traded Round ${pick1.round} Pick ${pick1.pickNumber} for Round ${pick2.round} Pick ${pick2.pickNumber}`,
+      description: `${team1} trades R${pick1.round}P${pick1.pickNumber} to ${team2} for R${pick2.round}P${pick2.pickNumber}`,
       isSimulation: draft.status === "draft"
     }).returning()
 
