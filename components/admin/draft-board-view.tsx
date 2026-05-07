@@ -102,6 +102,8 @@ export function DraftBoardView({
   const [isResetting, setIsResetting] = useState(false)
   const [showStartConfirm, setShowStartConfirm] = useState(false)
   const [isStarting, setIsStarting] = useState(false)
+  const [showClearKeepersConfirm, setShowClearKeepersConfirm] = useState(false)
+  const [isClearingKeepers, setIsClearingKeepers] = useState(false)
 
   // Keeper entry state
   const [selectedTeam, setSelectedTeam] = useState<string>(teams[0]?.teamSlug || "")
@@ -366,7 +368,7 @@ export function DraftBoardView({
   )
 
   const clearAllKeepers = useCallback(async () => {
-    if (!confirm("Are you sure you want to clear all keepers for this draft?")) return
+    setIsClearingKeepers(true)
     try {
       const res = await fetch(
         `/api/bash/admin/seasons/${seasonId}/draft/${draft.id}/keepers`,
@@ -380,6 +382,9 @@ export function DraftBoardView({
       }
     } catch {
       toast.error("Failed to clear keepers")
+    } finally {
+      setIsClearingKeepers(false)
+      setShowClearKeepersConfirm(false)
     }
   }, [draft.id, seasonId])
 
@@ -582,7 +587,7 @@ export function DraftBoardView({
                 </Badge>
               </div>
               <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" onClick={clearAllKeepers}>
+                <Button variant="outline" size="sm" onClick={() => setShowClearKeepersConfirm(true)}>
                   Clear All Keepers
                 </Button>
                 {isPreDraft && (
@@ -818,6 +823,35 @@ export function DraftBoardView({
           </div>
         </CardContent>
       </Card>
+
+      {/* Clear Keepers Confirmation */}
+      <AlertDialog open={showClearKeepersConfirm} onOpenChange={setShowClearKeepersConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Clear All Keepers?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to clear all keepers for this draft? This will remove all keeper assignments from the pool and cannot be undone unless you restore from a backup.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isClearingKeepers}>Cancel</AlertDialogCancel>
+            <Button
+              variant="destructive"
+              onClick={clearAllKeepers}
+              disabled={isClearingKeepers}
+            >
+              {isClearingKeepers ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Clearing...
+                </>
+              ) : (
+                "Clear Keepers"
+              )}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Start Draft Confirmation */}
       <AlertDialog open={showStartConfirm} onOpenChange={setShowStartConfirm}>
