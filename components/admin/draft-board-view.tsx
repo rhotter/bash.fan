@@ -99,7 +99,7 @@ export function DraftBoardView({
   const router = useRouter()
   const [draft, setDraft] = useState(initialDraft)
   const [pool, setPool] = useState(initialPool)
-  const [picks] = useState(initialPicks)
+  const [picks, setPicks] = useState(initialPicks)
   const [isResetting, setIsResetting] = useState(false)
   const [showStartConfirm, setShowStartConfirm] = useState(false)
   const [isStarting, setIsStarting] = useState(false)
@@ -113,6 +113,22 @@ export function DraftBoardView({
   const isSimulation = draft.status === "draft"
   const isPreDraft = draft.status === "published"
   const isLive = draft.status === "live"
+
+  // Live Draft State
+  const [livePlayerSearch, setLivePlayerSearch] = useState("")
+  const [isSubmittingPick, setIsSubmittingPick] = useState(false)
+  const [selectedPlayerId, setSelectedPlayerId] = useState<number | null>(null)
+
+  // Compute available players for live draft
+  const availableForDraft = useMemo(() => {
+    return pool.filter(p => !picks.some(pick => pick.playerId === p.playerId))
+               .filter(p => p.playerName.toLowerCase().includes(livePlayerSearch.toLowerCase()))
+  }, [pool, picks, livePlayerSearch])
+
+  // Find current pick
+  const currentPickIndex = picks.findIndex(p => p.playerId === null)
+  const currentPick = currentPickIndex >= 0 ? picks[currentPickIndex] : null
+  const currentTeam = currentPick ? teams.find(t => t.teamSlug === currentPick.teamSlug) : null
 
   // Captain auto-population: assign captains as R1/R2/... keepers on first load
   const [autoPopulated, setAutoPopulated] = useState(false)
@@ -220,6 +236,35 @@ export function DraftBoardView({
       })
       .slice(0, 20)
   }, [pool, keeperSearch, captainsForTeam, selectedTeam])
+
+  // ─── Live Draft Actions ──────────────────────────────────────────────────
+
+  const handlePick = async () => {
+    if (!currentPick || !selectedPlayerId) return
+    setIsSubmittingPick(true)
+    try {
+      const res = await fetch(`/api/bash/admin/seasons/${seasonId}/draft/${draft.id}/pick`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pickId: currentPick.id, playerId: selectedPlayerId })
+      })
+      
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.error || "Failed to submit pick")
+      }
+      
+      const result = await res.json()
+      setPicks(result.picks)
+      setSelectedPlayerId(null)
+      toast.success("Pick confirmed")
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "An error occurred"
+      toast.error(msg)
+    } finally {
+      setIsSubmittingPick(false)
+    }
+  }
 
   // ─── Keeper actions ─────────────────────────────────────────────────────
 
@@ -851,43 +896,113 @@ export function DraftBoardView({
           
           {/* Live Draft Control Panel */}
           <div className="lg:col-span-1 space-y-4">
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base">On the Clock</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="rounded-lg bg-muted/50 p-4 text-center space-y-1">
-                  <div className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Round 1 · Pick 1</div>
-                  <div className="text-lg font-bold">Team Name</div>
-                  <div className="text-2xl font-mono pt-2 font-semibold tabular-nums text-red-500">
-                    2:00
-                  </div>
-                </div>
-                
-                <div className="space-y-2">
-                  <div className="relative">
-                    <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                    <Input placeholder="Search players to draft..." className="pl-9" />
-                  </div>
-                  <div className="text-xs text-muted-foreground text-center py-4 border rounded-md border-dashed">
-                    Available players will appear here
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+            <Card className="border-none shadow-none bg-transparent">
+              <CardContent className="p-0 space-y-4">
+                {currentPick ? (
+                  <div className="space-y-4">
+                    <div className="space-y-1">
+                      <div className="text-lg font-medium">Round {currentPick.round} - Pick {currentPick.pickNumber}</div>
+                      <div className="flex items-center gap-2">
+                        <div 
+                          className="w-3 h-3 rounded-full" 
+                          style={{ backgroundColor: currentTeam?.color || "#ccc" }} 
+                        />
+                        <span className="text-sm text-muted-foreground">{currentTeam?.teamName}</span>
+                      </div>
+                    </div>
 
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base">Draft Controls</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                <div className="grid grid-cols-2 gap-2">
-                  <Button variant="outline" size="sm">Trade</Button>
-                  <Button variant="outline" size="sm">Edit Order</Button>
+                    {/* Timer */}
+                    <div className="rounded-md bg-red-50 dark:bg-red-950/20 p-4 border border-red-100 dark:border-red-900 flex items-center justify-between">
+                      <div className="text-4xl font-mono tracking-tight font-semibold text-black dark:text-white">
+                        {Math.floor(draft.timerSeconds / 60)}:{(draft.timerSeconds % 60).toString().padStart(2, '0')}
+                      </div>
+                      <div className="flex gap-1 text-muted-foreground">
+                        <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-red-100/50 dark:hover:bg-red-900/50">
+                          <svg width="15" height="15" viewBox="0 0 15 15" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M5.5 3.5C5.22386 3.5 5 3.72386 5 4V11C5 11.2761 5.22386 11.5 5.5 11.5C5.77614 11.5 6 11.2761 6 11V4C6 3.72386 5.77614 3.5 5.5 3.5ZM9.5 3.5C9.22386 3.5 9 3.72386 9 4V11C9 11.2761 9.22386 11.5 9.5 11.5C9.77614 11.5 10 11.2761 10 11V4C10 3.72386 9.77614 3.5 9.5 3.5Z" fill="currentColor" fillRule="evenodd" clipRule="evenodd"></path></svg>
+                        </Button>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-red-100/50 dark:hover:bg-red-900/50">
+                          <RotateCcw className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="rounded-lg bg-muted p-4 text-center">
+                    <div className="text-sm font-medium">Draft Complete</div>
+                  </div>
+                )}
+                
+                <div className="space-y-2 pt-2">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input 
+                      placeholder="Search eligible players..." 
+                      className="pl-9 bg-background" 
+                      value={livePlayerSearch}
+                      onChange={(e) => setLivePlayerSearch(e.target.value)}
+                    />
+                  </div>
+                  <div className="flex flex-col gap-2 max-h-[350px] overflow-y-auto pr-1">
+                    {availableForDraft.length === 0 ? (
+                      <div className="text-xs text-muted-foreground text-center py-4 border rounded-md border-dashed">
+                        No players found
+                      </div>
+                    ) : (
+                      availableForDraft.slice(0, 50).map(p => {
+                        const ageStr = p.registrationMeta?.age ? `${p.registrationMeta.age}` : ""
+                        const isSelected = p.playerId === selectedPlayerId
+                        
+                        return (
+                          <div 
+                            key={p.playerId} 
+                            onClick={() => setSelectedPlayerId(p.playerId)}
+                            className={`flex flex-col p-3 border rounded-md cursor-pointer transition-colors ${
+                              isSelected 
+                                ? "bg-orange-50 border-orange-200 dark:bg-orange-900/20 dark:border-orange-800" 
+                                : "bg-card hover:bg-accent border-border"
+                            }`}
+                          >
+                            <div className="flex justify-between items-start">
+                              <span className="font-medium text-sm">{p.playerName}</span>
+                              <Badge variant="secondary" className="text-[10px] bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300 hover:bg-orange-100">
+                                {ageStr ? `Age ${ageStr}` : "Player"}
+                              </Badge>
+                            </div>
+                            <span className="text-xs text-muted-foreground mt-1">Prev: —</span>
+                          </div>
+                        )
+                      })
+                    )}
+                  </div>
                 </div>
-                <Button variant="outline" size="sm" className="w-full text-red-600 hover:text-red-700 hover:bg-red-50">
-                  Undo Last Pick
+
+                <Button 
+                  className="w-full bg-orange-400 hover:bg-orange-500 text-white font-medium shadow-none h-10" 
+                  disabled={!currentPick || isSubmittingPick || !selectedPlayerId}
+                  onClick={handlePick}
+                >
+                  Confirm Pick
                 </Button>
+
+                <div className="grid grid-cols-3 gap-2">
+                  <Button variant="outline" size="sm" className="text-xs shadow-none border-border">Trade</Button>
+                  <Button variant="outline" size="sm" className="text-xs shadow-none border-border">Edit Order</Button>
+                  <Button variant="outline" size="sm" className="text-xs shadow-none border-border text-red-500 hover:text-red-600">Undo Last</Button>
+                </div>
+
+                <div className="pt-4 space-y-3">
+                  <div className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Recent Activity</div>
+                  <div className="space-y-2 text-xs text-muted-foreground">
+                    <div className="flex gap-2">
+                      <span className="w-16 shrink-0">10:42 AM</span>
+                      <span>— R5P2: Cherry Bombs select Sarah Kim</span>
+                    </div>
+                    <div className="flex gap-2">
+                      <span className="w-16 shrink-0">10:40 AM</span>
+                      <span>— R5P1: Red Army select David Chen</span>
+                    </div>
+                  </div>
+                </div>
               </CardContent>
             </Card>
           </div>
