@@ -70,7 +70,7 @@ A dedicated, interactive draft system for managing the BASH league draft process
   - **Add from franchise**: Select an existing franchise (e.g., "Red", "Blue") to add a team. The wizard shows the franchise's previous season team name and captains as defaults, editable by the commissioner.
   - **New team/franchise**: Create a new team name (and optionally a new franchise) and designate captains — either by selecting existing players from the pool (imported in Step 2) or entering new player names (which creates new player records)
   - **Captain designation**: 1–2 captains per team, selected by searching the imported player pool or entering new names
-  - Captains are written to `player_seasons` with `isCaptain: true` for the new season when the draft instance is created
+  - **Source of Truth**: Because the draft locks in rosters and keepers, the draft wizard acts as the final source of truth for captains. Modifying, adding, or removing captains during draft setup will automatically clear old captains and sync the official team captains to the season (`player_seasons`) upon creation.
   - Captain designations are editable on the draft management page until the draft transitions to `live`
 
 - **Draft Order & Pre-Draft Trades** (Step 4): After teams are defined, the commissioner sets the pick order and configures any trades that were agreed upon before the draft:
@@ -783,7 +783,7 @@ The following BASH rules (Rulebook 2019) directly inform draft wizard behavior:
 - Replace admin Draft tab placeholder with real draft management page
 - **Smoke test**: ✅ Create a draft via wizard, import Sportability CSV, verify player cards with registration data, publish/unpublish/delete draft
 
-### PR 3 — Admin Presentation View (Simulation + Keeper Entry)
+### PR 3 — Admin Presentation View (Simulation + Keeper Entry) 🚧 (in progress — `torres_draft2` branch)
 - Simulation mode: full admin presentation view in `draft` state with "SIMULATION MODE" banner
 - Simulation reset (clear all `isSimulation = true` rows)
 - Pre-draft keeper entry phase (team-by-team, round assignment with trade-aware validation, board preview)

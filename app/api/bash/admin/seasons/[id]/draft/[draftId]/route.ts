@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { db, schema } from "@/lib/db"
-import { eq } from "drizzle-orm"
+import { eq, and, sql } from "drizzle-orm"
 import { getSession } from "@/lib/admin-session"
 
 interface RouteContext {
@@ -101,7 +101,29 @@ export async function PUT(request: NextRequest, context: RouteContext) {
     if (draftType !== undefined) updates.draftType = draftType
     if (rounds !== undefined) updates.rounds = rounds
     if (timerSeconds !== undefined) updates.timerSeconds = timerSeconds
-    if (maxKeepers !== undefined) updates.maxKeepers = maxKeepers
+    if (maxKeepers !== undefined) {
+      // Validate that maxKeepers isn't less than any team's current keeper count
+      const keeperCounts = await db
+        .select({ count: sql`count(*)` })
+        .from(schema.draftPool)
+        .where(
+          and(
+            eq(schema.draftPool.draftId, draftId),
+            eq(schema.draftPool.isKeeper, true)
+          )
+        )
+        .groupBy(schema.draftPool.keeperTeamSlug)
+      
+      const maxCurrentKeepers = Math.max(0, ...keeperCounts.map(k => Number(k.count)))
+      
+      if (maxKeepers < maxCurrentKeepers) {
+        return NextResponse.json(
+          { error: `Cannot reduce max keepers to ${maxKeepers} because a team already has ${maxCurrentKeepers} keepers.` },
+          { status: 400 }
+        )
+      }
+      updates.maxKeepers = maxKeepers
+    }
     if (draftDate !== undefined) updates.draftDate = draftDate ? new Date(draftDate) : null
     if (location !== undefined) updates.location = location
 

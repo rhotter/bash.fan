@@ -1,10 +1,11 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
+import { useRouter } from "next/navigation"
 import {
   Loader2, Plus, Users, ListOrdered, Trash2, Send, Clock,
   MapPin, CalendarDays, Layers, ShieldCheck, MoreVertical, Upload,
-  ExternalLink, ArchiveRestore,
+  ExternalLink, ArchiveRestore, Play, Monitor, Download, UploadCloud, Settings,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -20,6 +21,7 @@ import { toast } from "sonner"
 import { DraftWizard } from "./draft-wizard"
 import { DraftPoolImportModal } from "./draft-pool-import-modal"
 import { DraftPlayerCard, SkillBadge } from "./draft-player-card"
+import { EditDraftModal } from "./edit-draft-modal"
 import type { RegistrationMeta } from "@/lib/csv-utils"
 
 interface PoolPlayer {
@@ -67,6 +69,8 @@ const STATUS_STYLES: Record<string, string> = {
 }
 
 export function DraftTab({ seasonId, seasonStatus, seasonType, teams, rosterCount }: DraftTabProps) {
+  const router = useRouter()
+  const restoreInputRef = useRef<HTMLInputElement>(null)
   const [drafts, setDrafts] = useState<DraftInstance[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [wizardOpen, setWizardOpen] = useState(false)
@@ -81,6 +85,7 @@ export function DraftTab({ seasonId, seasonStatus, seasonType, teams, rosterCoun
   const [poolData, setPoolData] = useState<Record<string, PoolPlayer[]>>({})
   const [unpublishTarget, setUnpublishTarget] = useState<DraftInstance | null>(null)
   const [isUnpublishing, setIsUnpublishing] = useState(false)
+  const [editTarget, setEditTarget] = useState<DraftInstance | null>(null)
 
   const fetchDrafts = useCallback(async () => {
     try {
@@ -95,6 +100,35 @@ export function DraftTab({ seasonId, seasonStatus, seasonType, teams, rosterCoun
       setIsLoading(false)
     }
   }, [seasonId])
+
+  // Backup restore handler
+  const handleRestoreBackup = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const target = drafts.find((d) => d.status === "draft")
+    if (!target) {
+      toast.error("No draft in editable status to restore to")
+      return
+    }
+    try {
+      const text = await file.text()
+      const backup = JSON.parse(text)
+      const res = await fetch(
+        `/api/bash/admin/seasons/${seasonId}/draft/${target.id}/backup`,
+        { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(backup) }
+      )
+      if (res.ok) {
+        toast.success("Backup restored successfully")
+        fetchDrafts()
+      } else {
+        const err = await res.json()
+        toast.error(err.error || "Failed to restore backup")
+      }
+    } catch {
+      toast.error("Invalid backup file")
+    }
+    if (restoreInputRef.current) restoreInputRef.current.value = ""
+  }, [drafts, seasonId, fetchDrafts])
 
   useEffect(() => { fetchDrafts() }, [fetchDrafts])
 
@@ -246,6 +280,14 @@ export function DraftTab({ seasonId, seasonStatus, seasonType, teams, rosterCoun
   // Show existing draft(s)
   return (
     <>
+      {/* Hidden file input for backup restore */}
+      <input
+        ref={restoreInputRef}
+        type="file"
+        accept=".json"
+        className="hidden"
+        onChange={handleRestoreBackup}
+      />
       <div className="space-y-4">
         {drafts.map(draft => (
           <Card key={draft.id}>
@@ -279,10 +321,38 @@ export function DraftTab({ seasonId, seasonStatus, seasonType, teams, rosterCoun
                   {draft.status === "draft" && (
                     <Button
                       size="sm"
+                      variant="outline"
+                      onClick={() => router.push(`/admin/seasons/${seasonId}/draft/${draft.id}/board`)}
+                    >
+                      <Monitor className="h-3.5 w-3.5 mr-1.5" />
+                      Simulate
+                    </Button>
+                  )}
+                  {draft.status === "draft" && (
+                    <Button
+                      size="sm"
                       onClick={() => setPublishTarget(draft)}
                     >
                       <Send className="h-3.5 w-3.5 mr-1.5" />
                       Publish
+                    </Button>
+                  )}
+                  {draft.status === "published" && (
+                    <Button
+                      size="sm"
+                      onClick={() => router.push(`/admin/seasons/${seasonId}/draft/${draft.id}/board`)}
+                    >
+                      <Play className="h-3.5 w-3.5 mr-1.5" />
+                      Open Board
+                    </Button>
+                  )}
+                  {draft.status === "live" && (
+                    <Button
+                      size="sm"
+                      onClick={() => router.push(`/admin/seasons/${seasonId}/draft/${draft.id}/board`)}
+                    >
+                      <Monitor className="h-3.5 w-3.5 mr-1.5" />
+                      Live Board
                     </Button>
                   )}
                   {(draft.status === "published" || draft.status === "live") && (
@@ -312,10 +382,37 @@ export function DraftTab({ seasonId, seasonStatus, seasonType, teams, rosterCoun
                       )}
                       {draft.status === "draft" && (
                         <DropdownMenuItem
+                          onClick={() => setEditTarget(draft)}
+                        >
+                          <Settings className="h-4 w-4 mr-2" />
+                          Edit Settings
+                        </DropdownMenuItem>
+                      )}
+                      {draft.status === "draft" && (
+                        <DropdownMenuItem
                           onClick={() => setImportDraftId(draft.id)}
                         >
                           <Upload className="h-4 w-4 mr-2" />
                           Import CSV
+                        </DropdownMenuItem>
+                      )}
+                      <DropdownMenuItem
+                        onClick={() => {
+                          window.open(
+                            `/api/bash/admin/seasons/${seasonId}/draft/${draft.id}/backup`,
+                            "_blank"
+                          )
+                        }}
+                      >
+                        <Download className="h-4 w-4 mr-2" />
+                        Export Backup
+                      </DropdownMenuItem>
+                      {draft.status === "draft" && (
+                        <DropdownMenuItem
+                          onClick={() => restoreInputRef.current?.click()}
+                        >
+                          <UploadCloud className="h-4 w-4 mr-2" />
+                          Restore from Backup
                         </DropdownMenuItem>
                       )}
                       <DropdownMenuItem
@@ -502,6 +599,15 @@ export function DraftTab({ seasonId, seasonStatus, seasonType, teams, rosterCoun
         player={selectedPlayer}
         open={playerCardOpen}
         onOpenChange={setPlayerCardOpen}
+      />
+
+      {/* Edit Settings Modal */}
+      <EditDraftModal
+        draft={editTarget}
+        seasonId={seasonId}
+        isOpen={!!editTarget}
+        onOpenChange={(open) => { if (!open) setEditTarget(null) }}
+        onUpdate={fetchDrafts}
       />
     </>
   )

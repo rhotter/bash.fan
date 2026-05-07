@@ -59,7 +59,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
       const rookieStr = (row["Rookie"] || "").toLowerCase()
       const captainStr = (row["Captain"] || "").toLowerCase()
       const isRookie = rookieStr === "1" || rookieStr === "yes" || rookieStr === "true"
-      const isCaptain = captainStr === "1" || captainStr === "yes" || captainStr === "true"
+      const isCaptain = captainStr === "1" || captainStr === "yes" || captainStr === "true" || captainStr === "asst"
 
       return {
         playerName,

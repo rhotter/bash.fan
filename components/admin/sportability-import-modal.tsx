@@ -31,7 +31,7 @@ export function SportabilityImportModal({ seasonId, seasonStatus }: Sportability
 
   // Preview Data
   const [stats, setStats] = useState<Record<string, number> | null>(null)
-  const [mappedPlayers, setMappedPlayers] = useState<{ playerName: string; teamSlug: string; isGoalie: boolean; [key: string]: unknown }[]>([])
+  const [mappedPlayers, setMappedPlayers] = useState<{ playerName: string; teamSlug: string; isGoalie: boolean; isCaptain?: boolean; isRookie?: boolean; [key: string]: unknown }[]>([])
 
   const resetState = () => {
     setStep("upload")
@@ -236,8 +236,10 @@ export function SportabilityImportModal({ seasonId, seasonStatus }: Sportability
                     <div className="col-span-4 truncate text-muted-foreground">
                       {p.teamSlug === 'tbd' ? 'Unassigned' : p.teamSlug}
                     </div>
-                    <div className="col-span-3 flex justify-end gap-1">
+                    <div className="col-span-3 flex flex-wrap justify-end gap-1">
+                      {p.isCaptain && <Badge variant="outline" className="text-[10px] px-1 py-0 bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300 border-amber-200 dark:border-amber-800">Captain</Badge>}
                       {p.isGoalie && <Badge variant="outline" className="text-[10px] px-1 py-0">Goalie</Badge>}
+                      {p.isRookie && <Badge variant="outline" className="text-[10px] px-1 py-0 bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300 border-blue-200 dark:border-blue-800">Rookie</Badge>}
                     </div>
                   </div>
                 ))}

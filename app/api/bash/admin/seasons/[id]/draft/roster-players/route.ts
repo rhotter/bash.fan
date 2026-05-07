@@ -25,6 +25,7 @@ export async function GET(_request: NextRequest, context: RouteContext) {
       playerId: schema.playerSeasons.playerId,
       playerName: schema.players.name,
       teamSlug: schema.playerSeasons.teamSlug,
+      isCaptain: schema.playerSeasons.isCaptain,
     })
     .from(schema.playerSeasons)
     .innerJoin(schema.players, eq(schema.players.id, schema.playerSeasons.playerId))

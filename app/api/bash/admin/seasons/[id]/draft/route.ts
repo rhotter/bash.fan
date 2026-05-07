@@ -155,22 +155,21 @@ export async function POST(request: NextRequest, context: RouteContext) {
 
     // ── Captain assignments ─────────────────────────────────────────────────
     // Mark captains as keepers in the draft pool and set isCaptain on player_seasons.
-    // Captains become mandatory round-1 keepers for their team.
+    // Captains become mandatory keepers for their team.
+    
+    // First, clear all existing captains for this season to ensure a clean sync
+    await db
+      .update(schema.playerSeasons)
+      .set({ isCaptain: false })
+      .where(eq(schema.playerSeasons.seasonId, seasonId))
+
     if (Array.isArray(captains) && captains.length > 0) {
       for (const cap of captains) {
         const { teamSlug: capTeamSlug, playerId: capPlayerId } = cap as { teamSlug: string; playerId: number }
-        // Update the draft pool row to mark as keeper
-        if (uniquePlayerIds.includes(capPlayerId)) {
-          await db
-            .update(schema.draftPool)
-            .set({ isKeeper: true, keeperTeamSlug: capTeamSlug, keeperRound: 1 })
-            .where(
-              and(
-                eq(schema.draftPool.draftId, draftId),
-                eq(schema.draftPool.playerId, capPlayerId)
-              )
-            )
-        }
+        // We do not eagerly set the draftPool keeperRound here anymore.
+        // The DraftBoardView `autoPopulate` useEffect will handle it safely
+        // to assign sequential rounds (R1, R2, etc.) for multiple captains.
+        
         // Set isCaptain on the player_seasons row
         await db
           .update(schema.playerSeasons)

@@ -21,6 +21,7 @@ interface RosterPlayer {
   playerId: number
   playerName: string
   teamSlug: string
+  isCaptain?: boolean
 }
 
 /** Captain assignment: one player assigned as captain of one team */
@@ -110,11 +111,35 @@ export function DraftWizard({ open, onOpenChange, seasonId, seasonType, teams, r
       setRosterLoading(true)
       fetch(`/api/bash/admin/seasons/${seasonId}/draft/roster-players`)
         .then(res => res.ok ? res.json() : { players: [] })
-        .then(data => setRosterPlayers(data.players || []))
+        .then(data => {
+          const players = data.players || []
+          setRosterPlayers(players)
+          
+          // Auto-populate captains if they aren't already set
+          if (form.captains.length === 0) {
+            const autoCaptains: CaptainAssignment[] = []
+            players.forEach((p: RosterPlayer) => {
+              if (p.isCaptain) {
+                // Count how many captains already mapped for this team
+                const teamCapCount = autoCaptains.filter(c => c.teamSlug === p.teamSlug).length
+                if (teamCapCount < 2) { // Enforce max 2 captains per team
+                  autoCaptains.push({
+                    teamSlug: p.teamSlug,
+                    playerId: p.playerId,
+                    playerName: p.playerName
+                  })
+                }
+              }
+            })
+            if (autoCaptains.length > 0) {
+              setForm(f => ({ ...f, captains: autoCaptains }))
+            }
+          }
+        })
         .catch(() => {})
         .finally(() => setRosterLoading(false))
     }
-  }, [step, seasonId, rosterPlayers.length, rosterLoading])
+  }, [step, seasonId, rosterPlayers.length, rosterLoading, form.captains.length])
 
   const canNext = () => {
     if (step === 0) return !!form.name && form.timerSeconds > 0
@@ -541,6 +566,7 @@ function StepTeamsCaptains({
   onCaptainsChange: (captains: CaptainAssignment[]) => void
 }) {
   const [searchTerms, setSearchTerms] = useState<Record<string, string>>({})
+  const [focusedTeam, setFocusedTeam] = useState<string | null>(null)
 
   const MAX_CAPTAINS_PER_TEAM = 2
 
@@ -563,8 +589,9 @@ function StepTeamsCaptains({
       ...captains,
       { teamSlug, playerId: player.playerId, playerName: player.playerName },
     ])
-    // Clear search for this team after selection
+    // Clear search and focus for this team after selection
     setSearchTerms(prev => ({ ...prev, [teamSlug]: "" }))
+    setFocusedTeam(null)
   }
 
   /** Remove a specific captain from a team */
@@ -572,29 +599,51 @@ function StepTeamsCaptains({
     onCaptainsChange(captains.filter(c => !(c.teamSlug === teamSlug && c.playerId === playerId)))
   }
 
-  /** Filter roster players for search — exclude already-assigned captains across all teams */
+  /** Filter roster players for search — exclude already-assigned captains across all teams, sort isCaptain first */
   const getFilteredPlayers = (teamSlug: string) => {
     const term = (searchTerms[teamSlug] || "").toLowerCase()
     const assignedIds = new Set(captains.map(c => c.playerId))
-    return rosterPlayers
+    const list = rosterPlayers
       .filter(p => !assignedIds.has(p.playerId))
       .filter(p => !term || p.playerName.toLowerCase().includes(term))
-      .slice(0, 8) // Limit dropdown results
+      
+    // Sort so that isCaptain=true are first, then alphabetical
+    list.sort((a, b) => {
+      // Prioritize captains for *this* specific team if we know their team
+      const aIsTeamCap = a.isCaptain && a.teamSlug === teamSlug
+      const bIsTeamCap = b.isCaptain && b.teamSlug === teamSlug
+      if (aIsTeamCap && !bIsTeamCap) return -1
+      if (!aIsTeamCap && bIsTeamCap) return 1
+
+      // Then prioritize any captain
+      if (a.isCaptain && !b.isCaptain) return -1
+      if (!a.isCaptain && b.isCaptain) return 1
+
+      return a.playerName.localeCompare(b.playerName)
+    })
+    
+    return list.slice(0, 8) // Limit dropdown results
   }
 
   return (
     <div className="space-y-3">
-      <p className="text-sm text-muted-foreground">
-        Assign up to {MAX_CAPTAINS_PER_TEAM} captains per team. Captains become mandatory keepers in the draft.
-        {rosterLoading && <span className="ml-1 text-muted-foreground/60">(Loading roster…)</span>}
-      </p>
+      <div className="space-y-1">
+        <p className="text-sm text-muted-foreground">
+          Assign up to {MAX_CAPTAINS_PER_TEAM} captains per team. Captains become mandatory keepers in the draft.
+          {rosterLoading && <span className="ml-1 text-muted-foreground/60">(Loading roster…)</span>}
+        </p>
+        <p className="text-[11px] text-muted-foreground/80 italic">
+          Note: If captains have changed, update them here. This will automatically update the official team captains for the season.
+        </p>
+      </div>
       <div className="space-y-2">
         {teams.map(t => {
           const teamCaptains = getCaptains(t.teamSlug)
           const search = searchTerms[t.teamSlug] || ""
+          const isFocused = focusedTeam === t.teamSlug
           const canAddMore = teamCaptains.length < MAX_CAPTAINS_PER_TEAM
           const showSearch = canAddMore && rosterPlayers.length > 0
-          const filtered = showSearch && search.length > 0 ? getFilteredPlayers(t.teamSlug) : []
+          const filtered = showSearch && (search.length > 0 || isFocused) ? getFilteredPlayers(t.teamSlug) : []
 
           return (
             <div key={t.teamSlug} className="border rounded-md p-2.5 space-y-2">
@@ -633,6 +682,13 @@ function StepTeamsCaptains({
                     placeholder={teamCaptains.length === 0 ? "Search player to assign as captain…" : "Search for a 2nd captain…"}
                     className="h-8 pl-7 text-xs"
                     value={search}
+                    onFocus={() => setFocusedTeam(t.teamSlug)}
+                    onBlur={() => {
+                      // Small timeout to allow click to register on dropdown buttons
+                      setTimeout(() => {
+                        setFocusedTeam(null)
+                      }, 150)
+                    }}
                     onChange={(e) => setSearchTerms(prev => ({ ...prev, [t.teamSlug]: e.target.value }))}
                   />
                   {/* Dropdown results */}
@@ -642,10 +698,15 @@ function StepTeamsCaptains({
                         <button
                           key={p.playerId}
                           type="button"
-                          className="w-full text-left px-3 py-1.5 text-xs hover:bg-muted transition-colors"
+                          className="w-full text-left px-3 py-1.5 text-xs hover:bg-muted transition-colors flex items-center justify-between"
                           onClick={() => addCaptain(t.teamSlug, p)}
                         >
-                          {p.playerName}
+                          <span>{p.playerName}</span>
+                          {p.isCaptain && (
+                            <Badge variant="outline" className="text-[9px] h-4 leading-none bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300 py-0">
+                              Captain
+                            </Badge>
+                          )}
                         </button>
                       ))}
                     </div>
@@ -749,29 +810,57 @@ function StepOrderTrades({
     return picks
   }
 
+  /** Find the first round still owned by a team that isn't already being traded away */
+  const getNextAvailableRound = (teamSlug: string, atTradeIndex: number) => {
+    const owned = getPicksOwnedByTeam(teamSlug, atTradeIndex)
+    // Rounds already committed in other trades for this team
+    const committedKeys = new Set<string>()
+    for (let i = 0; i < preDraftTrades.length; i++) {
+      if (i >= atTradeIndex) continue // only consider trades before this one
+      const t = preDraftTrades[i]
+      if (t.teamASlug === teamSlug) committedKeys.add(`${t.teamAOriginalOwner}::${t.teamARound}`)
+      if (t.teamBSlug === teamSlug) committedKeys.add(`${t.teamBOriginalOwner}::${t.teamBRound}`)
+    }
+    const available = owned.filter((p) => !committedKeys.has(`${p.originalOwner}::${p.round}`))
+    return available.length > 0 ? available[0] : owned[0] // fallback to first owned
+  }
+
   const addTrade = () => {
     if (teamOrder.length < 2) return
+    const newIndex = preDraftTrades.length
+    const teamA = teamOrder[0].teamSlug
+    const teamB = teamOrder[1].teamSlug
+    const pickA = getNextAvailableRound(teamA, newIndex)
+    const pickB = getNextAvailableRound(teamB, newIndex)
     onTradesChange([
       ...preDraftTrades,
       {
-        teamASlug: teamOrder[0].teamSlug,
-        teamARound: 1,
-        teamAOriginalOwner: teamOrder[0].teamSlug,
-        teamBSlug: teamOrder[1].teamSlug,
-        teamBRound: 1,
-        teamBOriginalOwner: teamOrder[1].teamSlug,
+        teamASlug: teamA,
+        teamARound: pickA?.round ?? 1,
+        teamAOriginalOwner: pickA?.originalOwner ?? teamA,
+        teamBSlug: teamB,
+        teamBRound: pickB?.round ?? 1,
+        teamBOriginalOwner: pickB?.originalOwner ?? teamB,
       },
     ])
   }
 
-  /** Update a trade field, auto-syncing originalOwner when team changes */
+  /** Update a trade field, auto-syncing originalOwner and default round when team changes */
   const updateTrade = (index: number, field: keyof PreDraftTrade, value: string | number) => {
     const updated = [...preDraftTrades]
     const trade = { ...updated[index], [field]: value }
 
-    // When the team changes, reset originalOwner to the new team (their own pick)
-    if (field === "teamASlug") trade.teamAOriginalOwner = value as string
-    if (field === "teamBSlug") trade.teamBOriginalOwner = value as string
+    // When the team changes, auto-default to that team's next available pick
+    if (field === "teamASlug") {
+      const pick = getNextAvailableRound(value as string, index)
+      trade.teamAOriginalOwner = pick?.originalOwner ?? (value as string)
+      trade.teamARound = pick?.round ?? 1
+    }
+    if (field === "teamBSlug") {
+      const pick = getNextAvailableRound(value as string, index)
+      trade.teamBOriginalOwner = pick?.originalOwner ?? (value as string)
+      trade.teamBRound = pick?.round ?? 1
+    }
 
     updated[index] = trade
     onTradesChange(updated)
