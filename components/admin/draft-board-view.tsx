@@ -256,6 +256,7 @@ export function DraftBoardView({
       
       const result = await res.json()
       setPicks(result.picks)
+      setDraft(result.draft)
       setSelectedPlayerId(null)
       toast.success("Pick confirmed")
     } catch (e: unknown) {
