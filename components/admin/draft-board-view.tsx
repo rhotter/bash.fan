@@ -50,6 +50,7 @@ interface Trade {
   teamBSlug: string
   tradeType: string
   description: string | null
+  tradedAt: string | null
 }
 
 interface Captain {
@@ -103,7 +104,7 @@ export function DraftBoardView({
   teams,
   pool: initialPool,
   picks: initialPicks,
-  trades: _trades,
+  trades,
   captains,
 }: DraftBoardViewProps) {
   const router = useRouter()
@@ -1165,9 +1166,73 @@ export function DraftBoardView({
                     <CardTitle className="text-base">Draft Log</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="text-sm text-muted-foreground py-8 text-center border rounded-md border-dashed">
-                      Draft log activity will appear here...
-                    </div>
+                    {(() => {
+                      // Build a unified log from picks and trades
+                      type LogEntry = { time: string | null; text: string; type: "pick" | "trade" | "keeper" }
+                      const logEntries: LogEntry[] = []
+
+                      // Add picks
+                      for (const p of picks) {
+                        if (p.playerId && p.pickedAt) {
+                          const teamInfo = teams.find(tm => tm.teamSlug === p.teamSlug)
+                          logEntries.push({
+                            time: p.pickedAt,
+                            text: p.isKeeper
+                              ? `${teamInfo?.teamName || p.teamSlug} keeper: ${p.playerName} (Round ${p.round})`
+                              : `R${p.round}P${p.pickNumber}: ${teamInfo?.teamName || p.teamSlug} select ${p.playerName}`,
+                            type: p.isKeeper ? "keeper" : "pick",
+                          })
+                        }
+                      }
+
+                      // Add trades
+                      for (const t of trades) {
+                        const teamA = teams.find(tm => tm.teamSlug === t.teamASlug)
+                        const teamB = teams.find(tm => tm.teamSlug === t.teamBSlug)
+                        logEntries.push({
+                          time: t.tradedAt || null,
+                          text: `Trade: ${teamA?.teamName || t.teamASlug} ↔ ${teamB?.teamName || t.teamBSlug}${t.description ? ` — ${t.description}` : ""}`,
+                          type: "trade",
+                        })
+                      }
+
+                      // Sort newest first
+                      logEntries.sort((a, b) => {
+                        if (!a.time && !b.time) return 0
+                        if (!a.time) return 1
+                        if (!b.time) return -1
+                        return new Date(b.time).getTime() - new Date(a.time).getTime()
+                      })
+
+                      if (logEntries.length === 0) {
+                        return (
+                          <div className="text-sm text-muted-foreground py-8 text-center border rounded-md border-dashed">
+                            No draft activity yet.
+                          </div>
+                        )
+                      }
+
+                      return (
+                        <div className="space-y-1 max-h-[500px] overflow-y-auto pr-1">
+                          {logEntries.map((entry, i) => (
+                            <div key={i} className="flex gap-3 py-1.5 border-b border-border/50 last:border-b-0">
+                              <span className="text-[11px] text-muted-foreground w-[70px] shrink-0 tabular-nums">
+                                {entry.time ? new Date(entry.time).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "—"}
+                              </span>
+                              <span className={`text-xs ${
+                                entry.type === "trade"
+                                  ? "text-blue-600 dark:text-blue-400"
+                                  : entry.type === "keeper"
+                                    ? "text-amber-600 dark:text-amber-400"
+                                    : "text-foreground"
+                              }`}>
+                                {entry.text}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )
+                    })()}
                   </CardContent>
                 </Card>
               </TabsContent>
@@ -1230,6 +1295,7 @@ export function DraftBoardView({
                     ) : (
                       availableForDraft.slice(0, 50).map(p => {
                         const positionStr = typeof p.registrationMeta?.positions === "string" ? p.registrationMeta.positions : ""
+                        const age = typeof p.registrationMeta?.age === "number" ? p.registrationMeta.age : null
                         const isSelected = p.playerId === selectedPlayerId
                         
                         return (
@@ -1248,7 +1314,9 @@ export function DraftBoardView({
                                 {positionStr || "Player"}
                               </Badge>
                             </div>
-                            <span className="text-xs text-muted-foreground mt-1">Prev: —</span>
+                            {age !== null && (
+                              <span className="text-xs text-muted-foreground mt-0.5">Age: {age}</span>
+                            )}
                           </div>
                         )
                       })
@@ -1294,15 +1362,33 @@ export function DraftBoardView({
 
                 <div className="pt-4 space-y-3">
                   <div className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Recent Activity</div>
-                  <div className="space-y-2 text-xs text-muted-foreground">
-                    <div className="flex gap-2">
-                      <span className="w-16 shrink-0">10:42 AM</span>
-                      <span>— R5P2: Cherry Bombs select Sarah Kim</span>
-                    </div>
-                    <div className="flex gap-2">
-                      <span className="w-16 shrink-0">10:40 AM</span>
-                      <span>— R5P1: Red Army select David Chen</span>
-                    </div>
+                  <div className="space-y-1.5 text-xs text-muted-foreground">
+                    {(() => {
+                      const recentPicks = picks
+                        .filter(p => p.playerId && p.pickedAt && !p.isKeeper)
+                        .sort((a, b) => {
+                          if (!a.pickedAt || !b.pickedAt) return 0
+                          return new Date(b.pickedAt).getTime() - new Date(a.pickedAt).getTime()
+                        })
+                        .slice(0, 8)
+
+                      if (recentPicks.length === 0) {
+                        return <div className="text-muted-foreground/50 text-center py-2">No picks yet</div>
+                      }
+
+                      return recentPicks.map(p => {
+                        const teamInfo = teams.find(tm => tm.teamSlug === p.teamSlug)
+                        const timeStr = p.pickedAt
+                          ? new Date(p.pickedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
+                          : "—"
+                        return (
+                          <div key={p.id} className="flex gap-2">
+                            <span className="w-16 shrink-0 tabular-nums">{timeStr}</span>
+                            <span>R{p.round}P{p.pickNumber}: {teamInfo?.teamName || p.teamSlug} — {formatPlayerName(p.playerName)}</span>
+                          </div>
+                        )
+                      })
+                    })()}
                   </div>
                 </div>
               </CardContent>

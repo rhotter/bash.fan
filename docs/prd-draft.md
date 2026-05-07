@@ -844,3 +844,13 @@ The following BASH rules (Rulebook 2019) directly inform draft wizard behavior:
 - [x] **Franchise mapping**: Manual via admin franchise management view (not auto-seeded).
 - [x] **Season type snapshot**: `seasonType` is denormalized onto `draftInstances` at creation time.
 - [x] **Timer persistence**: Same pattern as live scorekeeping (`timerCountdown` + `timerRunning` + `timerStartedAt`).
+
+---
+
+## 11. Future Enhancements
+
+- [ ] **Player Detail Card**: Add an expandable or click-to-open player card in the draft player selector that surfaces all custom registration metadata fields (`skillLevel`, `positions`, `yearsPlayed`, `lastLeague`, `lastTeam`, `birthdate`, `gender`, `tshirtSize`, `miscNotes`, `isRookie`). This gives the commissioner full context on each player during live picks without leaving the draft board.
+- [ ] **Previous Team Display**: Show each player's previous season team in the player selector (requires joining `player_seasons` for the prior season and passing through the pool data).
+- [ ] **Real-Time Synchronization**: Replace manual state updates with real-time syncing via SWR polling or WebSockets so multiple commissioners/spectators see picks as they happen.
+- [ ] **Timer Persistence**: Connect the server-side `timerStartedAt` to the client-side countdown for accurate cross-device timer sync.
+- [ ] **Draft Log Persistence**: Currently the Draft Log tab is built client-side from picks/trades props. A future enhancement could query the `draft_log` database table directly for a richer history including undo actions and simulation resets.

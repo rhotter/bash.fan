@@ -218,7 +218,10 @@ export default async function DraftBoardPage({ params }: BoardPageProps) {
         playerName: p.playerId ? playerMap[p.playerId] || "Unknown" : null,
         pickedAt: p.pickedAt?.toISOString() || null,
       }))}
-      trades={trades}
+      trades={trades.map((t) => ({
+        ...t,
+        tradedAt: t.tradedAt?.toISOString() || null,
+      }))}
       captains={captains}
     />
   )
