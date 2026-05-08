@@ -13,6 +13,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { RotateCcw, Play, Pause, Loader2, Crown, Search, X, Check, Download, Upload, MoreVertical, LogOut, ExternalLink } from "lucide-react"
+import { PlayerCardModal } from "@/components/player-card-modal"
 import { resolvePreDraftTrades, type PreDraftTradeInput } from "@/lib/draft-trade-resolver"
 import { generatePickSlots } from "@/lib/draft-helpers"
 
@@ -192,6 +193,15 @@ export function DraftBoardView({
   const [livePlayerSearch, setLivePlayerSearch] = useState("")
   const [isSubmittingPick, setIsSubmittingPick] = useState(false)
   const [selectedPlayerId, setSelectedPlayerId] = useState<number | null>(null)
+
+  // Player card modal state (separate from live draft selection)
+  const [cardPlayerId, setCardPlayerId] = useState<number | null>(null)
+  const [playerCardOpen, setPlayerCardOpen] = useState(false)
+
+  const openPlayerCard = useCallback((playerId: number) => {
+    setCardPlayerId(playerId)
+    setPlayerCardOpen(true)
+  }, [])
   
   // Dialog state
   const [tradeDialogOpen, setTradeDialogOpen] = useState(false)
@@ -1086,7 +1096,7 @@ export function DraftBoardView({
               <span className="text-lg font-bold text-muted-foreground">3</span>
               <div>
                 <p className="font-medium text-sm">Publish Season</p>
-                <p className="text-xs text-muted-foreground">Complete your review of the season settings, schedule, and rosters. Once everything looks good, publish the season.</p>
+                <p className="text-xs text-muted-foreground">Complete your review of the season settings, schedule, and rosters. Once everything looks good, publish the season to update the public schedule and stats to point to the new season.</p>
               </div>
             </div>
           </div>
@@ -1340,9 +1350,13 @@ export function DraftBoardView({
                         >
                           {pick?.playerId ? (
                             <div className="flex flex-col items-start gap-0.5 pl-1">
-                              <span className="font-medium truncate max-w-[120px]" title={pick.playerName || ""}>
+                              <button
+                                className="font-medium truncate max-w-[120px] text-left hover:underline hover:text-primary transition-colors"
+                                title={pick.playerName || ""}
+                                onClick={(e) => { e.stopPropagation(); if (pick.playerId) openPlayerCard(pick.playerId) }}
+                              >
                                 {formatPlayerName(pick.playerName)}
-                              </span>
+                              </button>
                               <div className="flex gap-0.5">
                                 {pick.isKeeper && (
                                   <Badge variant="outline" className="text-[8px] px-1 py-0 border-amber-500/50 text-amber-600">
@@ -1609,37 +1623,6 @@ export function DraftBoardView({
                   </Button>
                 </div>
 
-                <div className="pt-4 space-y-3">
-                  <div className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Recent Activity</div>
-                  <div className="space-y-1.5 text-xs text-muted-foreground">
-                    {(() => {
-                      const recentPicks = picks
-                        .filter(p => p.playerId && p.pickedAt && !p.isKeeper)
-                        .sort((a, b) => {
-                          if (!a.pickedAt || !b.pickedAt) return 0
-                          return new Date(b.pickedAt).getTime() - new Date(a.pickedAt).getTime()
-                        })
-                        .slice(0, 8)
-
-                      if (recentPicks.length === 0) {
-                        return <div className="text-muted-foreground/50 text-center py-2">No picks yet</div>
-                      }
-
-                      return recentPicks.map(p => {
-                        const teamInfo = teams.find(tm => tm.teamSlug === p.teamSlug)
-                        const timeStr = p.pickedAt
-                          ? new Date(p.pickedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
-                          : "—"
-                        return (
-                          <div key={p.id} className="flex gap-2">
-                            <span className="w-16 shrink-0 tabular-nums">{timeStr}</span>
-                            <span>R{p.round}P{p.pickNumber - (p.round - 1) * teams.length}: {teamInfo?.teamName || p.teamSlug} — {formatPlayerName(p.playerName)}</span>
-                          </div>
-                        )
-                      })
-                    })()}
-                  </div>
-                </div>
               </CardContent>
             </Card>
           </div>
@@ -1706,9 +1689,13 @@ export function DraftBoardView({
                           >
                             {pick?.playerId ? (
                               <div className="flex flex-col items-start gap-0.5 pl-1">
-                                <span className="font-medium truncate max-w-[120px]" title={pick.playerName || ""}>
+                                <button
+                                  className="font-medium truncate max-w-[120px] text-left hover:underline hover:text-primary transition-colors"
+                                  title={pick.playerName || ""}
+                                  onClick={(e) => { e.stopPropagation(); if (pick.playerId) openPlayerCard(pick.playerId) }}
+                                >
                                   {formatPlayerName(pick.playerName)}
-                                </span>
+                                </button>
                                 <div className="flex gap-0.5">
                                   {pick.isKeeper && (
                                     <Badge variant="outline" className="text-[8px] px-1 py-0 border-amber-500/50 text-amber-600">
@@ -1808,6 +1795,28 @@ export function DraftBoardView({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Player Card Modal */}
+      {(() => {
+        const cardPlayer = cardPlayerId ? pool.find((p) => p.playerId === cardPlayerId) || null : null
+        const cardPick = cardPlayerId ? picks.find((p) => p.playerId === cardPlayerId) : null
+        const cardTeam = cardPick ? teams.find((t) => t.teamSlug === cardPick.teamSlug) : null
+        return (
+          <PlayerCardModal
+            player={cardPlayer}
+            open={playerCardOpen}
+            onOpenChange={setPlayerCardOpen}
+            seasonSlug={seasonSlug}
+            teamName={cardTeam?.teamName}
+            teamColor={cardTeam?.color}
+            pickInfo={cardPick ? {
+              round: cardPick.round,
+              pickNumber: cardPick.pickNumber,
+              isKeeper: cardPick.isKeeper,
+            } : null}
+          />
+        )
+      })()}
     </div>
   )
 }

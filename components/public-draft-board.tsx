@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Button } from "@/components/ui/button"
 import { Search, Maximize2, Minimize2, Clock, MapPin, Users, ArrowUpDown, ArrowUp, ArrowDown, Volume2, VolumeX, CalendarPlus, Layers, X, ChevronsRight } from "lucide-react"
+import { PlayerCardModal } from "@/components/player-card-modal"
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -107,6 +108,15 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
   )
   const containerRef = useRef<HTMLDivElement>(null)
 
+  // Player card modal state
+  const [selectedPlayerId, setSelectedPlayerId] = useState<number | null>(null)
+  const [playerCardOpen, setPlayerCardOpen] = useState(false)
+
+  const openPlayerCard = useCallback((playerId: number) => {
+    setSelectedPlayerId(playerId)
+    setPlayerCardOpen(true)
+  }, [])
+
   // "The Pick Is In" state
   const [announcement, setAnnouncement] = useState<PickAnnouncement | null>(null)
   const [announcementVisible, setAnnouncementVisible] = useState(false)
@@ -172,13 +182,10 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
 
   // ─── Timer ──────────────────────────────────────────────────────────────
 
-  const [timerRemaining, setTimerRemaining] = useState<number>(() => {
-    if (!draft.timerRunning || !draft.timerStartedAt) {
-      return draft.timerCountdown ?? draft.timerSeconds
-    }
-    const elapsed = Math.floor((Date.now() - new Date(draft.timerStartedAt).getTime()) / 1000)
-    return Math.max(0, (draft.timerCountdown ?? draft.timerSeconds) - elapsed)
-  })
+  // Initialize timer to static server-safe value to avoid hydration mismatch
+  const [timerRemaining, setTimerRemaining] = useState<number>(
+    draft.timerCountdown ?? draft.timerSeconds
+  )
 
   const timerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
@@ -191,7 +198,7 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
         const remaining = Math.max(0, (draft.timerCountdown ?? draft.timerSeconds) - elapsed)
         setTimerRemaining(remaining)
       }
-      tick()
+      tick() // sync immediately on mount / when timer state changes
       timerIntervalRef.current = setInterval(tick, 1000)
     } else {
       setTimerRemaining(draft.timerCountdown ?? draft.timerSeconds)
@@ -402,9 +409,13 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
   // PRE-DRAFT VIEW
   // ═══════════════════════════════════════════════════════════════════════════
 
+  // Mounted guard for client-only date computations (avoids hydration mismatch)
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => { setMounted(true) }, [])
+
   if (draft.status === "published") {
     const draftDate = draft.draftDate ? new Date(draft.draftDate) : null
-    const now = new Date()
+    const now = mounted ? new Date() : (draftDate ?? new Date())
     const diffMs = draftDate ? draftDate.getTime() - now.getTime() : 0
     const daysUntil = Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)))
 
@@ -690,54 +701,87 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
             )}
 
             <Card className="border border-border overflow-hidden">
-              <CardContent className="py-4 px-5 flex items-center justify-between relative">
+              <CardContent className="py-4 px-5 relative">
                 {/* Colored left accent bar */}
                 <div
                   className="absolute left-0 top-0 bottom-0 w-1 rounded-l-md"
                   style={{ backgroundColor: currentTeam.color || "#94a3b8" }}
                 />
-                <div className="space-y-1 pl-3">
-                  <div className="flex items-center gap-2">
-                    <div
-                      className="w-2.5 h-2.5 rounded-full animate-pulse"
-                      style={{ backgroundColor: currentTeam.color || "#94a3b8" }}
-                    />
-                    <span className="text-[11px] font-bold uppercase tracking-[0.08em] text-muted-foreground">On the Clock</span>
-                  </div>
-                  <div className="flex items-center gap-3 flex-wrap">
-                    <div className="text-2xl md:text-3xl font-extrabold tracking-tight uppercase">{currentTeam.teamName}</div>
-                    <Badge variant="outline" className="text-xs">
-                      Round {currentPick.round} · Pick {currentPick.pickNumber - (currentPick.round - 1) * teams.length}
-                    </Badge>
-                    <span className="text-xs text-muted-foreground/50">#{currentPick.pickNumber} overall</span>
-                  </div>
-                  {onDeckTeams.length > 0 && (
-                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground pt-0.5 md:hidden">
-                      <span className="font-semibold uppercase tracking-wide text-[10px]">Up next:</span>
-                      {onDeckTeams.map((t, i) => (
-                        <span key={i} className="flex items-center gap-1">
-                          {i > 0 && <span className="text-muted-foreground/40">→</span>}
-                          <span
-                            className="w-2 h-2 rounded-full inline-block"
-                            style={{ backgroundColor: t.color || "#94a3b8" }}
-                          />
-                          <span className="font-medium">{t.teamName}</span>
-                        </span>
-                      ))}
+                <div className="flex items-center justify-between pl-3">
+                  <div className="space-y-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <div
+                        className="w-2.5 h-2.5 rounded-full animate-pulse shrink-0"
+                        style={{ backgroundColor: currentTeam.color || "#94a3b8" }}
+                      />
+                      <span className="text-[11px] font-bold uppercase tracking-[0.08em] text-muted-foreground">On the Clock</span>
                     </div>
-                  )}
+                    <div className="flex items-center gap-3 flex-wrap">
+                      <div className="text-2xl md:text-3xl font-extrabold tracking-tight uppercase">{currentTeam.teamName}</div>
+                      <Badge variant="outline" className="text-xs">
+                        Round {currentPick.round} · Pick {currentPick.pickNumber - (currentPick.round - 1) * teams.length}
+                      </Badge>
+                      <span className="text-xs text-muted-foreground/50">#{currentPick.pickNumber} overall</span>
+                    </div>
+                    {onDeckTeams.length > 0 && (
+                      <div className="flex items-center gap-1.5 text-xs text-muted-foreground pt-0.5 md:hidden">
+                        <span className="font-semibold uppercase tracking-wide text-[10px]">Up next:</span>
+                        {onDeckTeams.slice(0, 3).map((t, i) => (
+                          <span key={i} className="flex items-center gap-1">
+                            {i > 0 && <span className="text-muted-foreground/40">→</span>}
+                            <span
+                              className="w-2 h-2 rounded-full inline-block"
+                              style={{ backgroundColor: t.color || "#94a3b8" }}
+                            />
+                            <span className="font-medium">{t.teamName}</span>
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  {/* Timer — desktop: inline right side */}
+                  <div className="text-right shrink-0 hidden md:block">
+                    {announcementVisible ? (
+                      <div className="text-sm font-semibold text-muted-foreground/50 uppercase tracking-wide">Awaiting Pick</div>
+                    ) : !draft.timerRunning && timerRemaining === (draft.timerCountdown ?? draft.timerSeconds) && timerRemaining > 0 ? (
+                      <div className="text-sm font-semibold text-muted-foreground/50 uppercase tracking-wide">Awaiting Pick</div>
+                    ) : (
+                      <>
+                        <div className={`text-5xl font-mono font-extrabold tabular-nums ${
+                          timerRemaining === 0
+                            ? "text-red-600 animate-pulse"
+                            : timerRemaining <= 10
+                              ? "text-red-500"
+                              : ""
+                        }`}>
+                          {Math.floor(timerRemaining / 60)}:{(timerRemaining % 60).toString().padStart(2, "0")}
+                        </div>
+                        {timerRemaining === 0 && (
+                          <div className="text-[10px] font-bold uppercase tracking-[0.1em] text-red-500 animate-pulse mt-0.5">Time&apos;s Up</div>
+                        )}
+                        {!draft.timerRunning && timerRemaining > 0 && timerRemaining < (draft.timerCountdown ?? draft.timerSeconds) && (
+                          <div className="text-[10px] font-bold uppercase tracking-[0.1em] text-amber-500 mt-0.5">Paused</div>
+                        )}
+                      </>
+                    )}
+                  </div>
                 </div>
-                {/* Timer with state labels */}
-                <div className="text-right shrink-0">
+
+                {/* Timer — mobile: full-width row below the team info */}
+                <div className="md:hidden mt-3 ml-3">
                   {announcementVisible ? (
-                    /* Freeze timer during "Pick Is In" celebration */
-                    <div className="text-sm font-semibold text-muted-foreground/50 uppercase tracking-wide">Awaiting Pick</div>
+                    <div className="text-center py-2 text-sm font-semibold text-muted-foreground/50 uppercase tracking-wide">Awaiting Pick</div>
                   ) : !draft.timerRunning && timerRemaining === (draft.timerCountdown ?? draft.timerSeconds) && timerRemaining > 0 ? (
-                    /* Timer hasn't started yet */
-                    <div className="text-sm font-semibold text-muted-foreground/50 uppercase tracking-wide">Awaiting Pick</div>
+                    <div className="text-center py-2 text-sm font-semibold text-muted-foreground/50 uppercase tracking-wide">Awaiting Pick</div>
                   ) : (
-                    <>
-                      <div className={`text-4xl md:text-5xl font-mono font-extrabold tabular-nums ${
+                    <div className={`flex items-center gap-3 rounded-lg px-4 py-2.5 ${
+                      timerRemaining === 0
+                        ? "bg-red-50 dark:bg-red-950/30"
+                        : timerRemaining <= 10
+                          ? "bg-red-50/60 dark:bg-red-950/20"
+                          : "bg-muted/40"
+                    }`}>
+                      <div className={`text-3xl font-mono font-extrabold tabular-nums ${
                         timerRemaining === 0
                           ? "text-red-600 animate-pulse"
                           : timerRemaining <= 10
@@ -747,12 +791,15 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
                         {Math.floor(timerRemaining / 60)}:{(timerRemaining % 60).toString().padStart(2, "0")}
                       </div>
                       {timerRemaining === 0 && (
-                        <div className="text-[10px] font-bold uppercase tracking-[0.1em] text-red-500 animate-pulse mt-0.5">Time&apos;s Up</div>
+                        <span className="text-xs font-bold uppercase tracking-[0.1em] text-red-500 animate-pulse">Time&apos;s Up</span>
                       )}
                       {!draft.timerRunning && timerRemaining > 0 && timerRemaining < (draft.timerCountdown ?? draft.timerSeconds) && (
-                        <div className="text-[10px] font-bold uppercase tracking-[0.1em] text-amber-500 mt-0.5">Paused</div>
+                        <span className="text-xs font-bold uppercase tracking-[0.1em] text-amber-500">Paused</span>
                       )}
-                    </>
+                      {draft.timerRunning && timerRemaining > 10 && (
+                        <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Time Remaining</span>
+                      )}
+                    </div>
                   )}
                 </div>
               </CardContent>
@@ -795,9 +842,9 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
               { label: "Trades", value: String(trades.length) },
             ].map((stat) => (
               <Card key={stat.label}>
-                <CardContent className="py-3 px-4 text-center">
-                  <div className="text-2xl font-mono font-bold tabular-nums">{stat.value}</div>
-                  <div className="text-[10px] font-bold uppercase tracking-[0.08em] text-muted-foreground mt-0.5">{stat.label}</div>
+                <CardContent className="py-2 px-3 md:py-3 md:px-4 text-center">
+                  <div className="text-xl md:text-2xl font-mono font-bold tabular-nums">{stat.value}</div>
+                  <div className="text-[9px] md:text-[10px] font-bold uppercase tracking-[0.08em] text-muted-foreground mt-0.5">{stat.label}</div>
                 </CardContent>
               </Card>
             ))}
@@ -812,7 +859,10 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
             )}
             <TabsTrigger value="board" className="flex-1 md:flex-none">{isCompleted ? "Full Board" : "Draft Board"}</TabsTrigger>
             {!isCompleted && (
-              <TabsTrigger value="players" className="flex-1 md:flex-none">Available ({availablePlayers.length})</TabsTrigger>
+              <>
+                <TabsTrigger value="players" className="flex-1 md:flex-none">Available ({availablePlayers.length})</TabsTrigger>
+                <TabsTrigger value="recent" className="flex-1 md:hidden">Recent ({recentPicks.length})</TabsTrigger>
+              </>
             )}
           </TabsList>
 
@@ -862,9 +912,9 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
                           <div className="flex items-center gap-2 py-1 px-2 text-[10px] border-b border-border mb-0.5">
                             <span className="w-6 shrink-0 text-right font-semibold text-muted-foreground">#</span>
                             <span className="flex-1 font-semibold text-muted-foreground">Player</span>
-                            <SortHeader label="Skill" sortKey="skill" className="w-14 md:w-20 justify-center text-[10px]" />
+                            <SortHeader label="Skill" sortKey="skill" className="hidden md:flex w-14 md:w-20 justify-center text-[10px]" />
                             <SortHeader label="Pos" sortKey="pos" className="w-14 justify-center text-[10px]" />
-                            <SortHeader label="Playoffs?" sortKey="playoffs" className="w-14 justify-center text-[10px]" />
+                            <SortHeader label="Playoffs?" sortKey="playoffs" className="hidden md:flex w-14 justify-center text-[10px]" />
                             <span className="w-10 shrink-0" />
                           </div>
                           <div className="space-y-0">
@@ -881,11 +931,12 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
                               return (
                                 <div
                                   key={pick.id}
-                                  className={`flex items-center gap-2 py-1.5 px-2 text-xs rounded-sm ${pick.isKeeper ? "bg-amber-50 dark:bg-amber-950/20" : ""}`}
+                                  className={`flex items-center gap-2 py-1.5 px-2 text-xs rounded-sm cursor-pointer hover:bg-muted/50 transition-colors ${pick.isKeeper ? "bg-amber-50 dark:bg-amber-950/20" : ""}`}
+                                  onClick={() => pick.playerId && openPlayerCard(pick.playerId)}
                                 >
                                   <span className="text-muted-foreground font-mono tabular-nums w-6 text-right shrink-0">#{pick.pickNumber}</span>
                                   <div className="flex items-center gap-1 flex-1 min-w-0">
-                                    <span className="font-medium truncate">{pick.playerName}</span>
+                                    <span className="font-medium truncate hover:underline hover:text-primary transition-colors">{pick.playerName}</span>
                                     {pick.playerId && captainSet.has(pick.playerId) && (
                                       <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 shrink-0 border-blue-400 text-blue-600">C</Badge>
                                     )}
@@ -893,9 +944,9 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
                                       <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 shrink-0 border-green-400 text-green-600">R</Badge>
                                     )}
                                   </div>
-                                  <span title={skillLevel} className="w-14 md:w-20 text-center text-[10px] text-muted-foreground font-mono truncate cursor-default">{skillLevel}</span>
+                                  <span title={skillLevel} className="hidden md:inline w-14 md:w-20 text-center text-[10px] text-muted-foreground font-mono truncate cursor-default">{skillLevel}</span>
                                   <span title={position} className="w-14 text-center text-[10px] text-muted-foreground font-mono truncate cursor-default">{position}</span>
-                                  <span title={playoffAvail} className={`w-14 text-center text-[10px] font-mono cursor-default ${playoffShort === "Y" ? "text-green-600" : playoffShort === "N" ? "text-red-500" : "text-muted-foreground"}`}>{playoffShort}</span>
+                                  <span title={playoffAvail} className={`hidden md:inline w-14 text-center text-[10px] font-mono cursor-default ${playoffShort === "Y" ? "text-green-600" : playoffShort === "N" ? "text-red-500" : "text-muted-foreground"}`}>{playoffShort}</span>
                                   <div className="flex flex-nowrap gap-0.5 shrink-0 w-10 justify-end">
                                     {pick.isKeeper && (
                                       <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 border-amber-400 text-amber-600">K</Badge>
@@ -926,7 +977,7 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
                   <table className="w-full text-xs">
                     <thead>
                       <tr className="border-b bg-muted/50">
-                        <th className="px-2 py-2 text-left font-bold text-[10px] uppercase tracking-[0.06em] text-muted-foreground w-10 sticky left-0 bg-[hsl(var(--muted))] z-10" style={{ boxShadow: '2px 0 4px -2px rgba(0,0,0,0.1)' }}>Rd</th>
+                        <th className="px-2 py-2 text-left font-bold text-[10px] uppercase tracking-[0.06em] text-muted-foreground w-10 sticky left-0 bg-muted z-20" style={{ boxShadow: '2px 0 4px -2px rgba(0,0,0,0.1)' }}>Rd</th>
                         {teams.map((team) => (
                           <th
                             key={team.teamSlug}
@@ -947,7 +998,7 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
                     <tbody>
                       {Array.from({ length: draft.rounds }, (_, i) => i + 1).map((round) => (
                         <tr key={round} className="border-b last:border-b-0 hover:bg-muted/20">
-                          <td className="px-2 py-1.5 font-mono font-medium text-muted-foreground sticky left-0 bg-[hsl(var(--background))] z-10 tabular-nums" style={{ boxShadow: '2px 0 4px -2px rgba(0,0,0,0.1)' }}>
+                          <td className="px-2 py-1.5 font-mono font-medium text-muted-foreground sticky left-0 bg-background z-20 tabular-nums" style={{ boxShadow: '2px 0 4px -2px rgba(0,0,0,0.1)' }}>
                             {round}
                           </td>
                           {teams.map((team) => {
@@ -977,7 +1028,10 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
                               >
                                 {pick.playerId ? (
                                   <div className="flex flex-nowrap items-center gap-1">
-                                    <span className="truncate max-w-[100px]">{formatPlayerName(pick.playerName)}</span>
+                                    <button
+                                      className="truncate max-w-[100px] text-left hover:underline hover:text-primary transition-colors"
+                                      onClick={() => pick.playerId && openPlayerCard(pick.playerId)}
+                                    >{formatPlayerName(pick.playerName)}</button>
                                     {pick.playerId && captainSet.has(pick.playerId) && (
                                       <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 border-blue-400 text-blue-600">C</Badge>
                                     )}
@@ -1037,6 +1091,38 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
                         onChange={(e) => setPlayerSearch(e.target.value)}
                       />
                     </div>
+                    {/* Position filter toggles */}
+                    <div className="flex flex-wrap gap-1">
+                      {["G", "D", "C", "F"].map((pos) => {
+                        const isActive = positionFilter.includes(pos)
+                        return (
+                          <button
+                            key={pos}
+                            onClick={() => setPositionFilter((prev) =>
+                              isActive ? prev.filter((p) => p !== pos) : [...prev, pos]
+                            )}
+                            className={`text-[10px] font-bold px-2 py-0.5 rounded-full border transition-colors ${
+                              isActive
+                                ? pos === "G" ? "bg-purple-100 border-purple-300 text-purple-700"
+                                : pos === "D" ? "bg-blue-100 border-blue-300 text-blue-700"
+                                : pos === "C" ? "bg-red-100 border-red-300 text-red-700"
+                                : "bg-amber-100 border-amber-300 text-amber-700"
+                                : "bg-muted/50 border-border text-muted-foreground hover:bg-muted"
+                            }`}
+                          >
+                            {pos}
+                          </button>
+                        )
+                      })}
+                      {positionFilter.length > 0 && (
+                        <button
+                          onClick={() => setPositionFilter([])}
+                          className="text-[10px] px-2 py-0.5 text-muted-foreground hover:text-foreground transition-colors"
+                        >
+                          Clear
+                        </button>
+                      )}
+                    </div>
                     <div className="max-h-[600px] overflow-y-auto space-y-0.5">
                       {availablePlayers.map((player) => {
                         const positions = typeof player.registrationMeta?.positions === "string"
@@ -1046,11 +1132,12 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
                         return (
                           <div
                             key={player.playerId}
-                            className="flex items-center justify-between py-1.5 px-2 rounded-sm hover:bg-muted/50 text-xs"
+                            className="flex items-center justify-between py-1.5 px-2 rounded-sm hover:bg-muted/50 text-xs cursor-pointer"
+                            onClick={() => openPlayerCard(player.playerId)}
                           >
-                            <span className="truncate">{player.playerName}</span>
+                            <span className="truncate hover:underline hover:text-primary transition-colors" title={player.playerName}>{player.playerName}</span>
                             {positions && (
-                              <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4 shrink-0 ml-2">
+                              <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4 shrink-0 ml-2" title={positions}>
                                 {positions}
                               </Badge>
                             )}
@@ -1059,8 +1146,65 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
                       })}
                       {availablePlayers.length === 0 && (
                         <div className="text-center py-8 text-xs text-muted-foreground">
-                          {playerSearch ? "No players match your search" : "All players have been drafted"}
+                          {playerSearch || positionFilter.length > 0 ? "No players match your filters" : "All players have been drafted"}
                         </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+            )}
+
+            {/* Mobile-only: Recent Picks tab content */}
+            {!isCompleted && (
+              <TabsContent value="recent" className="mt-0 md:hidden">
+                <Card className="h-fit">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-semibold flex items-center justify-between">
+                      <span>Recent Picks</span>
+                      <Badge variant="secondary" className="text-[10px] font-mono">{recentPicks.length}</Badge>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="pt-0 pb-2">
+                    <div className="space-y-0">
+                      {recentPicks.length === 0 ? (
+                        <div className="text-center py-6 text-xs text-muted-foreground">No picks yet</div>
+                      ) : (
+                        recentPicks.map((p, i) => {
+                          const team = teams.find((t) => t.teamSlug === p.teamSlug)
+                          const playerInPool = p.playerId ? pool.find((pl) => pl.playerId === p.playerId) : null
+                          const position = typeof playerInPool?.registrationMeta?.positions === "string"
+                            ? playerInPool.registrationMeta.positions
+                            : null
+                          const nameParts = (p.playerName || "").split(" ")
+                          const abbrevName = nameParts.length >= 2
+                            ? `${nameParts[0][0]}. ${nameParts.slice(1).join(" ")}`
+                            : p.playerName
+
+                          return (
+                            <div
+                              key={p.id}
+                              className={`flex items-center py-2 px-2.5 text-xs cursor-pointer hover:bg-muted/30 transition-colors ${i > 0 ? "border-t border-border/50" : ""}`}
+                              style={i === 0 ? { backgroundColor: `${team?.color || '#f97316'}10` } : undefined}
+                              onClick={() => p.playerId && openPlayerCard(p.playerId)}
+                            >
+                              <div
+                                className="w-0.5 h-8 rounded-full shrink-0"
+                                style={{ backgroundColor: team?.color || '#94a3b8' }}
+                              />
+                              <span className="font-mono tabular-nums text-muted-foreground text-[11px] shrink-0 w-6 text-right ml-0.5">{p.pickNumber}</span>
+                              <div className="flex-1 min-w-0 ml-1.5">
+                                <div className="font-semibold text-sm truncate" title={p.playerName || undefined}>{abbrevName}</div>
+                                <div className="text-muted-foreground text-[11px]">{team?.teamName}</div>
+                              </div>
+                              {position && (
+                                <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4 shrink-0 ml-1" title={position}>
+                                  {position}
+                                </Badge>
+                              )}
+                            </div>
+                          )
+                        })
                       )}
                     </div>
                   </CardContent>
@@ -1175,8 +1319,9 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
                         return (
                           <div
                             key={p.id}
-                            className={`flex items-center py-2 px-2.5 text-xs ${i > 0 ? "border-t border-border/50" : ""}`}
+                            className={`flex items-center py-2 px-2.5 text-xs cursor-pointer hover:bg-muted/30 transition-colors ${i > 0 ? "border-t border-border/50" : ""}`}
                             style={i === 0 ? { backgroundColor: `${team?.color || '#f97316'}10` } : undefined}
+                            onClick={() => p.playerId && openPlayerCard(p.playerId)}
                           >
                             <div
                               className="w-0.5 h-8 rounded-full shrink-0"
@@ -1184,7 +1329,7 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
                             />
                             <span className="font-mono tabular-nums text-muted-foreground text-[11px] shrink-0 w-6 text-right ml-0.5">{p.pickNumber}</span>
                             <div className="flex-1 min-w-0 ml-1.5">
-                              <div className="font-semibold text-sm truncate" title={p.playerName}>{abbrevName}</div>
+                              <div className="font-semibold text-sm truncate" title={p.playerName || undefined}>{abbrevName}</div>
                               <div className="text-muted-foreground text-[11px]">{team?.teamName}</div>
                             </div>
                             {position && (
@@ -1252,9 +1397,10 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
                         return (
                           <div
                             key={player.playerId}
-                            className="flex items-center justify-between py-1.5 px-2 rounded-sm hover:bg-muted/50 text-xs"
+                            className="flex items-center justify-between py-1.5 px-2 rounded-sm hover:bg-muted/50 text-xs cursor-pointer"
+                            onClick={() => openPlayerCard(player.playerId)}
                           >
-                            <span className="truncate">{player.playerName}</span>
+                            <span className="truncate hover:underline hover:text-primary transition-colors">{player.playerName}</span>
                             {positions && (
                               <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4 shrink-0 ml-2" title={positions}>
                                 {positions}
@@ -1280,6 +1426,28 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
         </div>{/* End top-level grid */}
 
       </div>
+
+      {/* Player Card Modal */}
+      {(() => {
+        const selectedPlayer = selectedPlayerId ? pool.find((p) => p.playerId === selectedPlayerId) || null : null
+        const selectedPick = selectedPlayerId ? picks.find((p) => p.playerId === selectedPlayerId) : null
+        const selectedTeam = selectedPick ? teams.find((t) => t.teamSlug === selectedPick.teamSlug) : null
+        return (
+          <PlayerCardModal
+            player={selectedPlayer}
+            open={playerCardOpen}
+            onOpenChange={setPlayerCardOpen}
+            seasonSlug={seasonSlug}
+            teamName={selectedTeam?.teamName}
+            teamColor={selectedTeam?.color}
+            pickInfo={selectedPick ? {
+              round: selectedPick.round,
+              pickNumber: selectedPick.pickNumber,
+              isKeeper: selectedPick.isKeeper,
+            } : null}
+          />
+        )
+      })()}
     </div>
   )
 }
