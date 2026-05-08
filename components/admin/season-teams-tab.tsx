@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
-import { Search, Loader2, Plus, X, ShieldAlert, Palette, Wand2 } from "lucide-react"
+import { Search, Loader2, Plus, X, ShieldAlert, Palette } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -10,7 +10,7 @@ import { TeamLogo } from "@/components/team-logo"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip"
+
 
 interface SeasonTeamsTabProps {
   seasonId: string
@@ -182,38 +182,6 @@ export function SeasonTeamsTab({ seasonId, seasonStatus, initialTeams, onTeamsCh
     }
   }
 
-  // Auto-assign franchises based on team name containing the franchise name
-  // e.g., "Red Army" → "red", "Blue Bandits" → "blue"
-  const autoAssignFranchises = useCallback(() => {
-    let changed = 0
-    const next = { ...localAssignments }
-
-    for (const team of assignedTeams) {
-      // Skip teams that already have an assignment
-      if (next[team.teamSlug]) continue
-
-      const nameLower = team.teamName.toLowerCase()
-      const slugLower = team.teamSlug.toLowerCase()
-
-      for (const f of franchises) {
-        const fLower = f.slug.toLowerCase()
-        // Match if team name or slug starts with or contains the franchise slug
-        if (nameLower.includes(fLower) || slugLower.startsWith(fLower)) {
-          next[team.teamSlug] = f.slug
-          changed++
-          break
-        }
-      }
-    }
-
-    if (changed > 0) {
-      setLocalAssignments(next)
-      setHasUnsavedChanges(true)
-      toast.success(`Auto-assigned ${changed} team${changed > 1 ? "s" : ""}`)
-    } else {
-      toast.info("No new matches found — all teams are already assigned or no name matches")
-    }
-  }, [assignedTeams, franchises, localAssignments])
 
   const handleCreateTeam = async () => {
     if (!createTeamForm.name || !createTeamForm.slug) {
@@ -266,7 +234,7 @@ export function SeasonTeamsTab({ seasonId, seasonStatus, initialTeams, onTeamsCh
   const assignedFranchiseCount = Object.values(localAssignments).filter(Boolean).length
 
   return (
-    <TooltipProvider>
+    <>
       <div className="space-y-4">
         {/* Franchise Assignment Section */}
         {assignedTeams.length > 0 && (
@@ -284,23 +252,6 @@ export function SeasonTeamsTab({ seasonId, seasonStatus, initialTeams, onTeamsCh
                   </CardDescription>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-8 text-xs"
-                        onClick={autoAssignFranchises}
-                        disabled={franchises.length === 0}
-                      >
-                        <Wand2 className="h-3 w-3 mr-1" />
-                        Auto-assign
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p className="text-xs max-w-52">Matches team names to franchise colors by name (e.g., &quot;Red Army&quot; → Red franchise)</p>
-                    </TooltipContent>
-                  </Tooltip>
                   {hasUnsavedChanges && (
                     <Button
                       size="sm"
@@ -540,6 +491,6 @@ export function SeasonTeamsTab({ seasonId, seasonStatus, initialTeams, onTeamsCh
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </TooltipProvider>
+    </>
   )
 }
