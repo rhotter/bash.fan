@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Button } from "@/components/ui/button"
-import { Search, Maximize2, Minimize2, Clock, MapPin, Users, ArrowUpDown, ArrowUp, ArrowDown, Volume2, VolumeX, CalendarPlus, Layers } from "lucide-react"
+import { Search, Maximize2, Minimize2, Clock, MapPin, Users, ArrowUpDown, ArrowUp, ArrowDown, Volume2, VolumeX, CalendarPlus, Layers, X, ChevronsRight } from "lucide-react"
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -100,6 +100,8 @@ interface PickAnnouncement {
 export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardProps) {
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [playerSearch, setPlayerSearch] = useState("")
+  const [positionFilter, setPositionFilter] = useState<string[]>([])
+  const [sidebarTab, setSidebarTab] = useState<"recent" | "available">("recent")
   const [mobileTab, setMobileTab] = useState(() =>
     initialData.draft.status === "completed" ? "byteam" : "board"
   )
@@ -229,12 +231,12 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
     if (!currentPick) return []
     const currentIdx = picks.findIndex((p) => p.id === currentPick.id)
     if (currentIdx < 0) return []
-    const upcoming: { teamName: string; color: string | null }[] = []
-    for (let i = currentIdx + 1; i < picks.length && upcoming.length < 3; i++) {
+    const upcoming: { teamName: string; teamSlug: string; color: string | null; pickNumber: number }[] = []
+    for (let i = currentIdx + 1; i < picks.length && upcoming.length < 5; i++) {
       const p = picks[i]
       if (p.playerId === null && !p.isKeeper) {
         const team = teams.find((t) => t.teamSlug === p.teamSlug)
-        if (team) upcoming.push({ teamName: team.teamName, color: team.color })
+        if (team) upcoming.push({ teamName: team.teamName, teamSlug: team.teamSlug, color: team.color, pickNumber: p.pickNumber })
       }
     }
     return upcoming
@@ -253,8 +255,36 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
         if (!playerSearch) return true
         return p.playerName.toLowerCase().includes(playerSearch.toLowerCase())
       })
+      .filter((p) => {
+        if (positionFilter.length === 0) return true
+        const pos = typeof p.registrationMeta?.positions === "string" ? p.registrationMeta.positions.toLowerCase() : ""
+        if (!pos) return false
+
+        // Tokenize: split on commas, slashes, hyphens, whitespace; strip non-alpha chars
+        const tokens = pos.split(/[,/\s-]+/).map((t) => t.replace(/[^a-z]/g, "")).filter(Boolean)
+
+        // Wildcard positions match every filter
+        const wildcards = ["all", "any", "whatever", "both"]
+        if (tokens.some((t) => wildcards.includes(t))) return true
+
+        // Map filter buttons to keywords that indicate that position
+        const filterKeywords: Record<string, string[]> = {
+          "G": ["goalie", "goal", "g", "goalkeeper", "backup goalie"],
+          "D": ["defense", "defence", "def", "d", "rd", "ld", "defensemen", "defenseman"],
+          "C": ["center", "centre", "c"],
+          "F": ["forward", "forwards", "f", "fwd", "wing", "winger", "w", "lw", "rw", "rf",
+                "offense", "left wing", "right wing", "not goalie", "anywhere but goalie", "any but goalie"],
+        }
+
+        return positionFilter.some((filterKey) => {
+          const keywords = filterKeywords[filterKey] || [filterKey.toLowerCase()]
+          return keywords.some((kw) =>
+            tokens.includes(kw) || (kw.includes(" ") && pos.includes(kw))
+          )
+        })
+      })
       .sort((a, b) => a.playerName.localeCompare(b.playerName))
-  }, [pool, draftedPlayerIds, playerSearch])
+  }, [pool, draftedPlayerIds, playerSearch, positionFilter])
 
   // ─── Recent Picks Ticker ───────────────────────────────────────────────
 
@@ -541,13 +571,13 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
 
         {/* Branded Header */}
         <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2">
-                <Image src="/logo.png" alt="BASH" width={28} height={28} className="shrink-0" />
-                <span className="text-lg font-extrabold tracking-tight">BASH</span>
-                <span className="text-xs font-bold uppercase tracking-[0.12em] text-muted-foreground">Live Draft Board</span>
-              </div>
+          <div className="flex flex-wrap items-center justify-between gap-y-1">
+            <div className="flex items-center gap-2">
+              <Image src="/logo.png" alt="BASH" width={28} height={28} className="shrink-0" />
+              <span className="text-lg font-extrabold tracking-tight">BASH</span>
+              <span className="text-xs font-bold uppercase tracking-[0.12em] text-muted-foreground hidden sm:inline">Live Draft Board</span>
+            </div>
+            <div className="flex items-center gap-2">
               {isLive && (
                 !draft.timerRunning && timerRemaining > 0 && timerRemaining < (draft.timerCountdown ?? draft.timerSeconds) ? (
                   <Badge className="bg-amber-500 text-white text-[10px] px-2 py-0.5">PAUSED</Badge>
@@ -558,8 +588,6 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
               {isCompleted && (
                 <Badge className="bg-green-600 text-white text-[10px] px-2 py-0.5">COMPLETE</Badge>
               )}
-            </div>
-            <div className="flex items-center gap-3">
               <span className="text-xs text-muted-foreground tabular-nums font-medium">
                 {madePicks}/{totalPicks} picks ({progress}%)
               </span>
@@ -584,43 +612,84 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
           <h1 className="text-xl font-bold tracking-tight">{season.name} Draft</h1>
         </div>
 
+        {/* Main content + Desktop sidebar grid */}
+        <div className={`grid grid-cols-1 ${!isCompleted ? "md:grid-cols-[1fr_280px]" : ""} gap-4 items-start`}>
+
+        {/* Left column: On the Clock + Board */}
+        <div className="space-y-4 min-w-0">
+
         {/* On the Clock Hero (live only) */}
         {isLive && currentPick && currentTeam && (
           <div className="relative">
-            {/* "THE PICK IS IN" Banner */}
+            {/* "THE PICK IS IN" Full-Screen Overlay */}
             {announcement && (
               <div
-                className={`absolute inset-x-0 -top-1 z-20 transition-all duration-500 ease-out ${
+                className={`fixed inset-0 z-50 transition-all duration-500 ease-out ${
                   announcementVisible
-                    ? "opacity-100 translate-y-0"
-                    : "opacity-0 -translate-y-4 pointer-events-none"
+                    ? "opacity-100"
+                    : "opacity-0 pointer-events-none"
                 }`}
               >
+                {/* Desktop: dark vignette backdrop */}
+                <div className="hidden md:flex absolute inset-0 bg-black/70 items-center justify-center p-8" onClick={() => setAnnouncementVisible(false)}>
+                  <div
+                    className="relative w-full max-w-2xl rounded-xl px-8 py-10 text-white text-center shadow-2xl"
+                    style={{ backgroundColor: announcement.teamColor }}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {/* Draft logo */}
+                    <div className="flex justify-center mb-4">
+                      <div className="w-16 h-16 bg-white rounded-xl flex items-center justify-center shadow-md">
+                        <Image src="/images/draft-logo.jpg" alt="BASH Draft" width={48} height={48} className="object-contain" />
+                      </div>
+                    </div>
+                    <div className="text-lg font-extrabold uppercase tracking-[0.2em] text-white/90 mb-1">The Pick Is In</div>
+                    <div className="text-sm uppercase tracking-[0.1em] text-white/60 mb-4">{announcement.teamName} select</div>
+                    <div className="text-4xl font-extrabold tracking-tight mb-5">{announcement.playerName}</div>
+                    <div className="inline-block border border-white/40 rounded-full px-5 py-1.5 text-xs font-bold uppercase tracking-[0.12em] text-white/80">
+                      Round {announcement.round}, Pick {announcement.pickNumber - (announcement.round - 1) * teams.length} (#{announcement.pickNumber} overall)
+                    </div>
+                  </div>
+                </div>
+
+                {/* Mobile: full-screen orange overlay */}
                 <div
-                  className="rounded-lg px-5 py-4 text-white shadow-lg"
+                  className="md:hidden absolute inset-0 flex flex-col items-center justify-center px-6 text-white text-center"
                   style={{ backgroundColor: announcement.teamColor }}
                 >
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-0.5">
-                      <div className="text-[10px] font-bold uppercase tracking-[0.15em] text-white/70">The Pick Is In</div>
-                      <div className="text-lg md:text-xl font-extrabold uppercase tracking-tight">
-                        {announcement.teamName} <span className="font-normal text-white/80">select</span>
-                      </div>
-                      <div className="text-xl md:text-2xl font-extrabold">{announcement.playerName}</div>
+                  {/* Close button */}
+                  <button
+                    onClick={() => setAnnouncementVisible(false)}
+                    className="absolute top-4 left-4 w-8 h-8 flex items-center justify-center rounded-full bg-white/20 text-white/80 hover:bg-white/30 transition-colors"
+                    aria-label="Close"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+
+                  {/* Draft logo */}
+                  <div className="mb-4">
+                    <div className="w-16 h-16 bg-white rounded-xl flex items-center justify-center shadow-md mx-auto">
+                      <Image src="/images/draft-logo.jpg" alt="BASH Draft" width={48} height={48} className="object-contain" />
                     </div>
-                    <div className="text-right text-sm text-white/70">
-                      <div className="font-mono tabular-nums">R{announcement.round}P{announcement.pickNumber}</div>
-                    </div>
+                  </div>
+
+                  <div className="text-xs font-bold uppercase tracking-[0.2em] text-white/70 mb-2">BASH Summer Draft</div>
+                  <div className="text-base font-extrabold uppercase tracking-[0.2em] text-white/90 mb-3">The Pick Is In</div>
+                  <div className="text-sm uppercase tracking-[0.1em] text-white/60 mb-2 border border-white/30 rounded-full px-4 py-1">{announcement.teamName} select</div>
+                  <div className="text-4xl font-extrabold tracking-tight leading-tight mb-5">{announcement.playerName}</div>
+                  <div className="flex items-center gap-2">
+                    <span className="border border-white/40 rounded-md px-3 py-1 text-xs font-bold uppercase tracking-wider text-white/80">
+                      R{announcement.round}P{announcement.pickNumber - (announcement.round - 1) * teams.length}
+                    </span>
+                    <span className="border border-white/40 rounded-md px-3 py-1 text-xs font-bold uppercase tracking-wider text-white/80">
+                      #{announcement.pickNumber} overall
+                    </span>
                   </div>
                 </div>
               </div>
             )}
 
-            <Card
-              className={`border border-border overflow-hidden transition-opacity duration-300 ${
-                announcementVisible ? "opacity-30" : "opacity-100"
-              }`}
-            >
+            <Card className="border border-border overflow-hidden">
               <CardContent className="py-4 px-5 flex items-center justify-between relative">
                 {/* Colored left accent bar */}
                 <div
@@ -643,7 +712,7 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
                     <span className="text-xs text-muted-foreground/50">#{currentPick.pickNumber} overall</span>
                   </div>
                   {onDeckTeams.length > 0 && (
-                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground pt-0.5">
+                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground pt-0.5 md:hidden">
                       <span className="font-semibold uppercase tracking-wide text-[10px]">Up next:</span>
                       {onDeckTeams.map((t, i) => (
                         <span key={i} className="flex items-center gap-1">
@@ -693,7 +762,7 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
 
         {/* Recent Picks Ticker (live only) */}
         {isLive && recentPicks.length > 0 && (
-          <div className="overflow-x-auto scrollbar-hide">
+          <div className="overflow-x-auto scrollbar-hide md:hidden">
             <div className="flex items-center gap-2 pb-1">
               <span className="text-[10px] font-bold uppercase tracking-[0.08em] text-muted-foreground shrink-0">Recent Picks</span>
               {recentPicks.map((p) => {
@@ -747,7 +816,7 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
             )}
           </TabsList>
 
-          <div className={`grid grid-cols-1 ${!isCompleted ? "md:grid-cols-[1fr_280px]" : ""} gap-4`}>
+          <div className="grid grid-cols-1 gap-4">
 
             {/* By Team View (completed only) */}
             {isCompleted && (
@@ -857,7 +926,7 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
                   <table className="w-full text-xs">
                     <thead>
                       <tr className="border-b bg-muted/50">
-                        <th className="px-2 py-2 text-left font-bold text-[10px] uppercase tracking-[0.06em] text-muted-foreground w-12 sticky left-0 bg-muted/50 z-10">Rd</th>
+                        <th className="px-2 py-2 text-left font-bold text-[10px] uppercase tracking-[0.06em] text-muted-foreground w-10 sticky left-0 bg-[hsl(var(--muted))] z-10" style={{ boxShadow: '2px 0 4px -2px rgba(0,0,0,0.1)' }}>Rd</th>
                         {teams.map((team) => (
                           <th
                             key={team.teamSlug}
@@ -878,7 +947,7 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
                     <tbody>
                       {Array.from({ length: draft.rounds }, (_, i) => i + 1).map((round) => (
                         <tr key={round} className="border-b last:border-b-0 hover:bg-muted/20">
-                          <td className="px-2 py-1.5 font-mono font-medium text-muted-foreground sticky left-0 bg-background z-10 tabular-nums">
+                          <td className="px-2 py-1.5 font-mono font-medium text-muted-foreground sticky left-0 bg-[hsl(var(--background))] z-10 tabular-nums" style={{ boxShadow: '2px 0 4px -2px rgba(0,0,0,0.1)' }}>
                             {round}
                           </td>
                           {teams.map((team) => {
@@ -947,9 +1016,10 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
               </Card>
             </TabsContent>
 
-            {/* Available Players - sidebar on desktop, tab on mobile (live only) */}
+
+            {/* Mobile-only: Available Players tab content */}
             {!isCompleted && (
-              <TabsContent value="players" className="mt-0 md:!block">
+              <TabsContent value="players" className="mt-0 md:hidden">
                 <Card className="h-fit">
                   <CardHeader className="pb-2">
                     <CardTitle className="text-sm font-semibold flex items-center justify-between">
@@ -1000,6 +1070,214 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
           </div>
         </Tabs>
 
+        </div>{/* End left column */}
+
+        {/* Right column: Desktop Sidebar — Up Next + Recent Picks + Available Players */}
+        {!isCompleted && (
+          <div className="hidden md:flex flex-col gap-4 sticky top-4 self-start">
+
+            {/* Up Next Widget */}
+            {isLive && currentPick && (
+              <Card className="h-fit">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-semibold flex items-center gap-1.5">
+                    <ChevronsRight className="h-4 w-4 text-muted-foreground" />
+                    Up Next
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="pt-0 pb-3 space-y-0">
+                  {/* Current pick - highlighted */}
+                  <div
+                    className="flex items-center gap-2.5 py-2 px-2.5 rounded-md text-sm"
+                    style={{ backgroundColor: `${currentTeam?.color || '#f97316'}15` }}
+                  >
+                    <span className="font-mono tabular-nums text-xs font-bold text-muted-foreground w-5 text-right">{currentPick.pickNumber}</span>
+                    <div
+                      className="w-2.5 h-2.5 rounded-full shrink-0"
+                      style={{ backgroundColor: currentTeam?.color || '#94a3b8' }}
+                    />
+                    <span className="font-semibold flex-1 truncate">{currentTeam?.teamName}</span>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-orange-600">On Clock</span>
+                  </div>
+                  {/* Upcoming picks */}
+                  {onDeckTeams.map((t, i) => (
+                    <div
+                      key={i}
+                      className="flex items-center gap-2.5 py-2 px-2.5 text-sm border-t border-border/50"
+                    >
+                      <span className="font-mono tabular-nums text-xs font-medium text-muted-foreground w-5 text-right">{t.pickNumber}</span>
+                      <div
+                        className="w-2.5 h-2.5 rounded-full shrink-0"
+                        style={{ backgroundColor: t.color || '#94a3b8' }}
+                      />
+                      <span className="font-medium text-muted-foreground flex-1 truncate">{t.teamName}</span>
+                    </div>
+                  ))}
+                  {onDeckTeams.length === 0 && (
+                    <div className="text-center py-3 text-xs text-muted-foreground">Last pick!</div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Tabbed: Recent Picks / Available Players */}
+            <Card className="h-fit">
+              <CardHeader className="pb-2 space-y-2">
+                <div className="flex rounded-lg bg-muted p-0.5">
+                  <button
+                    onClick={() => setSidebarTab("recent")}
+                    className={`flex-1 text-xs font-medium py-1.5 px-2 rounded-md transition-colors ${
+                      sidebarTab === "recent"
+                        ? "bg-background text-foreground shadow-sm"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    Recent ({recentPicks.length})
+                  </button>
+                  <button
+                    onClick={() => setSidebarTab("available")}
+                    className={`flex-1 text-xs font-medium py-1.5 px-2 rounded-md transition-colors ${
+                      sidebarTab === "available"
+                        ? "bg-background text-foreground shadow-sm"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    Available ({availablePlayers.length})
+                  </button>
+                </div>
+              </CardHeader>
+              <CardContent className="pt-0 pb-2">
+
+                {/* Recent Picks Tab */}
+                {sidebarTab === "recent" && (
+                  <div className="space-y-0">
+                    {recentPicks.length === 0 ? (
+                      <div className="text-center py-6 text-xs text-muted-foreground">No picks yet</div>
+                    ) : (
+                      recentPicks.slice(0, 8).map((p, i) => {
+                        const team = teams.find((t) => t.teamSlug === p.teamSlug)
+                        const playerInPool = p.playerId ? pool.find((pl) => pl.playerId === p.playerId) : null
+                        const position = typeof playerInPool?.registrationMeta?.positions === "string"
+                          ? playerInPool.registrationMeta.positions
+                          : null
+
+                        const posColor = position === "G" ? "text-purple-600 border-purple-300"
+                          : position === "D" ? "text-blue-600 border-blue-300"
+                          : position === "C" ? "text-red-600 border-red-300"
+                          : position === "W" ? "text-green-600 border-green-300"
+                          : "text-muted-foreground border-border"
+
+                        const nameParts = (p.playerName || "").split(" ")
+                        const abbrevName = nameParts.length >= 2
+                          ? `${nameParts[0][0]}. ${nameParts.slice(1).join(" ")}`
+                          : p.playerName
+
+                        return (
+                          <div
+                            key={p.id}
+                            className={`flex items-center py-2 px-2.5 text-xs ${i > 0 ? "border-t border-border/50" : ""}`}
+                            style={i === 0 ? { backgroundColor: `${team?.color || '#f97316'}10` } : undefined}
+                          >
+                            <div
+                              className="w-0.5 h-8 rounded-full shrink-0"
+                              style={{ backgroundColor: team?.color || '#94a3b8' }}
+                            />
+                            <span className="font-mono tabular-nums text-muted-foreground text-[11px] shrink-0 w-6 text-right ml-0.5">{p.pickNumber}</span>
+                            <div className="flex-1 min-w-0 ml-1.5">
+                              <div className="font-semibold text-sm truncate" title={p.playerName}>{abbrevName}</div>
+                              <div className="text-muted-foreground text-[11px]">{team?.teamName}</div>
+                            </div>
+                            {position && (
+                              <Badge variant="outline" className={`text-[10px] px-1.5 py-0 h-4 shrink-0 font-bold ml-1 ${posColor}`} title={position}>
+                                {position}
+                              </Badge>
+                            )}
+                          </div>
+                        )
+                      })
+                    )}
+                  </div>
+                )}
+
+                {/* Available Players Tab */}
+                {sidebarTab === "available" && (
+                  <div className="space-y-2">
+                    <div className="relative">
+                      <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+                      <Input
+                        placeholder="Search players..."
+                        className="pl-8 h-8 text-xs"
+                        value={playerSearch}
+                        onChange={(e) => setPlayerSearch(e.target.value)}
+                      />
+                    </div>
+                    {/* Position filter toggles */}
+                    <div className="flex flex-wrap gap-1">
+                      {["G", "D", "C", "F"].map((pos) => {
+                        const isActive = positionFilter.includes(pos)
+                        return (
+                          <button
+                            key={pos}
+                            onClick={() => setPositionFilter((prev) =>
+                              isActive ? prev.filter((p) => p !== pos) : [...prev, pos]
+                            )}
+                            className={`text-[10px] font-bold px-2 py-0.5 rounded-full border transition-colors ${
+                              isActive
+                                ? pos === "G" ? "bg-purple-100 border-purple-300 text-purple-700"
+                                : pos === "D" ? "bg-blue-100 border-blue-300 text-blue-700"
+                                : pos === "C" ? "bg-red-100 border-red-300 text-red-700"
+                                : "bg-amber-100 border-amber-300 text-amber-700"
+                                : "bg-muted/50 border-border text-muted-foreground hover:bg-muted"
+                            }`}
+                          >
+                            {pos}
+                          </button>
+                        )
+                      })}
+                      {positionFilter.length > 0 && (
+                        <button
+                          onClick={() => setPositionFilter([])}
+                          className="text-[10px] px-2 py-0.5 text-muted-foreground hover:text-foreground transition-colors"
+                        >
+                          Clear
+                        </button>
+                      )}
+                    </div>
+                    <div className="max-h-[400px] overflow-y-auto space-y-0.5">
+                      {availablePlayers.map((player) => {
+                        const positions = typeof player.registrationMeta?.positions === "string"
+                          ? player.registrationMeta.positions
+                          : null
+
+                        return (
+                          <div
+                            key={player.playerId}
+                            className="flex items-center justify-between py-1.5 px-2 rounded-sm hover:bg-muted/50 text-xs"
+                          >
+                            <span className="truncate">{player.playerName}</span>
+                            {positions && (
+                              <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4 shrink-0 ml-2" title={positions}>
+                                {positions}
+                              </Badge>
+                            )}
+                          </div>
+                        )
+                      })}
+                      {availablePlayers.length === 0 && (
+                        <div className="text-center py-8 text-xs text-muted-foreground">
+                          {playerSearch || positionFilter.length > 0 ? "No players match your filters" : "All players have been drafted"}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        </div>{/* End top-level grid */}
 
       </div>
     </div>
