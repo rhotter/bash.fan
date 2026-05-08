@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Button } from "@/components/ui/button"
-import { Search, Maximize2, Minimize2, Clock, MapPin, Users, ArrowUpDown, ArrowUp, ArrowDown, Volume2, VolumeX } from "lucide-react"
+import { Search, Maximize2, Minimize2, Clock, MapPin, Users, ArrowUpDown, ArrowUp, ArrowDown, Volume2, VolumeX, CalendarPlus, Layers } from "lucide-react"
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -378,77 +378,151 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
     const diffMs = draftDate ? draftDate.getTime() - now.getTime() : 0
     const daysUntil = Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)))
 
+    // Build Google Calendar URL
+    const calendarUrl = draftDate ? (() => {
+      const start = draftDate.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "")
+      const endDate = new Date(draftDate.getTime() + 3 * 60 * 60 * 1000) // 3 hours
+      const end = endDate.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "")
+      const params = new URLSearchParams({
+        action: "TEMPLATE",
+        text: draft.name,
+        dates: `${start}/${end}`,
+        details: `BASH ${draft.name}. ${draft.rounds} rounds, ${teams.length} teams.`,
+        location: draft.location ? `${draft.location}, San Francisco, CA` : "",
+      })
+      return `https://calendar.google.com/calendar/render?${params.toString()}`
+    })() : null
+
     return (
-      <div className="min-h-screen bg-background">
-        <div className="max-w-3xl mx-auto px-4 py-16 text-center space-y-8">
-          <div className="space-y-2">
-            <Image src="/logo.png" alt="BASH" width={56} height={56} className="mx-auto" />
-            <Badge variant="outline" className="text-sm">Upcoming Draft</Badge>
-            <h1 className="text-4xl font-bold tracking-tight">{season.name} Draft</h1>
-            <p className="text-lg text-muted-foreground">{draft.name}</p>
+      <div className="min-h-screen bg-background relative overflow-hidden">
+        {/* Background watermark — BASH logo */}
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+          <Image
+            src="/logo.png"
+            alt=""
+            width={600}
+            height={600}
+            className="opacity-[0.06] select-none"
+            aria-hidden="true"
+          />
+        </div>
+
+        {/* Content overlay */}
+        <div className="relative z-10 max-w-3xl mx-auto px-4 py-12 sm:py-16 text-center space-y-8">
+          {/* Hero — Draft Logo + Title */}
+          <div className="space-y-3">
+            <Image
+              src="/images/draft-logo.jpg"
+              alt={draft.name}
+              width={280}
+              height={280}
+              className="mx-auto"
+              priority
+            />
+            <Badge variant="outline" className="text-xs uppercase tracking-widest bg-background/80 backdrop-blur-sm">Upcoming Draft</Badge>
+            <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">{draft.name}</h1>
           </div>
 
+          {/* Countdown */}
           {draftDate && (
-            <div className="space-y-6">
-              <div className="text-7xl font-bold tabular-nums text-primary">
+            <div className="space-y-1">
+              <div className="text-6xl sm:text-7xl font-bold tabular-nums text-primary">
                 {daysUntil}
               </div>
-              <div className="text-xl text-muted-foreground">
+              <div className="text-sm font-semibold uppercase tracking-widest text-muted-foreground">
                 {daysUntil === 1 ? "day" : "days"} until draft day
-              </div>
-              <div className="flex items-center justify-center gap-6 text-sm text-muted-foreground">
-                <span className="flex items-center gap-1.5">
-                  <Clock className="h-4 w-4" />
-                  {draftDate.toLocaleDateString("en-US", {
-                    weekday: "long",
-                    month: "long",
-                    day: "numeric",
-                    year: "numeric",
-                  })}
-                  {" at "}
-                  {draftDate.toLocaleTimeString("en-US", {
-                    hour: "numeric",
-                    minute: "2-digit",
-                  })}
-                </span>
-                {draft.location && (
-                  <span className="flex items-center gap-1.5">
-                    <MapPin className="h-4 w-4" />
-                    {draft.location}
-                  </span>
-                )}
               </div>
             </div>
           )}
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center justify-center gap-2 text-base">
-                <Users className="h-4 w-4" />
-                Participating Teams
+          {/* Date & Location — stacked rows */}
+          {(draftDate || draft.location) && (
+            <div className="inline-flex flex-col gap-2 text-sm">
+              {draftDate && (
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <Clock className="h-4 w-4 shrink-0 text-primary" />
+                  <span className="font-medium text-foreground">
+                    {draftDate.toLocaleDateString("en-US", {
+                      weekday: "long",
+                      month: "long",
+                      day: "numeric",
+                      year: "numeric",
+                    })}
+                    {" at "}
+                    {draftDate.toLocaleTimeString("en-US", {
+                      hour: "numeric",
+                      minute: "2-digit",
+                    })}
+                  </span>
+                </div>
+              )}
+              {draft.location && (
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <MapPin className="h-4 w-4 shrink-0 text-primary" />
+                  <a
+                    href={`https://www.google.com/maps/search/${encodeURIComponent(draft.location + " San Francisco")}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-medium text-foreground hover:text-primary transition-colors underline underline-offset-2 decoration-muted-foreground/40 hover:decoration-primary"
+                  >
+                    {draft.location}, San Francisco
+                  </a>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* CTA — Add to Calendar */}
+          {calendarUrl && (
+            <div>
+              <a href={calendarUrl} target="_blank" rel="noopener noreferrer">
+                <Button size="lg" className="gap-2">
+                  <CalendarPlus className="h-4 w-4" />
+                  Add to Calendar
+                </Button>
+              </a>
+            </div>
+          )}
+
+          {/* Participating Teams */}
+          <div className="space-y-4">
+            <h2 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground flex items-center justify-center gap-2">
+              <Users className="h-3.5 w-3.5" />
+              Participating Teams
+            </h2>
+            <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2">
+              {teams.map((team) => (
+                <div key={team.teamSlug} className="flex items-center gap-2">
+                  <div
+                    className="w-2.5 h-2.5 rounded-full shrink-0"
+                    style={{ backgroundColor: team.color || "#94a3b8" }}
+                  />
+                  <span className="text-sm font-medium">{team.teamName}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Draft Format Card */}
+          <Card className="bg-background/80 backdrop-blur-sm text-left">
+            <CardHeader className="pb-2">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Layers className="h-4 w-4 text-primary" />
+                Draft Format
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                {teams.map((team) => (
-                  <div
-                    key={team.teamSlug}
-                    className="flex items-center gap-2 rounded-md border p-3"
-                  >
-                    <div
-                      className="w-3 h-3 rounded-full shrink-0"
-                      style={{ backgroundColor: team.color || "#94a3b8" }}
-                    />
-                    <span className="text-sm font-medium truncate">{team.teamName}</span>
-                  </div>
-                ))}
+              <p className="text-sm text-muted-foreground">
+                {draft.rounds}-round {season.name.toLowerCase().includes("summer") ? "summer" : ""} snake draft. Captains will
+                select from a pool of {pool.length} players. Each team enters the draft with their captain as a keeper.
+              </p>
+              <div className="flex flex-wrap gap-x-6 gap-y-1 mt-3 text-xs text-muted-foreground">
+                <span>{pool.length} players in the pool</span>
+                <span>{draft.rounds} rounds</span>
+                <span>{teams.length} teams</span>
               </div>
             </CardContent>
           </Card>
-
-          <div className="text-sm text-muted-foreground">
-            {pool.length} players in the draft pool • {draft.rounds} rounds
-          </div>
         </div>
       </div>
     )
