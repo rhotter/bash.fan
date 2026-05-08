@@ -9,12 +9,14 @@
 import { db, schema } from "../lib/db"
 
 const FRANCHISES = [
-  { slug: "red",   name: "Red",   color: "#dc2626" },
-  { slug: "blue",  name: "Blue",  color: "#2563eb" },
-  { slug: "gray",  name: "Gray",  color: "#6b7280" },
-  { slug: "green", name: "Green", color: "#16a34a" },
-  { slug: "white", name: "White", color: "#e5e7eb" },
-  { slug: "black", name: "Black", color: "#1f2937" },
+  { slug: "red",    name: "Red",    color: "#dc2626" },
+  { slug: "blue",   name: "Blue",   color: "#2563eb" },
+  { slug: "yellow", name: "Yellow", color: "#eab308" },
+  { slug: "green",  name: "Green",  color: "#16a34a" },
+  { slug: "white",  name: "White",  color: "#e5e7eb" },
+  { slug: "black",  name: "Black",  color: "#1f2937" },
+  { slug: "purple", name: "Purple", color: "#9333ea" },
+  { slug: "orange", name: "Orange", color: "#ea580c" },
 ] as const
 
 async function main() {
