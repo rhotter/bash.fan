@@ -41,6 +41,7 @@ Here is a high-level entity-relationship (ER) diagram of the database:
 erDiagram
     seasons ||--o{ season_teams : "has"
     teams ||--o{ season_teams : "participates_in"
+    franchises ||--o{ season_teams : "identifies"
     seasons ||--o{ games : "schedules"
     teams ||--o{ games : "home_team"
     teams ||--o{ games : "away_team"
@@ -59,14 +60,24 @@ erDiagram
     players ||--o{ player_awards : "receives"
     players ||--o| hall_of_fame : "inducted_to"
     games ||--o| game_live : "updates"
+    seasons ||--o{ draft_instances : "has"
+    draft_instances ||--o{ draft_team_order : "orders"
+    draft_instances ||--o{ draft_pool : "pools"
+    draft_instances ||--o{ draft_picks : "records"
+    draft_instances ||--o{ draft_trades : "logs"
+    draft_instances ||--o{ draft_log : "audits"
+    draft_trades ||--o{ draft_trade_items : "contains"
+    players ||--o{ draft_pool : "eligible_in"
+    players ||--o{ draft_picks : "selected_by"
 ```
 
-The Drizzle schema (`lib/db/schema.ts`) is designed around 15 core tables:
+The Drizzle schema (`lib/db/schema.ts`) is designed around 22 core tables:
 
 1. **League Structure**
    - `seasons`: Defines seasons (e.g., "Fall 2025") and links to Sportability league IDs. Stores configuration like `status` (draft/active/completed), `season_type` (fall/summer), and `playoff_teams`.
    - `teams`: Global team identities.
-   - `season_teams`: Junction table linking teams to specific seasons.
+   - `season_teams`: Junction table linking teams to specific seasons, with an optional `franchise_slug` FK.
+   - `franchises`: Persistent franchise identities across seasons (e.g., "Red", "Blue"). Each franchise has a `color` used for draft board theming.
 
 2. **Games & Scheduling**
    - `games`: Stores game details, dates, times, home/away teams, scores, and status (`upcoming` vs `final`). Flags for overtime, shootout, and forfeit. Includes schedule management columns:
@@ -80,7 +91,7 @@ The Drizzle schema (`lib/db/schema.ts`) is designed around 15 core tables:
 
 3. **Players & Statistics**
    - `players`: Global player identities.
-   - `player_seasons`: Links players to seasons and teams, tracking if they are a goalie.
+   - `player_seasons`: Links players to seasons and teams, tracking if they are a goalie, captain (`is_captain`), or rookie (`is_rookie`).
    - `player_game_stats`: Granular per-game stats for skaters (goals, assists, points, PIM, etc.).
    - `goalie_game_stats`: Granular per-game stats for goalies (shots against, saves, shutouts).
    - `player_season_stats`: Aggregated historical stats for seasons prior to detailed per-game data availability.
@@ -91,6 +102,15 @@ The Drizzle schema (`lib/db/schema.ts`) is designed around 15 core tables:
 
 5. **Metadata**
    - `sync_metadata`: Tracks the last time the database was synced with Sportability.
+
+6. **Draft System**
+   - `draft_instances`: Draft configuration and live state (status, timer, current pick position). Status lifecycle: `draft` → `published` → `live` → `completed` → `archived`.
+   - `draft_team_order`: Maps teams to draft order positions within a draft instance.
+   - `draft_pool`: Eligible players for a draft, with keeper assignments and Sportability registration metadata (JSONB).
+   - `draft_picks`: Pre-generated pick slots. When a draft goes `live`, all slots are created with `playerId = null`. Keeper picks are filled immediately; remaining picks are filled as the draft progresses.
+   - `draft_trades`: Trade records (pre-draft pick swaps and live trades) between teams.
+   - `draft_trade_items`: Individual items exchanged in a trade (picks, identified by round/position or pickId).
+   - `draft_log`: Audit trail of all draft actions (picks, trades, undos, keepers).
 
 ## Key Functions and Data Flow
 
@@ -122,10 +142,24 @@ Pure utility functions (no side effects, no DB calls) used by the admin wizards:
 
 > **Topological Generation Constraints**: When playoff brackets are generated, child nodes (like Finals) are topologically sorted and inserted before parent nodes (like Semi-finals) to ensure correct `nextGameId` reference ordering. Note: `nextGameId` is a **soft reference** (application-enforced, not a DB-level FK) to simplify game deletion workflows. Dynamic `gen-[UUID]` IDs prevent cross-season primary-key collisions, and a sentinel `"tbd"` team slug is automatically upserted to safely support Placeholder Mode before real team seedings are resolved.
 
-### 5. Routing Structure
+### 5. Draft System (`app/api/bash/admin/seasons/[id]/draft/`)
+The draft system manages the entire lifecycle of a league draft:
+
+1. **Creation**: Admin creates a draft instance via a 5-step wizard (settings → player pool → teams & captains → draft order & pre-draft trades → review). Player pools can be imported from Sportability CSV exports using the shared `lib/csv-utils.ts` parser.
+2. **Pre-Draft Trades**: Pick swaps can be arranged before the draft starts. The `lib/draft-trade-resolver.ts` engine resolves chain trades (e.g., A→B→C pick ownership) when picks are generated.
+3. **Live Draft**: Transitioning to `live` pre-generates all pick slots (`lib/draft-helpers.ts` handles snake/linear ordering). Keeper picks are auto-filled. The admin enters picks through a real-time board with player search, timer controls, and undo support.
+4. **Public Board**: `/draft/[season]` polls the public API (`/api/bash/draft/[season]`) every 3 seconds via SWR. Features include pick animations, NHL draft chime audio, position filtering, and a player card modal with career stats.
+5. **Post-Draft**: CSV export, JSON backup/restore, and roster push (upserts drafted players into `player_seasons` for the season).
+
+> **Security**: All 22 admin draft API routes enforce `getSession()` authentication. Public routes only expose drafts in `published`/`live`/`completed` status.
+
+### 6. Routing Structure
 The App Router maps URLs directly to server components:
 - `/` -> Home page (Scoreboard)
 - `/standings`, `/stats` -> Leaderboards and league tables
 - `/player/[slug]`, `/team/[slug]`, `/game/[id]` -> Detail views
-- `/admin/seasons/[id]` -> Season management (Schedule, Standings, Teams tabs)
+- `/draft/[season]` -> Public draft board (e.g., `/draft/2026-summer`)
+- `/admin/seasons/[id]` -> Season management (Schedule, Standings, Teams, Draft tabs)
+- `/admin/seasons/[id]/draft/[draftId]/board` -> Admin live draft board
+- `/admin/franchises` -> Franchise manager
 - `/scorekeeper/[gameId]` -> Live game scorekeeper

@@ -127,7 +127,12 @@ The admin dashboard (`/admin`) provides season management, schedule generation, 
    - **Round-Robin Wizard**: Generates a full season schedule using the Berger tables algorithm. Supports configurable games-per-week, skip weeks, and per-slot times/locations.
    - **Playoff Bracket Wizard**: Generates a linked bracket for 4–8 teams with standard seeding, configurable series lengths (best-of-1 or best-of-3), and auto play-in for odd team counts.
    - **Roster Import**: Upload a CSV player file (exported from Sportability, saved as `.csv`) via the Sportability Import button on the Roster tab. The two-step preview → confirm flow supports Overwrite and Append modes.
+   - **Franchise Manager** (`/admin/franchises`): Create and manage franchise identities (name, color) that persist across seasons. Franchises are linked to season teams for draft board theming.
+   - **Draft Tab** (`/admin/seasons/[id]` → Draft tab): Create, configure, and manage draft instances. The 5-step wizard walks through settings, player pool (with Sportability CSV import), teams & captains, draft order & pre-draft trades, and review.
+   - **Live Draft Board** (`/admin/seasons/[id]/draft/[draftId]/board`): Enter picks, manage timer, execute trades, and undo picks. This is the commissioner's control center during a live draft.
+   - **Public Draft Board** (`/draft/[season]`): The read-only spectator view. Polls the server every 3 seconds for live updates. Test by opening this URL in a separate browser while making picks on the admin board.
 4. Generated schedules call the API routes under `/api/bash/admin/seasons/[id]/schedule/`. The wizards run generation logic entirely client-side (`lib/schedule-utils.ts`) and only POST the final payload to the server.
+5. Draft API routes live under `/api/bash/admin/seasons/[id]/draft/`. All 22 endpoints require admin authentication via `getSession()`.
 
 ## Known Gotchas
 
