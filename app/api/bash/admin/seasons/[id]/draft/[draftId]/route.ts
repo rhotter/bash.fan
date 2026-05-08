@@ -173,6 +173,19 @@ export async function DELETE(_request: NextRequest, context: RouteContext) {
   }
 
   try {
+    // Delete children explicitly — draftTradeItems.pickId references draftPicks.id
+    // without ON DELETE CASCADE, so the cascade from draftInstances would fail.
+    const trades = await db
+      .select({ id: schema.draftTrades.id })
+      .from(schema.draftTrades)
+      .where(eq(schema.draftTrades.draftId, draftId))
+
+    for (const t of trades) {
+      await db.delete(schema.draftTradeItems).where(eq(schema.draftTradeItems.tradeId, t.id))
+    }
+    await db.delete(schema.draftTrades).where(eq(schema.draftTrades.draftId, draftId))
+
+    // Now safe to delete the instance (remaining children cascade)
     await db.delete(schema.draftInstances).where(eq(schema.draftInstances.id, draftId))
     return NextResponse.json({ ok: true })
   } catch (err) {

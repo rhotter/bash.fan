@@ -64,7 +64,7 @@ export async function POST(
       teamBSlug: team2,
       tradeType: "pick_swap",
       description: `${team1} trades R${pick1.round}P${pick1.pickNumber} to ${team2} for R${pick2.round}P${pick2.pickNumber}`,
-      isSimulation: draft.status === "draft"
+      isSimulation: false
     }).returning()
 
     await db.insert(draftTradeItems).values([
@@ -90,7 +90,7 @@ export async function POST(
       draftId,
       action: "trade",
       detail: { tradeId: trade.id, type: "pick_swap" },
-      isSimulation: draft.status === "draft"
+      isSimulation: false
     })
   } catch (err) {
     console.error("Trade failed:", err)
@@ -108,7 +108,7 @@ export async function POST(
       playerId: draftPicks.playerId,
       playerName: players.name,
       isKeeper: draftPicks.isKeeper,
-      isSimulation: draftPicks.isSimulation,
+
       pickedAt: draftPicks.pickedAt,
     })
     .from(draftPicks)

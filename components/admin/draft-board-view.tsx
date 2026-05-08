@@ -12,7 +12,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { ArrowLeft, RotateCcw, Play, Pause, Loader2, Crown, Search, X, Check, Download, Upload, MoreVertical, LogOut, ExternalLink } from "lucide-react"
+import { RotateCcw, Play, Pause, Loader2, Crown, Search, X, Check, Download, Upload, MoreVertical, LogOut, ExternalLink } from "lucide-react"
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -41,7 +41,7 @@ interface Pick {
   playerId: number | null
   playerName: string | null
   isKeeper: boolean
-  isSimulation: boolean
+
   pickedAt: string | null
 }
 
@@ -65,7 +65,7 @@ interface DraftInstance {
   seasonId: string
   name: string
   status: string
-  isSimulating: boolean
+
   draftType: string
   rounds: number
   timerSeconds: number
@@ -117,7 +117,7 @@ export function DraftBoardView({
   const [draft, setDraft] = useState(initialDraft)
   const [pool, setPool] = useState(initialPool)
   const [picks, setPicks] = useState(initialPicks)
-  const [isResetting, setIsResetting] = useState(false)
+
   const [showStartConfirm, setShowStartConfirm] = useState(false)
   const [isStarting, setIsStarting] = useState(false)
   const [showClearKeepersConfirm, setShowClearKeepersConfirm] = useState(false)
@@ -175,7 +175,7 @@ export function DraftBoardView({
   const [selectedTeam, setSelectedTeam] = useState<string>(teams[0]?.teamSlug || "")
   const [keeperSearch, setKeeperSearch] = useState("")
 
-  const isSimulation = draft.status === "draft"
+  const isDraft = draft.status === "draft"
   const isPreDraft = draft.status === "published"
   const isLive = draft.status === "live"
 
@@ -216,7 +216,7 @@ export function DraftBoardView({
   const [autoPopulated, setAutoPopulated] = useState(false)
   useEffect(() => {
     if (autoPopulated) return
-    if (isLive || draft.status === "completed") return
+    if (isLive || draft.status === "completed" || isDraft) return
     if (captains.length === 0) return
 
     // Find current keepers from the initial pool
@@ -282,7 +282,7 @@ export function DraftBoardView({
     })
 
     setAutoPopulated(true)
-  }, [autoPopulated, isLive, draft.status, draft.id, draft.maxKeepers, initialPool, captains, seasonId])
+  }, [autoPopulated, isDraft, isLive, draft.status, draft.id, draft.maxKeepers, initialPool, captains, seasonId])
 
   // ─── Keeper helpers ─────────────────────────────────────────────────────
 
@@ -635,28 +635,7 @@ export function DraftBoardView({
     }
   }, [draft.id, seasonId])
 
-  // ─── Simulation actions ─────────────────────────────────────────────────
 
-  const handleResetSimulation = useCallback(async () => {
-    setIsResetting(true)
-    try {
-      const res = await fetch(
-        `/api/bash/admin/seasons/${seasonId}/draft/${draft.id}/reset-simulation`,
-        { method: "POST" }
-      )
-      if (res.ok) {
-        toast.success("Simulation reset")
-        router.refresh()
-      } else {
-        const err = await res.json()
-        toast.error(err.error || "Failed to reset")
-      }
-    } catch {
-      toast.error("Failed to reset simulation")
-    } finally {
-      setIsResetting(false)
-    }
-  }, [draft.id, seasonId, router])
 
   // ─── Start draft ────────────────────────────────────────────────────────
 
@@ -717,7 +696,6 @@ export function DraftBoardView({
             playerId: p.playerId,
             playerName: p.playerName,
             isKeeper: true,
-            isSimulation: false,
             pickedAt: null,
           }
         }
@@ -766,38 +744,7 @@ export function DraftBoardView({
 
   return (
     <div className="space-y-4">
-      {/* Simulation banner */}
-      {isSimulation && (
-        <div className="rounded-lg border-2 border-amber-500 bg-amber-500/10 px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Badge variant="outline" className="bg-amber-500 text-white border-amber-600 font-bold text-xs uppercase tracking-wider">
-              Simulation Mode
-            </Badge>
-            <span className="text-sm text-amber-700 dark:text-amber-400">
-              All picks and trades are test data — will be purged on publish.
-            </span>
-          </div>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleResetSimulation}
-              disabled={isResetting}
-            >
-              {isResetting ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <RotateCcw className="h-4 w-4 mr-1" />}
-              Reset
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => router.push(`/admin/seasons/${seasonId}`)}
-            >
-              <ArrowLeft className="h-4 w-4 mr-1" />
-              Exit
-            </Button>
-          </div>
-        </div>
-      )}
+
 
       {/* Header */}
       <div className="flex items-center justify-between">
@@ -1054,7 +1001,7 @@ export function DraftBoardView({
       </Dialog>
 
       {/* Keeper entry panel (shown in draft or published state) */}
-      {(isSimulation || isPreDraft) && (
+      {(isDraft || isPreDraft) && (
         <Card>
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">

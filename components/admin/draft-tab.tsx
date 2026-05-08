@@ -323,48 +323,24 @@ export function DraftTab({ seasonId, seasonStatus, seasonType, teams, rosterCoun
                   {draft.status === "draft" && (
                     <Button
                       size="sm"
-                      variant="outline"
-                      onClick={() => router.push(`/admin/seasons/${seasonId}/draft/${draft.id}/board`)}
-                    >
-                      <Monitor className="h-3.5 w-3.5 mr-1.5" />
-                      View Admin Draft
-                    </Button>
-                  )}
-                  {draft.status === "draft" && (
-                    <Button
-                      size="sm"
                       onClick={() => setPublishTarget(draft)}
                     >
                       <Send className="h-3.5 w-3.5 mr-1.5" />
                       Publish
                     </Button>
                   )}
-                  {draft.status === "published" && (
+                  {draft.status !== "draft" && (
                     <Button
                       size="sm"
+                      variant={draft.status === "completed" || draft.status === "archived" ? "outline" : "default"}
                       onClick={() => router.push(`/admin/seasons/${seasonId}/draft/${draft.id}/board`)}
                     >
-                      <Play className="h-3.5 w-3.5 mr-1.5" />
-                      View Admin Draft
-                    </Button>
-                  )}
-                  {draft.status === "live" && (
-                    <Button
-                      size="sm"
-                      onClick={() => router.push(`/admin/seasons/${seasonId}/draft/${draft.id}/board`)}
-                    >
-                      <Monitor className="h-3.5 w-3.5 mr-1.5" />
-                      View Admin Draft
-                    </Button>
-                  )}
-                  {(draft.status === "completed" || draft.status === "archived") && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => router.push(`/admin/seasons/${seasonId}/draft/${draft.id}/board`)}
-                    >
-                      <Monitor className="h-3.5 w-3.5 mr-1.5" />
-                      View Admin Draft
+                      {draft.status === "published" ? (
+                        <Play className="h-3.5 w-3.5 mr-1.5" />
+                      ) : (
+                        <Monitor className="h-3.5 w-3.5 mr-1.5" />
+                      )}
+                      {draft.status === "published" ? "Open Draft Board" : "View Admin Draft"}
                     </Button>
                   )}
                   {(draft.status === "completed" || draft.status === "archived") && (
@@ -642,7 +618,7 @@ export function DraftTab({ seasonId, seasonStatus, seasonType, teams, rosterCoun
           <AlertDialogHeader>
             <AlertDialogTitle>Publish &ldquo;{publishTarget?.name}&rdquo;?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will make the draft visible at a public URL. Any simulation data will be cleared. Captains, players, and fans will be able to see the draft page.
+              This will make the draft visible at a public URL. Captains, players, and fans will be able to see the draft page.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

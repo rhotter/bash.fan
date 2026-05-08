@@ -30,7 +30,7 @@ export async function POST(
     )
   }
 
-  // Fetch all non-simulation picks with players assigned
+  // Fetch all picks with players assigned
   const picks = await db
     .select({
       playerId: schema.draftPicks.playerId,
@@ -38,12 +38,7 @@ export async function POST(
       isKeeper: schema.draftPicks.isKeeper,
     })
     .from(schema.draftPicks)
-    .where(
-      and(
-        eq(schema.draftPicks.draftId, draftId),
-        eq(schema.draftPicks.isSimulation, false)
-      )
-    )
+    .where(eq(schema.draftPicks.draftId, draftId))
 
   const picksWithPlayers = picks.filter((p) => p.playerId !== null)
 

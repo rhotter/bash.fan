@@ -218,7 +218,25 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
     await db.delete(schema.playerAwards).where(eq(schema.playerAwards.seasonId, id))
     await db.delete(schema.seasonTeams).where(eq(schema.seasonTeams.seasonId, id))
 
-    // Delete draft instances (cascades to picks, pool, trades, trade items, team order, log)
+    // Delete draft artifacts — must delete trade items first because
+    // draftTradeItems.pickId references draftPicks.id without ON DELETE CASCADE
+    const draftRows = await db
+      .select({ id: schema.draftInstances.id })
+      .from(schema.draftInstances)
+      .where(eq(schema.draftInstances.seasonId, id))
+
+    for (const draft of draftRows) {
+      const trades = await db
+        .select({ id: schema.draftTrades.id })
+        .from(schema.draftTrades)
+        .where(eq(schema.draftTrades.draftId, draft.id))
+      for (const t of trades) {
+        await db.delete(schema.draftTradeItems).where(eq(schema.draftTradeItems.tradeId, t.id))
+      }
+      await db.delete(schema.draftTrades).where(eq(schema.draftTrades.draftId, draft.id))
+    }
+
+    // Now safe to delete draft instances (remaining children cascade)
     await db.delete(schema.draftInstances).where(eq(schema.draftInstances.seasonId, id))
 
     // Delete registration chains (registrations → periods, no cascade on either FK)

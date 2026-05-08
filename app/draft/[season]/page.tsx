@@ -1,6 +1,6 @@
 import { db } from "@/lib/db"
 import * as schema from "@/lib/db/schema"
-import { eq, and } from "drizzle-orm"
+import { eq } from "drizzle-orm"
 import { notFound } from "next/navigation"
 import type { Metadata } from "next"
 import { PublicDraftBoard } from "@/components/public-draft-board"
@@ -90,12 +90,7 @@ export default async function PublicDraftPage({ params }: Props) {
     })
     .from(schema.draftPicks)
     .leftJoin(schema.players, eq(schema.draftPicks.playerId, schema.players.id))
-    .where(
-      and(
-        eq(schema.draftPicks.draftId, draft.id),
-        eq(schema.draftPicks.isSimulation, false)
-      )
-    )
+    .where(eq(schema.draftPicks.draftId, draft.id))
     .orderBy(schema.draftPicks.pickNumber)
 
   // Fetch pool
@@ -111,10 +106,7 @@ export default async function PublicDraftPage({ params }: Props) {
 
   // Fetch trades
   const trades = await db.query.draftTrades.findMany({
-    where: and(
-      eq(schema.draftTrades.draftId, draft.id),
-      eq(schema.draftTrades.isSimulation, false)
-    ),
+    where: eq(schema.draftTrades.draftId, draft.id),
   })
 
   const initialData = {

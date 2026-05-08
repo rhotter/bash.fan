@@ -83,7 +83,6 @@ export async function GET(_request: NextRequest, context: RouteContext) {
       registrationMeta: p.registrationMeta,
     })),
     trades: trades
-      .filter((t) => !t.isSimulation)
       .map((t) => ({
         id: t.id,
         teamASlug: t.teamASlug,
@@ -92,7 +91,6 @@ export async function GET(_request: NextRequest, context: RouteContext) {
         description: t.description,
       })),
     tradeItems: tradeItems
-      .filter((item) => trades.some((t) => !t.isSimulation && t.id === item.tradeId))
       .map((item) => ({
         tradeId: item.tradeId,
         fromTeamSlug: item.fromTeamSlug,

@@ -86,12 +86,7 @@ export async function GET(
     })
     .from(schema.draftPicks)
     .leftJoin(schema.players, eq(schema.draftPicks.playerId, schema.players.id))
-    .where(
-      and(
-        eq(schema.draftPicks.draftId, draft.id),
-        eq(schema.draftPicks.isSimulation, false)
-      )
-    )
+    .where(eq(schema.draftPicks.draftId, draft.id))
     .orderBy(schema.draftPicks.pickNumber)
 
   // Fetch pool for available players list
@@ -107,10 +102,7 @@ export async function GET(
 
   // Fetch trades
   const trades = await db.query.draftTrades.findMany({
-    where: and(
-      eq(schema.draftTrades.draftId, draft.id),
-      eq(schema.draftTrades.isSimulation, false)
-    ),
+    where: eq(schema.draftTrades.draftId, draft.id),
   })
 
   // Fetch captains for this season

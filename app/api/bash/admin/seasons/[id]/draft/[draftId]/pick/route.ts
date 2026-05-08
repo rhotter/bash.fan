@@ -60,10 +60,7 @@ export async function POST(
     .select({ playerId: draftPicks.playerId })
     .from(draftPicks)
     .where(
-      and(
-        eq(draftPicks.draftId, draftId),
-        eq(draftPicks.isSimulation, false)
-      )
+      eq(draftPicks.draftId, draftId)
     )
 
   const [remainingCount] = await db
@@ -117,7 +114,7 @@ export async function POST(
       playerId: draftPicks.playerId,
       playerName: players.name,
       isKeeper: draftPicks.isKeeper,
-      isSimulation: draftPicks.isSimulation,
+
       pickedAt: draftPicks.pickedAt,
     })
     .from(draftPicks)

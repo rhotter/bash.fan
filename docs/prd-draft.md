@@ -38,7 +38,7 @@ A dedicated, interactive draft system for managing the BASH league draft process
 
 - **User Story 1 (Commissioner — Setup)**: As the Commissioner, I want to create and configure a draft instance in advance — setting the number of rounds, participating teams with their captains for the upcoming season, draft order, draft date, location, and timer settings — so that draft day runs smoothly without manual data entry.
 
-- **User Story 2 (Commissioner — Preview)**: As the Commissioner, I want to preview the admin presentation view and simulate a mock draft while the instance is still staged — making test picks, testing trades, and verifying the timer — so I can confirm everything works before publishing to the public.
+- **User Story 2 (Commissioner — Preview)**: As the Commissioner, I want to preview the draft board while the instance is still staged — verifying team order, keepers, and trades — so I can confirm configuration is correct before publishing. If I need to rehearse the full draft flow, I can publish, start a live draft, and delete/recreate it afterward.
 
 - **User Story 3 (Commissioner — Live)**: As the Commissioner, I want to manage the live draft from an admin view, including entering picks on behalf of captains, executing pick swaps and player trades mid-draft, pausing/resuming the timer, editing draft order, and reverting picks — so the digital board perfectly reflects the real-world draft happening in the room.
 
@@ -901,3 +901,43 @@ The following BASH rules (Rulebook 2019) directly inform draft wizard behavior:
 - [x] **Timer Persistence**: ~~Connect the server-side `timerStartedAt` to the client-side countdown for accurate cross-device timer sync.~~ Server-side timer state (`timerCountdown` + `timerRunning` + `timerStartedAt`) drives client countdown via `remaining = timerCountdown - elapsed`. Supports pause/resume/reset via `POST /api/.../timer`.
 - [ ] **Draft Log Persistence**: Currently the Draft Log tab is built client-side from picks/trades props. A future enhancement could query the `draft_log` database table directly for a richer history including undo actions and simulation resets.
 - [ ] **Player Trades**: Trade drafted players between teams (not just picks). Currently deferred — only pick swaps are supported.
+
+---
+
+## 12. Retrospective: Simulation Mode (Removed)
+
+> **Implemented**: PR3 (May 2026)
+> **Removed**: May 7, 2026
+
+### What Was Built
+
+Simulation mode was a sandbox feature for commissioners to rehearse a draft before publishing. It included:
+
+- A "Simulate" toggle on the admin draft tab that transitioned a `draft`-status instance into simulation mode (`isSimulating: true`)
+- An amber "Simulation Mode" banner on the board view with a "Reset" button
+- An `isSimulation` boolean flag on `draft_picks`, `draft_trades`, and `draft_log` tables to tag simulation data separately from real data
+- A `reset-simulation` API route to purge all simulation picks/trades/logs
+- Automatic simulation data purge on publish (draft → published)
+- Filtering on all queries (admin board, public API, export, push-rosters, backup) to exclude `isSimulation: true` rows
+
+### Why It Was Removed
+
+1. **Incomplete feature**: Simulation mode only supported keeper configuration and board preview — it did **not** allow making picks, testing trades, or using the timer. This made it functionally equivalent to just viewing the board in `draft` status.
+
+2. **Existing workflow covers the use case**: The standard lifecycle (`draft → published → live → completed`) already supports rehearsal. A commissioner can publish, start a live draft, test everything, then delete the draft and recreate it. The wizard auto-populates team order and keepers, so setup cost is minimal.
+
+3. **Added complexity without value**: The `isSimulation` flag propagated into every query (picks, trades, logs, export, push-rosters, backup, public API), creating a parallel data path that increased surface area for bugs and confusion.
+
+4. **Confusing UX**: Commissioners expected simulation to be a full rehearsal mode. The gap between expectation ("I can test the whole draft") and reality ("I can only see keepers on the board") created confusion.
+
+### What Was Cleaned Up
+
+- **Deleted routes**: `simulate/route.ts`, `reset-simulation/route.ts`
+- **Removed from board view**: simulation banner, `handleResetSimulation`, `isSimulating` flag, `isSimulation` on Pick interface
+- **Simplified queries**: Removed `isSimulation` filtering from pick, trade, undo, export, push-rosters, backup, publish, start, public draft API, and public draft page
+- **Removed helper**: `withoutSimulation()` from `lib/draft-helpers.ts`
+- **Schema**: `isSimulation` columns remain in the DB schema for backward compatibility but are no longer read or written by application code. They default to `false`.
+
+### Lesson Learned
+
+Don't build a parallel data mode (simulation) when the real mode is cheap to set up and tear down. If the admin can create → test → delete → recreate in under 2 minutes via the wizard, a simulation sandbox is unnecessary complexity.

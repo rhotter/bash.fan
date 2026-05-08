@@ -48,7 +48,7 @@ export async function PUT(
       draftId,
       action: "edit_pick",
       detail: { pickId, changes: updatePayload },
-      isSimulation: draft.status === "draft"
+
     })
   }
 
@@ -63,7 +63,7 @@ export async function PUT(
       playerId: draftPicks.playerId,
       playerName: players.name,
       isKeeper: draftPicks.isKeeper,
-      isSimulation: draftPicks.isSimulation,
+
       pickedAt: draftPicks.pickedAt,
     })
     .from(draftPicks)

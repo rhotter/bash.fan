@@ -1,6 +1,6 @@
 import { db } from "@/lib/db"
 import * as schema from "@/lib/db/schema"
-import { eq, and } from "drizzle-orm"
+import { eq } from "drizzle-orm"
 import { NextResponse } from "next/server"
 import { getSession } from "@/lib/admin-session"
 
@@ -38,12 +38,7 @@ export async function GET(
     .from(schema.draftPicks)
     .innerJoin(schema.teams, eq(schema.draftPicks.teamSlug, schema.teams.slug))
     .leftJoin(schema.players, eq(schema.draftPicks.playerId, schema.players.id))
-    .where(
-      and(
-        eq(schema.draftPicks.draftId, draftId),
-        eq(schema.draftPicks.isSimulation, false)
-      )
-    )
+    .where(eq(schema.draftPicks.draftId, draftId))
     .orderBy(schema.draftPicks.pickNumber)
 
   // Build CSV

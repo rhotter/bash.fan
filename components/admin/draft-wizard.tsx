@@ -721,6 +721,12 @@ function StepTeamsCaptains({
                   Loading roster players…
                 </div>
               )}
+              {/* Empty roster — no player_seasons exist yet (new season) */}
+              {teamCaptains.length === 0 && rosterPlayers.length === 0 && !rosterLoading && (
+                <p className="text-[11px] text-muted-foreground/70 italic py-0.5">
+                  No roster players yet — captains can be assigned after draft creation.
+                </p>
+              )}
             </div>
           )
         })}

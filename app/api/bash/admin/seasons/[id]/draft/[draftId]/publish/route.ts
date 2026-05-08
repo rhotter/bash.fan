@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { db, schema } from "@/lib/db"
-import { eq, and } from "drizzle-orm"
+import { eq } from "drizzle-orm"
 import { getSession } from "@/lib/admin-session"
 
 interface RouteContext {
@@ -47,41 +47,11 @@ export async function POST(_request: NextRequest, context: RouteContext) {
   }
 
   try {
-    // Purge all simulation data
-    await db
-      .delete(schema.draftLog)
-      .where(
-        and(
-          eq(schema.draftLog.draftId, draftId),
-          eq(schema.draftLog.isSimulation, true)
-        )
-      )
-
-    await db
-      .delete(schema.draftPicks)
-      .where(
-        and(
-          eq(schema.draftPicks.draftId, draftId),
-          eq(schema.draftPicks.isSimulation, true)
-        )
-      )
-
-    // draftTrades simulation cleanup — trade items cascade from trades
-    await db
-      .delete(schema.draftTrades)
-      .where(
-        and(
-          eq(schema.draftTrades.draftId, draftId),
-          eq(schema.draftTrades.isSimulation, true)
-        )
-      )
-
     // Transition to published
     await db
       .update(schema.draftInstances)
       .set({
         status: "published",
-        isSimulating: false,
         updatedAt: new Date(),
       })
       .where(eq(schema.draftInstances.id, draftId))

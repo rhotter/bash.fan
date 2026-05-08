@@ -135,7 +135,8 @@ export default async function DraftBoardPage({ params }: BoardPageProps) {
       originalTeamSlug: schema.draftPicks.originalTeamSlug,
       playerId: schema.draftPicks.playerId,
       isKeeper: schema.draftPicks.isKeeper,
-      isSimulation: schema.draftPicks.isSimulation,
+
+
       pickedAt: schema.draftPicks.pickedAt,
     })
     .from(schema.draftPicks)
@@ -157,20 +158,15 @@ export default async function DraftBoardPage({ params }: BoardPageProps) {
     }
   }
 
-  // Fetch pre-draft trades
+  // Fetch all trades (pre-draft + live/simulation)
   const trades = await db
     .select()
     .from(schema.draftTrades)
-    .where(
-      and(
-        eq(schema.draftTrades.draftId, draftId),
-        eq(schema.draftTrades.isSimulation, false)
-      )
-    )
+    .where(eq(schema.draftTrades.draftId, draftId))
 
   // Fetch season name
   const [season] = await db
-    .select({ name: schema.seasons.name })
+    .select({ id: schema.seasons.id, name: schema.seasons.name })
     .from(schema.seasons)
     .where(eq(schema.seasons.id, seasonId))
     .limit(1)

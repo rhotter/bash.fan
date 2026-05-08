@@ -60,7 +60,8 @@ export async function POST(
       playerId: draftPicks.playerId,
       playerName: players.name,
       isKeeper: draftPicks.isKeeper,
-      isSimulation: draftPicks.isSimulation,
+
+
       pickedAt: draftPicks.pickedAt,
     })
     .from(draftPicks)

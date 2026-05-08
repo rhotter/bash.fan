@@ -57,12 +57,7 @@ export async function POST(_request: NextRequest, context: RouteContext) {
     const trades = await db
       .select()
       .from(schema.draftTrades)
-      .where(
-        and(
-          eq(schema.draftTrades.draftId, draftId),
-          eq(schema.draftTrades.isSimulation, false)
-        )
-      )
+      .where(eq(schema.draftTrades.draftId, draftId))
 
     // Rebuild trade inputs from stored trade items
     // Each trade has exactly 2 items: the two sides of the swap
@@ -148,7 +143,7 @@ export async function POST(_request: NextRequest, context: RouteContext) {
         playerId: keeperPlayerId,
         pickedAt: keeperPlayerId ? new Date() : null,
         isKeeper: !!keeperPlayerId,
-        isSimulation: false,
+
       }
     })
 

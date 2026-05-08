@@ -2,24 +2,6 @@
  * Draft query helpers — shared conditions and utilities for draft data access.
  */
 
-import { eq, SQL } from "drizzle-orm"
-import { schema } from "@/lib/db"
-
-/**
- * Builds a WHERE condition to exclude simulation rows from draft queries.
- * Use this on any query against draftPicks, draftTrades, or draftLog to ensure
- * simulation data is filtered out by default.
- *
- * @example
- *   db.select().from(schema.draftPicks).where(
- *     and(eq(schema.draftPicks.draftId, id), withoutSimulation(schema.draftPicks))
- *   )
- */
-export function withoutSimulation(
-  table: { isSimulation: typeof schema.draftPicks.isSimulation }
-): SQL {
-  return eq(table.isSimulation, false)
-}
 
 /**
  * Generate all pick slot rows for a draft when transitioning to live.
