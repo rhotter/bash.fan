@@ -28,6 +28,8 @@ interface Franchise {
   slug: string
   name: string
   color: string | null
+  logoTeamSlug: string | null
+  logoSeasonId: string | null
 }
 
 export function SeasonTeamsTab({ seasonId, seasonStatus, initialTeams, onTeamsChange }: SeasonTeamsTabProps) {
@@ -299,10 +301,14 @@ export function SeasonTeamsTab({ seasonId, seasonStatus, initialTeams, onTeamsCh
                             {franchises.map(f => (
                               <SelectItem key={f.slug} value={f.slug}>
                                 <div className="flex items-center gap-2">
-                                  <div
-                                    className="w-2.5 h-2.5 rounded-full border shrink-0"
-                                    style={{ backgroundColor: f.color || "#6b7280" }}
-                                  />
+                                  {f.logoTeamSlug ? (
+                                    <TeamLogo slug={f.logoTeamSlug} name={f.name} size={14} className="shrink-0" />
+                                  ) : (
+                                    <div
+                                      className="w-3.5 h-3.5 rounded-full border shrink-0"
+                                      style={{ backgroundColor: f.color || "#6b7280" }}
+                                    />
+                                  )}
                                   {f.name}
                                 </div>
                               </SelectItem>
@@ -353,12 +359,16 @@ export function SeasonTeamsTab({ seasonId, seasonStatus, initialTeams, onTeamsCh
                       <div key={team.teamSlug} className="flex items-center justify-between p-2 border rounded-md group hover:border-primary/50 transition-colors">
                         <div className="flex items-center gap-3">
                           {franchise ? (
-                            <div
-                              className="w-6 h-6 rounded border flex items-center justify-center text-white text-[9px] font-bold shrink-0"
-                              style={{ backgroundColor: franchise.color || "#6b7280" }}
-                            >
-                              {franchise.name.charAt(0)}
-                            </div>
+                            franchise.logoTeamSlug ? (
+                              <TeamLogo slug={franchise.logoTeamSlug} name={franchise.name} size={24} className="shrink-0" />
+                            ) : (
+                              <div
+                                className="w-6 h-6 rounded border flex items-center justify-center text-white text-[9px] font-bold shrink-0"
+                                style={{ backgroundColor: franchise.color || "#6b7280" }}
+                              >
+                                {franchise.name.charAt(0)}
+                              </div>
+                            )
                           ) : (
                             <TeamLogo slug={team.teamSlug} name={team.teamName} size={24} className="opacity-90" />
                           )}

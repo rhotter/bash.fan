@@ -9,11 +9,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
 import { toast } from "sonner"
+import { TeamLogo } from "@/components/team-logo"
 
 interface Franchise {
   slug: string
   name: string
   color: string | null
+  logoTeamSlug: string | null
+  logoSeasonId: string | null
 }
 
 export function FranchiseManager() {
@@ -167,12 +170,18 @@ export function FranchiseManager() {
                   className="flex items-center justify-between p-3 border rounded-md group hover:border-primary/50 transition-colors"
                 >
                   <div className="flex items-center gap-3">
-                    <div
-                      className="w-8 h-8 rounded-md border flex items-center justify-center text-white text-xs font-bold shrink-0"
-                      style={{ backgroundColor: f.color || "#6b7280" }}
-                    >
-                      {f.name.charAt(0).toUpperCase()}
-                    </div>
+                    {f.logoTeamSlug ? (
+                      <div className="w-8 h-8 rounded-md border flex items-center justify-center shrink-0 overflow-hidden" style={{ backgroundColor: f.color || '#6b7280' }}>
+                        <TeamLogo slug={f.logoTeamSlug} name={f.name} size={28} />
+                      </div>
+                    ) : (
+                      <div
+                        className="w-8 h-8 rounded-md border flex items-center justify-center text-white text-xs font-bold shrink-0"
+                        style={{ backgroundColor: f.color || "#6b7280" }}
+                      >
+                        {f.name.charAt(0).toUpperCase()}
+                      </div>
+                    )}
                     <div className="flex flex-col">
                       <span className="font-medium text-sm">{f.name}</span>
                       <span className="text-[10px] text-muted-foreground">{f.slug}</span>

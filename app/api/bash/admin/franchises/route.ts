@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { db, schema } from "@/lib/db"
-import { eq } from "drizzle-orm"
+import { eq, desc } from "drizzle-orm"
 import { getSession } from "@/lib/admin-session"
 
 export async function GET() {
@@ -14,7 +14,29 @@ export async function GET() {
     .from(schema.franchises)
     .orderBy(schema.franchises.name)
 
-  return NextResponse.json({ franchises })
+  // For each franchise, find the most recent team (by season_id DESC)
+  // to use as the franchise's "logo source"
+  const enriched = await Promise.all(
+    franchises.map(async (f) => {
+      const [latest] = await db
+        .select({
+          teamSlug: schema.seasonTeams.teamSlug,
+          seasonId: schema.seasonTeams.seasonId,
+        })
+        .from(schema.seasonTeams)
+        .where(eq(schema.seasonTeams.franchiseSlug, f.slug))
+        .orderBy(desc(schema.seasonTeams.seasonId))
+        .limit(1)
+
+      return {
+        ...f,
+        logoTeamSlug: latest?.teamSlug || null,
+        logoSeasonId: latest?.seasonId || null,
+      }
+    })
+  )
+
+  return NextResponse.json({ franchises: enriched })
 }
 
 export async function POST(request: NextRequest) {
