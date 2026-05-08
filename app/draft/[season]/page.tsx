@@ -1,6 +1,6 @@
 import { db } from "@/lib/db"
 import * as schema from "@/lib/db/schema"
-import { eq } from "drizzle-orm"
+import { eq, inArray } from "drizzle-orm"
 import { notFound } from "next/navigation"
 import type { Metadata } from "next"
 import { PublicDraftBoard } from "@/components/public-draft-board"
@@ -104,7 +104,16 @@ export default async function PublicDraftPage({ params }: Props) {
     .from(schema.seasonTeams)
     .where(eq(schema.seasonTeams.seasonId, seasonRow.id))
 
-  const franchises = await db.query.franchises.findMany()
+  const franchiseSlugs = [...new Set(
+    seasonTeams
+      .map((st) => st.franchiseSlug)
+      .filter((s): s is string => s !== null)
+  )]
+  const franchises = franchiseSlugs.length > 0
+    ? await db.query.franchises.findMany({
+        where: inArray(schema.franchises.slug, franchiseSlugs),
+      })
+    : []
   const colorMap: Record<string, string> = {}
   for (const f of franchises) {
     if (f.color) colorMap[f.slug] = f.color

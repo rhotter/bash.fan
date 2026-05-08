@@ -41,23 +41,26 @@ export async function GET(
     .where(eq(schema.draftPicks.draftId, draftId))
     .orderBy(schema.draftPicks.pickNumber)
 
-  // Build CSV
+  // Build CSV — escape embedded quotes per RFC 4180
+  const esc = (s: string) => `"${(s ?? "").replace(/"/g, '""')}"`
   const headers = ["Round", "Pick", "Team", "Player", "Keeper", "Traded From"]
   const rows = picks.map((p) => [
     p.round,
     p.pickNumber,
-    `"${p.teamName}"`,
-    p.playerId ? `"${p.playerName || "Unknown"}"` : "",
+    esc(p.teamName),
+    p.playerId ? esc(p.playerName || "Unknown") : "",
     p.isKeeper ? "Y" : "",
     p.teamSlug !== p.originalTeamSlug ? p.originalTeamSlug : "",
   ])
 
   const csv = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n")
 
+  const safeName = draft.name.replace(/[^a-zA-Z0-9-_ ]/g, "").trim() || "draft-export"
+
   return new Response(csv, {
     headers: {
       "Content-Type": "text/csv",
-      "Content-Disposition": `attachment; filename="${draft.name.replace(/[^a-zA-Z0-9-_ ]/g, "")}-results.csv"`,
+      "Content-Disposition": `attachment; filename="${safeName}-results.csv"`,
     },
   })
 }

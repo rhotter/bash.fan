@@ -2,11 +2,17 @@ import { db } from "@/lib/db"
 import { draftPicks, draftInstances, players, draftLog } from "@/lib/db/schema"
 import { eq } from "drizzle-orm"
 import { NextResponse } from "next/server"
+import { getSession } from "@/lib/admin-session"
 
 export async function PUT(
   req: Request,
   { params }: { params: Promise<{ id: string; draftId: string; pickId: string }> }
 ) {
+  const isAuthenticated = await getSession()
+  if (!isAuthenticated) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  }
+
   const { id: _seasonId, draftId, pickId } = await params
   const { teamSlug, playerId } = await req.json()
 
@@ -17,6 +23,13 @@ export async function PUT(
 
   if (!draft) {
     return NextResponse.json({ error: "Draft not found" }, { status: 404 })
+  }
+
+  if (draft.status !== "live" && draft.status !== "completed") {
+    return NextResponse.json(
+      { error: `Cannot edit picks in '${draft.status}' status` },
+      { status: 400 }
+    )
   }
 
   const pick = await db.query.draftPicks.findFirst({

@@ -20,8 +20,8 @@ export async function POST(
     where: eq(draftInstances.id, draftId),
   })
 
-  if (!draft || (draft.status !== "live" && draft.status !== "draft")) {
-    return NextResponse.json({ error: "Draft is not active" }, { status: 400 })
+  if (!draft || draft.status !== "live") {
+    return NextResponse.json({ error: "Timer controls are only available during a live draft" }, { status: 400 })
   }
 
   if (action === "pause") {

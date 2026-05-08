@@ -1,6 +1,6 @@
 import { db } from "@/lib/db"
 import * as schema from "@/lib/db/schema"
-import { eq, and } from "drizzle-orm"
+import { eq, and, inArray } from "drizzle-orm"
 import { NextResponse } from "next/server"
 
 export async function GET(
@@ -53,13 +53,17 @@ export async function GET(
     .from(schema.seasonTeams)
     .where(eq(schema.seasonTeams.seasonId, seasonRow.id))
 
-  const franchiseSlugs = seasonTeams
-    .map((st) => st.franchiseSlug)
-    .filter((s): s is string => s !== null)
+  const franchiseSlugs = [...new Set(
+    seasonTeams
+      .map((st) => st.franchiseSlug)
+      .filter((s): s is string => s !== null)
+  )]
 
   const teamColors: Record<string, string> = {}
   if (franchiseSlugs.length > 0) {
-    const franchises = await db.query.franchises.findMany()
+    const franchises = await db.query.franchises.findMany({
+      where: inArray(schema.franchises.slug, franchiseSlugs),
+    })
     const colorMap: Record<string, string> = {}
     for (const f of franchises) {
       if (f.color) colorMap[f.slug] = f.color

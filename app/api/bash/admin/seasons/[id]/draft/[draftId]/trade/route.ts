@@ -2,11 +2,17 @@ import { db } from "@/lib/db"
 import { draftPicks, draftInstances, players, draftTrades, draftTradeItems, draftLog } from "@/lib/db/schema"
 import { eq, inArray } from "drizzle-orm"
 import { NextResponse } from "next/server"
+import { getSession } from "@/lib/admin-session"
 
 export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string; draftId: string }> }
 ) {
+  const isAuthenticated = await getSession()
+  if (!isAuthenticated) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  }
+
   const { id: _seasonId, draftId } = await params
   const body = await req.json()
   const { type } = body
@@ -52,7 +58,6 @@ export async function POST(
         teamBSlug,
         tradeType: "pre_draft_pick_swap",
         description: `Pre-draft: ${teamASlug} Rd ${teamARound}${viaA} ↔ ${teamBSlug} Rd ${teamBRound}${viaB}`,
-        isSimulation: false,
       }).returning()
 
       await db.insert(draftTradeItems).values([
@@ -128,13 +133,12 @@ export async function POST(
 
     // Record trade
     const [trade] = await db.insert(draftTrades).values({
-      id: `trade_${Date.now()}`,
+      id: `trade-${crypto.randomUUID()}`,
       draftId,
       teamASlug: team1,
       teamBSlug: team2,
       tradeType: "pick_swap",
       description: `${team1} trades R${pick1.round}P${pick1.pickNumber} to ${team2} for R${pick2.round}P${pick2.pickNumber}`,
-      isSimulation: false
     }).returning()
 
     await db.insert(draftTradeItems).values([
@@ -160,7 +164,6 @@ export async function POST(
       draftId,
       action: "trade",
       detail: { tradeId: trade.id, type: "pick_swap" },
-      isSimulation: false
     })
   } catch (err) {
     console.error("Trade failed:", err)

@@ -2,11 +2,17 @@ import { db } from "@/lib/db"
 import { draftPicks, draftInstances, draftPool, draftLog, players } from "@/lib/db/schema"
 import { eq, and, isNull, notInArray, sql } from "drizzle-orm"
 import { NextResponse } from "next/server"
+import { getSession } from "@/lib/admin-session"
 
 export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string; draftId: string }> }
 ) {
+  const isAuthenticated = await getSession()
+  if (!isAuthenticated) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  }
+
   const { id: _seasonId, draftId } = await params
   const { pickId, playerId } = await req.json()
 
@@ -83,9 +89,12 @@ export async function POST(
 
   if (allPlayersDrafted) {
     // Auto-complete: stop timer and transition to completed
+    const completedPick = updateRes[0]
     await db.update(draftInstances)
       .set({
         status: "completed",
+        currentRound: completedPick.round,
+        currentPick: completedPick.pickNumber,
         timerRunning: false,
         timerStartedAt: null,
         updatedAt: new Date(),

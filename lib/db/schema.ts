@@ -603,7 +603,6 @@ export const draftInstances = pgTable("draft_instances", {
   seasonType: text("season_type").notNull().default("fall"), // snapshot from seasons.seasonType at creation
   name: text("name").notNull(),
   status: text("status").notNull().default("draft"),
-  isSimulating: boolean("is_simulating").notNull().default(false),
   draftType: text("draft_type").notNull().default("snake"),
   rounds: integer("rounds").notNull().default(14),
   timerSeconds: integer("timer_seconds").notNull().default(120),
@@ -689,7 +688,6 @@ export const draftPicks = pgTable(
       .references(() => players.id),
     pickedAt: timestamp("picked_at", { withTimezone: true }),
     isKeeper: boolean("is_keeper").notNull().default(false),
-    isSimulation: boolean("is_simulation").notNull().default(false),
   },
   (t) => [
     index("idx_draft_picks_draft").on(t.draftId),
@@ -714,7 +712,6 @@ export const draftTrades = pgTable("draft_trades", {
   tradeType: text("trade_type").notNull(),
   description: text("description"),
   tradedAt: timestamp("traded_at", { withTimezone: true }).defaultNow(),
-  isSimulation: boolean("is_simulation").notNull().default(false),
 })
 
 // ─── Draft Trade Items (what was exchanged) ─────────────────────────────────
@@ -752,6 +749,5 @@ export const draftLog = pgTable("draft_log", {
     .references(() => draftInstances.id, { onDelete: "cascade" }),
   action: text("action").notNull(),
   detail: jsonb("detail"),
-  isSimulation: boolean("is_simulation").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
 })

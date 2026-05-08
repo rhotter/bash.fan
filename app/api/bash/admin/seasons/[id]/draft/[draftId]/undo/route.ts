@@ -2,11 +2,17 @@ import { db } from "@/lib/db"
 import { draftPicks, draftInstances, players } from "@/lib/db/schema"
 import { eq, and, isNotNull, desc } from "drizzle-orm"
 import { NextResponse } from "next/server"
+import { getSession } from "@/lib/admin-session"
 
 export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string; draftId: string }> }
 ) {
+  const isAuthenticated = await getSession()
+  if (!isAuthenticated) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  }
+
   const { id: _seasonId, draftId } = await params
 
   // Verify draft is live
@@ -18,14 +24,15 @@ export async function POST(
     return NextResponse.json({ error: "Draft is not active" }, { status: 400 })
   }
 
-  // Find the most recently made pick that is NOT a keeper
+  // Find the most recently made pick that is NOT a keeper.
+  // Sort by pickedAt (chronological) not pickNumber — picks may be made out of order.
   const lastPick = await db.query.draftPicks.findFirst({
     where: and(
       eq(draftPicks.draftId, draftId),
       isNotNull(draftPicks.playerId),
       eq(draftPicks.isKeeper, false)
     ),
-    orderBy: [desc(draftPicks.pickNumber)]
+    orderBy: [desc(draftPicks.pickedAt)]
   })
 
   if (!lastPick) {
