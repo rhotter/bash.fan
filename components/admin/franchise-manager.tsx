@@ -10,7 +10,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
 import { toast } from "sonner"
 import { TeamLogo } from "@/components/team-logo"
-import { HexColorPicker } from "react-colorful"
 
 interface Franchise {
   slug: string
@@ -266,27 +265,19 @@ export function FranchiseManager() {
               <Label className="flex items-center gap-1.5">
                 <Palette className="h-3.5 w-3.5" /> Franchise Color
               </Label>
-              <div className="space-y-3">
-                <HexColorPicker
-                  color={createForm.color}
-                  onChange={(color) => setCreateForm(f => ({ ...f, color }))}
-                  style={{ width: '100%', height: 160 }}
+              <div className="flex items-center gap-3">
+                <input
+                  type="color"
+                  value={createForm.color}
+                  onChange={(e) => setCreateForm(f => ({ ...f, color: e.target.value }))}
+                  className="h-9 w-12 rounded border cursor-pointer"
                 />
-                <div className="flex items-center gap-3">
-                  <div
-                    className="h-9 w-9 rounded-md border shrink-0"
-                    style={{ backgroundColor: createForm.color }}
-                  />
-                  <Input
-                    value={createForm.color}
-                    onChange={(e) => {
-                      const v = e.target.value
-                      setCreateForm(f => ({ ...f, color: v.startsWith('#') ? v : `#${v}` }))
-                    }}
-                    className="font-mono text-sm w-28"
-                    placeholder="#3b82f6"
-                  />
-                </div>
+                <Input
+                  value={createForm.color}
+                  onChange={(e) => setCreateForm(f => ({ ...f, color: e.target.value }))}
+                  className="font-mono text-sm w-28"
+                  placeholder="#3b82f6"
+                />
               </div>
             </div>
             {createError && <div className="text-sm text-destructive">{createError}</div>}
@@ -319,26 +310,18 @@ export function FranchiseManager() {
               <Label className="flex items-center gap-1.5">
                 <Palette className="h-3.5 w-3.5" /> Franchise Color
               </Label>
-              <div className="space-y-3">
-                <HexColorPicker
-                  color={editForm.color}
-                  onChange={(color) => setEditForm(f => ({ ...f, color }))}
-                  style={{ width: '100%', height: 160 }}
+              <div className="flex items-center gap-3">
+                <input
+                  type="color"
+                  value={editForm.color}
+                  onChange={(e) => setEditForm(f => ({ ...f, color: e.target.value }))}
+                  className="h-9 w-12 rounded border cursor-pointer"
                 />
-                <div className="flex items-center gap-3">
-                  <div
-                    className="h-9 w-9 rounded-md border shrink-0"
-                    style={{ backgroundColor: editForm.color }}
-                  />
-                  <Input
-                    value={editForm.color}
-                    onChange={(e) => {
-                      const v = e.target.value
-                      setEditForm(f => ({ ...f, color: v.startsWith('#') ? v : `#${v}` }))
-                    }}
-                    className="font-mono text-sm w-28"
-                  />
-                </div>
+                <Input
+                  value={editForm.color}
+                  onChange={(e) => setEditForm(f => ({ ...f, color: e.target.value }))}
+                  className="font-mono text-sm w-28"
+                />
               </div>
             </div>
           </div>

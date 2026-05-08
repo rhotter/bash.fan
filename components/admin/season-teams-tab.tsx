@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
-import { Search, Loader2, Plus, X, ShieldAlert, Palette } from "lucide-react"
+import { Search, Loader2, Plus, X, ShieldAlert } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -219,10 +219,6 @@ export function SeasonTeamsTab({ seasonId, seasonStatus, initialTeams, onTeamsCh
     }
   }
 
-  const getFranchiseBySlug = useCallback(
-    (slug: string | null) => franchises.find(f => f.slug === slug) || null,
-    [franchises]
-  )
 
   const assignedSlugs = new Set(assignedTeams.map(t => t.teamSlug))
   const unassignedTeams = allTeams.filter(t => !assignedSlugs.has(t.slug))
@@ -238,105 +234,32 @@ export function SeasonTeamsTab({ seasonId, seasonStatus, initialTeams, onTeamsCh
   return (
     <>
       <div className="space-y-4">
-        {/* Franchise Assignment Section */}
-        {assignedTeams.length > 0 && (
-          <Card>
-            <CardHeader className="pb-3 border-b">
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle className="flex items-center gap-2">
-                    <Palette className="h-4 w-4" />
-                    Franchise Assignments
-                  </CardTitle>
-                  <CardDescription>
-                    Link each team to a franchise for color theming and cross-season identity.
-                    {" "}{assignedFranchiseCount}/{assignedTeams.length} assigned.
-                  </CardDescription>
-                </div>
-                <div className="flex items-center gap-2">
-                  {hasUnsavedChanges && (
-                    <Button
-                      size="sm"
-                      className="h-8 text-xs"
-                      onClick={saveFranchiseAssignments}
-                      disabled={isSavingFranchises}
-                    >
-                      {isSavingFranchises ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : null}
-                      Save Assignments
-                    </Button>
-                  )}
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="pt-4">
-              <div className="space-y-2">
-                {assignedTeams.map(team => {
-                  const currentFranchise = getFranchiseBySlug(localAssignments[team.teamSlug] ?? null)
-                  return (
-                    <div key={team.teamSlug} className="flex items-center justify-between p-2 border rounded-md hover:border-primary/20 transition-colors">
-                      <div className="flex items-center gap-3 min-w-0">
-                        <TeamLogo slug={team.teamSlug} name={team.teamName} size={24} className="opacity-90 shrink-0" />
-                        <span className="font-medium text-sm truncate">{team.teamName}</span>
-                      </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        {currentFranchise && (
-                          <div
-                            className="w-3 h-3 rounded-full border shrink-0"
-                            style={{ backgroundColor: currentFranchise.color || "#6b7280" }}
-                          />
-                        )}
-                        <Select
-                          value={localAssignments[team.teamSlug] || "__none__"}
-                          onValueChange={(val) =>
-                            setFranchiseForTeam(team.teamSlug, val === "__none__" ? null : val)
-                          }
-                        >
-                          <SelectTrigger className="w-[140px] h-8 text-xs">
-                            <SelectValue placeholder="No franchise" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="__none__">
-                              <span className="text-muted-foreground">None</span>
-                            </SelectItem>
-                            {franchises.map(f => (
-                              <SelectItem key={f.slug} value={f.slug}>
-                                <div className="flex items-center gap-2">
-                                  {f.logoTeamSlug ? (
-                                    <TeamLogo slug={f.logoTeamSlug} name={f.name} size={14} className="shrink-0" />
-                                  ) : (
-                                    <div
-                                      className="w-3.5 h-3.5 rounded-full border shrink-0"
-                                      style={{ backgroundColor: f.color || "#6b7280" }}
-                                    />
-                                  )}
-                                  {f.name}
-                                </div>
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
         {/* Teams Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Assigned Teams Panel */}
           <Card>
             <CardHeader className="pb-3 border-b">
               <div className="flex items-center justify-between">
-                <CardTitle>Participating Teams</CardTitle>
-                <div className="text-sm font-medium bg-primary/10 text-primary px-2 py-0.5 rounded">
-                  {assignedTeams.length}
+                <div className="flex items-center gap-2">
+                  <CardTitle>Participating Teams</CardTitle>
+                  <div className="text-sm font-medium bg-primary/10 text-primary px-2 py-0.5 rounded">
+                    {assignedTeams.length}
+                  </div>
                 </div>
+                {hasUnsavedChanges && (
+                  <Button
+                    size="sm"
+                    className="h-8 text-xs"
+                    onClick={saveFranchiseAssignments}
+                    disabled={isSavingFranchises}
+                  >
+                    {isSavingFranchises ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : null}
+                    Save Franchise Changes
+                  </Button>
+                )}
               </div>
               <CardDescription>
-                Teams actively enrolled in this season.
+                Teams enrolled in this season. {assignedFranchiseCount}/{assignedTeams.length} franchise-linked.
               </CardDescription>
             </CardHeader>
             <CardContent className="pt-4">
@@ -354,37 +277,55 @@ export function SeasonTeamsTab({ seasonId, seasonStatus, initialTeams, onTeamsCh
                   </div>
                 ) : (
                   assignedTeams.map(team => {
-                    const franchise = getFranchiseBySlug(localAssignments[team.teamSlug] ?? null)
                     return (
                       <div key={team.teamSlug} className="flex items-center justify-between p-2 border rounded-md group hover:border-primary/50 transition-colors">
-                        <div className="flex items-center gap-3">
-                          {franchise ? (
-                            franchise.logoTeamSlug ? (
-                              <TeamLogo slug={franchise.logoTeamSlug} name={franchise.name} size={24} className="shrink-0" />
-                            ) : (
-                              <div
-                                className="w-6 h-6 rounded border flex items-center justify-center text-white text-[9px] font-bold shrink-0"
-                                style={{ backgroundColor: franchise.color || "#6b7280" }}
-                              >
-                                {franchise.name.charAt(0)}
-                              </div>
-                            )
-                          ) : (
-                            <TeamLogo slug={team.teamSlug} name={team.teamName} size={24} className="opacity-90" />
-                          )}
-                          <span className="font-medium text-sm">{team.teamName}</span>
+                        <div className="flex items-center gap-3 min-w-0">
+                          <TeamLogo slug={team.teamSlug} name={team.teamName} size={24} className="opacity-90 shrink-0" />
+                          <span className="font-medium text-sm truncate">{team.teamName}</span>
                         </div>
-                        {isEditable && (
-                          <Button 
-                            variant="ghost" 
-                            size="icon" 
-                            className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                            onClick={() => removeTeam(team.teamSlug, team.teamName)}
-                            disabled={isProcessing === team.teamSlug}
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <Select
+                            value={localAssignments[team.teamSlug] || "__none__"}
+                            onValueChange={(val) =>
+                              setFranchiseForTeam(team.teamSlug, val === "__none__" ? null : val)
+                            }
                           >
-                            {isProcessing === team.teamSlug ? <Loader2 className="h-4 w-4 animate-spin" /> : <X className="h-4 w-4" />}
-                          </Button>
-                        )}
+                            <SelectTrigger className="w-[130px] h-7 text-xs">
+                              <SelectValue placeholder="Franchise" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="__none__">
+                                <span className="text-muted-foreground">No franchise</span>
+                              </SelectItem>
+                              {franchises.map(f => (
+                                <SelectItem key={f.slug} value={f.slug}>
+                                  <div className="flex items-center gap-2">
+                                    {f.logoTeamSlug ? (
+                                      <TeamLogo slug={f.logoTeamSlug} name={f.name} size={14} className="shrink-0" />
+                                    ) : (
+                                      <div
+                                        className="w-3 h-3 rounded-full border shrink-0"
+                                        style={{ backgroundColor: f.color || "#6b7280" }}
+                                      />
+                                    )}
+                                    {f.name}
+                                  </div>
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          {isEditable && (
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              className="h-7 w-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                              onClick={() => removeTeam(team.teamSlug, team.teamName)}
+                              disabled={isProcessing === team.teamSlug}
+                            >
+                              {isProcessing === team.teamSlug ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <X className="h-3.5 w-3.5" />}
+                            </Button>
+                          )}
+                        </div>
                       </div>
                     )
                   })
