@@ -21,7 +21,7 @@ export async function GET(_request: NextRequest, context: RouteContext) {
     .from(schema.draftInstances)
     .where(eq(schema.draftInstances.seasonId, seasonId))
 
-  // Enrich each draft with team count and pool count
+  // Enrich each draft with team count, pool count, and trades
   const enriched = await Promise.all(
     drafts.map(async (draft) => {
       const teamOrder = await db
@@ -35,12 +35,30 @@ export async function GET(_request: NextRequest, context: RouteContext) {
         .from(schema.draftPool)
         .where(eq(schema.draftPool.draftId, draft.id))
 
+      const trades = await db
+        .select({
+          id: schema.draftTrades.id,
+          teamASlug: schema.draftTrades.teamASlug,
+          teamBSlug: schema.draftTrades.teamBSlug,
+          tradeType: schema.draftTrades.tradeType,
+          description: schema.draftTrades.description,
+          tradedAt: schema.draftTrades.tradedAt,
+        })
+        .from(schema.draftTrades)
+        .where(eq(schema.draftTrades.draftId, draft.id))
+        .orderBy(schema.draftTrades.tradedAt)
+
       return {
         ...draft,
         teamCount: teamOrder.length,
         poolCount: pool.length,
         keeperCount: pool.filter((p) => p.isKeeper).length,
         teams: teamOrder,
+        tradeCount: trades.length,
+        trades: trades.map((t) => ({
+          ...t,
+          tradedAt: t.tradedAt?.toISOString() || null,
+        })),
       }
     })
   )

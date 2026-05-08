@@ -8,7 +8,77 @@ export async function POST(
   { params }: { params: Promise<{ id: string; draftId: string }> }
 ) {
   const { id: _seasonId, draftId } = await params
-  const { type, pickIds } = await req.json()
+  const body = await req.json()
+  const { type } = body
+
+  // ── Pre-draft trade creation (from admin dashboard) ───────────────────────
+  if (type === "pre_draft_pick_swap") {
+    const { teamASlug, teamARound, teamAOriginalOwner, teamBSlug, teamBRound, teamBOriginalOwner } = body
+
+    if (!teamASlug || !teamBSlug || !teamARound || !teamBRound) {
+      return NextResponse.json({ error: "All trade fields are required" }, { status: 400 })
+    }
+
+    if (teamASlug === teamBSlug) {
+      return NextResponse.json({ error: "Cannot trade between the same team" }, { status: 400 })
+    }
+
+    const draft = await db.query.draftInstances.findFirst({
+      where: eq(draftInstances.id, draftId)
+    })
+
+    if (!draft) {
+      return NextResponse.json({ error: "Draft not found" }, { status: 404 })
+    }
+
+    if (draft.status !== "draft") {
+      return NextResponse.json(
+        { error: "Pre-draft trades can only be added while draft is in draft status" },
+        { status: 400 }
+      )
+    }
+
+    try {
+      const origOwnerA = teamAOriginalOwner || teamASlug
+      const origOwnerB = teamBOriginalOwner || teamBSlug
+      const viaA = origOwnerA !== teamASlug ? ` (via ${origOwnerA})` : ""
+      const viaB = origOwnerB !== teamBSlug ? ` (via ${origOwnerB})` : ""
+
+      const tradeId = `trade-${crypto.randomUUID()}`
+      const [trade] = await db.insert(draftTrades).values({
+        id: tradeId,
+        draftId,
+        teamASlug,
+        teamBSlug,
+        tradeType: "pre_draft_pick_swap",
+        description: `Pre-draft: ${teamASlug} Rd ${teamARound}${viaA} ↔ ${teamBSlug} Rd ${teamBRound}${viaB}`,
+        isSimulation: false,
+      }).returning()
+
+      await db.insert(draftTradeItems).values([
+        {
+          tradeId,
+          fromTeamSlug: origOwnerA,
+          toTeamSlug: teamBSlug,
+          round: parseInt(String(teamARound), 10),
+        },
+        {
+          tradeId,
+          fromTeamSlug: origOwnerB,
+          toTeamSlug: teamASlug,
+          round: parseInt(String(teamBRound), 10),
+        },
+      ])
+
+      return NextResponse.json({ trade }, { status: 201 })
+    } catch (err) {
+      console.error("Failed to create pre-draft trade:", err)
+      return NextResponse.json({ error: "Failed to create trade" }, { status: 500 })
+    }
+  }
+
+  // ── Live pick swap (existing behavior) ────────────────────────────────────
+  const { pickIds } = body
 
   if (type !== "pick_swap" || !pickIds || pickIds.length !== 2) {
     return NextResponse.json({ error: "Invalid trade payload" }, { status: 400 })
@@ -118,3 +188,4 @@ export async function POST(
 
   return NextResponse.json({ picks: allPicks })
 }
+

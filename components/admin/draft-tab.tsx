@@ -6,8 +6,11 @@ import {
   Loader2, Plus, Users, ListOrdered, Trash2, Send, Clock,
   MapPin, CalendarDays, Layers, ShieldCheck, MoreVertical, Upload,
   ExternalLink, ArchiveRestore, Play, Monitor, Download, UploadCloud, Settings,
-  EyeOff, Eye,
+  EyeOff, Eye, ArrowRightLeft,
 } from "lucide-react"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Label } from "@/components/ui/label"
+import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -35,6 +38,15 @@ interface PoolPlayer {
   isGoalie?: boolean
 }
 
+interface DraftTrade {
+  id: string
+  teamASlug: string
+  teamBSlug: string
+  tradeType: string
+  description: string | null
+  tradedAt: string | null
+}
+
 interface DraftInstance {
   id: string
   name: string
@@ -49,7 +61,9 @@ interface DraftInstance {
   teamCount: number
   poolCount: number
   keeperCount: number
+  tradeCount: number
   teams: { teamSlug: string; position: number }[]
+  trades: DraftTrade[]
   pool?: PoolPlayer[]
 }
 
@@ -88,6 +102,10 @@ export function DraftTab({ seasonId, seasonStatus, seasonType, teams, rosterCoun
   const [unpublishTarget, setUnpublishTarget] = useState<DraftInstance | null>(null)
   const [isUnpublishing, setIsUnpublishing] = useState(false)
   const [editTarget, setEditTarget] = useState<DraftInstance | null>(null)
+  const [expandedTrades, setExpandedTrades] = useState<string | null>(null)
+  const [addingTrade, setAddingTrade] = useState<string | null>(null)
+  const [newTrade, setNewTrade] = useState({ teamASlug: "", teamARound: "1", teamBSlug: "", teamBRound: "1" })
+  const [isSavingTrade, setIsSavingTrade] = useState(false)
 
   const fetchDrafts = useCallback(async () => {
     try {
@@ -234,6 +252,61 @@ export function DraftTab({ seasonId, seasonStatus, seasonType, teams, rosterCoun
     setPlayerCardOpen(true)
   }
 
+  const handleDeleteTrade = async (draftId: string, tradeId: string) => {
+    try {
+      const res = await fetch(
+        `/api/bash/admin/seasons/${seasonId}/draft/${draftId}/trade/${tradeId}`,
+        { method: "DELETE" }
+      )
+      if (res.ok) {
+        toast.success("Trade deleted")
+        fetchDrafts()
+      } else {
+        const err = await res.json()
+        toast.error(err.error || "Failed to delete trade")
+      }
+    } catch {
+      toast.error("Connection error")
+    }
+  }
+
+  const handleAddTrade = async (draftId: string) => {
+    if (!newTrade.teamASlug || !newTrade.teamBSlug) {
+      toast.error("Select both teams")
+      return
+    }
+    setIsSavingTrade(true)
+    try {
+      const res = await fetch(
+        `/api/bash/admin/seasons/${seasonId}/draft/${draftId}/trade`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            type: "pre_draft_pick_swap",
+            teamASlug: newTrade.teamASlug,
+            teamARound: parseInt(newTrade.teamARound, 10),
+            teamBSlug: newTrade.teamBSlug,
+            teamBRound: parseInt(newTrade.teamBRound, 10),
+          }),
+        }
+      )
+      if (res.ok) {
+        toast.success("Trade added")
+        setNewTrade({ teamASlug: "", teamARound: "1", teamBSlug: "", teamBRound: "1" })
+        setAddingTrade(null)
+        fetchDrafts()
+      } else {
+        const err = await res.json()
+        toast.error(err.error || "Failed to add trade")
+      }
+    } catch {
+      toast.error("Connection error")
+    } finally {
+      setIsSavingTrade(false)
+    }
+  }
+
   if (isLoading) {
     return (
       <div className="flex justify-center py-12">
@@ -336,11 +409,13 @@ export function DraftTab({ seasonId, seasonStatus, seasonType, teams, rosterCoun
                       onClick={() => router.push(`/admin/seasons/${seasonId}/draft/${draft.id}/board`)}
                     >
                       {draft.status === "published" ? (
+                        <Settings className="h-3.5 w-3.5 mr-1.5" />
+                      ) : draft.status === "live" ? (
                         <Play className="h-3.5 w-3.5 mr-1.5" />
                       ) : (
                         <Monitor className="h-3.5 w-3.5 mr-1.5" />
                       )}
-                      {draft.status === "published" ? "Open Draft Board" : "View Admin Draft"}
+                      {draft.status === "published" ? "Draft Setup" : draft.status === "live" ? "Resume Live Draft" : "View Results"}
                     </Button>
                   )}
                   {(draft.status === "completed" || draft.status === "archived") && (
@@ -474,11 +549,12 @@ export function DraftTab({ seasonId, seasonStatus, seasonType, teams, rosterCoun
               </div>
             </CardHeader>
             <CardContent className="pt-4">
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                 <StatItem icon={Users} label="Teams" value={draft.teamCount} />
                 <StatItem icon={ListOrdered} label="Player Pool" value={draft.poolCount} />
                 <StatItem icon={ShieldCheck} label="Keepers" value={draft.keeperCount} />
                 <StatItem icon={Clock} label="Pick Timer" value={`${draft.timerSeconds}s`} />
+                <StatItem icon={ArrowRightLeft} label="Trades" value={draft.tradeCount} />
               </div>
               {(draft.draftDate || draft.location) && (
                 <div className="flex items-center gap-4 mt-4 pt-4 border-t text-sm text-muted-foreground">
@@ -562,6 +638,143 @@ export function DraftTab({ seasonId, seasonStatus, seasonType, teams, rosterCoun
                   )}
                 </div>
               )}
+              {/* Pre-Draft Trades Section */}
+              <div className="mt-4 pt-4 border-t">
+                <button
+                  onClick={() => setExpandedTrades(expandedTrades === draft.id ? null : draft.id)}
+                  className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors w-full"
+                >
+                  <ArrowRightLeft className="h-3.5 w-3.5" />
+                  Pre-Draft Trades ({draft.tradeCount})
+                </button>
+
+                {expandedTrades === draft.id && (
+                  <div className="mt-3 space-y-2 animate-in slide-in-from-top-1 duration-200">
+                    {draft.trades.length === 0 && !addingTrade && (
+                      <p className="text-xs text-muted-foreground py-2">No pre-draft trades configured.</p>
+                    )}
+                    {draft.trades.map((trade) => (
+                      <div
+                        key={trade.id}
+                        className="flex items-center justify-between gap-2 rounded-md border p-3 bg-muted/30"
+                      >
+                        <div className="flex items-center gap-2 text-sm min-w-0">
+                          <ArrowRightLeft className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                          <span className="truncate">{trade.description || `${trade.teamASlug} ↔ ${trade.teamBSlug}`}</span>
+                        </div>
+                        {draft.status === "draft" && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-muted-foreground hover:text-destructive shrink-0"
+                            onClick={() => handleDeleteTrade(draft.id, trade.id)}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
+                      </div>
+                    ))}
+
+                    {/* Add Trade Form */}
+                    {draft.status === "draft" && addingTrade === draft.id && (
+                      <div className="rounded-md border p-3 space-y-3 bg-muted/20">
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="space-y-1.5">
+                            <Label className="text-xs">Team A</Label>
+                            <Select value={newTrade.teamASlug} onValueChange={(v) => setNewTrade(prev => ({ ...prev, teamASlug: v }))}>
+                              <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select team" /></SelectTrigger>
+                              <SelectContent>
+                                {draft.teams.map((t) => {
+                                  const teamInfo = teams.find((tt) => tt.teamSlug === t.teamSlug)
+                                  return (
+                                    <SelectItem key={t.teamSlug} value={t.teamSlug}>
+                                      {teamInfo?.teamName || t.teamSlug}
+                                    </SelectItem>
+                                  )
+                                })}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label className="text-xs">Round</Label>
+                            <Input
+                              type="number"
+                              min="1"
+                              max={draft.rounds}
+                              value={newTrade.teamARound}
+                              onChange={(e) => setNewTrade(prev => ({ ...prev, teamARound: e.target.value }))}
+                              className="h-8 text-xs"
+                            />
+                          </div>
+                        </div>
+                        <div className="flex items-center justify-center">
+                          <ArrowRightLeft className="h-4 w-4 text-muted-foreground" />
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="space-y-1.5">
+                            <Label className="text-xs">Team B</Label>
+                            <Select value={newTrade.teamBSlug} onValueChange={(v) => setNewTrade(prev => ({ ...prev, teamBSlug: v }))}>
+                              <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select team" /></SelectTrigger>
+                              <SelectContent>
+                                {draft.teams.map((t) => {
+                                  const teamInfo = teams.find((tt) => tt.teamSlug === t.teamSlug)
+                                  return (
+                                    <SelectItem key={t.teamSlug} value={t.teamSlug}>
+                                      {teamInfo?.teamName || t.teamSlug}
+                                    </SelectItem>
+                                  )
+                                })}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label className="text-xs">Round</Label>
+                            <Input
+                              type="number"
+                              min="1"
+                              max={draft.rounds}
+                              value={newTrade.teamBRound}
+                              onChange={(e) => setNewTrade(prev => ({ ...prev, teamBRound: e.target.value }))}
+                              className="h-8 text-xs"
+                            />
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            size="sm"
+                            onClick={() => handleAddTrade(draft.id)}
+                            disabled={isSavingTrade}
+                            className="text-xs h-7"
+                          >
+                            {isSavingTrade && <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />}
+                            Save Trade
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => { setAddingTrade(null); setNewTrade({ teamASlug: "", teamARound: "1", teamBSlug: "", teamBRound: "1" }) }}
+                            className="text-xs h-7"
+                          >
+                            Cancel
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+
+                    {draft.status === "draft" && addingTrade !== draft.id && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="text-xs mt-1"
+                        onClick={() => setAddingTrade(draft.id)}
+                      >
+                        <Plus className="h-3 w-3 mr-1.5" />
+                        Add Trade
+                      </Button>
+                    )}
+                  </div>
+                )}
+              </div>
             </CardContent>
           </Card>
         ))}

@@ -158,11 +158,29 @@ export default async function DraftBoardPage({ params }: BoardPageProps) {
     }
   }
 
-  // Fetch all trades (pre-draft + live/simulation)
+  // Fetch all trades (pre-draft + live/simulation) with their items
   const trades = await db
     .select()
     .from(schema.draftTrades)
     .where(eq(schema.draftTrades.draftId, draftId))
+
+  // Fetch trade items for all trades
+  const tradeItemsByTradeId: Record<string, Array<{
+    fromTeamSlug: string
+    toTeamSlug: string
+    round: number | null
+  }>> = {}
+  for (const trade of trades) {
+    const items = await db
+      .select({
+        fromTeamSlug: schema.draftTradeItems.fromTeamSlug,
+        toTeamSlug: schema.draftTradeItems.toTeamSlug,
+        round: schema.draftTradeItems.round,
+      })
+      .from(schema.draftTradeItems)
+      .where(eq(schema.draftTradeItems.tradeId, trade.id))
+    tradeItemsByTradeId[trade.id] = items
+  }
 
   // Fetch season name
   const [season] = await db
@@ -218,6 +236,7 @@ export default async function DraftBoardPage({ params }: BoardPageProps) {
       trades={trades.map((t) => ({
         ...t,
         tradedAt: t.tradedAt?.toISOString() || null,
+        items: tradeItemsByTradeId[t.id] || [],
       }))}
       captains={captains}
     />

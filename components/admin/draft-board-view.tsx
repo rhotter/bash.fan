@@ -13,6 +13,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { RotateCcw, Play, Pause, Loader2, Crown, Search, X, Check, Download, Upload, MoreVertical, LogOut, ExternalLink } from "lucide-react"
+import { resolvePreDraftTrades, type PreDraftTradeInput } from "@/lib/draft-trade-resolver"
+import { generatePickSlots } from "@/lib/draft-helpers"
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -45,6 +47,12 @@ interface Pick {
   pickedAt: string | null
 }
 
+interface TradeItem {
+  fromTeamSlug: string
+  toTeamSlug: string
+  round: number | null
+}
+
 interface Trade {
   id: string
   teamASlug: string
@@ -52,6 +60,7 @@ interface Trade {
   tradeType: string
   description: string | null
   tradedAt: string | null
+  items: TradeItem[]
 }
 
 interface Captain {
@@ -199,6 +208,8 @@ export function DraftBoardView({
   const [showPushConfirm, setShowPushConfirm] = useState(false)
   const [isPushingRosters, setIsPushingRosters] = useState(false)
   const [draftCompleteModalOpen, setDraftCompleteModalOpen] = useState(false)
+  const [showRevertConfirm, setShowRevertConfirm] = useState(false)
+  const [isReverting, setIsReverting] = useState(false)
 
   // Compute available players for live draft
   const availableForDraft = useMemo(() => {
@@ -467,6 +478,27 @@ export function DraftBoardView({
     }
   }
 
+  const handleRevertToLive = async () => {
+    setIsReverting(true)
+    try {
+      const res = await fetch(`/api/bash/admin/seasons/${seasonId}/draft/${draft.id}/revert-to-live`, {
+        method: "POST",
+      })
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.error || "Failed to revert draft")
+      }
+      setDraft((prev) => ({ ...prev, status: "live", timerRunning: false }))
+      setShowRevertConfirm(false)
+      toast.success("Draft reverted to live — you can continue drafting")
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "An error occurred"
+      toast.error(msg)
+    } finally {
+      setIsReverting(false)
+    }
+  }
+
   // ─── Keeper actions ─────────────────────────────────────────────────────
 
   const addKeeper = useCallback(
@@ -685,6 +717,45 @@ export function DraftBoardView({
 
     // Also overlay keeper assignments from pool (pre-generated picks)
     if (picks.length === 0) {
+      // In published mode, build trade-aware preview slots so admins can
+      // visualize which picks have been swapped before starting the draft.
+      const preDraftTrades = trades.filter((t) => t.tradeType === "pre_draft_pick_swap")
+      const teamSlugs = teams.map((t) => t.teamSlug)
+
+      if (preDraftTrades.length > 0) {
+        // Build trade inputs from stored trade items
+        const tradeInputs: PreDraftTradeInput[] = preDraftTrades
+          .filter((t) => t.items.length === 2)
+          .map((t) => ({
+            teamASlug: t.teamASlug,
+            teamARound: t.items[0].round!,
+            teamAOriginalOwner: t.items[0].fromTeamSlug,
+            teamBSlug: t.teamBSlug,
+            teamBRound: t.items[1].round!,
+            teamBOriginalOwner: t.items[1].fromTeamSlug,
+          }))
+
+        const ownershipMap = resolvePreDraftTrades(teamSlugs, draft.rounds, tradeInputs)
+        const previewSlots = generatePickSlots(teamSlugs, draft.rounds, draft.draftType as "snake" | "linear", ownershipMap)
+
+        for (const slot of previewSlots) {
+          if (slot.teamSlug !== slot.originalTeamSlug && grid[slot.round]) {
+            // Mark the original owner's cell as traded away
+            grid[slot.round][slot.originalTeamSlug] = {
+              id: `trade-preview-${slot.originalTeamSlug}-${slot.round}`,
+              round: slot.round,
+              pickNumber: slot.pickNumber,
+              teamSlug: slot.teamSlug,
+              originalTeamSlug: slot.originalTeamSlug,
+              playerId: null,
+              playerName: null,
+              isKeeper: false,
+              pickedAt: null,
+            }
+          }
+        }
+      }
+
       for (const p of currentKeepers) {
         if (p.keeperRound && p.keeperTeamSlug && grid[p.keeperRound]) {
           grid[p.keeperRound][p.keeperTeamSlug] = {
@@ -703,7 +774,7 @@ export function DraftBoardView({
     }
 
     return grid
-  }, [draft.rounds, teams, picks, currentKeepers])
+  }, [draft.rounds, draft.draftType, teams, picks, currentKeepers, trades])
 
   // Captain warnings: teams missing their captain(s) as keepers
   // Only warn for captains who are actually in this draft's player pool
@@ -781,6 +852,18 @@ export function DraftBoardView({
                 <ExternalLink className="h-4 w-4 mr-2" />
                 View Public Page
               </DropdownMenuItem>
+              {draft.status === "completed" && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onClick={() => setShowRevertConfirm(true)}
+                    className="text-orange-600 focus:text-orange-600"
+                  >
+                    <RotateCcw className="h-4 w-4 mr-2" />
+                    Revert to Live
+                  </DropdownMenuItem>
+                </>
+              )}
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => router.push(`/admin/seasons/${seasonId}`)}>
                 <LogOut className="h-4 w-4 mr-2" />
@@ -956,6 +1039,25 @@ export function DraftBoardView({
         </AlertDialogContent>
       </AlertDialog>
 
+      {/* Revert to Live Confirmation */}
+      <AlertDialog open={showRevertConfirm} onOpenChange={setShowRevertConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Revert Draft to Live</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will revert the draft from &quot;completed&quot; back to &quot;live&quot; status, allowing you to continue making picks. All existing picks will be preserved.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleRevertToLive} disabled={isReverting} className="bg-orange-600 hover:bg-orange-700">
+              {isReverting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RotateCcw className="w-4 h-4 mr-2" />}
+              Revert to Live
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {/* Draft Complete Modal */}
       <Dialog open={draftCompleteModalOpen} onOpenChange={setDraftCompleteModalOpen}>
         <DialogContent className="sm:max-w-md">
@@ -969,32 +1071,33 @@ export function DraftBoardView({
             <div className="flex items-start gap-3 p-3 rounded-md bg-muted/50">
               <span className="text-lg font-bold text-muted-foreground">1</span>
               <div>
-                <p className="font-medium text-sm">Export Draft Results</p>
-                <p className="text-xs text-muted-foreground">Download a backup of all picks, trades, and rosters for your records.</p>
+                <p className="font-medium text-sm">Review Draft Results</p>
+                <p className="text-xs text-muted-foreground">View the final draft board and verify all picks. You can also export the results as a CSV if you'd like to use them elsewhere.</p>
               </div>
             </div>
             <div className="flex items-start gap-3 p-3 rounded-md bg-muted/50">
               <span className="text-lg font-bold text-muted-foreground">2</span>
               <div>
-                <p className="font-medium text-sm">Push Rosters to Season</p>
-                <p className="text-xs text-muted-foreground">Assign all drafted players to their teams in the season roster. This sets team, goalie, rookie, and captain flags.</p>
+                <p className="font-medium text-sm">Push Rosters</p>
+                <p className="text-xs text-muted-foreground">From the Draft tab, when ready, push the rosters to save them to the season.</p>
               </div>
             </div>
             <div className="flex items-start gap-3 p-3 rounded-md bg-muted/50">
               <span className="text-lg font-bold text-muted-foreground">3</span>
               <div>
-                <p className="font-medium text-sm">Review &amp; Publish Season</p>
-                <p className="text-xs text-muted-foreground">Verify rosters on the season page, then publish the season when ready.</p>
+                <p className="font-medium text-sm">Publish Season</p>
+                <p className="text-xs text-muted-foreground">Complete your review of the season settings, schedule, and rosters. Once everything looks good, publish the season.</p>
               </div>
             </div>
           </div>
           <DialogFooter className="flex-col sm:flex-row gap-2">
             <Button variant="outline" onClick={() => { handleExportCsv(); setDraftCompleteModalOpen(false) }}>
               <Download className="h-4 w-4 mr-2" />
-              Export Results
+              Export CSV
             </Button>
-            <Button onClick={() => { setDraftCompleteModalOpen(false); setShowPushConfirm(true) }}>
-              Push Rosters
+            <Button onClick={() => { setDraftCompleteModalOpen(false); window.open(`/draft/${seasonSlug}`, "_blank") }}>
+              <ExternalLink className="h-4 w-4 mr-2" />
+              View Draft Results
             </Button>
           </DialogFooter>
         </DialogContent>

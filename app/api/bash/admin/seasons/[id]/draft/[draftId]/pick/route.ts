@@ -55,12 +55,18 @@ export async function POST(
   }
 
   // ── Auto-complete check ─────────────────────────────────────────────────
-  // Count pool players who haven't been drafted yet
+  // Count pool players who haven't been drafted yet.
+  // IMPORTANT: filter out NULL playerIds from empty pick slots — SQL's
+  // NOT IN returns UNKNOWN when NULLs are in the subquery, which would
+  // cause the count to always be 0 and auto-complete immediately.
   const draftedPlayerIds = db
     .select({ playerId: draftPicks.playerId })
     .from(draftPicks)
     .where(
-      eq(draftPicks.draftId, draftId)
+      and(
+        eq(draftPicks.draftId, draftId),
+        sql`${draftPicks.playerId} IS NOT NULL`
+      )
     )
 
   const [remainingCount] = await db
