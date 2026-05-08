@@ -426,7 +426,7 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
       const end = endDate.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "")
       const params = new URLSearchParams({
         action: "TEMPLATE",
-        text: draft.name,
+        text: `BASH ${draft.name}`,
         dates: `${start}/${end}`,
         details: `BASH ${draft.name}. ${draft.rounds} rounds, ${teams.length} teams.`,
         location: draft.location ? `${draft.location}, San Francisco, CA` : "",
@@ -593,7 +593,7 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
                 !draft.timerRunning && timerRemaining > 0 && timerRemaining < (draft.timerCountdown ?? draft.timerSeconds) ? (
                   <Badge className="bg-amber-500 text-white text-[10px] px-2 py-0.5">PAUSED</Badge>
                 ) : (
-                  <Badge className="bg-red-500 text-white animate-pulse text-[10px] px-2 py-0.5">LIVE</Badge>
+                  <Badge className="bg-green-500 text-white animate-pulse text-[10px] px-2 py-0.5">LIVE</Badge>
                 )
               )}
               {isCompleted && (

@@ -9,7 +9,9 @@ function readImageBase64(relativePath: string): string | null {
   const fullPath = join(process.cwd(), 'public', relativePath)
   if (!existsSync(fullPath)) return null
   const data = readFileSync(fullPath)
-  return `data:image/png;base64,${data.toString('base64')}`
+  const ext = relativePath.split('.').pop()?.toLowerCase()
+  const mime = ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg' : ext === 'gif' ? 'image/gif' : 'image/png'
+  return `data:${mime};base64,${data.toString('base64')}`
 }
 
 function getTeamLogoBase64(teamSlug: string): string | null {
@@ -32,8 +34,8 @@ function BashWatermark() {
         gap: 10,
       }}
     >
+      <div style={{ fontSize: 20, fontWeight: 600, color: '#999' }}>www.bayareastreethockey.com</div>
       <img src={bashLogoBase64()} width={36} height={36} alt="" />
-      <div style={{ fontSize: 24, fontWeight: 600, color: '#999' }}>bash.fan</div>
     </div>
   )
 }
@@ -202,3 +204,60 @@ export function generateGameOGImage(opts: {
     { ...ogSize }
   )
 }
+
+export function generateDraftOGImage(opts: {
+  name: string
+  date?: string
+  time?: string
+  location?: string
+}) {
+  const logoSrc = readImageBase64('images/draft-logo-sm.png') || bashLogoBase64()
+  const subtitle = [opts.date, opts.time, opts.location].filter(Boolean).join(' · ')
+
+  return new ImageResponse(
+    (
+      <div
+        style={{
+          width: '100%',
+          height: '100%',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          backgroundColor: '#f8f9fc',
+          position: 'relative',
+        }}
+      >
+        <img src={logoSrc} width={200} height={200} alt="" style={{ borderRadius: 20 }} />
+        <div
+          style={{
+            fontSize: 64,
+            fontWeight: 700,
+            color: '#1a1a1a',
+            letterSpacing: '-2px',
+            textAlign: 'center',
+            maxWidth: '90%',
+            marginTop: 20,
+          }}
+        >
+          {`BASH ${opts.name}`}
+        </div>
+        {subtitle && (
+          <div
+            style={{
+              fontSize: 28,
+              color: '#666',
+              marginTop: 12,
+              textAlign: 'center',
+            }}
+          >
+            {subtitle}
+          </div>
+        )}
+        <BashWatermark />
+      </div>
+    ),
+    { ...ogSize }
+  )
+}
+

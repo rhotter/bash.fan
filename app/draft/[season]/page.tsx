@@ -15,13 +15,54 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     where: eq(schema.seasons.id, seasonSlug),
   })
 
-  return {
-    title: seasonRow
+  const draft = seasonRow
+    ? await db.query.draftInstances.findFirst({
+        where: eq(schema.draftInstances.seasonId, seasonRow.id),
+      })
+    : null
+
+  // Build description with date/time/location
+  let description = "Bay Area Street Hockey draft board."
+  if (draft) {
+    const parts: string[] = [`BASH ${draft.name}`]
+    if (draft.draftDate) {
+      const d = new Date(draft.draftDate)
+      parts.push(d.toLocaleDateString('en-US', {
+        weekday: 'long',
+        month: 'long',
+        day: 'numeric',
+        year: 'numeric',
+        timeZone: 'America/Los_Angeles',
+      }))
+      parts.push(d.toLocaleTimeString('en-US', {
+        hour: 'numeric',
+        minute: '2-digit',
+        timeZone: 'America/Los_Angeles',
+      }))
+    }
+    if (draft.location) parts.push(draft.location)
+    description = parts.join(' · ')
+  }
+
+  const title = draft
+    ? `BASH ${draft.name}`
+    : seasonRow
       ? `${seasonRow.name} Draft — BASH`
-      : "Draft — BASH",
-    description: seasonRow
-      ? `Live draft board for the ${seasonRow.name} Bay Area Street Hockey season.`
-      : "Bay Area Street Hockey draft board.",
+      : "Draft — BASH"
+
+  return {
+    title,
+    description,
+    openGraph: {
+      title,
+      description,
+      type: 'website',
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title,
+      description,
+    },
   }
 }
 

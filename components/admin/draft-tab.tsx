@@ -415,7 +415,7 @@ export function DraftTab({ seasonId, seasonStatus, seasonType, teams, rosterCoun
                       ) : (
                         <Monitor className="h-3.5 w-3.5 mr-1.5" />
                       )}
-                      {draft.status === "published" ? "Draft Setup" : draft.status === "live" ? "Resume Live Draft" : "View Results"}
+                      {draft.status === "published" ? "Keeper Setup" : draft.status === "live" ? "Resume Live Draft" : "View Results"}
                     </Button>
                   )}
                   {(draft.status === "completed" || draft.status === "archived") && (
@@ -435,7 +435,7 @@ export function DraftTab({ seasonId, seasonStatus, seasonType, teams, rosterCoun
                       onClick={() => window.open(`/draft/${seasonId}`, "_blank")}
                     >
                       <ExternalLink className="h-3.5 w-3.5 mr-1.5" />
-                      View Public Draft
+                      Public Draft Page
                     </Button>
                   )}
                   <DropdownMenu>
@@ -450,7 +450,7 @@ export function DraftTab({ seasonId, seasonStatus, seasonType, teams, rosterCoun
                           onClick={() => setUnpublishTarget(draft)}
                         >
                           <ArchiveRestore className="h-4 w-4 mr-2" />
-                          Unpublish to Draft
+                          Unpublish Draft
                         </DropdownMenuItem>
                       )}
                       {draft.status === "draft" && (
@@ -831,7 +831,7 @@ export function DraftTab({ seasonId, seasonStatus, seasonType, teams, rosterCoun
           <AlertDialogHeader>
             <AlertDialogTitle>Publish &ldquo;{publishTarget?.name}&rdquo;?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will make the draft visible at a public URL. Captains, players, and fans will be able to see the draft page.
+              This will make the draft page (including date/time/location) visible to the public. Captains, players, and fans will be able to see the draft page. You will still be required to confirm some settings (the keepers) before starting the live draft.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
