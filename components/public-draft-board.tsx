@@ -175,7 +175,7 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
     }
   )
 
-  const { draft, season, teams, picks, pool, trades, captainPlayerIds } = data || initialData
+  const { draft, season, teams, picks, pool, trades, captainPlayerIds } = (data?.draft ? data : initialData)
 
   // Captain set for badge rendering
   const captainSet = useMemo(() => new Set(captainPlayerIds || []), [captainPlayerIds])

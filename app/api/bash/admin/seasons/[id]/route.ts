@@ -86,6 +86,7 @@ export async function PUT(request: NextRequest, context: RouteContext) {
       adminNotes,
       statsOnly,
       playoffTeams,
+      isCurrent,
     } = body
 
     // Validate status transition
@@ -113,6 +114,7 @@ export async function PUT(request: NextRequest, context: RouteContext) {
     if (playoffTeams !== undefined && existing.status === "draft") {
       updates.playoffTeams = playoffTeams
     }
+    if (isCurrent !== undefined) updates.isCurrent = isCurrent
 
     // Auto-set is_current when activating
     if (status === "active" && existing.status === "draft") {

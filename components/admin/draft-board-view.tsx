@@ -1328,22 +1328,6 @@ export function DraftBoardView({
             {/* Team selector + player search */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-3">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-muted-foreground">Active Team</label>
-                  <Select value={selectedTeam} onValueChange={setSelectedTeam}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select team" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {teams.map((t) => (
-                        <SelectItem key={t.teamSlug} value={t.teamSlug}>
-                          {t.teamName} ({keepersForTeam(t.teamSlug).length} / {draft.maxKeepers} keepers)
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
                 {/* Current keepers for selected team */}
                 <div className="space-y-1.5">
                   <label className="text-xs font-medium text-muted-foreground">
