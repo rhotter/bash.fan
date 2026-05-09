@@ -81,9 +81,9 @@ export async function PUT(request: NextRequest, context: RouteContext) {
     return NextResponse.json({ error: "Draft not found" }, { status: 404 })
   }
 
-  if (existing.status !== "draft") {
+  if (existing.status !== "draft" && existing.status !== "published") {
     return NextResponse.json(
-      { error: "Can only edit drafts in 'draft' status" },
+      { error: "Can only edit drafts in 'draft' or 'published' status" },
       { status: 400 }
     )
   }

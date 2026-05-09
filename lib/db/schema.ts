@@ -132,6 +132,7 @@ export const playerSeasons = pgTable(
     isGoalie: boolean("is_goalie").notNull().default(false),
     isCaptain: boolean("is_captain").notNull().default(false),
     isRookie: boolean("is_rookie").notNull().default(false),
+    registrationMeta: jsonb("registration_meta"),  // Sportability CSV import snapshot (skill, positions, age, etc.)
   },
   (t) => [
     primaryKey({ columns: [t.playerId, t.seasonId, t.teamSlug] }),

@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { Plus, Search, Loader2, ArrowUpDown } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -57,14 +57,28 @@ interface SeasonRosterTabProps {
   seasonStatus: string
   roster: RosterPlayer[]
   teams: { teamSlug: string; teamName: string }[]
+  onRosterChange?: (roster: RosterPlayer[]) => void
 }
 
-export function SeasonRosterTab({ seasonId, seasonStatus, roster, teams }: SeasonRosterTabProps) {
+export function SeasonRosterTab({ seasonId, seasonStatus, roster, teams, onRosterChange }: SeasonRosterTabProps) {
   const router = useRouter()
   const [searchQuery, setSearchQuery] = useState("")
   const [teamFilter, setTeamFilter] = useState("all")
   const [experienceFilter, setExperienceFilter] = useState("all")
   const [sortConfig, setSortConfig] = useState<{ key: string, direction: "asc" | "desc" } | null>(null)
+
+  // Re-fetch roster from the API and push to parent state
+  const refreshRoster = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/bash/admin/seasons/${seasonId}/roster`)
+      if (res.ok) {
+        const data = await res.json()
+        onRosterChange?.(data.roster)
+      }
+    } catch {
+      // Silently fail — the user can still hard-refresh
+    }
+  }, [seasonId, onRosterChange])
 
   // Add Player State
   const [isAddPlayerOpen, setIsAddPlayerOpen] = useState(false)
@@ -102,6 +116,7 @@ export function SeasonRosterTab({ seasonId, seasonStatus, roster, teams }: Seaso
       setNewPlayerName("")
       setNewPlayerTeam("")
       setNewPlayerPosition("skater")
+      await refreshRoster()
       router.refresh()
     } catch (err: unknown) {
       if (err instanceof Error) toast.error(err.message)
@@ -157,6 +172,7 @@ export function SeasonRosterTab({ seasonId, seasonStatus, roster, teams }: Seaso
 
       toast.success("Player updated successfully")
       setIsEditPlayerOpen(false)
+      await refreshRoster()
       router.refresh()
     } catch (err: unknown) {
       if (err instanceof Error) toast.error(err.message)
@@ -184,6 +200,7 @@ export function SeasonRosterTab({ seasonId, seasonStatus, roster, teams }: Seaso
       toast.success("Player removed from season")
       setIsDeleteDialogOpen(false)
       setIsEditPlayerOpen(false)
+      await refreshRoster()
       router.refresh()
     } catch (err: unknown) {
       if (err instanceof Error) toast.error(err.message)
@@ -261,7 +278,7 @@ export function SeasonRosterTab({ seasonId, seasonStatus, roster, teams }: Seaso
           </div>
           {seasonStatus === "draft" && (
             <div className="flex items-center gap-2">
-              <SportabilityImportModal seasonId={seasonId} seasonStatus={seasonStatus} />
+              <SportabilityImportModal seasonId={seasonId} seasonStatus={seasonStatus} onImportComplete={refreshRoster} />
               <Dialog open={isAddPlayerOpen} onOpenChange={setIsAddPlayerOpen}>
                 <DialogTrigger asChild>
                   <Button size="sm">

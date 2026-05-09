@@ -3,6 +3,53 @@
  * Used by both the roster import and draft pool import endpoints.
  */
 
+/**
+ * Normalize a raw Sportability position string into canonical tags.
+ *
+ * Sportability's `ExpPos` column uses varied formats:
+ *   "G, D, F"  "Forward"  "defense or forward"  "Wing"  "Center"
+ *   "LW/RW"    "D/F"      "All"  "All, badly"  "Centre, LW"  etc.
+ *
+ * Returns a deduplicated array of tags from the set ["G", "F", "D"].
+ */
+export function parsePositionTags(raw: string | null | undefined): ("G" | "F" | "D")[] {
+  if (!raw) return []
+
+  // Split on commas, slashes, spaces, and common conjunctions
+  const tokens = raw
+    .replace(/\band\b/gi, ",")
+    .replace(/\bor\b/gi, ",")
+    .split(/[,/\s]+/)
+    .map(t => t.toLowerCase().trim())
+    .filter(Boolean)
+
+  const tags = new Set<"G" | "F" | "D">()
+
+  for (const t of tokens) {
+    // Goalie
+    if (t === "g" || t === "goalie" || t === "goal" || t === "goalkeeper" || t === "netminder") {
+      tags.add("G")
+    }
+    // Forward
+    if (t === "f" || t === "forward" || t === "fw" || t === "fwd"
+      || t === "wing" || t === "winger" || t === "lw" || t === "rw"
+      || t === "center" || t === "centre" || t === "c") {
+      tags.add("F")
+    }
+    // Defense
+    if (t === "d" || t === "defense" || t === "defence" || t === "defenseman" || t === "defenceman") {
+      tags.add("D")
+    }
+    // "All" → all three
+    if (t === "all") {
+      tags.add("G")
+      tags.add("F")
+      tags.add("D")
+    }
+  }
+
+  return Array.from(tags)
+}
 export function splitCsvRow(line: string): string[] {
   const fields: string[] = []
   let current = ""

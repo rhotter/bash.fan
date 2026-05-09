@@ -28,7 +28,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
     }
 
     const normalizedPlayers = players
-      .map((player: { playerName: string; teamSlug: string; isGoalie: boolean; isCaptain: boolean; isRookie: boolean }) => ({
+      .map((player: { playerName: string; teamSlug: string; isGoalie: boolean; isCaptain: boolean; isRookie: boolean; registrationMeta?: Record<string, unknown> }) => ({
         ...player,
         playerName: canonicalizePlayerName(player.playerName),
       }))
@@ -112,6 +112,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
         isGoalie: player.isGoalie,
         isCaptain: player.isCaptain,
         isRookie: player.isRookie,
+        registrationMeta: player.registrationMeta || null,
       })
     }
 

@@ -33,18 +33,8 @@ export async function POST(_request: NextRequest, context: RouteContext) {
     )
   }
 
-  // Validate minimum requirements
-  const teamOrder = await db
-    .select()
-    .from(schema.draftTeamOrder)
-    .where(eq(schema.draftTeamOrder.draftId, draftId))
-
-  if (teamOrder.length < 2) {
-    return NextResponse.json(
-      { error: "At least 2 teams are required to publish a draft" },
-      { status: 400 }
-    )
-  }
+  // Publishing is lightweight — it announces the draft (date, time, location) to the public page.
+  // No team/pool requirements; those are enforced at go-live time via the /start endpoint.
 
   try {
     // Transition to published

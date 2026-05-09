@@ -128,6 +128,13 @@ export function DraftBoardView({
   const [pool, setPool] = useState(initialPool)
   const [picks, setPicks] = useState(initialPicks)
 
+  // Sync state from server props after router.refresh()
+  // Next.js preserves client state on soft refresh, so we must
+  // explicitly update when the server provides new data.
+  useEffect(() => { setDraft(initialDraft) }, [initialDraft])
+  useEffect(() => { setPool(initialPool) }, [initialPool])
+  useEffect(() => { setPicks(initialPicks) }, [initialPicks])
+
   const [showStartConfirm, setShowStartConfirm] = useState(false)
   const [isStarting, setIsStarting] = useState(false)
   const [showClearKeepersConfirm, setShowClearKeepersConfirm] = useState(false)
@@ -1811,7 +1818,7 @@ export function DraftBoardView({
             teamColor={cardTeam?.color}
             pickInfo={cardPick ? {
               round: cardPick.round,
-              pickNumber: cardPick.pickNumber,
+              pickNumber: cardPick.pickNumber - (cardPick.round - 1) * teams.length,
               isKeeper: cardPick.isKeeper,
             } : null}
           />

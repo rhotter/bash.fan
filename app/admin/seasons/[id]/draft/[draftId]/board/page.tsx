@@ -33,6 +33,94 @@ export default async function DraftBoardPage({ params }: BoardPageProps) {
 
   if (!draft || draft.seasonId !== seasonId) notFound()
 
+  // ── Auto-sync from season ────────────────────────────────────────────
+  // When entering the board for the first time (published draft with no
+  // teams/pool yet), automatically populate from the season's teams & roster.
+  // This supports the two-phase workflow: announce → configure later.
+  const existingTeams = await db
+    .select({ teamSlug: schema.draftTeamOrder.teamSlug })
+    .from(schema.draftTeamOrder)
+    .where(eq(schema.draftTeamOrder.draftId, draftId))
+    .limit(1)
+
+  const existingPool = await db
+    .select({ playerId: schema.draftPool.playerId })
+    .from(schema.draftPool)
+    .where(eq(schema.draftPool.draftId, draftId))
+    .limit(1)
+
+  if (existingTeams.length === 0 && existingPool.length === 0 &&
+      (draft.status === "published" || draft.status === "draft")) {
+    // Sync teams from season
+    const seasonTeams = await db
+      .select({ teamSlug: schema.seasonTeams.teamSlug })
+      .from(schema.seasonTeams)
+      .where(eq(schema.seasonTeams.seasonId, seasonId))
+
+    const validTeams = seasonTeams.filter(
+      (t) => t.teamSlug !== "tbd" && !t.teamSlug.startsWith("seed-")
+    )
+
+    if (validTeams.length > 0) {
+      await db.insert(schema.draftTeamOrder).values(
+        validTeams.map((t, i) => ({
+          draftId,
+          teamSlug: t.teamSlug,
+          position: i + 1,
+        }))
+      )
+    }
+
+    // Sync player pool from season roster (with registration metadata for player cards)
+    const seasonPlayers = await db
+      .select({
+        playerId: schema.playerSeasons.playerId,
+        isGoalie: schema.playerSeasons.isGoalie,
+        isRookie: schema.playerSeasons.isRookie,
+        isCaptain: schema.playerSeasons.isCaptain,
+        registrationMeta: schema.playerSeasons.registrationMeta,
+      })
+      .from(schema.playerSeasons)
+      .where(eq(schema.playerSeasons.seasonId, seasonId))
+
+    // Deduplicate by playerId
+    const playerMap = new Map<number, typeof seasonPlayers[number]>()
+    for (const p of seasonPlayers) {
+      if (!playerMap.has(p.playerId)) {
+        playerMap.set(p.playerId, p)
+      }
+    }
+    const uniquePlayers = Array.from(playerMap.values())
+
+    if (uniquePlayers.length > 0) {
+      await db.insert(schema.draftPool).values(
+        uniquePlayers.map((p) => {
+          const meta = p.registrationMeta as Record<string, unknown> | null
+          const registrationMeta = meta ?? {
+            positions: p.isGoalie ? "G" : null,
+            isRookie: p.isRookie,
+            isCaptain: p.isCaptain,
+          }
+          return {
+            draftId,
+            playerId: p.playerId,
+            registrationMeta,
+          }
+        })
+      )
+    }
+
+    // Auto-calculate rounds if currently 0
+    if (draft.rounds === 0 && validTeams.length > 0 && uniquePlayers.length > 0) {
+      const autoRounds = Math.ceil(uniquePlayers.length / validTeams.length)
+      await db
+        .update(schema.draftInstances)
+        .set({ rounds: autoRounds, updatedAt: new Date() })
+        .where(eq(schema.draftInstances.id, draftId))
+      draft.rounds = autoRounds
+    }
+  }
+
   // Fetch team order with team names and franchise colors
   const teamOrder = await db
     .select({
@@ -84,6 +172,70 @@ export default async function DraftBoardPage({ params }: BoardPageProps) {
     .from(schema.draftPool)
     .innerJoin(schema.players, eq(schema.draftPool.playerId, schema.players.id))
     .where(eq(schema.draftPool.draftId, draftId))
+
+  // ── Server-side captain→keeper auto-assignment ──────────────────────
+  // For pre-live drafts, ensure captains are automatically set as keepers.
+  // This is authoritative and survives page refreshes.
+  if (draft.status === "published" || draft.status === "draft") {
+    // Fetch captains for this season
+    const captainsForAutoAssign = await db
+      .select({
+        playerId: schema.playerSeasons.playerId,
+        teamSlug: schema.playerSeasons.teamSlug,
+      })
+      .from(schema.playerSeasons)
+      .where(
+        and(
+          eq(schema.playerSeasons.seasonId, seasonId),
+          eq(schema.playerSeasons.isCaptain, true)
+        )
+      )
+
+    // Find captains in the pool that aren't already keepers
+    const missingCaptainKeepers = captainsForAutoAssign.filter(
+      (cap) =>
+        pool.some((p) => p.playerId === cap.playerId) &&
+        !pool.some((p) => p.playerId === cap.playerId && p.isKeeper)
+    )
+
+    if (missingCaptainKeepers.length > 0) {
+      for (const cap of missingCaptainKeepers) {
+        // Count existing keepers for this team
+        const teamKeepers = pool.filter(
+          (p) => p.isKeeper && p.keeperTeamSlug === cap.teamSlug
+        )
+        if (teamKeepers.length >= draft.maxKeepers) continue
+
+        // Find next available round
+        const takenRounds = new Set(teamKeepers.map((k) => k.keeperRound))
+        let nextRound = 1
+        while (takenRounds.has(nextRound)) nextRound++
+
+        // Update DB
+        await db
+          .update(schema.draftPool)
+          .set({
+            isKeeper: true,
+            keeperTeamSlug: cap.teamSlug,
+            keeperRound: nextRound,
+          })
+          .where(
+            and(
+              eq(schema.draftPool.draftId, draftId),
+              eq(schema.draftPool.playerId, cap.playerId)
+            )
+          )
+
+        // Also update the in-memory pool for the render
+        const poolEntry = pool.find((p) => p.playerId === cap.playerId)
+        if (poolEntry) {
+          poolEntry.isKeeper = true
+          poolEntry.keeperTeamSlug = cap.teamSlug
+          poolEntry.keeperRound = nextRound
+        }
+      }
+    }
+  }
 
   // Auto-repair duplicate keeper round assignments per team
   const keepersByTeam = new Map<string, typeof pool>()

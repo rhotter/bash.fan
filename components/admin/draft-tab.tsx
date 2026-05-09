@@ -1,12 +1,12 @@
 "use client"
 
-import { useState, useEffect, useCallback, useRef } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import {
   Loader2, Plus, Users, ListOrdered, Trash2, Send, Clock,
-  MapPin, CalendarDays, Layers, ShieldCheck, MoreVertical, Upload,
-  ExternalLink, ArchiveRestore, Play, Monitor, Download, UploadCloud, Settings,
-  EyeOff, Eye, ArrowRightLeft,
+  MapPin, CalendarDays, Layers, ShieldCheck, MoreVertical,
+  ExternalLink, ArchiveRestore, Play, Monitor, Settings,
+  EyeOff, Eye, ArrowRightLeft, Check, AlertCircle,
 } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
@@ -22,8 +22,8 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { toast } from "sonner"
+import { CreateDraftModal } from "./create-draft-modal"
 import { DraftWizard } from "./draft-wizard"
-import { DraftPoolImportModal } from "./draft-pool-import-modal"
 import { DraftPlayerCard, SkillBadge } from "./draft-player-card"
 import { EditDraftModal } from "./edit-draft-modal"
 import type { RegistrationMeta } from "@/lib/csv-utils"
@@ -86,7 +86,6 @@ const STATUS_STYLES: Record<string, string> = {
 
 export function DraftTab({ seasonId, seasonStatus, seasonType, teams, rosterCount }: DraftTabProps) {
   const router = useRouter()
-  const restoreInputRef = useRef<HTMLInputElement>(null)
   const [drafts, setDrafts] = useState<DraftInstance[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [wizardOpen, setWizardOpen] = useState(false)
@@ -94,7 +93,6 @@ export function DraftTab({ seasonId, seasonStatus, seasonType, teams, rosterCoun
   const [publishTarget, setPublishTarget] = useState<DraftInstance | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
   const [isPublishing, setIsPublishing] = useState(false)
-  const [importDraftId, setImportDraftId] = useState<string | null>(null)
   const [selectedPlayer, setSelectedPlayer] = useState<PoolPlayer | null>(null)
   const [playerCardOpen, setPlayerCardOpen] = useState(false)
   const [expandedPool, setExpandedPool] = useState<string | null>(null)
@@ -102,6 +100,7 @@ export function DraftTab({ seasonId, seasonStatus, seasonType, teams, rosterCoun
   const [unpublishTarget, setUnpublishTarget] = useState<DraftInstance | null>(null)
   const [isUnpublishing, setIsUnpublishing] = useState(false)
   const [editTarget, setEditTarget] = useState<DraftInstance | null>(null)
+  const [configureTarget, setConfigureTarget] = useState<DraftInstance | null>(null)
   const [expandedTrades, setExpandedTrades] = useState<string | null>(null)
   const [addingTrade, setAddingTrade] = useState<string | null>(null)
   const [newTrade, setNewTrade] = useState({ teamASlug: "", teamARound: "1", teamBSlug: "", teamBRound: "1" })
@@ -120,35 +119,6 @@ export function DraftTab({ seasonId, seasonStatus, seasonType, teams, rosterCoun
       setIsLoading(false)
     }
   }, [seasonId])
-
-  // Backup restore handler
-  const handleRestoreBackup = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    const target = drafts.find((d) => d.status === "draft")
-    if (!target) {
-      toast.error("No draft in editable status to restore to")
-      return
-    }
-    try {
-      const text = await file.text()
-      const backup = JSON.parse(text)
-      const res = await fetch(
-        `/api/bash/admin/seasons/${seasonId}/draft/${target.id}/backup`,
-        { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(backup) }
-      )
-      if (res.ok) {
-        toast.success("Backup restored successfully")
-        fetchDrafts()
-      } else {
-        const err = await res.json()
-        toast.error(err.error || "Failed to restore backup")
-      }
-    } catch {
-      toast.error("Invalid backup file")
-    }
-    if (restoreInputRef.current) restoreInputRef.current.value = ""
-  }, [drafts, seasonId, fetchDrafts])
 
   useEffect(() => { fetchDrafts() }, [fetchDrafts])
 
@@ -202,6 +172,7 @@ export function DraftTab({ seasonId, seasonStatus, seasonType, teams, rosterCoun
     setWizardOpen(false)
     fetchDrafts()
   }
+
 
   const handleUnpublish = async () => {
     if (!unpublishTarget) return
@@ -326,7 +297,7 @@ export function DraftTab({ seasonId, seasonStatus, seasonType, teams, rosterCoun
             </div>
             <h3 className="text-lg font-semibold mb-1">No Draft Configured</h3>
             <p className="text-sm text-muted-foreground max-w-md mb-6">
-              Create a draft instance to configure the draft format, player pool, team order, and keepers for this season.
+              Create a draft to set the date, time, and location. You can publish it right away to announce the draft, then configure teams, player pool, and captains when you&apos;re ready.
             </p>
             <Button onClick={() => setWizardOpen(true)} disabled={seasonStatus !== "draft"}>
               <Plus className="h-4 w-4 mr-2" />
@@ -339,13 +310,13 @@ export function DraftTab({ seasonId, seasonStatus, seasonType, teams, rosterCoun
             )}
           </CardContent>
         </Card>
-        <DraftWizard
+        <CreateDraftModal
           open={wizardOpen}
           onOpenChange={setWizardOpen}
           seasonId={seasonId}
           seasonType={seasonType}
-          teams={teams}
           rosterCount={rosterCount}
+          teamCount={teams.length}
           onComplete={handleWizardComplete}
         />
       </>
@@ -355,16 +326,16 @@ export function DraftTab({ seasonId, seasonStatus, seasonType, teams, rosterCoun
   // Show existing draft(s)
   return (
     <>
-      {/* Hidden file input for backup restore */}
-      <input
-        ref={restoreInputRef}
-        type="file"
-        accept=".json"
-        className="hidden"
-        onChange={handleRestoreBackup}
-      />
       <div className="space-y-4">
-        {drafts.map(draft => (
+        {drafts.map(draft => {
+          // Compute go-live readiness
+          const isPreLive = draft.status === "draft" || draft.status === "published"
+          const hasTeams = draft.teamCount >= 2
+          const hasPool = draft.poolCount > 0
+          const hasRounds = draft.rounds > 0
+          const canSetup = teams.length >= 2 && rosterCount > 0
+
+          return (
           <Card key={draft.id}>
             <CardHeader className="pb-3 border-b">
               <div className="flex items-center justify-between">
@@ -386,36 +357,40 @@ export function DraftTab({ seasonId, seasonStatus, seasonType, teams, rosterCoun
                   {draft.status === "draft" && (
                     <Button
                       size="sm"
-                      variant="outline"
-                      onClick={() => setImportDraftId(draft.id)}
-                    >
-                      <Upload className="h-3.5 w-3.5 mr-1.5" />
-                      Import CSV
-                    </Button>
-                  )}
-                  {draft.status === "draft" && (
-                    <Button
-                      size="sm"
                       onClick={() => setPublishTarget(draft)}
                     >
                       <Send className="h-3.5 w-3.5 mr-1.5" />
-                      Publish
+                      Publish Announcement
                     </Button>
                   )}
-                  {draft.status !== "draft" && (
+                  {draft.status === "published" && canSetup && (
+                    <Button
+                      size="sm"
+                      variant="default"
+                      onClick={() => setConfigureTarget(draft)}
+                    >
+                      <Settings className="h-3.5 w-3.5 mr-1.5" />
+                      Configure Draft
+                    </Button>
+                  )}
+                  {draft.status === "published" && !canSetup && (
+                    <Button size="sm" variant="outline" disabled>
+                      <Settings className="h-3.5 w-3.5 mr-1.5" />
+                      Awaiting Teams &amp; Roster
+                    </Button>
+                  )}
+                  {(draft.status === "live" || draft.status === "completed" || draft.status === "archived") && (
                     <Button
                       size="sm"
                       variant={draft.status === "completed" || draft.status === "archived" ? "outline" : "default"}
                       onClick={() => router.push(`/admin/seasons/${seasonId}/draft/${draft.id}/board`)}
                     >
-                      {draft.status === "published" ? (
-                        <Settings className="h-3.5 w-3.5 mr-1.5" />
-                      ) : draft.status === "live" ? (
+                      {draft.status === "live" ? (
                         <Play className="h-3.5 w-3.5 mr-1.5" />
                       ) : (
                         <Monitor className="h-3.5 w-3.5 mr-1.5" />
                       )}
-                      {draft.status === "published" ? "Keeper Setup" : draft.status === "live" ? "Resume Live Draft" : "View Results"}
+                      {draft.status === "live" ? "Resume Live Draft" : "View Results"}
                     </Button>
                   )}
                   {(draft.status === "completed" || draft.status === "archived") && (
@@ -453,20 +428,12 @@ export function DraftTab({ seasonId, seasonStatus, seasonType, teams, rosterCoun
                           Unpublish Draft
                         </DropdownMenuItem>
                       )}
-                      {draft.status === "draft" && (
+                      {(draft.status === "draft" || draft.status === "published") && (
                         <DropdownMenuItem
                           onClick={() => setEditTarget(draft)}
                         >
                           <Settings className="h-4 w-4 mr-2" />
                           Edit Settings
-                        </DropdownMenuItem>
-                      )}
-                      {draft.status === "draft" && (
-                        <DropdownMenuItem
-                          onClick={() => setImportDraftId(draft.id)}
-                        >
-                          <Upload className="h-4 w-4 mr-2" />
-                          Import CSV
                         </DropdownMenuItem>
                       )}
                       {draft.status === "completed" && (
@@ -518,25 +485,6 @@ export function DraftTab({ seasonId, seasonStatus, seasonType, teams, rosterCoun
                         </DropdownMenuItem>
                       )}
                       <DropdownMenuItem
-                        onClick={() => {
-                          window.open(
-                            `/api/bash/admin/seasons/${seasonId}/draft/${draft.id}/backup`,
-                            "_blank"
-                          )
-                        }}
-                      >
-                        <Download className="h-4 w-4 mr-2" />
-                        Export Backup
-                      </DropdownMenuItem>
-                      {draft.status === "draft" && (
-                        <DropdownMenuItem
-                          onClick={() => restoreInputRef.current?.click()}
-                        >
-                          <UploadCloud className="h-4 w-4 mr-2" />
-                          Restore from Backup
-                        </DropdownMenuItem>
-                      )}
-                      <DropdownMenuItem
                         className="text-destructive focus:text-destructive"
                         onClick={() => setDeleteTarget(draft)}
                       >
@@ -556,6 +504,51 @@ export function DraftTab({ seasonId, seasonStatus, seasonType, teams, rosterCoun
                 <StatItem icon={Clock} label="Pick Timer" value={`${draft.timerSeconds}s`} />
                 <StatItem icon={ArrowRightLeft} label="Trades" value={draft.tradeCount} />
               </div>
+
+              {/* Go-Live Readiness — shown for pre-live drafts */}
+              {isPreLive && (() => {
+                const checks = [
+                  { label: "Teams assigned", done: hasTeams, detail: `${draft.teamCount} teams` },
+                  { label: "Player pool imported", done: hasPool, detail: `${draft.poolCount} players` },
+                  { label: "Rounds configured", done: hasRounds, detail: hasRounds ? `${draft.rounds} rounds` : "not set" },
+                ]
+                const doneCount = checks.filter(c => c.done).length
+                const allDone = doneCount === checks.length
+                return (
+                  <div className="mt-4 pt-4 border-t">
+                    <div className="flex items-center gap-2 mb-2">
+                      {allDone ? (
+                        <Check className="h-4 w-4 text-emerald-500" />
+                      ) : (
+                        <AlertCircle className="h-4 w-4 text-amber-500" />
+                      )}
+                      <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                        Draft Day Readiness ({doneCount}/{checks.length})
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2">
+                      {checks.map(c => (
+                        <div key={c.label} className={`flex items-center gap-1.5 text-xs px-2 py-1 rounded ${
+                          c.done ? "text-emerald-700 bg-emerald-50 dark:text-emerald-300 dark:bg-emerald-950" : "text-muted-foreground bg-muted/50"
+                        }`}>
+                          {c.done ? <Check className="h-3 w-3" /> : <AlertCircle className="h-3 w-3" />}
+                          <span>{c.label}</span>
+                        </div>
+                      ))}
+                    </div>
+                    {!canSetup && (
+                      <p className="text-[11px] text-muted-foreground mt-2 italic">
+                        Add teams and import the season roster (Teams &amp; Roster tabs) to continue draft setup.
+                      </p>
+                    )}
+                    {canSetup && (
+                      <p className="text-[11px] text-muted-foreground mt-2 italic">
+                        Season has {teams.length} teams and {rosterCount} players ready. Click &quot;Configure Draft&quot; above to set up teams, captains, draft order, and keepers.
+                      </p>
+                    )}
+                  </div>
+                )
+              })()}
               {(draft.draftDate || draft.location) && (
                 <div className="flex items-center gap-4 mt-4 pt-4 border-t text-sm text-muted-foreground">
                   {draft.draftDate && (
@@ -777,7 +770,8 @@ export function DraftTab({ seasonId, seasonStatus, seasonType, teams, rosterCoun
               </div>
             </CardContent>
           </Card>
-        ))}
+        )})}
+
       </div>
 
       {/* Delete Confirmation */}
@@ -829,16 +823,16 @@ export function DraftTab({ seasonId, seasonStatus, seasonType, teams, rosterCoun
       <AlertDialog open={!!publishTarget} onOpenChange={(open) => !open && setPublishTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Publish &ldquo;{publishTarget?.name}&rdquo;?</AlertDialogTitle>
+            <AlertDialogTitle>Publish announcement for &ldquo;{publishTarget?.name}&rdquo;?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will make the draft page (including date/time/location) visible to the public. Captains, players, and fans will be able to see the draft page. You will still be required to confirm some settings (the keepers) before starting the live draft.
+              This will make the draft page live with the date, time, and location so players and fans can save the date. Teams, rosters, and captains do not need to be finalized yet.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={isPublishing}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={isPublishing}>Not Yet</AlertDialogCancel>
             <AlertDialogAction onClick={handlePublish} disabled={isPublishing}>
               {isPublishing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Publish Draft
+              Publish Announcement
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -863,18 +857,6 @@ export function DraftTab({ seasonId, seasonStatus, seasonType, teams, rosterCoun
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* CSV Import Modal */}
-      <DraftPoolImportModal
-        open={!!importDraftId}
-        onOpenChange={(open) => { if (!open) setImportDraftId(null) }}
-        seasonId={seasonId}
-        draftId={importDraftId || ""}
-        onImportComplete={() => {
-          fetchDrafts()
-          if (importDraftId) fetchPool(importDraftId)
-        }}
-      />
-
       {/* Player Card Sheet */}
       <DraftPlayerCard
         player={selectedPlayer}
@@ -889,6 +871,21 @@ export function DraftTab({ seasonId, seasonStatus, seasonType, teams, rosterCoun
         isOpen={!!editTarget}
         onOpenChange={(open) => { if (!open) setEditTarget(null) }}
         onUpdate={fetchDrafts}
+      />
+
+      {/* Configure Draft Wizard (full multi-step: Settings → Teams & Captains → Draft Order → Review) */}
+      <DraftWizard
+        open={!!configureTarget}
+        onOpenChange={(open) => { if (!open) setConfigureTarget(null) }}
+        seasonId={seasonId}
+        seasonType={seasonType}
+        teams={teams}
+        rosterCount={rosterCount}
+        onComplete={() => {
+          setConfigureTarget(null)
+          fetchDrafts()
+        }}
+        existingDraft={configureTarget}
       />
     </>
   )

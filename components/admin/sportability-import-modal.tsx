@@ -19,9 +19,10 @@ import { Badge } from "@/components/ui/badge"
 interface SportabilityImportModalProps {
   seasonId: string
   seasonStatus: string
+  onImportComplete?: () => void | Promise<void>
 }
 
-export function SportabilityImportModal({ seasonId, seasonStatus }: SportabilityImportModalProps) {
+export function SportabilityImportModal({ seasonId, seasonStatus, onImportComplete }: SportabilityImportModalProps) {
   const router = useRouter()
   const [isOpen, setIsOpen] = useState(false)
   const [step, setStep] = useState<"upload" | "preview">("upload")
@@ -103,6 +104,7 @@ export function SportabilityImportModal({ seasonId, seasonStatus }: Sportability
       toast.success(`Successfully imported ${data.count} players!`)
       setIsOpen(false)
       resetState()
+      await onImportComplete?.()
       router.refresh()
     } catch (err: unknown) {
       const error = err instanceof Error ? err : new Error(String(err))
@@ -225,20 +227,37 @@ export function SportabilityImportModal({ seasonId, seasonStatus }: Sportability
 
             <div className="border rounded-md">
               <div className="bg-muted px-4 py-2 text-xs font-semibold grid grid-cols-12 gap-4">
-                <div className="col-span-5">Player</div>
-                <div className="col-span-4">Team</div>
+                <div className="col-span-4">Player</div>
+                <div className="col-span-3">Team</div>
+                <div className="col-span-2 text-center">Position</div>
                 <div className="col-span-3 text-right">Flags</div>
               </div>
               <ScrollArea className="h-[250px]">
                 {mappedPlayers.map((p, i) => (
                   <div key={i} className="px-4 py-2 border-t text-sm grid grid-cols-12 gap-4 items-center">
-                    <div className="col-span-5 truncate font-medium">{p.playerName}</div>
-                    <div className="col-span-4 truncate text-muted-foreground">
+                    <div className="col-span-4 truncate font-medium">{p.playerName}</div>
+                    <div className="col-span-3 truncate text-muted-foreground">
                       {p.teamSlug === 'tbd' ? 'Unassigned' : p.teamSlug}
+                    </div>
+                    <div className="col-span-2 flex justify-center gap-0.5">
+                      {(p.positionTags as string[] || []).map((tag: string) => (
+                        <Badge
+                          key={tag}
+                          variant="outline"
+                          className={`text-[10px] px-1.5 py-0 font-medium ${
+                            tag === "G"
+                              ? "border-purple-500/50 text-purple-600 bg-purple-50/50"
+                              : tag === "D"
+                                ? "border-sky-500/50 text-sky-600 bg-sky-50/50"
+                                : "border-emerald-500/50 text-emerald-600 bg-emerald-50/50"
+                          }`}
+                        >
+                          {tag}
+                        </Badge>
+                      ))}
                     </div>
                     <div className="col-span-3 flex flex-wrap justify-end gap-1">
                       {p.isCaptain && <Badge variant="outline" className="text-[10px] px-1 py-0 bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300 border-amber-200 dark:border-amber-800">Captain</Badge>}
-                      {p.isGoalie && <Badge variant="outline" className="text-[10px] px-1 py-0">Goalie</Badge>}
                       {p.isRookie && <Badge variant="outline" className="text-[10px] px-1 py-0 bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300 border-blue-200 dark:border-blue-800">Rookie</Badge>}
                     </div>
                   </div>

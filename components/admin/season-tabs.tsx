@@ -18,6 +18,8 @@ function getTabsForStatus(status: string): Tab[] {
   return ["Schedule", "Teams", "Roster", "Settings"]
 }
 
+type RosterPlayer = { playerId: number; playerName: string; teamSlug: string; isGoalie: boolean; isRookie: boolean }
+
 interface SeasonTabsProps {
   season: {
     id: string
@@ -43,7 +45,11 @@ export function SeasonTabs({ season }: SeasonTabsProps) {
 
   // Lift teams into shared state so mutations propagate across tabs
   const [teams, setTeams] = useState(season.teams)
-  const [roster] = useState(season.roster)
+  const [roster, setRoster] = useState(season.roster)
+
+  const handleRosterChange = useCallback((updatedRoster: RosterPlayer[]) => {
+    setRoster(updatedRoster)
+  }, [])
 
   const handleTeamsChange = useCallback((updatedTeams: { teamSlug: string; teamName: string; franchiseSlug: string | null }[]) => {
     setTeams(updatedTeams)
@@ -83,7 +89,7 @@ export function SeasonTabs({ season }: SeasonTabsProps) {
       <div>
         {activeTab === "Settings" && <SeasonForm season={season} />}
         {activeTab === "Teams" && <SeasonTeamsTab seasonId={season.id} seasonStatus={season.status} initialTeams={teams} onTeamsChange={handleTeamsChange} />}
-        {activeTab === "Roster" && <SeasonRosterTab seasonId={season.id} seasonStatus={season.status} roster={roster} teams={teams} />}
+        {activeTab === "Roster" && <SeasonRosterTab seasonId={season.id} seasonStatus={season.status} roster={roster} teams={teams} onRosterChange={handleRosterChange} />}
         {activeTab === "Schedule" && <SeasonScheduleTab seasonId={season.id} seasonStatus={season.status} initialTeams={teams} defaultLocation={season.defaultLocation || "The Lick"} />}
         {activeTab === "Draft" && (
           <DraftTab

@@ -1,11 +1,57 @@
 import { NextRequest, NextResponse } from "next/server"
 import { db, schema } from "@/lib/db"
-import { eq, ilike, and } from "drizzle-orm"
+import { eq, ilike, and, sql } from "drizzle-orm"
 import { getSession } from "@/lib/admin-session"
 import { canonicalizePlayerName, normalizePlayerName } from "@/lib/player-name"
 
 interface RouteContext {
   params: Promise<{ id: string }>
+}
+
+export async function GET(_request: NextRequest, context: RouteContext) {
+  const isAuthenticated = await getSession()
+  if (!isAuthenticated) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  }
+
+  const { id: seasonId } = await context.params
+
+  // Look up season type for rookie derivation
+  const [season] = await db
+    .select({ seasonType: schema.seasons.seasonType })
+    .from(schema.seasons)
+    .where(eq(schema.seasons.id, seasonId))
+    .limit(1)
+
+  if (!season) {
+    return NextResponse.json({ error: "Season not found" }, { status: 404 })
+  }
+
+  const isRookieExpr = season.seasonType === "fall"
+    ? sql<boolean>`NOT EXISTS (
+        SELECT 1 FROM player_seasons ps2
+        JOIN seasons s2 ON s2.id = ps2.season_id
+        WHERE ps2.player_id = players.id
+          AND s2.season_type = 'fall'
+          AND ps2.season_id < ${seasonId}
+      )`
+    : sql<boolean>`false`
+
+  const roster = await db
+    .select({
+      playerId: schema.players.id,
+      playerName: schema.players.name,
+      teamSlug: schema.playerSeasons.teamSlug,
+      isGoalie: schema.playerSeasons.isGoalie,
+      isRookie: isRookieExpr,
+    })
+    .from(schema.playerSeasons)
+    .innerJoin(schema.players, eq(schema.playerSeasons.playerId, schema.players.id))
+    .where(eq(schema.playerSeasons.seasonId, seasonId))
+
+  roster.sort((a, b) => a.playerName.localeCompare(b.playerName))
+
+  return NextResponse.json({ roster })
 }
 
 export async function POST(request: NextRequest, context: RouteContext) {

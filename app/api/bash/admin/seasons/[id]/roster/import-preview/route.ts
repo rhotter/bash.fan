@@ -3,7 +3,7 @@ import { db, schema } from "@/lib/db"
 import { getSession } from "@/lib/admin-session"
 import { inArray, eq, and } from "drizzle-orm"
 import { canonicalizePlayerName, normalizePlayerName } from "@/lib/player-name"
-import { parseCsv } from "@/lib/csv-utils"
+import { parseCsv, parsePositionTags, parseRegistrationMeta } from "@/lib/csv-utils"
 
 interface RouteContext {
   params: Promise<{ id: string }>
@@ -51,9 +51,10 @@ export async function POST(request: NextRequest, context: RouteContext) {
         teamSlug = "tbd"
       }
 
-      // Position
-      const positionStr = (row["ExpPos"] || row["Position"] || "").toLowerCase()
-      const isGoalie = positionStr.includes("goalie")
+      // Position — use shared tokenizer from csv-utils
+      const positionRaw = row["ExpPos"] || row["Position"] || ""
+      const positionTags = parsePositionTags(positionRaw)
+      const isGoalie = positionTags.includes("G")
 
       // Roles
       const rookieStr = (row["Rookie"] || "").toLowerCase()
@@ -61,12 +62,17 @@ export async function POST(request: NextRequest, context: RouteContext) {
       const isRookie = rookieStr === "1" || rookieStr === "yes" || rookieStr === "true"
       const isCaptain = captainStr === "1" || captainStr === "yes" || captainStr === "true" || captainStr === "asst"
 
+      // Full registration metadata for draft player cards
+      const registrationMeta = parseRegistrationMeta(row)
+
       return {
         playerName,
         teamSlug,
         isGoalie,
         isRookie,
         isCaptain,
+        positionTags,
+        registrationMeta,
       }
     }).filter(p => p.playerName.length > 0) // filter out empty rows
 

@@ -428,7 +428,7 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
         action: "TEMPLATE",
         text: `BASH ${draft.name}`,
         dates: `${start}/${end}`,
-        details: `BASH ${draft.name}. ${draft.rounds} rounds, ${teams.length} teams.`,
+        details: `BASH ${draft.name}.${teams.length > 0 ? ` ${draft.rounds} rounds, ${teams.length} teams.` : ""}`,
         location: draft.location ? `${draft.location}, San Francisco, CA` : "",
       })
       return `https://calendar.google.com/calendar/render?${params.toString()}`
@@ -531,17 +531,21 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
               <Users className="h-3.5 w-3.5" />
               Participating Teams
             </h2>
-            <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2">
-              {teams.map((team) => (
-                <div key={team.teamSlug} className="flex items-center gap-2">
-                  <div
-                    className="w-2.5 h-2.5 rounded-full shrink-0"
-                    style={{ backgroundColor: team.color || "#94a3b8" }}
-                  />
-                  <span className="text-sm font-medium">{team.teamName}</span>
-                </div>
-              ))}
-            </div>
+            {teams.length > 0 ? (
+              <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2">
+                {teams.map((team) => (
+                  <div key={team.teamSlug} className="flex items-center gap-2">
+                    <div
+                      className="w-2.5 h-2.5 rounded-full shrink-0"
+                      style={{ backgroundColor: team.color || "#94a3b8" }}
+                    />
+                    <span className="text-sm font-medium">{team.teamName}</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground italic">Teams will be announced on draft day</p>
+            )}
           </div>
 
           {/* Draft Format Card */}
@@ -554,8 +558,13 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
             </CardHeader>
             <CardContent>
               <p className="text-sm text-muted-foreground">
-                {draft.rounds}-round {season.name.toLowerCase().includes("summer") ? "summer" : ""} snake draft. Captains will
-                select from a pool of {pool.length} players. Each team enters the draft with their captain as a keeper.
+                {teams.length > 0 && pool.length > 0 ? (
+                  <>{draft.rounds}-round {season.name.toLowerCase().includes("summer") ? "summer" : ""} snake draft. Captains will select from a pool of {pool.length} players. Each team enters the draft with their captain as a keeper.</>
+                ) : teams.length > 0 ? (
+                  <>{draft.rounds}-round {season.name.toLowerCase().includes("summer") ? "summer" : ""} snake draft with {teams.length} teams. Player pool details will be finalized closer to draft day.</>
+                ) : (
+                  <>Snake draft format. Teams, rounds, and player pool details will be finalized closer to draft day.</>
+                )}
               </p>
               <div className="flex flex-wrap gap-x-6 gap-y-1 mt-3 text-xs text-muted-foreground">
                 <span>{pool.length} players in the pool</span>
@@ -1442,7 +1451,7 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
             teamColor={selectedTeam?.color}
             pickInfo={selectedPick ? {
               round: selectedPick.round,
-              pickNumber: selectedPick.pickNumber,
+              pickNumber: selectedPick.pickNumber - (selectedPick.round - 1) * teams.length,
               isKeeper: selectedPick.isKeeper,
             } : null}
           />

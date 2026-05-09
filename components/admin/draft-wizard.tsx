@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useRef, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import {
   ArrowLeft, ArrowRight, Check, Loader2, Shuffle, GripVertical,
   Upload, X, FileCheck, Search, Crown, ArrowLeftRight, Plus, Trash2,
@@ -14,7 +15,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { toast } from "sonner"
 
-const STEPS = ["Settings", "Player Pool", "Teams & Captains", "Draft Order", "Review & Create"]
+const STEPS_CREATE = ["Settings", "Player Pool", "Teams & Captains", "Draft Order", "Review & Create"]
+const STEPS_CONFIGURE = ["Settings", "Teams & Captains", "Draft Order", "Review & Keepers"]
 
 /** Lightweight roster player — fetched lazily for the captain picker */
 interface RosterPlayer {
@@ -45,6 +47,17 @@ interface PreDraftTrade {
   teamBOriginalOwner: string  // original slot owner — differs from teamBSlug for acquired picks
 }
 
+interface ExistingDraftData {
+  id: string
+  name: string
+  draftType: string
+  rounds: number
+  timerSeconds: number
+  maxKeepers: number
+  draftDate: string | null
+  location: string | null
+}
+
 interface DraftWizardProps {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -53,6 +66,8 @@ interface DraftWizardProps {
   teams: { teamSlug: string; teamName: string }[]
   rosterCount: number
   onComplete: () => void
+  /** When provided, the wizard runs in "configure" mode — syncs season data and updates the existing draft */
+  existingDraft?: ExistingDraftData | null
 }
 
 interface WizardForm {
@@ -76,7 +91,21 @@ function suggestDraftName(seasonType: string): string {
   return `${year}-${year + 1} BASH Draft`
 }
 
-export function DraftWizard({ open, onOpenChange, seasonId, seasonType, teams, rosterCount, onComplete }: DraftWizardProps) {
+function parseDateFromISO(iso: string | null): { date: string; time: string } {
+  if (!iso) return { date: "", time: "19:00" }
+  try {
+    const d = new Date(iso)
+    return { date: d.toLocaleDateString("en-CA"), time: d.toTimeString().slice(0, 5) }
+  } catch {
+    return { date: "", time: "19:00" }
+  }
+}
+
+export function DraftWizard({ open, onOpenChange, seasonId, seasonType, teams, rosterCount, onComplete, existingDraft }: DraftWizardProps) {
+  const router = useRouter()
+  const isConfigureMode = !!existingDraft
+  const STEPS = isConfigureMode ? STEPS_CONFIGURE : STEPS_CREATE
+
   const [step, setStep] = useState(0)
   const [creating, setCreating] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -87,27 +116,59 @@ export function DraftWizard({ open, onOpenChange, seasonId, seasonType, teams, r
     ? Math.max(1, Math.ceil(rosterCount / teams.length))
     : seasonType === "summer" ? 10 : 14
 
-  // Roster players fetched lazily for captain picker (Step 3)
+  // Roster players fetched lazily for captain picker
   const [rosterPlayers, setRosterPlayers] = useState<RosterPlayer[]>([])
   const [rosterLoading, setRosterLoading] = useState(false)
 
-  const [form, setForm] = useState<WizardForm>({
-    name: suggestDraftName(seasonType),
-    draftType: "snake",
-    rounds: null,
-    timerSeconds: 120,
-    maxKeepers: seasonType === "summer" ? 1 : 8,
-    draftDate: "",
-    draftTime: "19:00",
-    location: "",
-    teamOrder: teams.map((t) => ({ ...t })),
-    captains: [],
-    preDraftTrades: [],
-  })
+  const defaultForm = (): WizardForm => {
+    if (existingDraft) {
+      const { date, time } = parseDateFromISO(existingDraft.draftDate)
+      return {
+        name: existingDraft.name,
+        draftType: existingDraft.draftType as "snake" | "linear",
+        rounds: existingDraft.rounds > 0 ? existingDraft.rounds : null,
+        timerSeconds: existingDraft.timerSeconds,
+        maxKeepers: existingDraft.maxKeepers,
+        draftDate: date,
+        draftTime: time,
+        location: existingDraft.location || "",
+        teamOrder: teams.map((t) => ({ ...t })),
+        captains: [],
+        preDraftTrades: [],
+      }
+    }
+    return {
+      name: suggestDraftName(seasonType),
+      draftType: "snake",
+      rounds: null,
+      timerSeconds: 120,
+      maxKeepers: seasonType === "summer" ? 1 : 8,
+      draftDate: "",
+      draftTime: "19:00",
+      location: "",
+      teamOrder: teams.map((t) => ({ ...t })),
+      captains: [],
+      preDraftTrades: [],
+    }
+  }
 
-  // Fetch roster players when entering Step 3 (Teams & Captains)
+  const [form, setForm] = useState<WizardForm>(defaultForm)
+
+  // Re-initialize form when the modal opens or existingDraft changes
   useEffect(() => {
-    if (step === 2 && rosterPlayers.length === 0 && !rosterLoading) {
+    if (open) {
+      setForm(defaultForm())
+      setStep(0)
+      setError(null)
+      setRosterPlayers([])
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, existingDraft?.id])
+
+  // Fetch roster players when entering the Teams & Captains step
+  const teamsCaptainsStepIndex = STEPS.indexOf("Teams & Captains")
+  useEffect(() => {
+    if (step === teamsCaptainsStepIndex && rosterPlayers.length === 0 && !rosterLoading) {
       setRosterLoading(true)
       fetch(`/api/bash/admin/seasons/${seasonId}/draft/roster-players`)
         .then(res => res.ok ? res.json() : { players: [] })
@@ -139,7 +200,7 @@ export function DraftWizard({ open, onOpenChange, seasonId, seasonType, teams, r
         .catch(() => {})
         .finally(() => setRosterLoading(false))
     }
-  }, [step, seasonId, rosterPlayers.length, rosterLoading, form.captains.length])
+  }, [step, teamsCaptainsStepIndex, seasonId, rosterPlayers.length, rosterLoading, form.captains.length])
 
   const canNext = () => {
     if (step === 0) return !!form.name && form.timerSeconds > 0
@@ -175,7 +236,7 @@ export function DraftWizard({ open, onOpenChange, seasonId, seasonType, teams, r
     })
   }
 
-  async function handleCreate() {
+  async function handleSubmit() {
     setCreating(true)
     setError(null)
     try {
@@ -188,100 +249,169 @@ export function DraftWizard({ open, onOpenChange, seasonId, seasonType, teams, r
         draftDate = new Date(dateStr).toISOString()
       }
 
-      const res = await fetch(`/api/bash/admin/seasons/${seasonId}/draft`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: form.name,
-          draftType: form.draftType,
-          rounds: form.rounds ?? suggestedRounds,
-          timerSeconds: form.timerSeconds,
-          maxKeepers: form.maxKeepers,
-          draftDate,
-          location: form.location || null,
-          teams: form.teamOrder.map((t, i) => ({
-            teamSlug: t.teamSlug,
-            position: i + 1,
-          })),
-          captains: form.captains,
-          preDraftTrades: form.preDraftTrades,
-        }),
-      })
-
-      if (res.ok) {
-        const draftData = await res.json()
-
-        // Auto-import staged CSV if one was selected
-        const newDraftId = draftData.draft?.id
-        if (csvFile && newDraftId) {
-          try {
-            // Step 1: Preview to get mapped players
-            const previewForm = new FormData()
-            previewForm.append("file", csvFile)
-            const previewRes = await fetch(
-              `/api/bash/admin/seasons/${seasonId}/draft/${newDraftId}/pool/import-csv?action=preview`,
-              { method: "POST", body: previewForm }
-            )
-            if (previewRes.ok) {
-              const previewData = await previewRes.json()
-              // Step 2: Confirm the import (append mode)
-              const confirmRes = await fetch(
-                `/api/bash/admin/seasons/${seasonId}/draft/${newDraftId}/pool/import-csv?action=confirm`,
-                {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ players: previewData.mappedPlayers, mode: "append" }),
-                }
-              )
-              if (confirmRes.ok) {
-                const importResult = await confirmRes.json()
-                toast.success(`Draft created! CSV imported: ${importResult.added} added, ${importResult.skipped} enriched.`)
-              } else {
-                toast.success("Draft created! CSV import had an issue — you can retry from the draft card.")
-              }
-            } else {
-              toast.success("Draft created! CSV parsing failed — you can retry from the draft card.")
-            }
-          } catch {
-            toast.success("Draft created! CSV import failed — you can retry from the draft card.")
-          }
-        } else {
-          toast.success("Draft created!")
+      if (isConfigureMode && existingDraft) {
+        // ── Configure mode ──────────────────────────────────────────────
+        // 1. Sync teams & pool from season (clears + recreates pool from roster)
+        const syncRes = await fetch(
+          `/api/bash/admin/seasons/${seasonId}/draft/${existingDraft.id}/sync`,
+          { method: "POST" }
+        )
+        if (!syncRes.ok) {
+          const err = await syncRes.json()
+          throw new Error(err.error || "Failed to sync teams & roster from season")
         }
 
+        // 2. Update draft settings + re-apply the wizard's custom team order
+        //    (sync recreates team order from season_teams in default order,
+        //     so we must overwrite it with the wizard's ordered list)
+        const putRes = await fetch(
+          `/api/bash/admin/seasons/${seasonId}/draft/${existingDraft.id}`,
+          {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              name: form.name,
+              draftType: form.draftType,
+              rounds: form.rounds ?? suggestedRounds,
+              timerSeconds: form.timerSeconds,
+              maxKeepers: form.maxKeepers,
+              draftDate,
+              location: form.location || null,
+              teams: form.teamOrder.map((t, i) => ({
+                teamSlug: t.teamSlug,
+                position: i + 1,
+              })),
+            }),
+          }
+        )
+        if (!putRes.ok) {
+          const err = await putRes.json()
+          throw new Error(err.error || "Failed to update draft settings")
+        }
+
+        // 3. Save captain designations to playerSeasons.isCaptain
+        const capRes = await fetch(
+          `/api/bash/admin/seasons/${seasonId}/draft/${existingDraft.id}/captains`,
+          {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ captains: form.captains }),
+          }
+        )
+        if (!capRes.ok) {
+          const err = await capRes.json()
+          throw new Error(err.error || "Failed to save captain assignments")
+        }
+
+        // 4. Save pre-draft trades entered in the wizard
+        if (form.preDraftTrades.length > 0) {
+          for (const trade of form.preDraftTrades) {
+            const tradeRes = await fetch(
+              `/api/bash/admin/seasons/${seasonId}/draft/${existingDraft.id}/trade`,
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  type: "pre_draft_pick_swap",
+                  teamASlug: trade.teamASlug,
+                  teamARound: trade.teamARound,
+                  teamAOriginalOwner: trade.teamAOriginalOwner,
+                  teamBSlug: trade.teamBSlug,
+                  teamBRound: trade.teamBRound,
+                  teamBOriginalOwner: trade.teamBOriginalOwner,
+                }),
+              }
+            )
+            if (!tradeRes.ok) {
+              console.error("Failed to save pre-draft trade:", await tradeRes.text())
+            }
+          }
+        }
+
+        toast.success("Draft configured! Proceeding to keeper setup\u2026")
         onComplete()
-        // Reset wizard
-        setStep(0)
-        setCsvFile(null)
-        setForm({
-          name: suggestDraftName(seasonType),
-          draftType: "snake",
-          rounds: null,
-          timerSeconds: 120,
-          maxKeepers: seasonType === "summer" ? 1 : 8,
-          draftDate: "",
-          draftTime: "19:00",
-          location: "",
-          teamOrder: teams.map((t) => ({ ...t })),
-          captains: [],
-          preDraftTrades: [],
-        })
+        router.push(`/admin/seasons/${seasonId}/draft/${existingDraft.id}/board`)
       } else {
-        const data = await res.json()
-        setError(data.error || "Failed to create draft")
+        // ── Create mode ─────────────────────────────────────────────────
+        const res = await fetch(`/api/bash/admin/seasons/${seasonId}/draft`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: form.name,
+            draftType: form.draftType,
+            rounds: form.rounds ?? suggestedRounds,
+            timerSeconds: form.timerSeconds,
+            maxKeepers: form.maxKeepers,
+            draftDate,
+            location: form.location || null,
+            teams: form.teamOrder.map((t, i) => ({
+              teamSlug: t.teamSlug,
+              position: i + 1,
+            })),
+            captains: form.captains,
+            preDraftTrades: form.preDraftTrades,
+          }),
+        })
+
+        if (res.ok) {
+          const draftData = await res.json()
+          const newDraftId = draftData.draft?.id
+          if (csvFile && newDraftId) {
+            try {
+              const previewForm = new FormData()
+              previewForm.append("file", csvFile)
+              const previewRes = await fetch(
+                `/api/bash/admin/seasons/${seasonId}/draft/${newDraftId}/pool/import-csv?action=preview`,
+                { method: "POST", body: previewForm }
+              )
+              if (previewRes.ok) {
+                const previewData = await previewRes.json()
+                const confirmRes = await fetch(
+                  `/api/bash/admin/seasons/${seasonId}/draft/${newDraftId}/pool/import-csv?action=confirm`,
+                  {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ players: previewData.mappedPlayers, mode: "append" }),
+                  }
+                )
+                if (confirmRes.ok) {
+                  const importResult = await confirmRes.json()
+                  toast.success(`Draft created! CSV imported: ${importResult.added} added, ${importResult.skipped} enriched.`)
+                } else {
+                  toast.success("Draft created! CSV import had an issue \u2014 you can retry from the draft card.")
+                }
+              } else {
+                toast.success("Draft created! CSV parsing failed \u2014 you can retry from the draft card.")
+              }
+            } catch {
+              toast.success("Draft created! CSV import failed \u2014 you can retry from the draft card.")
+            }
+          } else {
+            toast.success("Draft created!")
+          }
+          onComplete()
+          setStep(0)
+          setCsvFile(null)
+          setForm(defaultForm())
+        } else {
+          const data = await res.json()
+          setError(data.error || "Failed to create draft")
+        }
       }
-    } catch {
-      setError("An unexpected error occurred.")
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "An unexpected error occurred."
+      setError(message)
     } finally {
       setCreating(false)
     }
   }
+  const currentStepName = STEPS[step]
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[540px] max-h-[85vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Create Draft</DialogTitle>
+          <DialogTitle>{isConfigureMode ? "Configure Draft" : "Create Draft"}</DialogTitle>
         </DialogHeader>
 
         {/* Step indicator */}
@@ -304,14 +434,14 @@ export function DraftWizard({ open, onOpenChange, seasonId, seasonType, teams, r
           ))}
         </div>
         <p className="text-xs text-muted-foreground mb-4">
-          Step {step + 1}: {STEPS[step]}
+          Step {step + 1}: {currentStepName}
         </p>
 
-        {/* Step Content */}
+        {/* Step Content — rendered by step name for mode-independence */}
         <div className="space-y-4 min-h-[200px]">
-          {step === 0 && <StepSettings form={form} setForm={setForm} seasonType={seasonType} rosterCount={rosterCount} teamCount={teams.length} suggestedRounds={suggestedRounds} />}
-          {step === 1 && <StepPool rosterCount={rosterCount} teamCount={teams.length} csvFile={csvFile} onCsvFileChange={setCsvFile} />}
-          {step === 2 && (
+          {currentStepName === "Settings" && <StepSettings form={form} setForm={setForm} seasonType={seasonType} rosterCount={rosterCount} teamCount={teams.length} suggestedRounds={suggestedRounds} />}
+          {currentStepName === "Player Pool" && <StepPool rosterCount={rosterCount} teamCount={teams.length} csvFile={csvFile} onCsvFileChange={setCsvFile} />}
+          {currentStepName === "Teams & Captains" && (
             <StepTeamsCaptains
               teams={form.teamOrder}
               captains={form.captains}
@@ -320,7 +450,7 @@ export function DraftWizard({ open, onOpenChange, seasonId, seasonType, teams, r
               onCaptainsChange={(c) => setForm(f => ({ ...f, captains: c }))}
             />
           )}
-          {step === 3 && (
+          {currentStepName === "Draft Order" && (
             <StepOrderTrades
               teamOrder={form.teamOrder}
               preDraftTrades={form.preDraftTrades}
@@ -330,7 +460,7 @@ export function DraftWizard({ open, onOpenChange, seasonId, seasonType, teams, r
               onTradesChange={(t) => setForm(f => ({ ...f, preDraftTrades: t }))}
             />
           )}
-          {step === 4 && <StepReview form={form} rosterCount={rosterCount} suggestedRounds={suggestedRounds} />}
+          {(currentStepName === "Review & Create" || currentStepName === "Review & Keepers") && <StepReview form={form} rosterCount={rosterCount} suggestedRounds={suggestedRounds} />}
         </div>
 
         {error && (
@@ -347,9 +477,9 @@ export function DraftWizard({ open, onOpenChange, seasonId, seasonType, teams, r
               Next <ArrowRight className="h-4 w-4 ml-1" />
             </Button>
           ) : (
-            <Button size="sm" onClick={handleCreate} disabled={creating}>
+            <Button size="sm" onClick={handleSubmit} disabled={creating}>
               {creating && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
-              Create Draft
+              {isConfigureMode ? "Save & Set Keepers" : "Create Draft"}
             </Button>
           )}
         </div>

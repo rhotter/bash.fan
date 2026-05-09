@@ -62,8 +62,8 @@ export async function POST(request: NextRequest, context: RouteContext) {
     return NextResponse.json({ error: "Draft not found" }, { status: 404 })
   }
 
-  if (draft.status !== "draft") {
-    return NextResponse.json({ error: "Can only modify pool in draft status" }, { status: 400 })
+  if (draft.status !== "draft" && draft.status !== "published") {
+    return NextResponse.json({ error: "Can only modify pool in draft or published status" }, { status: 400 })
   }
 
   try {

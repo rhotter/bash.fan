@@ -37,9 +37,9 @@ export async function POST(
       return NextResponse.json({ error: "Draft not found" }, { status: 404 })
     }
 
-    if (draft.status !== "draft") {
+    if (draft.status !== "draft" && draft.status !== "published") {
       return NextResponse.json(
-        { error: "Pre-draft trades can only be added while draft is in draft status" },
+        { error: "Pre-draft trades can only be added while draft is in draft or published status" },
         { status: 400 }
       )
     }
