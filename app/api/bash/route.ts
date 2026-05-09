@@ -55,7 +55,7 @@ export interface BashApiData {
 function computeStandings(games: BashGame[]): Standing[] {
   const teamMap = new Map<string, Standing>()
 
-  const regularGames = games.filter((g) => !g.isPlayoff)
+  const regularGames = games.filter((g) => g.gameType === "regular" && !g.isPlayoff)
 
   for (const game of regularGames) {
     if (!teamMap.has(game.homeSlug)) {

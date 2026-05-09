@@ -1,14 +1,25 @@
 import { rawSql } from "@/lib/db"
 import { sql } from "drizzle-orm"
-import { getCurrentSeason } from "@/lib/seasons"
+import { getCurrentSeason, getSeasonById } from "@/lib/seasons"
 import { SiteHeader } from "@/components/site-header"
 import { ScorekeeperGameList } from "./scorekeeper-game-list"
 import type { BashGame } from "@/lib/hockey-data"
 
 export const dynamic = "force-dynamic"
 
-export default async function ScorekeeperIndexPage() {
-  const season = await getCurrentSeason()
+export default async function ScorekeeperIndexPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ season?: string }>
+}) {
+  const { season: seasonParam } = await searchParams
+
+  // Support ?season= override so admins can score tryout games during draft
+  let season = await getCurrentSeason()
+  if (seasonParam) {
+    const override = await getSeasonById(seasonParam)
+    if (override) season = override
+  }
 
   const rows = await rawSql(sql`
     SELECT g.id, g.date, g.time, g.status,
@@ -16,6 +27,7 @@ export default async function ScorekeeperIndexPage() {
       g.home_team, g.away_team,
       g.is_overtime, g.is_playoff, g.is_forfeit,
       g.location, g.has_boxscore,
+      g.game_type,
       ht.name as home_team_name,
       awt.name as away_team_name,
       gl.game_id IS NOT NULL as has_live_stats,
@@ -52,7 +64,7 @@ export default async function ScorekeeperIndexPage() {
     liveClockSeconds: r.live_clock_seconds as number | null,
     liveClockRunning: r.live_clock_running as boolean | null,
     liveClockStartedAt: r.live_clock_started_at as number | null,
-    gameType: "regular",
+    gameType: (r.game_type as string) || "regular",
     hasShootout: false,
     homePlaceholder: null,
     awayPlaceholder: null,
@@ -62,9 +74,9 @@ export default async function ScorekeeperIndexPage() {
     <div className="flex flex-1 flex-col bg-background">
       <SiteHeader />
       <div className="mx-auto w-full max-w-6xl px-4 py-5 md:py-8">
-        <h1 className="text-lg font-semibold mb-2">Scorekeeper</h1>
+        <h1 className="text-lg font-semibold mb-1">Scorekeeper</h1>
         <p className="text-sm text-muted-foreground mb-6">
-          Select a game to scorekeep.
+          {season.name} · Select a game to scorekeep.
         </p>
         <ScorekeeperGameList games={games} />
       </div>

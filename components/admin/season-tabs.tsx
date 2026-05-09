@@ -1,12 +1,13 @@
 "use client"
 
-import { useState, useCallback } from "react"
+import { useState, useCallback, useEffect } from "react"
 import { SeasonForm } from "./season-form"
 import { PlaceholderCard } from "./placeholder-card"
 import { SeasonTeamsTab } from "./season-teams-tab"
 import { SeasonRosterTab } from "./season-roster-tab"
 import { SeasonScheduleTab } from "./season-schedule-tab"
 import { DraftTab } from "./draft-tab"
+import { SeasonWelcomeModal } from "./season-welcome-modal"
 
 type Tab = "Settings" | "Teams" | "Roster" | "Schedule" | "Draft" | "Registration"
 
@@ -47,6 +48,17 @@ export function SeasonTabs({ season }: SeasonTabsProps) {
   const handleTeamsChange = useCallback((updatedTeams: { teamSlug: string; teamName: string; franchiseSlug: string | null }[]) => {
     setTeams(updatedTeams)
   }, [])
+
+  // Welcome modal — show once for fresh seasons (no teams, draft status)
+  const [welcomeOpen, setWelcomeOpen] = useState(false)
+  useEffect(() => {
+    if (season.status !== "draft" || season.teams.length > 0) return
+    const key = `bash-season-welcomed-${season.id}`
+    if (typeof window !== "undefined" && !localStorage.getItem(key)) {
+      setWelcomeOpen(true)
+      localStorage.setItem(key, "1")
+    }
+  }, [season.id, season.status, season.teams.length])
 
   return (
     <div className="space-y-4">
@@ -90,6 +102,12 @@ export function SeasonTabs({ season }: SeasonTabsProps) {
           />
         )}
       </div>
+
+      <SeasonWelcomeModal
+        seasonName={season.name}
+        isOpen={welcomeOpen}
+        onOpenChange={setWelcomeOpen}
+      />
     </div>
   )
 }

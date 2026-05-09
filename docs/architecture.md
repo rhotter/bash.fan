@@ -81,7 +81,7 @@ The Drizzle schema (`lib/db/schema.ts`) is designed around 22 core tables:
 
 2. **Games & Scheduling**
    - `games`: Stores game details, dates, times, home/away teams, scores, and status (`upcoming` vs `final`). Flags for overtime, shootout, and forfeit. Includes schedule management columns:
-     - `game_type`: Categorizes games as `regular`, `playoff`, `practice`, `exhibition`, `championship`, or `jamboree`. The legacy `is_playoff` boolean is kept for stats queries.
+     - `game_type`: Categorizes games as `regular`, `playoff`, `tryout`, `practice`, `exhibition`, `championship`, or `jamboree`. The legacy `is_playoff` boolean is kept for stats queries.
      - `home_placeholder` / `away_placeholder`: Display labels for unresolved teams (e.g., "Seed 1", "Winner SF-A"). When set, `home_team`/`away_team` reference a sentinel `"tbd"` slug.
      - `bracket_round`: Playoff round identifier (`play-in`, `quarterfinal`, `semifinal`, `final`).
      - `series_id` / `series_game_number`: Groups games into matchup series (e.g., `sf-a` game 1 of 3).
