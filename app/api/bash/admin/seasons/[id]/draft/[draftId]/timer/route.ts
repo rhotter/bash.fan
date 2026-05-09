@@ -14,7 +14,8 @@ export async function POST(
   }
 
   const { draftId } = await params
-  const { action } = await req.json()
+  const body = await req.json()
+  const { action } = body
 
   const draft = await db.query.draftInstances.findFirst({
     where: eq(draftInstances.id, draftId),
@@ -56,6 +57,21 @@ export async function POST(
       .set({
         timerRunning: true,
         timerCountdown: draft.timerSeconds,
+        timerStartedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(draftInstances.id, draftId))
+  } else if (action === "setDuration") {
+    const duration = Number(body.duration)
+    if (!duration || duration < 10 || duration > 600) {
+      return NextResponse.json({ error: "Duration must be between 10 and 600 seconds" }, { status: 400 })
+    }
+    await db
+      .update(draftInstances)
+      .set({
+        timerSeconds: duration,
+        timerCountdown: duration,
+        timerRunning: true,
         timerStartedAt: new Date(),
         updatedAt: new Date(),
       })

@@ -225,8 +225,12 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
   }, [picks, draft.rounds])
 
   const currentPick = useMemo(() => {
+    if (draft.status === 'completed') return null
+    // If all available players have been picked, there's no current pick
+    const pickedCount = picks.filter((p) => p.playerId !== null).length
+    if (pool.length > 0 && pickedCount >= pool.length) return null
     return picks.find((p) => p.playerId === null && !p.isKeeper) || null
-  }, [picks])
+  }, [picks, draft.status, pool])
 
   const currentTeam = useMemo(() => {
     if (!currentPick) return null
@@ -369,8 +373,10 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
 
   // ─── Completion Stats ──────────────────────────────────────────────────
 
-  const totalPicks = picks.length
+  const totalSlots = picks.length
   const madePicks = picks.filter((p) => p.playerId !== null).length
+  // Use pool size as denominator when pool is smaller than total slots (not enough players for all rounds)
+  const totalPicks = pool.length > 0 && pool.length < totalSlots ? pool.length : totalSlots
   const progress = totalPicks > 0 ? Math.round((madePicks / totalPicks) * 100) : 0
 
   // ─── Team Roster Sort (completed view) ──────────────────────────────────
@@ -595,7 +601,7 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
             <div className="flex items-center gap-2">
               <Image src="/logo.png" alt="BASH" width={28} height={28} className="shrink-0" />
               <span className="text-lg font-extrabold tracking-tight">BASH</span>
-              <span className="text-xs font-bold uppercase tracking-[0.12em] text-muted-foreground hidden sm:inline">Live Draft Board</span>
+              <span className="text-xs font-bold uppercase tracking-[0.12em] text-muted-foreground hidden sm:inline">Draft Board</span>
             </div>
             <div className="flex items-center gap-2">
               {isLive && (
@@ -629,7 +635,7 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
           </div>
           {/* Orange accent separator */}
           <div className="w-full h-1 bg-primary rounded-full" />
-          <h1 className="text-xl font-bold tracking-tight">{season.name} Draft</h1>
+          <h1 className="text-xl font-bold tracking-tight">{season.name} Draft{isCompleted ? " Results" : ""}</h1>
         </div>
 
         {/* Main content + Desktop sidebar grid */}

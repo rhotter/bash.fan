@@ -16,6 +16,23 @@ interface PoolPlayer {
   registrationMeta: Record<string, unknown> | null
 }
 
+type StatBlock = {
+  type: "skater"
+  gp: number
+  goals: number
+  assists: number
+  points: number
+  pim: number
+} | {
+  type: "goalie"
+  gp: number
+  goalsAgainst: number
+  shotsAgainst: number
+  saves: number
+  shutouts: number
+  savePct: string
+} | null
+
 interface SeasonStats {
   seasonId: string
   seasonName: string
@@ -23,23 +40,8 @@ interface SeasonStats {
   teamSlug: string
   isGoalie: boolean
   isCaptain: boolean
-  stats: {
-    type: "skater"
-    gp: number
-    goals: number
-    assists: number
-    points: number
-    gwg: number
-    pim: number
-  } | {
-    type: "goalie"
-    gp: number
-    goalsAgainst: number
-    shotsAgainst: number
-    saves: number
-    shutouts: number
-    savePct: string
-  } | null
+  stats: StatBlock
+  playoffStats: StatBlock
 }
 
 interface PlayerCardModalProps {
@@ -70,11 +72,49 @@ function MetaRow({ label, value, icon }: { label: string; value: string | number
   )
 }
 
-function StatCell({ label, value, highlight }: { label: string; value: string | number; highlight?: boolean }) {
+function StatCell({ label, value, highlight, compact }: { label: string; value: string | number; highlight?: boolean; compact?: boolean }) {
   return (
     <div className="text-center">
-      <div className={`text-lg font-bold tabular-nums ${highlight ? "text-primary" : ""}`}>{value}</div>
-      <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{label}</div>
+      <div className={`${compact ? "text-sm" : "text-lg"} font-bold tabular-nums ${highlight ? "text-primary" : ""}`}>{value}</div>
+      <div className={`${compact ? "text-[8px]" : "text-[10px]"} font-semibold uppercase tracking-wider text-muted-foreground`}>{label}</div>
+    </div>
+  )
+}
+
+function StatBlockView({ block, label }: { block: NonNullable<StatBlock>; label: string }) {
+  const compact = true
+  if (block.type === "skater") {
+    const ppg = block.gp > 0 ? (block.points / block.gp).toFixed(2) : "0.00"
+    return (
+      <div className="flex-1 min-w-0">
+        <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5 text-center">{label}</div>
+        <div className="grid grid-cols-5 sm:grid-cols-6 gap-0.5">
+          <StatCell label="GP" value={block.gp} compact={compact} />
+          <StatCell label="G" value={block.goals} highlight compact={compact} />
+          <StatCell label="A" value={block.assists} highlight compact={compact} />
+          <StatCell label="P" value={block.points} highlight compact={compact} />
+          <StatCell label="PPG" value={ppg} compact={compact} />
+          <div className="hidden sm:block">
+            <StatCell label="PIM" value={block.pim} compact={compact} />
+          </div>
+        </div>
+      </div>
+    )
+  }
+  // goalie
+  const gaa = block.gp > 0 ? (block.goalsAgainst / block.gp).toFixed(2) : "0.00"
+  return (
+    <div className="flex-1 min-w-0">
+      <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5 text-center">{label}</div>
+      <div className="grid grid-cols-4 sm:grid-cols-5 gap-0.5">
+        <StatCell label="GP" value={block.gp} compact={compact} />
+        <div className="hidden sm:block">
+          <StatCell label="GA" value={block.goalsAgainst} compact={compact} />
+        </div>
+        <StatCell label="GAA" value={gaa} highlight compact={compact} />
+        <StatCell label="SV%" value={block.savePct} highlight compact={compact} />
+        <StatCell label="SO" value={block.shutouts} compact={compact} />
+      </div>
     </div>
   )
 }
@@ -336,26 +376,20 @@ export function PlayerCardModal({
 
                       <Separator />
 
-                      {/* Stats grid */}
-                      {season.stats ? (
+                      {/* Stats grid — regular season + playoff side by side */}
+                      {season.stats || season.playoffStats ? (
                         <div className="px-4 py-3">
-                          {season.stats.type === "skater" ? (
-                            <div className="grid grid-cols-5 gap-2">
-                              <StatCell label="GP" value={season.stats.gp} />
-                              <StatCell label="G" value={season.stats.goals} highlight />
-                              <StatCell label="A" value={season.stats.assists} highlight />
-                              <StatCell label="P" value={season.stats.points} highlight />
-                              <StatCell label="PIM" value={season.stats.pim} />
-                            </div>
-                          ) : (
-                            <div className="grid grid-cols-5 gap-2">
-                              <StatCell label="GP" value={season.stats.gp} />
-                              <StatCell label="GA" value={season.stats.goalsAgainst} />
-                              <StatCell label="SV" value={season.stats.saves} highlight />
-                              <StatCell label="SV%" value={season.stats.savePct} highlight />
-                              <StatCell label="SO" value={season.stats.shutouts} />
-                            </div>
-                          )}
+                          <div className="flex gap-3">
+                            {season.stats && (
+                              <StatBlockView block={season.stats} label={season.playoffStats ? "Regular Season" : "Regular Season"} />
+                            )}
+                            {season.stats && season.playoffStats && (
+                              <div className="w-px bg-border shrink-0" />
+                            )}
+                            {season.playoffStats && (
+                              <StatBlockView block={season.playoffStats} label="Playoffs" />
+                            )}
+                          </div>
                         </div>
                       ) : (
                         <div className="px-4 py-3 text-center text-xs text-muted-foreground">

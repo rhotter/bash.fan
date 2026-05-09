@@ -22,6 +22,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
         teamSlug: schema.seasonTeams.teamSlug,
         teamName: schema.teams.name,
         franchiseSlug: schema.seasonTeams.franchiseSlug,
+        color: schema.seasonTeams.color,
       })
       .from(schema.seasonTeams)
       .innerJoin(schema.teams, eq(schema.seasonTeams.teamSlug, schema.teams.slug))
@@ -161,11 +162,18 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     // Apply each assignment (no transaction support with neon-http, but each
     // update is idempotent so partial failure is recoverable)
     let updated = 0
-    for (const { teamSlug, franchiseSlug } of assignments) {
+    for (const { teamSlug, franchiseSlug, color } of assignments) {
       if (!teamSlug) continue
+      const setValues: Record<string, string | null> = {
+        franchiseSlug: franchiseSlug || null,
+      }
+      // Only include color in update if it was explicitly provided
+      if (color !== undefined) {
+        setValues.color = color || null
+      }
       await db
         .update(schema.seasonTeams)
-        .set({ franchiseSlug: franchiseSlug || null })
+        .set(setValues)
         .where(
           and(
             eq(schema.seasonTeams.seasonId, seasonId),

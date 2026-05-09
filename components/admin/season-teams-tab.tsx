@@ -10,13 +10,15 @@ import { TeamLogo } from "@/components/team-logo"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { HexColorPicker } from "react-colorful"
 
 
 interface SeasonTeamsTabProps {
   seasonId: string
   seasonStatus: string
-  initialTeams: { teamSlug: string; teamName: string; franchiseSlug: string | null }[]
-  onTeamsChange?: (teams: { teamSlug: string; teamName: string; franchiseSlug: string | null }[]) => void
+  initialTeams: { teamSlug: string; teamName: string; franchiseSlug: string | null; color: string | null }[]
+  onTeamsChange?: (teams: { teamSlug: string; teamName: string; franchiseSlug: string | null; color: string | null }[]) => void
 }
 
 interface Team {
@@ -41,8 +43,8 @@ export function SeasonTeamsTab({ seasonId, seasonStatus, initialTeams, onTeamsCh
   const [isProcessing, setIsProcessing] = useState<string | null>(null)
   const [isSavingFranchises, setIsSavingFranchises] = useState(false)
 
-  // Local franchise assignment state (optimistic UI — only saved on "Save")
   const [localAssignments, setLocalAssignments] = useState<Record<string, string | null>>({})
+  const [localColors, setLocalColors] = useState<Record<string, string | null>>({})
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
 
   const [createModalOpen, setCreateModalOpen] = useState(false)
@@ -52,13 +54,15 @@ export function SeasonTeamsTab({ seasonId, seasonStatus, initialTeams, onTeamsCh
 
   const isEditable = seasonStatus === "draft"
 
-  // Initialize local assignments from server data
   useEffect(() => {
     const assignments: Record<string, string | null> = {}
+    const colors: Record<string, string | null> = {}
     for (const team of initialTeams) {
       assignments[team.teamSlug] = team.franchiseSlug
+      colors[team.teamSlug] = team.color
     }
     setLocalAssignments(assignments)
+    setLocalColors(colors)
     setHasUnsavedChanges(false)
   }, [initialTeams])
 
@@ -97,9 +101,10 @@ export function SeasonTeamsTab({ seasonId, seasonStatus, initialTeams, onTeamsCh
         body: JSON.stringify({ teamSlug: team.slug }),
       })
       if (res.ok) {
-        const updated = [...assignedTeams, { teamSlug: team.slug, teamName: team.name, franchiseSlug: null }].sort((a, b) => a.teamName.localeCompare(b.teamName))
+        const updated = [...assignedTeams, { teamSlug: team.slug, teamName: team.name, franchiseSlug: null, color: null }].sort((a, b) => a.teamName.localeCompare(b.teamName))
         setAssignedTeams(updated)
         setLocalAssignments(prev => ({ ...prev, [team.slug]: null }))
+        setLocalColors(prev => ({ ...prev, [team.slug]: null }))
         onTeamsChange?.(updated)
         toast.success(`Added ${team.name}`)
       } else {
@@ -130,6 +135,11 @@ export function SeasonTeamsTab({ seasonId, seasonStatus, initialTeams, onTeamsCh
           delete next[slug]
           return next
         })
+        setLocalColors(prev => {
+          const next = { ...prev }
+          delete next[slug]
+          return next
+        })
         onTeamsChange?.(updated)
         toast.success(`Removed ${name}`)
       } else {
@@ -145,6 +155,21 @@ export function SeasonTeamsTab({ seasonId, seasonStatus, initialTeams, onTeamsCh
 
   const setFranchiseForTeam = useCallback((teamSlug: string, franchiseSlug: string | null) => {
     setLocalAssignments(prev => ({ ...prev, [teamSlug]: franchiseSlug }))
+    // When assigning a franchise, auto-populate color from franchise if team has no color
+    if (franchiseSlug) {
+      const franchise = franchises.find(f => f.slug === franchiseSlug)
+      if (franchise?.color) {
+        setLocalColors(prev => {
+          if (!prev[teamSlug]) return { ...prev, [teamSlug]: franchise.color }
+          return prev
+        })
+      }
+    }
+    setHasUnsavedChanges(true)
+  }, [franchises])
+
+  const setColorForTeam = useCallback((teamSlug: string, color: string | null) => {
+    setLocalColors(prev => ({ ...prev, [teamSlug]: color }))
     setHasUnsavedChanges(true)
   }, [])
 
@@ -154,6 +179,7 @@ export function SeasonTeamsTab({ seasonId, seasonStatus, initialTeams, onTeamsCh
       const assignments = Object.entries(localAssignments).map(([teamSlug, franchiseSlug]) => ({
         teamSlug,
         franchiseSlug,
+        color: localColors[teamSlug] ?? null,
       }))
 
       const res = await fetch(`/api/bash/admin/seasons/${seasonId}/teams`, {
@@ -168,6 +194,7 @@ export function SeasonTeamsTab({ seasonId, seasonStatus, initialTeams, onTeamsCh
         const updated = assignedTeams.map(t => ({
           ...t,
           franchiseSlug: localAssignments[t.teamSlug] ?? null,
+          color: localColors[t.teamSlug] ?? null,
         }))
         setAssignedTeams(updated)
         onTeamsChange?.(updated)
@@ -231,6 +258,17 @@ export function SeasonTeamsTab({ seasonId, seasonStatus, initialTeams, onTeamsCh
   // Count assigned vs unassigned franchises
   const assignedFranchiseCount = Object.values(localAssignments).filter(Boolean).length
 
+  // Resolve display color: explicit team color → franchise color → default gray
+  const resolveColor = (teamSlug: string): string => {
+    if (localColors[teamSlug]) return localColors[teamSlug]!
+    const fSlug = localAssignments[teamSlug]
+    if (fSlug) {
+      const franchise = franchises.find(f => f.slug === fSlug)
+      if (franchise?.color) return franchise.color
+    }
+    return '#94a3b8'
+  }
+
   return (
     <>
       <div className="space-y-4">
@@ -254,7 +292,7 @@ export function SeasonTeamsTab({ seasonId, seasonStatus, initialTeams, onTeamsCh
                     disabled={isSavingFranchises}
                   >
                     {isSavingFranchises ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : null}
-                    Save Franchise Changes
+                    Save Team Changes
                   </Button>
                 )}
               </div>
@@ -266,7 +304,7 @@ export function SeasonTeamsTab({ seasonId, seasonStatus, initialTeams, onTeamsCh
               {!isEditable && (
                 <div className="flex items-center gap-2 p-3 mb-4 bg-amber-50 text-amber-800 text-sm rounded-md border border-amber-200">
                   <ShieldAlert className="h-4 w-4 shrink-0" />
-                  Teams are locked because this season has left draft state.
+                  Teams are locked because this season has left draft state. Colors and franchises can still be updated.
                 </div>
               )}
               
@@ -280,6 +318,40 @@ export function SeasonTeamsTab({ seasonId, seasonStatus, initialTeams, onTeamsCh
                     return (
                       <div key={team.teamSlug} className="flex items-center justify-between p-2 border rounded-md group hover:border-primary/50 transition-colors">
                         <div className="flex items-center gap-3 min-w-0">
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <button
+                                className="w-6 h-6 rounded-full border-2 border-muted hover:border-primary/50 transition-colors cursor-pointer shrink-0 focus:outline-none focus:ring-2 focus:ring-primary/50"
+                                style={{ backgroundColor: resolveColor(team.teamSlug) }}
+                                title="Set team color for season"
+                              />
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-3" align="start">
+                              <div className="space-y-3">
+                                <p className="text-xs font-medium text-muted-foreground">Team Color</p>
+                                <HexColorPicker
+                                  color={resolveColor(team.teamSlug)}
+                                  onChange={(c) => setColorForTeam(team.teamSlug, c)}
+                                />
+                                <div className="flex items-center gap-2">
+                                  <Input
+                                    value={localColors[team.teamSlug] || ''}
+                                    onChange={(e) => setColorForTeam(team.teamSlug, e.target.value)}
+                                    placeholder="#hexcolor"
+                                    className="h-7 text-xs font-mono"
+                                  />
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-7 text-xs"
+                                    onClick={() => setColorForTeam(team.teamSlug, null)}
+                                  >
+                                    Clear
+                                  </Button>
+                                </div>
+                              </div>
+                            </PopoverContent>
+                          </Popover>
                           <TeamLogo slug={team.teamSlug} name={team.teamName} size={24} className="opacity-90 shrink-0" />
                           <span className="font-medium text-sm truncate">{team.teamName}</span>
                         </div>

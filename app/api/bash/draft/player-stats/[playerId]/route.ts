@@ -50,32 +50,49 @@ export async function GET(
       })
     }
 
-    // For each season, aggregate their stats
+    // For each season, aggregate their stats split by regular season vs playoff
     const seasonsWithStats = await Promise.all(
       seasonEntries.map(async (entry) => {
-        // Get game IDs in this season
+        // Get game IDs in this season, split by regular/playoff
         const seasonGames = await db
-          .select({ gameId: schema.games.id })
+          .select({ gameId: schema.games.id, isPlayoff: schema.games.isPlayoff })
           .from(schema.games)
           .where(eq(schema.games.seasonId, entry.seasonId))
 
-        const gameIds = seasonGames.map((g) => g.gameId)
+        const regGameIds = seasonGames.filter((g) => !g.isPlayoff).map((g) => g.gameId)
+        const playoffGameIds = seasonGames.filter((g) => g.isPlayoff).map((g) => g.gameId)
 
-        if (gameIds.length === 0) {
+        const aggregateSkater = async (gameIds: string[]) => {
+          if (gameIds.length === 0) return null
+          const [ss] = await db
+            .select({
+              gp: sql<number>`count(*)`,
+              goals: sql<number>`sum(${schema.playerGameStats.goals})`,
+              assists: sql<number>`sum(${schema.playerGameStats.assists})`,
+              points: sql<number>`sum(${schema.playerGameStats.points})`,
+              pim: sql<number>`sum(${schema.playerGameStats.pim})`,
+            })
+            .from(schema.playerGameStats)
+            .where(
+              and(
+                eq(schema.playerGameStats.playerId, playerId),
+                inArray(schema.playerGameStats.gameId, gameIds)
+              )
+            )
+          if (!ss?.gp) return null
           return {
-            seasonId: entry.seasonId,
-            seasonName: entry.seasonName,
-            teamName: entry.teamName,
-            teamSlug: entry.teamSlug,
-            isGoalie: entry.isGoalie,
-            isCaptain: entry.isCaptain,
-            stats: null,
+            type: "skater" as const,
+            gp: ss.gp,
+            goals: ss.goals ?? 0,
+            assists: ss.assists ?? 0,
+            points: ss.points ?? 0,
+            pim: ss.pim ?? 0,
           }
         }
 
-        if (entry.isGoalie) {
-          // Aggregate goalie stats
-          const goalieStats = await db
+        const aggregateGoalie = async (gameIds: string[]) => {
+          if (gameIds.length === 0) return null
+          const [gs] = await db
             .select({
               gp: sql<number>`count(*)`,
               goalsAgainst: sql<number>`sum(${schema.goalieGameStats.goalsAgainst})`,
@@ -90,74 +107,36 @@ export async function GET(
                 inArray(schema.goalieGameStats.gameId, gameIds)
               )
             )
-
-          const gs = goalieStats[0]
+          if (!gs?.gp) return null
           return {
-            seasonId: entry.seasonId,
-            seasonName: entry.seasonName,
-            teamName: entry.teamName,
-            teamSlug: entry.teamSlug,
-            isGoalie: true,
-            isCaptain: entry.isCaptain,
-            stats: gs?.gp
-              ? {
-                  type: "goalie" as const,
-                  gp: gs.gp,
-                  goalsAgainst: gs.goalsAgainst ?? 0,
-                  shotsAgainst: gs.shotsAgainst ?? 0,
-                  saves: gs.saves ?? 0,
-                  shutouts: gs.shutouts ?? 0,
-                  savePct: gs.shotsAgainst ? ((gs.saves ?? 0) / gs.shotsAgainst * 100).toFixed(1) : "0.0",
-                }
-              : null,
+            type: "goalie" as const,
+            gp: gs.gp,
+            goalsAgainst: gs.goalsAgainst ?? 0,
+            shotsAgainst: gs.shotsAgainst ?? 0,
+            saves: gs.saves ?? 0,
+            shutouts: gs.shutouts ?? 0,
+            savePct: gs.shotsAgainst ? ((gs.saves ?? 0) / gs.shotsAgainst * 100).toFixed(1) : "0.0",
           }
-        } else {
-          // Aggregate skater stats
-          const skaterStats = await db
-            .select({
-              gp: sql<number>`count(*)`,
-              goals: sql<number>`sum(${schema.playerGameStats.goals})`,
-              assists: sql<number>`sum(${schema.playerGameStats.assists})`,
-              points: sql<number>`sum(${schema.playerGameStats.points})`,
-              gwg: sql<number>`sum(${schema.playerGameStats.gwg})`,
-              pim: sql<number>`sum(${schema.playerGameStats.pim})`,
-            })
-            .from(schema.playerGameStats)
-            .where(
-              and(
-                eq(schema.playerGameStats.playerId, playerId),
-                inArray(schema.playerGameStats.gameId, gameIds)
-              )
-            )
+        }
 
-          const ss = skaterStats[0]
-          return {
-            seasonId: entry.seasonId,
-            seasonName: entry.seasonName,
-            teamName: entry.teamName,
-            teamSlug: entry.teamSlug,
-            isGoalie: false,
-            isCaptain: entry.isCaptain,
-            stats: ss?.gp
-              ? {
-                  type: "skater" as const,
-                  gp: ss.gp,
-                  goals: ss.goals ?? 0,
-                  assists: ss.assists ?? 0,
-                  points: ss.points ?? 0,
-                  gwg: ss.gwg ?? 0,
-                  pim: ss.pim ?? 0,
-                }
-              : null,
-          }
+        const aggregate = entry.isGoalie ? aggregateGoalie : aggregateSkater
+
+        return {
+          seasonId: entry.seasonId,
+          seasonName: entry.seasonName,
+          teamName: entry.teamName,
+          teamSlug: entry.teamSlug,
+          isGoalie: entry.isGoalie,
+          isCaptain: entry.isCaptain,
+          stats: await aggregate(regGameIds),
+          playoffStats: await aggregate(playoffGameIds),
         }
       })
     )
 
-    // Filter out seasons where the player had 0 game appearances
-    // (e.g. rostered for a future season that hasn't started yet)
+    // Filter out seasons where the player had 0 game appearances in both regular + playoff
     const filteredSeasons = seasonsWithStats.filter(
-      (s) => s.stats === null || Number(s.stats.gp) > 0
+      (s) => (s.stats !== null && Number(s.stats.gp) > 0) || (s.playoffStats !== null && Number(s.playoffStats.gp) > 0)
     )
 
     return NextResponse.json(

@@ -1,4 +1,13 @@
-// Maps team slug substrings to logo filenames in /public/team-logos/
+// Team logo mapping — developer-managed
+//
+// To add a logo:
+//  1. Drop the image file in /public/team-logos/
+//  2. Add the team slug → filename mapping below
+//
+// For season-specific overrides (e.g., a team gets a new logo for 2026-2027):
+//  Add an entry to seasonLogoOverrides with key "seasonId::teamSlug"
+
+// Default logos by team slug (substring match)
 const logoMapping: Record<string, string> = {
   bash: "bash_orange_transparent_1024.png",
   bashers: "bashers_transparent_1024.png",
@@ -14,9 +23,22 @@ const logoMapping: Record<string, string> = {
   licks: "last_licks_blue_1024.png",
 }
 
-export function getTeamLogoUrl(slug: string): string | null {
+// Season-specific logo overrides (takes priority over default)
+// Key format: "seasonId::teamSlug" → filename
+// Example: "2026-2027::rink-rats": "rinkrats_2026_v2.png"
+const seasonLogoOverrides: Record<string, string> = {
+  // Add season-specific logos here as teams update their branding
+}
+
+export function getTeamLogoUrl(slug: string, seasonId?: string): string | null {
+  // 1. Season-specific override (exact match)
+  if (seasonId) {
+    const override = seasonLogoOverrides[`${seasonId}::${slug}`]
+    if (override) return `/team-logos/${override}`
+  }
+
+  // 2. Default logo (substring match)
   const lower = slug.toLowerCase()
-  // Try exact match first, then substring
   for (const [key, filename] of Object.entries(logoMapping)) {
     if (lower.includes(key)) {
       return `/team-logos/${filename}`

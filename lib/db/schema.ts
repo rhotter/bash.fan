@@ -59,6 +59,7 @@ export const seasonTeams = pgTable(
       .references(() => teams.slug),
     franchiseSlug: text("franchise_slug")
       .references(() => franchises.slug),
+    color: text("color"),  // Per-season team color (overrides franchise color when set)
   },
   (t) => [primaryKey({ columns: [t.seasonId, t.teamSlug] })]
 )

@@ -95,10 +95,11 @@ export default async function PublicDraftPage({ params }: Props) {
     .where(eq(schema.draftTeamOrder.draftId, draft.id))
     .orderBy(schema.draftTeamOrder.position)
 
-  // Fetch franchise colors
+  // Fetch team colors — season_teams.color takes priority over franchise color
   const seasonTeams = await db
     .select({
       teamSlug: schema.seasonTeams.teamSlug,
+      color: schema.seasonTeams.color,
       franchiseSlug: schema.seasonTeams.franchiseSlug,
     })
     .from(schema.seasonTeams)
@@ -114,14 +115,18 @@ export default async function PublicDraftPage({ params }: Props) {
         where: inArray(schema.franchises.slug, franchiseSlugs),
       })
     : []
-  const colorMap: Record<string, string> = {}
+  const franchiseColorMap: Record<string, string> = {}
   for (const f of franchises) {
-    if (f.color) colorMap[f.slug] = f.color
+    if (f.color) franchiseColorMap[f.slug] = f.color
   }
   const teamColors: Record<string, string> = {}
   for (const st of seasonTeams) {
-    if (st.franchiseSlug && colorMap[st.franchiseSlug]) {
-      teamColors[st.teamSlug] = colorMap[st.franchiseSlug]
+    if (st.color) {
+      // Direct team color takes priority
+      teamColors[st.teamSlug] = st.color
+    } else if (st.franchiseSlug && franchiseColorMap[st.franchiseSlug]) {
+      // Fall back to franchise color
+      teamColors[st.teamSlug] = franchiseColorMap[st.franchiseSlug]
     }
   }
 

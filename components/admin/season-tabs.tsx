@@ -34,7 +34,7 @@ interface SeasonTabsProps {
     statsOnly: boolean
     playoffTeams: number | null
     isCurrent: boolean
-    teams: { teamSlug: string; teamName: string; franchiseSlug: string | null }[]
+    teams: { teamSlug: string; teamName: string; franchiseSlug: string | null; color: string | null }[]
     roster: { playerId: number; playerName: string; teamSlug: string; isGoalie: boolean; isRookie: boolean }[]
   }
 }
@@ -51,7 +51,7 @@ export function SeasonTabs({ season }: SeasonTabsProps) {
     setRoster(updatedRoster)
   }, [])
 
-  const handleTeamsChange = useCallback((updatedTeams: { teamSlug: string; teamName: string; franchiseSlug: string | null }[]) => {
+  const handleTeamsChange = useCallback((updatedTeams: { teamSlug: string; teamName: string; franchiseSlug: string | null; color: string | null }[]) => {
     setTeams(updatedTeams)
   }, [])
 

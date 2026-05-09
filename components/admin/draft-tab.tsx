@@ -6,7 +6,7 @@ import {
   Loader2, Plus, Users, ListOrdered, Trash2, Send, Clock,
   MapPin, CalendarDays, Layers, ShieldCheck, MoreVertical,
   ExternalLink, ArchiveRestore, Play, Monitor, Settings,
-  EyeOff, Eye, ArrowRightLeft, Check, AlertCircle,
+  EyeOff, Eye, ArrowRightLeft, Check, AlertCircle, RotateCcw,
 } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
@@ -105,6 +105,63 @@ export function DraftTab({ seasonId, seasonStatus, seasonType, teams, rosterCoun
   const [addingTrade, setAddingTrade] = useState<string | null>(null)
   const [newTrade, setNewTrade] = useState({ teamASlug: "", teamARound: "1", teamBSlug: "", teamBRound: "1" })
   const [isSavingTrade, setIsSavingTrade] = useState(false)
+  const [pushTarget, setPushTarget] = useState<DraftInstance | null>(null)
+  const [isPushingRosters, setIsPushingRosters] = useState(false)
+  const [revertTarget, setRevertTarget] = useState<DraftInstance | null>(null)
+  const [isReverting, setIsReverting] = useState(false)
+
+  const pushingDraftId = isPushingRosters ? pushTarget?.id : null
+  const revertingDraftId = isReverting ? revertTarget?.id : null
+
+  const handlePushRosters = (draft: DraftInstance) => setPushTarget(draft)
+
+  const confirmPushRosters = async () => {
+    if (!pushTarget) return
+    setIsPushingRosters(true)
+    try {
+      const res = await fetch(`/api/bash/admin/seasons/${seasonId}/draft/${pushTarget.id}/push-rosters`, {
+        method: "POST",
+      })
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.error || "Failed to push rosters")
+      }
+      const result = await res.json()
+      toast.success(
+        `Rosters pushed: ${result.summary.inserted} added, ${result.summary.updated} updated, ${result.summary.skipped} skipped`
+      )
+      setPushTarget(null)
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "An error occurred"
+      toast.error(msg)
+    } finally {
+      setIsPushingRosters(false)
+    }
+  }
+
+  const handleRevertToLive = (draft: DraftInstance) => setRevertTarget(draft)
+
+  const confirmRevertToLive = async () => {
+    if (!revertTarget) return
+    setIsReverting(true)
+    try {
+      const res = await fetch(`/api/bash/admin/seasons/${seasonId}/draft/${revertTarget.id}/revert-to-live`, {
+        method: "POST",
+      })
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.error || "Failed to revert")
+      }
+      toast.success("Draft reverted to live")
+      setRevertTarget(null)
+      fetchDrafts()
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "An error occurred"
+      toast.error(msg)
+    } finally {
+      setIsReverting(false)
+    }
+  }
 
   const fetchDrafts = useCallback(async () => {
     try {
@@ -379,28 +436,38 @@ export function DraftTab({ seasonId, seasonStatus, seasonType, teams, rosterCoun
                       Awaiting Teams &amp; Roster
                     </Button>
                   )}
-                  {(draft.status === "live" || draft.status === "completed" || draft.status === "archived") && (
+                  {(draft.status === "live") && (
                     <Button
                       size="sm"
-                      variant={draft.status === "completed" || draft.status === "archived" ? "outline" : "default"}
                       onClick={() => router.push(`/admin/seasons/${seasonId}/draft/${draft.id}/board`)}
                     >
-                      {draft.status === "live" ? (
-                        <Play className="h-3.5 w-3.5 mr-1.5" />
-                      ) : (
-                        <Monitor className="h-3.5 w-3.5 mr-1.5" />
-                      )}
-                      {draft.status === "live" ? "Resume Live Draft" : "View Results"}
+                      <Play className="h-3.5 w-3.5 mr-1.5" />
+                      Resume Live Draft
                     </Button>
                   )}
                   {(draft.status === "completed" || draft.status === "archived") && (
                     <Button
                       size="sm"
-                      variant={draft.status === "archived" ? "outline" : "default"}
                       onClick={() => window.open(`/draft/${seasonId}`, "_blank")}
                     >
                       <ExternalLink className="h-3.5 w-3.5 mr-1.5" />
                       View Draft Results
+                    </Button>
+                  )}
+                  {draft.status === "completed" && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handlePushRosters(draft)}
+                      disabled={pushingDraftId === draft.id}
+                      title="Confirm this draft (roster & team assignment) for the season."
+                    >
+                      {pushingDraftId === draft.id ? (
+                        <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                      ) : (
+                        <Send className="h-3.5 w-3.5 mr-1.5" />
+                      )}
+                      Push Rosters
                     </Button>
                   )}
                   {(draft.status === "published" || draft.status === "live") && (
@@ -434,6 +501,23 @@ export function DraftTab({ seasonId, seasonStatus, seasonType, teams, rosterCoun
                         >
                           <Settings className="h-4 w-4 mr-2" />
                           Edit Settings
+                        </DropdownMenuItem>
+                      )}
+                      {(draft.status === "completed" || draft.status === "archived") && (
+                        <DropdownMenuItem
+                          onClick={() => router.push(`/admin/seasons/${seasonId}/draft/${draft.id}/board`)}
+                        >
+                          <Monitor className="h-4 w-4 mr-2" />
+                          View Draft Log
+                        </DropdownMenuItem>
+                      )}
+                      {draft.status === "completed" && (
+                        <DropdownMenuItem
+                          onClick={() => handleRevertToLive(draft)}
+                          disabled={revertingDraftId === draft.id}
+                        >
+                          <RotateCcw className="h-4 w-4 mr-2" />
+                          Revert to Live
                         </DropdownMenuItem>
                       )}
                       {draft.status === "completed" && (
@@ -852,6 +936,44 @@ export function DraftTab({ seasonId, seasonStatus, seasonType, teams, rosterCoun
             <AlertDialogAction onClick={handleUnpublish} disabled={isUnpublishing}>
               {isUnpublishing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Unpublish
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Push Rosters Confirm */}
+      <AlertDialog open={!!pushTarget} onOpenChange={(open) => !open && setPushTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Push Rosters to Season?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will update the season roster with the draft results from &ldquo;{pushTarget?.name}&rdquo;. Player assignments and team rosters will be saved to the season.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isPushingRosters}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmPushRosters} disabled={isPushingRosters}>
+              {isPushingRosters && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Push Rosters
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Revert to Live Confirm */}
+      <AlertDialog open={!!revertTarget} onOpenChange={(open) => !open && setRevertTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Revert to Live?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will re-open &ldquo;{revertTarget?.name}&rdquo; as a live draft, allowing further picks or edits on the admin draft board.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isReverting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmRevertToLive} disabled={isReverting}>
+              {isReverting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Revert to Live
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

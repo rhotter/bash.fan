@@ -133,11 +133,14 @@ export default async function DraftBoardPage({ params }: BoardPageProps) {
     .where(eq(schema.draftTeamOrder.draftId, draftId))
     .orderBy(schema.draftTeamOrder.position)
 
-  // Fetch franchise colors for each team
+  // Fetch team colors — prioritize season_teams.color, fall back to franchise color
   const teamColors: Record<string, string | null> = {}
   for (const team of teamOrder) {
     const [st] = await db
-      .select({ franchiseSlug: schema.seasonTeams.franchiseSlug })
+      .select({
+        color: schema.seasonTeams.color,
+        franchiseSlug: schema.seasonTeams.franchiseSlug,
+      })
       .from(schema.seasonTeams)
       .where(
         and(
@@ -147,7 +150,11 @@ export default async function DraftBoardPage({ params }: BoardPageProps) {
       )
       .limit(1)
 
-    if (st?.franchiseSlug) {
+    if (st?.color) {
+      // Direct team color takes priority
+      teamColors[team.teamSlug] = st.color
+    } else if (st?.franchiseSlug) {
+      // Fall back to franchise color
       const [franchise] = await db
         .select({ color: schema.franchises.color })
         .from(schema.franchises)

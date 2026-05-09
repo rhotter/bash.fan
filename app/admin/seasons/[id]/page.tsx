@@ -22,6 +22,7 @@ async function getSeason(id: string) {
       teamSlug: schema.seasonTeams.teamSlug,
       teamName: schema.teams.name,
       franchiseSlug: schema.seasonTeams.franchiseSlug,
+      color: schema.seasonTeams.color,
     })
     .from(schema.seasonTeams)
     .innerJoin(schema.teams, eq(schema.seasonTeams.teamSlug, schema.teams.slug))

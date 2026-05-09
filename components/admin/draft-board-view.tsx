@@ -12,7 +12,9 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { RotateCcw, Play, Pause, Loader2, Crown, Search, X, Check, Download, Upload, MoreVertical, LogOut, ExternalLink } from "lucide-react"
+import { RotateCcw, Play, Pause, Loader2, Crown, Search, X, Check, Download, Upload, MoreVertical, LogOut, ExternalLink, Timer, Info } from "lucide-react"
+import { Label } from "@/components/ui/label"
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip"
 import { PlayerCardModal } from "@/components/player-card-modal"
 import { resolvePreDraftTrades, type PreDraftTradeInput } from "@/lib/draft-trade-resolver"
 import { generatePickSlots } from "@/lib/draft-helpers"
@@ -140,6 +142,12 @@ export function DraftBoardView({
   const [showClearKeepersConfirm, setShowClearKeepersConfirm] = useState(false)
   const [isClearingKeepers, setIsClearingKeepers] = useState(false)
   const [isUndoing, setIsUndoing] = useState(false)
+  const [showDurationDialog, setShowDurationDialog] = useState(false)
+  const [newDuration, setNewDuration] = useState(String(initialDraft.timerSeconds))
+  const [isSavingDuration, setIsSavingDuration] = useState(false)
+
+  // System log entries for admin actions (duration changes, etc.)
+  const [systemLog, setSystemLog] = useState<{ time: string; text: string }[]>([])
 
   // Timer state — initialize with static value to avoid hydration mismatch.
   // The useEffect below will immediately compute the correct elapsed time on mount.
@@ -185,6 +193,39 @@ export function DraftBoardView({
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "An error occurred"
       toast.error(msg)
+    }
+  }
+
+  const handleSetDuration = async () => {
+    const duration = Number(newDuration)
+    if (!duration || duration < 10 || duration > 600) {
+      toast.error("Duration must be between 10 and 600 seconds")
+      return
+    }
+    setIsSavingDuration(true)
+    try {
+      const res = await fetch(`/api/bash/admin/seasons/${seasonId}/draft/${draft.id}/timer`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "setDuration", duration }),
+      })
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.error || "Failed to update duration")
+      }
+      const result = await res.json()
+      setDraft(result.draft)
+      setShowDurationDialog(false)
+      setSystemLog(prev => [...prev, {
+        time: new Date().toISOString(),
+        text: `Pick timer changed to ${duration}s (was ${draft.timerSeconds}s)`,
+      }])
+      toast.success(`Pick timer updated to ${duration}s`)
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "An error occurred"
+      toast.error(msg)
+    } finally {
+      setIsSavingDuration(false)
     }
   }
 
@@ -688,6 +729,36 @@ export function DraftBoardView({
 
   // ─── Start draft ────────────────────────────────────────────────────────
 
+  // Trade warnings: flag trades involving picks that exceed the player pool
+  const tradeWarnings = useMemo(() => {
+    if (pool.length === 0 || teams.length === 0) return []
+    const totalPlayers = pool.length
+    const numTeams = teams.length
+    // The last round that will actually have all picks filled
+    const lastFullRound = Math.floor(totalPlayers / numTeams)
+    const remainderPicks = totalPlayers % numTeams
+
+    const warnings: string[] = []
+    const preDraftTrades = trades.filter((t) => t.tradeType === "pre_draft_pick_swap")
+
+    for (const trade of preDraftTrades) {
+      for (const item of trade.items) {
+        if (!item.round) continue
+        if (item.round > lastFullRound) {
+          // This pick is in a partial round — check if the team would actually get a pick
+          if (item.round > lastFullRound + 1 || remainderPicks === 0) {
+            // Round doesn't exist at all
+            warnings.push(
+              `Trade between ${trade.teamASlug} and ${trade.teamBSlug}: Round ${item.round} pick from ${item.fromTeamSlug} will never be used (only ${totalPlayers} players for ${numTeams} teams = ${lastFullRound} full rounds${remainderPicks > 0 ? ` + ${remainderPicks} picks in round ${lastFullRound + 1}` : ""}).`
+            )
+          }
+        }
+      }
+    }
+    // Deduplicate (both items in a trade might flag)
+    return [...new Set(warnings)]
+  }, [pool, teams, trades])
+
   const handleStartDraft = useCallback(async () => {
     setIsStarting(true)
     try {
@@ -862,6 +933,10 @@ export function DraftBoardView({
                       Push Rosters
                     </DropdownMenuItem>
                   )}
+                  <DropdownMenuItem onClick={() => { setNewDuration(String(draft.timerSeconds)); setShowDurationDialog(true) }}>
+                    <Timer className="h-4 w-4 mr-2" />
+                    Edit Pick Duration
+                  </DropdownMenuItem>
                   <DropdownMenuSeparator />
                 </>
               )}
@@ -1075,9 +1150,41 @@ export function DraftBoardView({
         </AlertDialogContent>
       </AlertDialog>
 
+      {/* Edit Pick Duration Dialog */}
+      <Dialog open={showDurationDialog} onOpenChange={setShowDurationDialog}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Edit Pick Duration</DialogTitle>
+            <DialogDescription>
+              Change the time allowed per pick. The current pick timer will reset to the new duration.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 py-2">
+            <Label htmlFor="pick-duration">Duration (seconds)</Label>
+            <Input
+              id="pick-duration"
+              type="number"
+              min={10}
+              max={600}
+              value={newDuration}
+              onChange={(e) => setNewDuration(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleSetDuration()}
+            />
+            <p className="text-xs text-muted-foreground">Min: 10s · Max: 600s (10 min)</p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowDurationDialog(false)}>Cancel</Button>
+            <Button onClick={handleSetDuration} disabled={isSavingDuration}>
+              {isSavingDuration && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Draft Complete Modal */}
       <Dialog open={draftCompleteModalOpen} onOpenChange={setDraftCompleteModalOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-center text-xl">🏒 Draft Complete!</DialogTitle>
             <DialogDescription className="text-center">
@@ -1103,18 +1210,21 @@ export function DraftBoardView({
               <span className="text-lg font-bold text-muted-foreground">3</span>
               <div>
                 <p className="font-medium text-sm">Publish Season</p>
-                <p className="text-xs text-muted-foreground">Complete your review of the season settings, schedule, and rosters. Once everything looks good, publish the season to update the public schedule and stats to point to the new season.</p>
+                <p className="text-xs text-muted-foreground">Complete your review of the season settings, schedule, and rosters. Once everything looks good, publish the season. This will update the public facing pages to reflect a new &quot;current season&quot;.</p>
               </div>
             </div>
           </div>
           <DialogFooter className="flex-col sm:flex-row gap-2">
-            <Button variant="outline" onClick={() => { handleExportCsv(); setDraftCompleteModalOpen(false) }}>
-              <Download className="h-4 w-4 mr-2" />
+            <Button variant="ghost" size="sm" className="text-xs text-muted-foreground" onClick={() => { handleExportCsv(); setDraftCompleteModalOpen(false) }}>
+              <Download className="h-3.5 w-3.5 mr-1.5" />
               Export CSV
             </Button>
-            <Button onClick={() => { setDraftCompleteModalOpen(false); window.open(`/draft/${seasonSlug}`, "_blank") }}>
+            <Button variant="outline" onClick={() => { setDraftCompleteModalOpen(false); window.open(`/draft/${seasonSlug}`, "_blank") }}>
               <ExternalLink className="h-4 w-4 mr-2" />
               View Draft Results
+            </Button>
+            <Button onClick={() => { setDraftCompleteModalOpen(false); router.push(`/admin/seasons/${seasonId}`) }}>
+              Season Settings
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1415,7 +1525,7 @@ export function DraftBoardView({
                   <CardContent>
                     {(() => {
                       // Build a unified log from picks and trades
-                      type LogEntry = { time: string | null; text: string; type: "pick" | "trade" | "keeper" }
+                      type LogEntry = { time: string | null; text: string; type: "pick" | "trade" | "keeper" | "system" }
                       const logEntries: LogEntry[] = []
 
                       // Add picks
@@ -1447,6 +1557,15 @@ export function DraftBoardView({
                         })
                       }
 
+                      // Add system events
+                      for (const s of systemLog) {
+                        logEntries.push({
+                          time: s.time,
+                          text: s.text,
+                          type: "system",
+                        })
+                      }
+
                       // Sort newest first
                       logEntries.sort((a, b) => {
                         if (!a.time && !b.time) return 0
@@ -1475,7 +1594,9 @@ export function DraftBoardView({
                                   ? "text-blue-600 dark:text-blue-400"
                                   : entry.type === "keeper"
                                     ? "text-amber-600 dark:text-amber-400"
-                                    : "text-foreground"
+                                    : entry.type === "system"
+                                      ? "text-green-600 dark:text-green-400 italic"
+                                      : "text-foreground"
                               }`}>
                                 {entry.text}
                               </span>
@@ -1538,6 +1659,16 @@ export function DraftBoardView({
                         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleTimerAction("reset")}>
                           <RotateCcw className="h-4 w-4" />
                         </Button>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <button type="button" className="h-8 w-8 inline-flex items-center justify-center rounded-md text-muted-foreground/50 hover:text-muted-foreground transition-colors">
+                              <Info className="h-3.5 w-3.5" />
+                            </button>
+                          </TooltipTrigger>
+                          <TooltipContent side="bottom" className="max-w-[220px] text-center">
+                            <p>The timer is a visual guideline to keep the draft moving. It does not auto-advance picks.</p>
+                          </TooltipContent>
+                        </Tooltip>
                       </div>
                     </div>
                   </div>
@@ -1635,116 +1766,197 @@ export function DraftBoardView({
           </div>
         </div>
       ) : (
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base">Draft Board</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto">
-              <table className="w-full border-collapse text-sm">
-                <thead>
-                  <tr>
-                    <th className="sticky left-0 z-10 bg-background border p-2 text-xs font-medium text-muted-foreground w-12">
-                      Rd
-                    </th>
-                    {teams.map((t) => (
-                      <th
-                        key={t.teamSlug}
-                        className="border p-2 text-xs font-semibold min-w-[120px]"
-                        style={{
-                          backgroundColor: t.color ? `${t.color}15` : undefined,
-                          borderBottomColor: t.color || undefined,
-                          borderBottomWidth: t.color ? "3px" : undefined,
-                        }}
-                      >
-                        {t.teamName}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {Array.from({ length: draft.rounds }, (_, i) => i + 1).map((round) => (
-                    <tr key={round}>
-                      <td className="sticky left-0 z-10 bg-background border p-2 text-center text-xs font-mono text-muted-foreground">
-                        {round}
-                      </td>
-                      {teams.map((t) => {
-                        const pick = boardGrid[round]?.[t.teamSlug]
-                        const isTradedAway = pick && pick.teamSlug !== t.teamSlug
-                        const newOwnerTeam = isTradedAway ? teams.find(tm => tm.teamSlug === pick.teamSlug) : null
-                        const playerInPool = pick?.playerId ? pool.find(p => p.playerId === pick.playerId) : null
-                        const isRookie = playerInPool?.registrationMeta?.isRookie === true
-                        const isGoalie = typeof playerInPool?.registrationMeta?.positions === "string" && playerInPool.registrationMeta.positions.includes("G")
-
-                        return (
-                          <td
+        <Tabs defaultValue="board" className="w-full">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="board">Big Board</TabsTrigger>
+            <TabsTrigger value="log">Draft Log</TabsTrigger>
+          </TabsList>
+          <TabsContent value="board" className="mt-4">
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base">Draft Board</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="overflow-x-auto">
+                  <table className="w-full border-collapse text-sm">
+                    <thead>
+                      <tr>
+                        <th className="sticky left-0 z-10 bg-background border p-2 text-xs font-medium text-muted-foreground w-12">
+                          Rd
+                        </th>
+                        {teams.map((t) => (
+                          <th
                             key={t.teamSlug}
-                            className={`border p-1.5 text-left text-xs ${
-                              pick?.playerId
-                                ? pick.isKeeper
-                                  ? "bg-amber-500/5"
-                                  : "bg-green-500/5"
-                                : isTradedAway
-                                  ? "bg-blue-500/5"
-                                  : "text-center"
-                            }`}
+                            className="border p-2 text-xs font-semibold min-w-[120px]"
                             style={{
-                              backgroundColor: pick?.playerId && t.color
-                                ? `${t.color}08`
-                                : undefined,
+                              backgroundColor: t.color ? `${t.color}15` : undefined,
+                              borderBottomColor: t.color || undefined,
+                              borderBottomWidth: t.color ? "3px" : undefined,
                             }}
                           >
-                            {pick?.playerId ? (
-                              <div className="flex flex-col items-start gap-0.5 pl-1">
-                                <button
-                                  className="font-medium truncate max-w-[120px] text-left hover:underline hover:text-primary transition-colors"
-                                  title={pick.playerName || ""}
-                                  onClick={(e) => { e.stopPropagation(); if (pick.playerId) openPlayerCard(pick.playerId) }}
-                                >
-                                  {formatPlayerName(pick.playerName)}
-                                </button>
-                                <div className="flex gap-0.5">
-                                  {pick.isKeeper && (
-                                    <Badge variant="outline" className="text-[8px] px-1 py-0 border-amber-500/50 text-amber-600">
-                                      K
-                                    </Badge>
-                                  )}
-                                  {isTradedAway && newOwnerTeam && (
+                            {t.teamName}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {Array.from({ length: draft.rounds }, (_, i) => i + 1).map((round) => (
+                        <tr key={round}>
+                          <td className="sticky left-0 z-10 bg-background border p-2 text-center text-xs font-mono text-muted-foreground">
+                            {round}
+                          </td>
+                          {teams.map((t) => {
+                            const pick = boardGrid[round]?.[t.teamSlug]
+                            const isTradedAway = pick && pick.teamSlug !== t.teamSlug
+                            const newOwnerTeam = isTradedAway ? teams.find(tm => tm.teamSlug === pick.teamSlug) : null
+                            const playerInPool = pick?.playerId ? pool.find(p => p.playerId === pick.playerId) : null
+                            const isRookie = playerInPool?.registrationMeta?.isRookie === true
+                            const isGoalie = typeof playerInPool?.registrationMeta?.positions === "string" && playerInPool.registrationMeta.positions.includes("G")
+
+                            return (
+                              <td
+                                key={t.teamSlug}
+                                className={`border p-2 text-xs transition-colors ${
+                                  isTradedAway
+                                    ? "bg-blue-50/50 dark:bg-blue-950/20"
+                                    : pick?.playerId
+                                      ? "bg-background"
+                                      : "bg-muted/20"
+                                }`}
+                              >
+                                {pick?.playerId && pick.playerName ? (
+                                  <div className="flex flex-col gap-0.5">
+                                    <button
+                                      onClick={() => openPlayerCard(pick.playerId!)}
+                                      className="font-medium text-left hover:text-orange-600 transition-colors cursor-pointer"
+                                    >
+                                      {pick.playerName}
+                                    </button>
+                                    <div className="flex gap-1">
+                                      {pick.isKeeper && (
+                                        <Badge variant="outline" className="text-[8px] px-1 py-0 border-orange-500/50 text-orange-600 bg-orange-50/50">
+                                          K
+                                        </Badge>
+                                      )}
+                                      {isTradedAway && newOwnerTeam && (
+                                        <Badge variant="outline" className="text-[8px] px-1 py-0 border-blue-500/50 text-blue-600 bg-blue-50/50">
+                                          → {newOwnerTeam.teamName}
+                                        </Badge>
+                                      )}
+                                      {isRookie && (
+                                        <Badge variant="outline" className="text-[8px] px-1 py-0 border-green-500/50 text-green-600 bg-green-50/50">
+                                          R
+                                        </Badge>
+                                      )}
+                                      {isGoalie && (
+                                        <Badge variant="outline" className="text-[8px] px-1 py-0 border-purple-500/50 text-purple-600 bg-purple-50/50">
+                                          G
+                                        </Badge>
+                                      )}
+                                    </div>
+                                  </div>
+                                ) : isTradedAway && newOwnerTeam ? (
+                                  <div className="flex flex-col items-start gap-0.5 pl-1">
                                     <Badge variant="outline" className="text-[8px] px-1 py-0 border-blue-500/50 text-blue-600">
                                       → {newOwnerTeam.teamName}
                                     </Badge>
-                                  )}
-                                  {isRookie && (
-                                    <Badge variant="outline" className="text-[8px] px-1 py-0 border-green-500/50 text-green-600 bg-green-50/50">
-                                      R
-                                    </Badge>
-                                  )}
-                                  {isGoalie && (
-                                    <Badge variant="outline" className="text-[8px] px-1 py-0 border-purple-500/50 text-purple-600 bg-purple-50/50">
-                                      G
-                                    </Badge>
-                                  )}
-                                </div>
-                              </div>
-                            ) : isTradedAway && newOwnerTeam ? (
-                              <div className="flex flex-col items-start gap-0.5 pl-1">
-                                <Badge variant="outline" className="text-[8px] px-1 py-0 border-blue-500/50 text-blue-600">
-                                  → {newOwnerTeam.teamName}
-                                </Badge>
-                              </div>
-                            ) : (
-                              <span className="text-muted-foreground/30">—</span>
-                            )}
-                          </td>
-                        )
-                      })}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
+                                  </div>
+                                ) : (
+                                  <span className="text-muted-foreground/30">—</span>
+                                )}
+                              </td>
+                            )
+                          })}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+          <TabsContent value="log" className="mt-4">
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base">Draft Log</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {(() => {
+                  type LogEntry = { time: string | null; text: string; type: "pick" | "trade" | "keeper" | "system" }
+                  const logEntries: LogEntry[] = []
+
+                  for (const p of picks) {
+                    if (p.playerId && p.pickedAt) {
+                      const teamInfo = teams.find(tm => tm.teamSlug === p.teamSlug)
+                      logEntries.push({
+                        time: p.pickedAt,
+                        text: p.isKeeper
+                          ? `${teamInfo?.teamName || p.teamSlug} keeper: ${p.playerName} (Round ${p.round})`
+                          : `R${p.round}P${p.pickNumber - (p.round - 1) * teams.length}: ${teamInfo?.teamName || p.teamSlug} select ${p.playerName} (#${p.pickNumber} overall)`,
+                        type: p.isKeeper ? "keeper" : "pick",
+                      })
+                    }
+                  }
+
+                  for (const t of trades) {
+                    const teamA = teams.find(tm => tm.teamSlug === t.teamASlug)?.teamName || t.teamASlug
+                    const teamB = teams.find(tm => tm.teamSlug === t.teamBSlug)?.teamName || t.teamBSlug
+                    const tradeText = t.description
+                      ? `Trade: ${t.description}`
+                      : `Trade: ${teamA} ↔ ${teamB}`
+                    logEntries.push({
+                      time: t.tradedAt || null,
+                      text: tradeText,
+                      type: "trade",
+                    })
+                  }
+
+                  for (const s of systemLog) {
+                    logEntries.push({ time: s.time, text: s.text, type: "system" })
+                  }
+
+                  logEntries.sort((a, b) => {
+                    if (!a.time && !b.time) return 0
+                    if (!a.time) return 1
+                    if (!b.time) return -1
+                    return new Date(b.time).getTime() - new Date(a.time).getTime()
+                  })
+
+                  if (logEntries.length === 0) {
+                    return (
+                      <div className="text-sm text-muted-foreground py-8 text-center border rounded-md border-dashed">
+                        No draft activity recorded.
+                      </div>
+                    )
+                  }
+
+                  return (
+                    <div className="space-y-1 max-h-[500px] overflow-y-auto pr-1">
+                      {logEntries.map((entry, i) => (
+                        <div key={i} className="flex gap-3 py-1.5 border-b border-border/50 last:border-b-0">
+                          <span className="text-[11px] text-muted-foreground w-[70px] shrink-0 tabular-nums">
+                            {entry.time ? new Date(entry.time).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "—"}
+                          </span>
+                          <span className={`text-xs ${
+                            entry.type === "trade"
+                              ? "text-blue-600 dark:text-blue-400"
+                              : entry.type === "keeper"
+                                ? "text-amber-600 dark:text-amber-400"
+                                : entry.type === "system"
+                                  ? "text-green-600 dark:text-green-400 italic"
+                                  : "text-foreground"
+                          }`}>
+                            {entry.text}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )
+                })()}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
       )}
 
       {/* Clear Keepers Confirmation */}
@@ -1789,6 +2001,15 @@ export function DraftBoardView({
               {captainWarnings.length > 0 && (
                 <span className="block mt-2 text-amber-600 font-medium">
                   ⚠ {captainWarnings.length} captain warning(s) — captains should be keepers per BASH rules.
+                </span>
+              )}
+              {tradeWarnings.length > 0 && (
+                <span className="block mt-2 p-2 bg-amber-50 border border-amber-200 rounded text-amber-700 text-xs">
+                  <span className="font-semibold block mb-1">⚠ Trade Warning — {tradeWarnings.length} trade(s) involve picks beyond the player pool:</span>
+                  {tradeWarnings.map((w, i) => (
+                    <span key={i} className="block mt-1">• {w}</span>
+                  ))}
+                  <span className="block mt-2 font-medium">Consider updating these trades before starting.</span>
                 </span>
               )}
             </AlertDialogDescription>
