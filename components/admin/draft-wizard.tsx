@@ -63,7 +63,7 @@ interface DraftWizardProps {
   onOpenChange: (open: boolean) => void
   seasonId: string
   seasonType: string
-  teams: { teamSlug: string; teamName: string }[]
+  teams: { teamSlug: string; teamName: string; color?: string | null }[]
   rosterCount: number
   onComplete: () => void
   /** When provided, the wizard runs in "configure" mode — syncs season data and updates the existing draft */
@@ -79,7 +79,7 @@ interface WizardForm {
   draftDate: string
   draftTime: string
   location: string
-  teamOrder: { teamSlug: string; teamName: string }[]
+  teamOrder: { teamSlug: string; teamName: string; color?: string | null }[]
   captains: CaptainAssignment[]
   preDraftTrades: PreDraftTrade[]
 }
@@ -689,7 +689,7 @@ function StepTeamsCaptains({
   rosterLoading,
   onCaptainsChange,
 }: {
-  teams: { teamSlug: string; teamName: string }[]
+  teams: { teamSlug: string; teamName: string; color?: string | null }[]
   captains: CaptainAssignment[]
   rosterPlayers: RosterPlayer[]
   rosterLoading: boolean
@@ -776,9 +776,9 @@ function StepTeamsCaptains({
           const filtered = showSearch && (search.length > 0 || isFocused) ? getFilteredPlayers(t.teamSlug) : []
 
           return (
-            <div key={t.teamSlug} className="border rounded-md p-2.5 space-y-2">
+            <div key={t.teamSlug} className="border rounded-md p-2.5 space-y-2" style={{ borderLeftWidth: t.color ? '3px' : undefined, borderLeftColor: t.color || undefined }}>
               <div className="flex items-center gap-3">
-                <div className="w-7 h-7 rounded bg-muted flex items-center justify-center text-xs font-bold shrink-0">
+                <div className="w-7 h-7 rounded flex items-center justify-center text-xs font-bold shrink-0" style={{ backgroundColor: t.color ? `${t.color}20` : undefined, color: t.color || undefined }} >
                   {t.teamName.charAt(0)}
                 </div>
                 <span className="text-sm font-medium flex-1">{t.teamName}</span>
@@ -876,7 +876,7 @@ function StepOrderTrades({
   onMove,
   onTradesChange,
 }: {
-  teamOrder: { teamSlug: string; teamName: string }[]
+  teamOrder: { teamSlug: string; teamName: string; color?: string | null }[]
   preDraftTrades: PreDraftTrade[]
   resolvedRounds: number
   onRandomize: () => void
@@ -1031,7 +1031,7 @@ function StepOrderTrades({
         </div>
         <div className="space-y-1.5">
           {teamOrder.map((t, i) => (
-            <div key={t.teamSlug} className="flex items-center gap-2 p-2 border rounded-md group">
+            <div key={t.teamSlug} className="flex items-center gap-2 p-2 border rounded-md group" style={{ borderLeftWidth: t.color ? '3px' : undefined, borderLeftColor: t.color || undefined }}>
               <span className="w-6 text-center text-xs font-mono text-muted-foreground">{i + 1}</span>
               <GripVertical className="h-4 w-4 text-muted-foreground/50" />
               <span className="text-sm font-medium flex-1">{t.teamName}</span>
@@ -1194,7 +1194,7 @@ function StepReview({ form, rosterCount, suggestedRounds }: { form: WizardForm; 
         <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Draft Order</p>
         <div className="flex flex-wrap gap-1.5">
           {form.teamOrder.map((t, i) => (
-            <span key={t.teamSlug} className="text-xs bg-muted px-2 py-1 rounded-md">
+            <span key={t.teamSlug} className="text-xs px-2 py-1 rounded-md" style={{ backgroundColor: t.color ? `${t.color}15` : undefined, borderLeft: t.color ? `3px solid ${t.color}` : undefined }}>
               {i + 1}. {t.teamName}
             </span>
           ))}

@@ -528,6 +528,7 @@ export function DraftBoardView({
       )
       setShowPushConfirm(false)
       setDraft((prev) => ({ ...prev, status: "completed" }))
+      router.push(`/admin/seasons/${seasonId}?tab=Roster`)
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "An error occurred"
       toast.error(msg)
@@ -1232,16 +1233,23 @@ export function DraftBoardView({
 
       {/* Keeper entry panel (shown in draft or published state) */}
       {(isDraft || isPreDraft) && (
-        <Card>
+        <Card className="border-amber-500/30">
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <CardTitle className="text-base">
-                  {isPreDraft ? "Pre-Draft: Enter Keepers" : "Keeper Configuration"}
-                </CardTitle>
-                <Badge variant="secondary" className="text-xs font-normal">
-                  Max {draft.maxKeepers} Keepers
-                </Badge>
+              <div className="space-y-1">
+                <div className="flex items-center gap-3">
+                  <CardTitle className="text-base">
+                    {isPreDraft ? "Step 1: Enter Keepers" : "Keeper Configuration"}
+                  </CardTitle>
+                  <Badge variant="secondary" className="text-xs font-normal">
+                    Max {draft.maxKeepers} per team
+                  </Badge>
+                </div>
+                <p className="text-xs text-muted-foreground max-w-lg">
+                  {isPreDraft
+                    ? "Select a team, then search and assign keeper players and their rounds. Captains are auto-assigned. Once keepers are set, press Start Draft to go live."
+                    : "Manage keeper assignments for each team. Keepers are locked into their assigned round."}
+                </p>
               </div>
               <div className="flex items-center gap-2">
                 <Button variant="outline" size="sm" onClick={() => setShowClearKeepersConfirm(true)}>
@@ -1255,6 +1263,24 @@ export function DraftBoardView({
                 )}
               </div>
             </div>
+            {/* Overall progress */}
+            {(() => {
+              const totalAssigned = currentKeepers.length
+              const totalSlots = teams.length * draft.maxKeepers
+              return (
+                <div className="flex items-center gap-2 mt-2 pt-2 border-t">
+                  <span className="text-xs text-muted-foreground">
+                    Total: <span className="font-semibold text-foreground">{totalAssigned}</span> / {totalSlots} keeper slots filled
+                  </span>
+                  <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden max-w-[200px]">
+                    <div
+                      className="h-full bg-amber-500 rounded-full transition-all duration-300"
+                      style={{ width: `${totalSlots > 0 ? (totalAssigned / totalSlots) * 100 : 0}%` }}
+                    />
+                  </div>
+                </div>
+              )
+            })()}
           </CardHeader>
           <CardContent className="space-y-4">
             {/* Captain warnings */}
@@ -1267,90 +1293,119 @@ export function DraftBoardView({
               </div>
             )}
 
-            {/* Keeper summary bar */}
-            <div className="flex flex-wrap gap-2">
-              {keeperSummary.map((t) => (
-                <Badge
-                  key={t.teamSlug}
-                  variant={t.count > 0 ? "default" : "outline"}
-                  className="cursor-pointer text-xs"
-                  onClick={() => setSelectedTeam(t.teamSlug)}
-                >
-                  {t.teamName}: {t.count} ({t.roundsStr})
-                </Badge>
-              ))}
+            {/* Keeper summary bar — clickable team badges */}
+            <div className="space-y-1.5">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Select a team to manage keepers</p>
+              <div className="flex flex-wrap gap-2">
+                {keeperSummary.map((t) => {
+                  const isSelected = selectedTeam === t.teamSlug
+                  const isFull = t.count >= draft.maxKeepers
+                  const teamColor = teams.find(tm => tm.teamSlug === t.teamSlug)?.color
+                  return (
+                    <button
+                      key={t.teamSlug}
+                      className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border text-xs font-medium transition-all cursor-pointer ${
+                        isSelected
+                          ? "ring-2 ring-orange-500 border-orange-500 bg-orange-50 dark:bg-orange-950/30"
+                          : isFull
+                            ? "border-green-500/40 bg-green-50/50 dark:bg-green-950/20"
+                            : "border-muted hover:border-foreground/30"
+                      }`}
+                      style={teamColor && !isSelected ? { borderLeftWidth: '3px', borderLeftColor: teamColor } : undefined}
+                      onClick={() => setSelectedTeam(t.teamSlug)}
+                    >
+                      <span>{t.teamName}</span>
+                      <span className={`text-[10px] font-mono ${isFull ? "text-green-600 dark:text-green-400" : "text-muted-foreground"}`}>
+                        {t.count}/{draft.maxKeepers}
+                      </span>
+                      {isFull && <Check className="h-3 w-3 text-green-600 dark:text-green-400" />}
+                    </button>
+                  )
+                })}
+              </div>
             </div>
 
             {/* Team selector + player search */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-3">
-                <Select value={selectedTeam} onValueChange={setSelectedTeam}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select team" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {teams.map((t) => (
-                      <SelectItem key={t.teamSlug} value={t.teamSlug}>
-                        {t.teamName} ({keepersForTeam(t.teamSlug).length} / {draft.maxKeepers} keepers)
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground">Active Team</label>
+                  <Select value={selectedTeam} onValueChange={setSelectedTeam}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select team" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {teams.map((t) => (
+                        <SelectItem key={t.teamSlug} value={t.teamSlug}>
+                          {t.teamName} ({keepersForTeam(t.teamSlug).length} / {draft.maxKeepers} keepers)
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
 
                 {/* Current keepers for selected team */}
-                <div className="space-y-1">
-                  {keepersForTeam(selectedTeam).length === 0 ? (
-                    <p className="text-xs text-muted-foreground">No keepers assigned yet.</p>
-                  ) : (
-                    keepersForTeam(selectedTeam)
-                      .sort((a, b) => (a.keeperRound || 0) - (b.keeperRound || 0))
-                      .map((k) => {
-                        const isCaptain = captains.some(
-                          (c) => c.playerId === k.playerId && c.teamSlug === selectedTeam
-                        )
-                        return (
-                          <div
-                            key={k.playerId}
-                            className="flex items-center justify-between rounded-md border px-3 py-1.5 text-sm"
-                          >
-                            <div className="flex items-center gap-2">
-                              <Select
-                                value={k.keeperRound?.toString()}
-                                onValueChange={(val) => updateKeeperRound(k.playerId, parseInt(val, 10))}
-                              >
-                                <SelectTrigger className="h-6 w-[52px] px-1.5 text-[10px] font-mono border-muted-foreground/20">
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {Array.from({ length: draft.rounds }, (_, i) => i + 1).map((r) => (
-                                    <SelectItem key={r} value={r.toString()} className="text-[10px]">
-                                      R{r}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                              <span>{k.playerName}</span>
-                              {isCaptain && (
-                                <Crown className="h-3 w-3 text-amber-500" />
-                              )}
-                            </div>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-6 w-6 p-0"
-                              onClick={() => removeKeeper(k.playerId)}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground">
+                    Assigned Keepers ({keepersForTeam(selectedTeam).length} / {draft.maxKeepers})
+                  </label>
+                  <div className="space-y-1">
+                    {keepersForTeam(selectedTeam).length === 0 ? (
+                      <p className="text-xs text-muted-foreground italic py-2 text-center border border-dashed rounded-md">
+                        No keepers assigned — search and add players from the right panel →
+                      </p>
+                    ) : (
+                      keepersForTeam(selectedTeam)
+                        .sort((a, b) => (a.keeperRound || 0) - (b.keeperRound || 0))
+                        .map((k) => {
+                          const isCaptain = captains.some(
+                            (c) => c.playerId === k.playerId && c.teamSlug === selectedTeam
+                          )
+                          return (
+                            <div
+                              key={k.playerId}
+                              className="flex items-center justify-between rounded-md border px-3 py-1.5 text-sm"
                             >
-                              <X className="h-3 w-3" />
-                            </Button>
-                          </div>
-                        )
-                      })
-                  )}
+                              <div className="flex items-center gap-2">
+                                <Select
+                                  value={k.keeperRound?.toString()}
+                                  onValueChange={(val) => updateKeeperRound(k.playerId, parseInt(val, 10))}
+                                >
+                                  <SelectTrigger className="h-6 w-[52px] px-1.5 text-[10px] font-mono border-muted-foreground/20">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {Array.from({ length: draft.rounds }, (_, i) => i + 1).map((r) => (
+                                      <SelectItem key={r} value={r.toString()} className="text-[10px]">
+                                        R{r}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                                <span>{k.playerName}</span>
+                                {isCaptain && (
+                                  <Crown className="h-3 w-3 text-amber-500" />
+                                )}
+                              </div>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 w-6 p-0"
+                                onClick={() => removeKeeper(k.playerId)}
+                              >
+                                <X className="h-3 w-3" />
+                              </Button>
+                            </div>
+                          )
+                        })
+                    )}
+                  </div>
                 </div>
               </div>
 
               {/* Player search for adding keepers */}
               <div className="space-y-2">
+                <label className="text-xs font-medium text-muted-foreground">Add Keeper</label>
                 <div className="relative">
                   <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                   <Input
@@ -1772,9 +1827,18 @@ export function DraftBoardView({
             <TabsTrigger value="log">Draft Log</TabsTrigger>
           </TabsList>
           <TabsContent value="board" className="mt-4">
-            <Card>
+            <Card className={isPreDraft ? "border-amber-500/30" : undefined}>
               <CardHeader className="pb-2">
-                <CardTitle className="text-base">Draft Board</CardTitle>
+                {isPreDraft ? (
+                  <div className="space-y-1">
+                    <CardTitle className="text-base">Step 2: Final Review</CardTitle>
+                    <p className="text-xs text-muted-foreground">
+                      Verify teams, draft order, keepers, keeper rounds, and any pre-draft trades look correct. When everything checks out, press <span className="font-semibold text-foreground">Start Draft</span> above to go live.
+                    </p>
+                  </div>
+                ) : (
+                  <CardTitle className="text-base">Draft Board</CardTitle>
+                )}
               </CardHeader>
               <CardContent>
                 <div className="overflow-x-auto">

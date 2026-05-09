@@ -87,20 +87,20 @@ export async function POST(
     const isRookie = meta?.isRookie === true
     const isCaptain = captainSet.has(`${playerId}-${teamSlug}`)
 
-    // Check if player_season already exists
+    // Check if player_season already exists (any team assignment for this season)
     const existing = await db.query.playerSeasons.findFirst({
       where: and(
         eq(schema.playerSeasons.playerId, playerId),
-        eq(schema.playerSeasons.seasonId, seasonId),
-        eq(schema.playerSeasons.teamSlug, teamSlug)
+        eq(schema.playerSeasons.seasonId, seasonId)
       ),
     })
 
     if (existing) {
-      // Update flags if needed
+      // Update team assignment and flags
       await db
         .update(schema.playerSeasons)
         .set({
+          teamSlug,
           isGoalie,
           isRookie,
           isCaptain,
@@ -108,8 +108,7 @@ export async function POST(
         .where(
           and(
             eq(schema.playerSeasons.playerId, playerId),
-            eq(schema.playerSeasons.seasonId, seasonId),
-            eq(schema.playerSeasons.teamSlug, teamSlug)
+            eq(schema.playerSeasons.seasonId, seasonId)
           )
         )
       updated++
@@ -125,8 +124,7 @@ export async function POST(
         })
         inserted++
       } catch {
-        // If there's a conflict (player already on another team for this season),
-        // skip silently — commissioner can resolve manually
+        // If there's a conflict, skip silently — commissioner can resolve manually
         skipped++
       }
     }

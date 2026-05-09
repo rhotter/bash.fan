@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useCallback, useEffect } from "react"
+import { useSearchParams } from "next/navigation"
 import { SeasonForm } from "./season-form"
 import { PlaceholderCard } from "./placeholder-card"
 import { SeasonTeamsTab } from "./season-teams-tab"
@@ -41,7 +42,10 @@ interface SeasonTabsProps {
 
 export function SeasonTabs({ season }: SeasonTabsProps) {
   const tabs = getTabsForStatus(season.status)
-  const [activeTab, setActiveTab] = useState<Tab>(tabs[0])
+  const searchParams = useSearchParams()
+  const tabParam = searchParams.get("tab") as Tab | null
+  const initialTab = tabParam && tabs.includes(tabParam) ? tabParam : tabs[0]
+  const [activeTab, setActiveTab] = useState<Tab>(initialTab)
 
   // Lift teams into shared state so mutations propagate across tabs
   const [teams, setTeams] = useState(season.teams)
@@ -58,7 +62,7 @@ export function SeasonTabs({ season }: SeasonTabsProps) {
   // Welcome modal — show once for fresh seasons (no teams, draft status)
   const [welcomeOpen, setWelcomeOpen] = useState(false)
   useEffect(() => {
-    if (season.status !== "draft" || season.teams.length > 0) return
+    if (season.status !== "draft") return
     const key = `bash-season-welcomed-${season.id}`
     if (typeof window !== "undefined" && !localStorage.getItem(key)) {
       setWelcomeOpen(true)

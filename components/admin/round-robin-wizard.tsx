@@ -102,7 +102,7 @@ export function RoundRobinWizard({
   const [weekSlots, setWeekSlots] = useState<Record<number, WeekSlot[]>>({})
 
   // Step 6: Save mode
-  const [saveMode, setSaveMode] = useState<"overwrite" | "append">("append")
+  const [saveMode, setSaveMode] = useState<"overwrite" | "append">("overwrite")
 
   // ─── Derived data ─────────────────────────────────────────────────────────
 

@@ -71,7 +71,7 @@ interface DraftTabProps {
   seasonId: string
   seasonStatus: string
   seasonType: string
-  teams: { teamSlug: string; teamName: string }[]
+  teams: { teamSlug: string; teamName: string; color?: string | null }[]
   rosterCount: number
 }
 
@@ -131,6 +131,7 @@ export function DraftTab({ seasonId, seasonStatus, seasonType, teams, rosterCoun
         `Rosters pushed: ${result.summary.inserted} added, ${result.summary.updated} updated, ${result.summary.skipped} skipped`
       )
       setPushTarget(null)
+      router.push(`/admin/seasons/${seasonId}?tab=Roster`)
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "An error occurred"
       toast.error(msg)
