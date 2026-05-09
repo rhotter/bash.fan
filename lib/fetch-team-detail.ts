@@ -67,6 +67,7 @@ export async function fetchTeamDetail(slug: string, seasonParam?: string | null)
       WHERE g.season_id = ${seasonId}
         AND (g.home_team = ${slug} OR g.away_team = ${slug})
         AND g.is_playoff = false
+        AND g.game_type = 'regular'
       ORDER BY g.date DESC, CASE WHEN g.time = 'TBD' THEN '23:59'::time ELSE to_timestamp(CASE WHEN g.time LIKE '%a' THEN replace(g.time, 'a', ' AM') ELSE replace(g.time, 'p', ' PM') END, 'HH:MI AM')::time END DESC
     `),
   ])
@@ -167,7 +168,7 @@ export async function fetchTeamDetail(slug: string, seasonParam?: string | null)
       FROM season_teams t
       CROSS JOIN LATERAL (
         SELECT * FROM games g2
-        WHERE g2.season_id = ${seasonId} AND g2.status = 'final' AND NOT g2.is_playoff
+        WHERE g2.season_id = ${seasonId} AND g2.status = 'final' AND NOT g2.is_playoff AND g2.game_type = 'regular'
           AND (g2.home_team = t.team_slug OR g2.away_team = t.team_slug)
       ) g
       WHERE t.season_id = ${seasonId}

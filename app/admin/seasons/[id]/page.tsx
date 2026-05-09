@@ -18,7 +18,12 @@ async function getSeason(id: string) {
   if (!season) return null
 
   const allTeams = await db
-    .select({ teamSlug: schema.seasonTeams.teamSlug, teamName: schema.teams.name })
+    .select({
+      teamSlug: schema.seasonTeams.teamSlug,
+      teamName: schema.teams.name,
+      franchiseSlug: schema.seasonTeams.franchiseSlug,
+      color: schema.seasonTeams.color,
+    })
     .from(schema.seasonTeams)
     .innerJoin(schema.teams, eq(schema.seasonTeams.teamSlug, schema.teams.slug))
     .where(and(eq(schema.seasonTeams.seasonId, id), ne(schema.seasonTeams.teamSlug, "tbd")))

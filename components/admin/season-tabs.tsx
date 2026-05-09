@@ -1,11 +1,14 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useCallback, useEffect } from "react"
+import { useSearchParams } from "next/navigation"
 import { SeasonForm } from "./season-form"
 import { PlaceholderCard } from "./placeholder-card"
 import { SeasonTeamsTab } from "./season-teams-tab"
 import { SeasonRosterTab } from "./season-roster-tab"
 import { SeasonScheduleTab } from "./season-schedule-tab"
+import { DraftTab } from "./draft-tab"
+import { SeasonWelcomeModal } from "./season-welcome-modal"
 
 type Tab = "Settings" | "Teams" | "Roster" | "Schedule" | "Draft" | "Registration"
 
@@ -15,6 +18,8 @@ function getTabsForStatus(status: string): Tab[] {
   }
   return ["Schedule", "Teams", "Roster", "Settings"]
 }
+
+type RosterPlayer = { playerId: number; playerName: string; teamSlug: string; isGoalie: boolean; isRookie: boolean }
 
 interface SeasonTabsProps {
   season: {
@@ -30,14 +35,40 @@ interface SeasonTabsProps {
     statsOnly: boolean
     playoffTeams: number | null
     isCurrent: boolean
-    teams: { teamSlug: string; teamName: string }[]
+    teams: { teamSlug: string; teamName: string; franchiseSlug: string | null; color: string | null }[]
     roster: { playerId: number; playerName: string; teamSlug: string; isGoalie: boolean; isRookie: boolean }[]
   }
 }
 
 export function SeasonTabs({ season }: SeasonTabsProps) {
   const tabs = getTabsForStatus(season.status)
-  const [activeTab, setActiveTab] = useState<Tab>(tabs[0])
+  const searchParams = useSearchParams()
+  const tabParam = searchParams.get("tab") as Tab | null
+  const initialTab = tabParam && tabs.includes(tabParam) ? tabParam : tabs[0]
+  const [activeTab, setActiveTab] = useState<Tab>(initialTab)
+
+  // Lift teams into shared state so mutations propagate across tabs
+  const [teams, setTeams] = useState(season.teams)
+  const [roster, setRoster] = useState(season.roster)
+
+  const handleRosterChange = useCallback((updatedRoster: RosterPlayer[]) => {
+    setRoster(updatedRoster)
+  }, [])
+
+  const handleTeamsChange = useCallback((updatedTeams: { teamSlug: string; teamName: string; franchiseSlug: string | null; color: string | null }[]) => {
+    setTeams(updatedTeams)
+  }, [])
+
+  // Welcome modal — show once for fresh seasons (no teams, draft status)
+  const [welcomeOpen, setWelcomeOpen] = useState(false)
+  useEffect(() => {
+    if (season.status !== "draft") return
+    const key = `bash-season-welcomed-${season.id}`
+    if (typeof window !== "undefined" && !localStorage.getItem(key)) {
+      setWelcomeOpen(true)
+      localStorage.setItem(key, "1")
+    }
+  }, [season.id, season.status, season.teams.length])
 
   return (
     <div className="space-y-4">
@@ -61,14 +92,16 @@ export function SeasonTabs({ season }: SeasonTabsProps) {
       {/* Tab Content */}
       <div>
         {activeTab === "Settings" && <SeasonForm season={season} />}
-        {activeTab === "Teams" && <SeasonTeamsTab seasonId={season.id} seasonStatus={season.status} initialTeams={season.teams} />}
-        {activeTab === "Roster" && <SeasonRosterTab seasonId={season.id} seasonStatus={season.status} roster={season.roster} teams={season.teams} />}
-        {activeTab === "Schedule" && <SeasonScheduleTab seasonId={season.id} seasonStatus={season.status} initialTeams={season.teams} defaultLocation={season.defaultLocation || "The Lick"} />}
+        {activeTab === "Teams" && <SeasonTeamsTab seasonId={season.id} seasonStatus={season.status} initialTeams={teams} onTeamsChange={handleTeamsChange} />}
+        {activeTab === "Roster" && <SeasonRosterTab seasonId={season.id} seasonStatus={season.status} roster={roster} teams={teams} onRosterChange={handleRosterChange} />}
+        {activeTab === "Schedule" && <SeasonScheduleTab seasonId={season.id} seasonStatus={season.status} initialTeams={teams} defaultLocation={season.defaultLocation || "The Lick"} />}
         {activeTab === "Draft" && (
-          <PlaceholderCard
-            title="Draft Setup"
-            phase={2}
-            description="Configure the draft format: number of rounds, protection list sizes (2–10 per BASH rules), draft order based on previous season standings, and supplemental draft rules."
+          <DraftTab
+            seasonId={season.id}
+            seasonStatus={season.status}
+            seasonType={season.seasonType}
+            teams={teams}
+            rosterCount={roster.length}
           />
         )}
         {activeTab === "Registration" && (
@@ -79,7 +112,12 @@ export function SeasonTabs({ season }: SeasonTabsProps) {
           />
         )}
       </div>
+
+      <SeasonWelcomeModal
+        seasonName={season.name}
+        isOpen={welcomeOpen}
+        onOpenChange={setWelcomeOpen}
+      />
     </div>
   )
 }
-

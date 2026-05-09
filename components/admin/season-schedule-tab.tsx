@@ -1,7 +1,7 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
-import { Loader2, Plus, Calendar, Trash2, Edit, Shuffle, Trophy } from "lucide-react"
+import { useState, useEffect, useCallback, useMemo } from "react"
+import { Loader2, Plus, Calendar, Trash2, Edit, Shuffle, Trophy, ArrowRightLeft, AlertCircle } from "lucide-react"
 import Link from "next/link"
 import { TeamLogo } from "@/components/team-logo"
 import { Button } from "@/components/ui/button"
@@ -51,7 +51,7 @@ export interface ScheduleGame {
   awayTeam: string
   awayPlaceholder: string | null
   location: string
-  gameType: "regular" | "playoff" | "championship" | "exhibition" | "practice"
+  gameType: "regular" | "playoff" | "championship" | "exhibition" | "practice" | "tryout"
   status: "upcoming" | "live" | "final"
   homeScore: number | null
   awayScore: number | null
@@ -82,6 +82,10 @@ export function SeasonScheduleTab({ seasonId, seasonStatus, initialTeams, defaul
 
   const [rrWizardOpen, setRrWizardOpen] = useState(false)
   const [playoffWizardOpen, setPlayoffWizardOpen] = useState(false)
+
+  // Placeholder replacement state
+  const [placeholderMappings, setPlaceholderMappings] = useState<Record<string, string>>({})
+  const [isReplacing, setIsReplacing] = useState(false)
 
   const isEditable = seasonStatus === "draft" || seasonStatus === "active"
 
@@ -173,6 +177,36 @@ export function SeasonScheduleTab({ seasonId, seasonStatus, initialTeams, defaul
 
   const sortedDates = Object.keys(groupedGames).sort()
 
+  // Compute bye teams per game date for odd team counts.
+  // For each regular-season date, find which season teams are NOT playing.
+  const byesByDate = useMemo(() => {
+    const isOdd = initialTeams.length % 2 !== 0
+    if (!isOdd || initialTeams.length < 3) return {} as Record<string, string[]>
+
+    const result: Record<string, string[]> = {}
+    const allSlugs = new Set(initialTeams.map(t => t.teamSlug))
+
+    for (const [date, dateGames] of Object.entries(groupedGames)) {
+      // Only annotate byes on regular-season game dates
+      if (!dateGames.some(g => g.gameType === "regular")) continue
+
+      const playingSlugs = new Set<string>()
+      for (const g of dateGames) {
+        if (g.gameType === "regular") {
+          playingSlugs.add(g.homeSlug)
+          playingSlugs.add(g.awaySlug)
+        }
+      }
+
+      const byes: string[] = []
+      for (const slug of allSlugs) {
+        if (!playingSlugs.has(slug)) byes.push(slug)
+      }
+      if (byes.length > 0) result[date] = byes
+    }
+    return result
+  }, [groupedGames, initialTeams])
+
 
 
   const getTeamDisplay = (teamName: string, placeholder: string | null) => {
@@ -226,6 +260,103 @@ export function SeasonScheduleTab({ seasonId, seasonStatus, initialTeams, defaul
           )}
         </div>
       </div>
+
+      {/* Placeholder Teams Banner */}
+      {(() => {
+        // Find all unique placeholder slugs in current games
+        const placeholderSlugs = new Set<string>()
+        for (const g of games) {
+          if (g.homeSlug.startsWith("placeholder-")) placeholderSlugs.add(g.homeSlug)
+          if (g.awaySlug.startsWith("placeholder-")) placeholderSlugs.add(g.awaySlug)
+        }
+        if (placeholderSlugs.size === 0 || !isEditable) return null
+
+        const realTeams = initialTeams.filter(t => !t.teamSlug.startsWith("placeholder-"))
+        const sortedPlaceholders = [...placeholderSlugs].sort()
+        // Track which real slugs are already mapped to avoid duplicates
+        const usedSlugs = new Set(Object.values(placeholderMappings))
+        const allMapped = sortedPlaceholders.every(p => placeholderMappings[p])
+
+        return (
+          <Card className="border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/30">
+            <CardContent className="pt-4">
+              <div className="flex items-start gap-3">
+                <AlertCircle className="h-5 w-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                <div className="flex-1 space-y-3">
+                  <div>
+                    <p className="font-medium text-sm">Schedule uses placeholder teams</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {sortedPlaceholders.length} placeholder team{sortedPlaceholders.length !== 1 ? "s" : ""} found.
+                      Map each to a real team to finalize the schedule.
+                    </p>
+                  </div>
+                  <div className="grid gap-2">
+                    {sortedPlaceholders.map(ph => (
+                      <div key={ph} className="flex items-center gap-2">
+                        <Badge variant="outline" className="text-xs font-mono shrink-0">
+                          {ph}
+                        </Badge>
+                        <ArrowRightLeft className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                        <Select
+                          value={placeholderMappings[ph] || ""}
+                          onValueChange={(val) => setPlaceholderMappings(prev => ({ ...prev, [ph]: val }))}
+                        >
+                          <SelectTrigger className="h-8 text-xs w-[180px]">
+                            <SelectValue placeholder="Select team..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {realTeams
+                              .filter(t => !usedSlugs.has(t.teamSlug) || placeholderMappings[ph] === t.teamSlug)
+                              .map(t => (
+                                <SelectItem key={t.teamSlug} value={t.teamSlug}>
+                                  {t.teamName}
+                                </SelectItem>
+                              ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    ))}
+                  </div>
+                  <Button
+                    size="sm"
+                    disabled={!allMapped || isReplacing}
+                    onClick={async () => {
+                      setIsReplacing(true)
+                      try {
+                        const mappings = Object.entries(placeholderMappings).map(([placeholder, realSlug]) => ({
+                          placeholder,
+                          realSlug,
+                        }))
+                        const res = await fetch(`/api/bash/admin/seasons/${seasonId}/schedule/replace-placeholders`, {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ mappings }),
+                        })
+                        if (res.ok) {
+                          const data = await res.json()
+                          toast.success(`${data.updated} game(s) updated with real teams`)
+                          setPlaceholderMappings({})
+                          fetchGames()
+                        } else {
+                          const err = await res.json()
+                          toast.error(err.error || "Failed to replace placeholders")
+                        }
+                      } catch {
+                        toast.error("Connection error")
+                      } finally {
+                        setIsReplacing(false)
+                      }
+                    }}
+                  >
+                    {isReplacing && <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />}
+                    Replace All Placeholders
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )
+      })()}
 
       <Card>
         <CardContent>
@@ -326,6 +457,20 @@ export function SeasonScheduleTab({ seasonId, seasonStatus, initialTeams, defaul
                       </div>
                     ))}
                   </div>
+                  {/* Bye annotations for odd team counts */}
+                  {byesByDate[date] && byesByDate[date].length > 0 && (
+                    <div className="mt-2 flex items-center gap-2 px-3 py-2 border border-dashed border-amber-300 dark:border-amber-700 rounded-lg bg-amber-50/50 dark:bg-amber-950/20">
+                      <Badge variant="outline" className="text-[10px] bg-amber-50 text-amber-700 border-amber-300 dark:bg-amber-950 dark:text-amber-400 dark:border-amber-700 shrink-0">
+                        BYE
+                      </Badge>
+                      <span className="text-xs text-muted-foreground">
+                        {byesByDate[date].map(slug => {
+                          const team = initialTeams.find(t => t.teamSlug === slug)
+                          return team?.teamName ?? slug
+                        }).join(", ")}
+                      </span>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

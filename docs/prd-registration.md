@@ -35,7 +35,7 @@ This module delivers the player self-service registration portal — account cre
 - Refund management tools (use Stripe Dashboard directly)
 - Full waitlist automation (P2)
 - Payment plans / partial payments
-- Draft integration (separate PRD)
+- **Draft integration** (separate PRD) — The draft tool currently uses a Sportability CSV import as an interim bridge for registration data (see [prd-draft.md §5.1](./prd-draft.md)). Field names in the draft's `registration_meta` JSONB are intentionally aligned with the `registrations` table columns defined below (§2.3) so that migration requires only changing the data source. When this module is built, the draft pool import should read directly from `registrations` + `registrationAnswers` instead of CSV.
 - In-app messaging between teams
 
 ---
@@ -717,6 +717,35 @@ Critical for platform migration: every player creates a new user account, but mo
 - This preserves per-user tracking, the `(userId, periodId)` uniqueness constraint, and payment history
 - If the guest later wants to log in, they use "Forgot Password" or magic link to activate their account
 - Player linking is deferred until account activation
+
+### 3.13 Draft Tool Field Alignment
+
+> [!IMPORTANT]
+> The draft tool ([prd-draft.md §5.1](./prd-draft.md)) currently uses a Sportability CSV import as an interim bridge, storing registration data as a `registration_meta` JSONB column on `draft_pool`. **Field names are intentionally aligned** with the `registrations` table columns defined in §2.3 above to ensure a smooth migration.
+
+When this registration module is built, the migration path is:
+1. The draft pool import stops reading from CSV
+2. Instead it reads from `registrations` + `registrationAnswers` for the current season's period
+3. The player card UI in the draft board requires **no changes** because the field names already match
+
+**Pre-aligned fields** (draft `registration_meta` key → `registrations` column):
+
+| Draft `registration_meta` | `registrations` Column | Notes |
+|---|---|---|
+| `skillLevel` | `skill_level` | Direct match |
+| `positions` | `positions` | Direct match |
+| `yearsPlayed` | `years_played` | Direct match |
+| `lastLeague` | `last_league` | Direct match |
+| `lastTeam` | `last_team` | Direct match |
+| `birthdate` | `birthdate` | Direct match |
+| `gender` | `gender` | Direct match |
+| `tshirtSize` | `tshirt_size` | Direct match |
+| `miscNotes` | `misc_notes` | Direct match |
+| `gamesExpected` | `registrationAnswers` (Q1) | Becomes a dynamic custom question |
+| `goalieWilling` | `registrationAnswers` (Q2) | Becomes a dynamic custom question |
+| `playoffAvail` | `registrationAnswers` (Q3) | Becomes a dynamic custom question |
+| `buddyReq` | — (new column or custom question) | Not yet in registration schema; add when needed |
+
 ---
 
 ## 4. API Routes

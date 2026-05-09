@@ -218,6 +218,58 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
     await db.delete(schema.playerAwards).where(eq(schema.playerAwards.seasonId, id))
     await db.delete(schema.seasonTeams).where(eq(schema.seasonTeams.seasonId, id))
 
+    // Delete draft artifacts — must delete trade items first because
+    // draftTradeItems.pickId references draftPicks.id without ON DELETE CASCADE
+    const draftRows = await db
+      .select({ id: schema.draftInstances.id })
+      .from(schema.draftInstances)
+      .where(eq(schema.draftInstances.seasonId, id))
+
+    for (const draft of draftRows) {
+      const trades = await db
+        .select({ id: schema.draftTrades.id })
+        .from(schema.draftTrades)
+        .where(eq(schema.draftTrades.draftId, draft.id))
+      for (const t of trades) {
+        await db.delete(schema.draftTradeItems).where(eq(schema.draftTradeItems.tradeId, t.id))
+      }
+      await db.delete(schema.draftTrades).where(eq(schema.draftTrades.draftId, draft.id))
+    }
+
+    // Now safe to delete draft instances (remaining children cascade)
+    await db.delete(schema.draftInstances).where(eq(schema.draftInstances.seasonId, id))
+
+    // Delete registration chains (registrations → periods, no cascade on either FK)
+    const periodRows = await db
+      .select({ id: schema.registrationPeriods.id })
+      .from(schema.registrationPeriods)
+      .where(eq(schema.registrationPeriods.seasonId, id))
+    const periodIds = periodRows.map((p) => p.id)
+
+    if (periodIds.length > 0) {
+      for (const pid of periodIds) {
+        // Registration children (answers, extras, acknowledgements cascade on registration delete,
+        // but registrations themselves don't cascade on period delete)
+        const regRows = await db
+          .select({ id: schema.registrations.id })
+          .from(schema.registrations)
+          .where(eq(schema.registrations.periodId, pid))
+
+        for (const reg of regRows) {
+          await db.delete(schema.registrationAnswers).where(eq(schema.registrationAnswers.registrationId, reg.id))
+          await db.delete(schema.registrationExtras).where(eq(schema.registrationExtras.registrationId, reg.id))
+          await db.delete(schema.noticeAcknowledgements).where(eq(schema.noticeAcknowledgements.registrationId, reg.id))
+        }
+
+        await db.delete(schema.registrations).where(eq(schema.registrations.periodId, pid))
+      }
+
+      // Period children (questions, notices, discounts, extras cascade on period delete)
+      for (const pid of periodIds) {
+        await db.delete(schema.registrationPeriods).where(eq(schema.registrationPeriods.id, pid))
+      }
+    }
+
     // Delete the season itself
     await db.delete(schema.seasons).where(eq(schema.seasons.id, id))
 

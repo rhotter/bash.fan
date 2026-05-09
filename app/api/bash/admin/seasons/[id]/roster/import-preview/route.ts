@@ -3,76 +3,10 @@ import { db, schema } from "@/lib/db"
 import { getSession } from "@/lib/admin-session"
 import { inArray, eq, and } from "drizzle-orm"
 import { canonicalizePlayerName, normalizePlayerName } from "@/lib/player-name"
+import { parseCsv, parsePositionTags, parseRegistrationMeta } from "@/lib/csv-utils"
 
 interface RouteContext {
   params: Promise<{ id: string }>
-}
-
-/**
- * Parse a CSV string into an array of objects keyed by header names.
- * Handles quoted fields (including fields with commas and newlines inside quotes).
- */
-function parseCsv(text: string): Record<string, string>[] {
-  const lines: string[] = []
-  let current = ""
-  let inQuotes = false
-
-  for (let i = 0; i < text.length; i++) {
-    const ch = text[i]
-    if (ch === '"') {
-      if (inQuotes && text[i + 1] === '"') {
-        current += '"'
-        i++ // skip escaped quote
-      } else {
-        inQuotes = !inQuotes
-      }
-    } else if (ch === "\n" && !inQuotes) {
-      lines.push(current)
-      current = ""
-    } else if (ch === "\r" && !inQuotes) {
-      // skip carriage return
-    } else {
-      current += ch
-    }
-  }
-  if (current.trim()) lines.push(current)
-
-  if (lines.length < 2) return []
-
-  const headers = splitCsvRow(lines[0])
-  return lines.slice(1).map((line) => {
-    const values = splitCsvRow(line)
-    const row: Record<string, string> = {}
-    headers.forEach((h, i) => {
-      row[h.trim()] = (values[i] || "").trim()
-    })
-    return row
-  })
-}
-
-function splitCsvRow(line: string): string[] {
-  const fields: string[] = []
-  let current = ""
-  let inQuotes = false
-
-  for (let i = 0; i < line.length; i++) {
-    const ch = line[i]
-    if (ch === '"') {
-      if (inQuotes && line[i + 1] === '"') {
-        current += '"'
-        i++
-      } else {
-        inQuotes = !inQuotes
-      }
-    } else if (ch === "," && !inQuotes) {
-      fields.push(current)
-      current = ""
-    } else {
-      current += ch
-    }
-  }
-  fields.push(current)
-  return fields
 }
 
 export async function POST(request: NextRequest, context: RouteContext) {
@@ -117,14 +51,28 @@ export async function POST(request: NextRequest, context: RouteContext) {
         teamSlug = "tbd"
       }
 
-      // Position
-      const positionStr = (row["ExpPos"] || row["Position"] || "").toLowerCase()
-      const isGoalie = positionStr.includes("goalie")
+      // Position — use shared tokenizer from csv-utils
+      const positionRaw = row["ExpPos"] || row["Position"] || ""
+      const positionTags = parsePositionTags(positionRaw)
+      const isGoalie = positionTags.includes("G")
+
+      // Roles
+      const rookieStr = (row["Rookie"] || "").toLowerCase()
+      const captainStr = (row["Captain"] || "").toLowerCase()
+      const isRookie = rookieStr === "1" || rookieStr === "yes" || rookieStr === "true"
+      const isCaptain = captainStr === "1" || captainStr === "yes" || captainStr === "true" || captainStr === "asst"
+
+      // Full registration metadata for draft player cards
+      const registrationMeta = parseRegistrationMeta(row)
 
       return {
         playerName,
         teamSlug,
         isGoalie,
+        isRookie,
+        isCaptain,
+        positionTags,
+        registrationMeta,
       }
     }).filter(p => p.playerName.length > 0) // filter out empty rows
 

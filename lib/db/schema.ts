@@ -28,6 +28,17 @@ export const seasons = pgTable("seasons", {
   playoffTeams: integer("playoff_teams").default(4),
 })
 
+// ─── Franchises ─────────────────────────────────────────────────────────────
+// Persistent franchise identity across seasons. In BASH, franchises are
+// identified by color (e.g., the "red" franchise has been Cherry Bombs,
+// Red Army, No Regretzkys). Color is used for draft board theming and team pages.
+
+export const franchises = pgTable("franchises", {
+  slug: text("slug").primaryKey(),
+  name: text("name").notNull(),
+  color: text("color"),
+})
+
 // ─── Teams ──────────────────────────────────────────────────────────────────
 
 export const teams = pgTable("teams", {
@@ -46,6 +57,9 @@ export const seasonTeams = pgTable(
     teamSlug: text("team_slug")
       .notNull()
       .references(() => teams.slug),
+    franchiseSlug: text("franchise_slug")
+      .references(() => franchises.slug),
+    color: text("color"),  // Per-season team color (overrides franchise color when set)
   },
   (t) => [primaryKey({ columns: [t.seasonId, t.teamSlug] })]
 )
@@ -117,6 +131,9 @@ export const playerSeasons = pgTable(
       .notNull()
       .references(() => teams.slug),
     isGoalie: boolean("is_goalie").notNull().default(false),
+    isCaptain: boolean("is_captain").notNull().default(false),
+    isRookie: boolean("is_rookie").notNull().default(false),
+    registrationMeta: jsonb("registration_meta"),  // Sportability CSV import snapshot (skill, positions, age, etc.)
   },
   (t) => [
     primaryKey({ columns: [t.playerId, t.seasonId, t.teamSlug] }),
@@ -577,3 +594,162 @@ export const registrationExtras = pgTable(
   },
   (t) => [primaryKey({ columns: [t.registrationId, t.extraId] })]
 )
+
+// ─── Draft Instances ────────────────────────────────────────────────────────
+
+export const draftInstances = pgTable("draft_instances", {
+  id: text("id").primaryKey(),
+  seasonId: text("season_id")
+    .notNull()
+    .references(() => seasons.id),
+  seasonType: text("season_type").notNull().default("fall"), // snapshot from seasons.seasonType at creation
+  name: text("name").notNull(),
+  status: text("status").notNull().default("draft"),
+  draftType: text("draft_type").notNull().default("snake"),
+  rounds: integer("rounds").notNull().default(14),
+  timerSeconds: integer("timer_seconds").notNull().default(120),
+  maxKeepers: integer("max_keepers").notNull().default(8),
+  draftDate: timestamp("draft_date", { withTimezone: true }),
+  location: text("location"),
+  currentRound: integer("current_round"),
+  currentPick: integer("current_pick"),
+  // Timer state — same pattern as LiveGameState in scorekeeper-types.ts
+  // Client computes: remaining = timerCountdown - (Date.now() - timerStartedAt) / 1000
+  timerCountdown: integer("timer_countdown"),
+  timerRunning: boolean("timer_running").notNull().default(false),
+  timerStartedAt: timestamp("timer_started_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+})
+
+// ─── Draft Team Order ───────────────────────────────────────────────────────
+
+export const draftTeamOrder = pgTable(
+  "draft_team_order",
+  {
+    draftId: text("draft_id")
+      .notNull()
+      .references(() => draftInstances.id, { onDelete: "cascade" }),
+    teamSlug: text("team_slug")
+      .notNull()
+      .references(() => teams.slug),
+    position: integer("position").notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.draftId, t.teamSlug] }),
+    index("idx_draft_team_order").on(t.draftId, t.position),
+  ]
+)
+
+// ─── Draft Pool (Eligible Players) ──────────────────────────────────────────
+
+export const draftPool = pgTable(
+  "draft_pool",
+  {
+    draftId: text("draft_id")
+      .notNull()
+      .references(() => draftInstances.id, { onDelete: "cascade" }),
+    playerId: integer("player_id")
+      .notNull()
+      .references(() => players.id),
+    isKeeper: boolean("is_keeper").notNull().default(false),
+    keeperTeamSlug: text("keeper_team_slug")
+      .references(() => teams.slug),
+    keeperRound: integer("keeper_round"),
+    registrationMeta: jsonb("registration_meta"),  // Sportability CSV import snapshot (see prd-draft.md §5.1)
+  },
+  (t) => [
+    primaryKey({ columns: [t.draftId, t.playerId] }),
+    index("idx_draft_pool_keepers").on(t.draftId, t.keeperTeamSlug),
+    index("idx_draft_pool_draft_player").on(t.draftId, t.playerId),
+  ]
+)
+
+// ─── Draft Picks ────────────────────────────────────────────────────────────
+// PICK PRE-GENERATION: When the draft transitions to `live`, all pick slots
+// are pre-generated as rows with `playerId = null`. For snake drafts, even
+// rounds reverse the team order. Keeper picks are immediately filled.
+// The "current pick" = first row where `playerId IS NULL`, ordered by `pickNumber`.
+
+export const draftPicks = pgTable(
+  "draft_picks",
+  {
+    id: text("id").primaryKey(),
+    draftId: text("draft_id")
+      .notNull()
+      .references(() => draftInstances.id, { onDelete: "cascade" }),
+    round: integer("round").notNull(),
+    pickNumber: integer("pick_number").notNull(),
+    teamSlug: text("team_slug")
+      .notNull()
+      .references(() => teams.slug),
+    originalTeamSlug: text("original_team_slug")
+      .notNull()
+      .references(() => teams.slug),
+    playerId: integer("player_id")
+      .references(() => players.id),
+    pickedAt: timestamp("picked_at", { withTimezone: true }),
+    isKeeper: boolean("is_keeper").notNull().default(false),
+  },
+  (t) => [
+    index("idx_draft_picks_draft").on(t.draftId),
+    index("idx_draft_picks_team").on(t.draftId, t.teamSlug),
+    unique("uq_draft_picks_slot").on(t.draftId, t.round, t.pickNumber),
+  ]
+)
+
+// ─── Draft Trades ───────────────────────────────────────────────────────────
+
+export const draftTrades = pgTable("draft_trades", {
+  id: text("id").primaryKey(),
+  draftId: text("draft_id")
+    .notNull()
+    .references(() => draftInstances.id, { onDelete: "cascade" }),
+  teamASlug: text("team_a_slug")
+    .notNull()
+    .references(() => teams.slug),
+  teamBSlug: text("team_b_slug")
+    .notNull()
+    .references(() => teams.slug),
+  tradeType: text("trade_type").notNull(),
+  description: text("description"),
+  tradedAt: timestamp("traded_at", { withTimezone: true }).defaultNow(),
+})
+
+// ─── Draft Trade Items (what was exchanged) ─────────────────────────────────
+// For pre-draft trades (before picks are generated), `pickId` is null and
+// `round` + `position` identify the pick slot. Resolved to `pickId` at draft start.
+
+export const draftTradeItems = pgTable(
+  "draft_trade_items",
+  {
+    id: serial("id").primaryKey(),
+    tradeId: text("trade_id")
+      .notNull()
+      .references(() => draftTrades.id, { onDelete: "cascade" }),
+    fromTeamSlug: text("from_team_slug")
+      .notNull()
+      .references(() => teams.slug),
+    toTeamSlug: text("to_team_slug")
+      .notNull()
+      .references(() => teams.slug),
+    pickId: text("pick_id")
+      .references(() => draftPicks.id),
+    round: integer("round"),
+    position: integer("position"),
+    playerId: integer("player_id")
+      .references(() => players.id),
+  }
+)
+
+// ─── Draft Activity Log ─────────────────────────────────────────────────────
+
+export const draftLog = pgTable("draft_log", {
+  id: serial("id").primaryKey(),
+  draftId: text("draft_id")
+    .notNull()
+    .references(() => draftInstances.id, { onDelete: "cascade" }),
+  action: text("action").notNull(),
+  detail: jsonb("detail"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+})

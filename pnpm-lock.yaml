@@ -137,6 +137,9 @@ importers:
       react:
         specifier: 19.2.4
         version: 19.2.4
+      react-colorful:
+        specifier: ^5.7.0
+        version: 5.7.0(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       react-day-picker:
         specifier: 9.13.2
         version: 9.13.2(react@19.2.4)
@@ -3288,6 +3291,12 @@ packages:
   punycode@2.3.1:
     resolution: {integrity: sha512-vYt7UD1U9Wg6138shLtLOvdAu+8DsC/ilFtEVHcH+wydcSpNE20AfSOduf6MkRFahL5FY7X1oU7nKVZFtfq8Fg==}
     engines: {node: '>=6'}
+
+  react-colorful@5.7.0:
+    resolution: {integrity: sha512-fuesYIemttah97XmsIHmz4OORDHiSFzyc9HMAIrCHJou2jaRQmL8cFJ76K4zQhhj8jzwOBlOi4BaGTjjOZCfTg==}
+    peerDependencies:
+      react: '>=16.8.0'
+      react-dom: '>=16.8.0'
 
   react-day-picker@9.13.2:
     resolution: {integrity: sha512-IMPiXfXVIAuR5Yk58DDPBC8QKClrhdXV+Tr/alBrwrHUw0qDDYB1m5zPNuTnnPIr/gmJ4ChMxmtqPdxm8+R4Eg==}
@@ -6630,6 +6639,11 @@ snapshots:
   property-information@7.1.0: {}
 
   punycode@2.3.1: {}
+
+  react-colorful@5.7.0(react-dom@19.2.4(react@19.2.4))(react@19.2.4):
+    dependencies:
+      react: 19.2.4
+      react-dom: 19.2.4(react@19.2.4)
 
   react-day-picker@9.13.2(react@19.2.4):
     dependencies:

@@ -29,15 +29,17 @@ export function TeamLogo({
   size = 20,
   className,
   linked = false,
+  seasonId,
 }: {
   slug: string
   name: string
   size?: number
   className?: string
   linked?: boolean
+  seasonId?: string
 }) {
   const [error, setError] = useState(false)
-  const logoUrl = getTeamLogoUrl(slug)
+  const logoUrl = getTeamLogoUrl(slug, seasonId)
 
   if (!logoUrl || error) {
     const fallback = <FallbackLogo size={size} className={className} />
