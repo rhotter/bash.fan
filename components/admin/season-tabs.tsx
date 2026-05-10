@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useCallback, useEffect } from "react"
-import { useSearchParams } from "next/navigation"
+import { useSearchParams, useRouter } from "next/navigation"
 import { SeasonForm } from "./season-form"
 import { PlaceholderCard } from "./placeholder-card"
 import { SeasonTeamsTab } from "./season-teams-tab"
@@ -43,6 +43,7 @@ interface SeasonTabsProps {
 export function SeasonTabs({ season }: SeasonTabsProps) {
   const tabs = getTabsForStatus(season.status)
   const searchParams = useSearchParams()
+  const router = useRouter()
   const tabParam = searchParams.get("tab") as Tab | null
   const initialTab = tabParam && tabs.includes(tabParam) ? tabParam : tabs[0]
   const [activeTab, setActiveTab] = useState<Tab>(initialTab)
@@ -53,11 +54,13 @@ export function SeasonTabs({ season }: SeasonTabsProps) {
 
   const handleRosterChange = useCallback((updatedRoster: RosterPlayer[]) => {
     setRoster(updatedRoster)
-  }, [])
+    router.refresh()
+  }, [router])
 
   const handleTeamsChange = useCallback((updatedTeams: { teamSlug: string; teamName: string; franchiseSlug: string | null; color: string | null }[]) => {
     setTeams(updatedTeams)
-  }, [])
+    router.refresh()
+  }, [router])
 
   // Welcome modal — show once for fresh seasons (no teams, draft status)
   const [welcomeOpen, setWelcomeOpen] = useState(false)

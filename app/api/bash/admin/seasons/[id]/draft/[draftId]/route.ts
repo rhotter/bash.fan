@@ -187,6 +187,15 @@ export async function DELETE(_request: NextRequest, context: RouteContext) {
 
     // Now safe to delete the instance (remaining children cascade)
     await db.delete(schema.draftInstances).where(eq(schema.draftInstances.id, draftId))
+
+    // Reset all player assignments for this season back to 'tbd'
+    // This ensures deleting a draft correctly undoes the roster assignments.
+    const { id: seasonId } = await context.params
+    await db
+      .update(schema.playerSeasons)
+      .set({ teamSlug: "tbd" })
+      .where(eq(schema.playerSeasons.seasonId, seasonId))
+
     return NextResponse.json({ ok: true })
   } catch (err) {
     console.error("Failed to delete draft:", err)

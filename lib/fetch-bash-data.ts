@@ -86,7 +86,17 @@ export async function fetchBashData(seasonParam?: string | null): Promise<BashAp
     LEFT JOIN game_live gl ON gl.game_id = g.id
     WHERE g.season_id = ${seasonId}
       AND g.id NOT LIKE 'test-%'
-    ORDER BY g.date ASC, CASE WHEN g.time = 'TBD' THEN '23:59'::time ELSE to_timestamp(CASE WHEN g.time LIKE '%a' THEN replace(g.time, 'a', ' AM') ELSE replace(g.time, 'p', ' PM') END, 'HH:MI AM')::time END ASC
+    ORDER BY g.date ASC, 
+      CASE 
+        WHEN g.time = 'TBD' THEN '23:59'::time 
+        WHEN g.time ILIKE '%a%' OR g.time ILIKE '%p%' THEN 
+          to_timestamp(
+            replace(replace(lower(g.time), 'a', ' AM'), 'p', ' PM'), 
+            'HH:MI AM'
+          )::time 
+        ELSE 
+          g.time::time 
+      END ASC
   `)
 
   const games: BashGame[] = rows.map((r) => ({

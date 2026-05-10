@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react"
 import { Loader2, Plus, Calendar, Trash2, Edit, Shuffle, Trophy, ArrowRightLeft, AlertCircle, LayoutGrid, List } from "lucide-react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { TeamLogo } from "@/components/team-logo"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -73,6 +74,7 @@ export interface ScheduleGame {
 }
 
 export function SeasonScheduleTab({ seasonId, seasonStatus, initialTeams, defaultLocation }: SeasonScheduleTabProps) {
+  const router = useRouter()
   const [games, setGames] = useState<ScheduleGame[]>([])
   const [isLoading, setIsLoading] = useState(true)
   
@@ -114,6 +116,11 @@ export function SeasonScheduleTab({ seasonId, seasonStatus, initialTeams, defaul
     }
   }, [seasonId])
 
+  const handleGamesChanged = useCallback(() => {
+    fetchGames()
+    router.refresh()
+  }, [fetchGames, router])
+
   useEffect(() => {
     fetchGames()
   }, [fetchGames])
@@ -131,15 +138,15 @@ export function SeasonScheduleTab({ seasonId, seasonStatus, initialTeams, defaul
         const data = await res.json()
         if (data.error && data.error.includes("force")) {
           // If the API refuses because it's final with boxscore, we could prompt again with force
-          // But for now just show the error. A real implementation would show a "force delete" dialog.
+          // But for now just show the error. A real implementation would show a \"force delete\" dialog.
           toast.error(data.error)
           return
         }
         throw new Error(data.error || "Failed to delete game")
       }
       
+      handleGamesChanged()
       toast.success("Game deleted")
-      fetchGames()
       setDeleteId(null)
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "An error occurred")
@@ -157,9 +164,10 @@ export function SeasonScheduleTab({ seasonId, seasonStatus, initialTeams, defaul
       if (!res.ok) {
         throw new Error("Failed to delete schedule")
       }
-      toast.success("Schedule deleted successfully")
+      const data = await res.json()
+      toast.success(`Deleted ${data.deletedCount} game${data.deletedCount !== 1 ? 's' : ''}`)
       setDeleteScheduleModalOpen(false)
-      fetchGames()
+      handleGamesChanged()
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "An error occurred")
     } finally {
@@ -365,7 +373,8 @@ export function SeasonScheduleTab({ seasonId, seasonStatus, initialTeams, defaul
                           const data = await res.json()
                           toast.success(`${data.updated} game(s) updated with real teams`)
                           setPlaceholderMappings({})
-                          fetchGames()
+                          handleGamesChanged()
+                          toast.success("Placeholders replaced successfully")
                         } else {
                           const err = await res.json()
                           toast.error(err.error || "Failed to replace placeholders")
@@ -612,7 +621,7 @@ export function SeasonScheduleTab({ seasonId, seasonStatus, initialTeams, defaul
         teams={initialTeams}
         seasonId={seasonId}
         defaultLocation={defaultLocation}
-        onSaved={fetchGames}
+        onSaved={handleGamesChanged}
       />
 
       <AlertDialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
@@ -643,7 +652,7 @@ export function SeasonScheduleTab({ seasonId, seasonStatus, initialTeams, defaul
         teams={initialTeams}
         seasonId={seasonId}
         defaultLocation={defaultLocation}
-        onSaved={fetchGames}
+        onSaved={handleGamesChanged}
       />
 
       <PlayoffWizard
@@ -654,7 +663,7 @@ export function SeasonScheduleTab({ seasonId, seasonStatus, initialTeams, defaul
         defaultLocation={defaultLocation}
         lastRegularSeasonDate={lastRegularSeasonDate}
         games={games}
-        onSaved={fetchGames}
+        onSaved={handleGamesChanged}
       />
 
       <Dialog open={deleteScheduleModalOpen} onOpenChange={setDeleteScheduleModalOpen}>
