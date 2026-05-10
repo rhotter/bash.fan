@@ -78,6 +78,7 @@ export function WeekNavigator({
   const regularWeeks = useMemo(() => buildWeeks(games), [games])
   const pWeeks = useMemo(() => buildWeeks(playoffGames || []), [playoffGames])
   const allWeeks = useMemo(() => [...regularWeeks, ...pWeeks], [regularWeeks, pWeeks])
+  const allFlatGames = useMemo(() => [...games, ...(playoffGames || [])], [games, playoffGames])
   const hasPlayoffs = pWeeks.length > 0
   const playoffStartIndex = regularWeeks.length
 
@@ -172,7 +173,7 @@ export function WeekNavigator({
       {/* Games for selected week */}
       <div className="flex flex-col">
         {selectedWeek.dates.map(({ date, games: dateGames }) => (
-          <DateSection key={date} date={date} games={dateGames} gameHref={gameHref} />
+          <DateSection key={date} date={date} games={dateGames} allGames={allFlatGames} gameHref={gameHref} />
         ))}
       </div>
     </div>

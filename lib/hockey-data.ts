@@ -124,3 +124,68 @@ export function useLiveGame(gameId: string | null, fallbackData?: unknown) {
 export function getGameDates(games: BashGame[]): string[] {
   return [...new Set(games.map((g) => g.date))].sort().reverse()
 }
+
+export function getSeriesText(game: BashGame, allGames: BashGame[]): string | null {
+  if (!game.seriesId || !game.bracketRound) return null
+
+  // Filter to games in this series that are completed and ordered up to this game
+  const seriesGames = allGames.filter((g) => g.seriesId === game.seriesId)
+  const relevantGames = seriesGames.filter((g) =>
+    g.status === "final" &&
+    g.homeScore !== null &&
+    g.awayScore !== null &&
+    g.seriesGameNumber !== null &&
+    game.seriesGameNumber !== null &&
+    g.seriesGameNumber <= (game.status === "final" ? game.seriesGameNumber : game.seriesGameNumber - 1)
+  )
+
+  let homeWins = 0
+  let awayWins = 0
+  const team1 = game.homeTeam
+  const team2 = game.awayTeam
+
+  for (const g of relevantGames) {
+    const homeWon = g.homeScore! > g.awayScore!
+    if (g.homeTeam === team1) {
+      if (homeWon) homeWins++
+      else awayWins++
+    } else {
+      if (homeWon) awayWins++
+      else homeWins++
+    }
+  }
+
+  const roundName = game.bracketRound.charAt(0).toUpperCase() + game.bracketRound.slice(1)
+  const prefix = `${roundName}, Game ${game.seriesGameNumber} \u2022 `
+
+  if (homeWins === 0 && awayWins === 0) {
+    if (game.seriesGameNumber === 1) return `${roundName}, Game 1`
+    return `${prefix}Series tied 0-0`
+  }
+
+  if (homeWins === awayWins) {
+    return `${prefix}Series tied ${homeWins}-${awayWins}`
+  }
+
+  const leadingTeam = homeWins > awayWins ? team1 : team2
+  const leadingWins = Math.max(homeWins, awayWins)
+  const trailingWins = Math.min(homeWins, awayWins)
+
+  const totalSeriesGames = allGames.filter((g) => g.seriesId === game.seriesId).length
+  const winsRequired = Math.floor(totalSeriesGames / 2) + 1
+
+  const verbWin = leadingTeam.endsWith('s') ? 'win' : 'wins'
+  const verbLead = leadingTeam.endsWith('s') ? 'lead' : 'leads'
+
+  if (leadingWins === winsRequired) {
+    if (game.bracketRound === "finals") {
+      return `${prefix}\uD83C\uDFC6 ${leadingTeam} ${verbWin} the Championship!`
+    }
+    if (game.bracketRound === "play-in") {
+      return `${prefix}${leadingTeam} ${verbWin} play-in`
+    }
+    return `${prefix}${leadingTeam} ${verbWin} series ${leadingWins}-${trailingWins}`
+  }
+
+  return `${prefix}${leadingTeam} ${verbLead} series ${leadingWins}-${trailingWins}`
+}

@@ -178,7 +178,16 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
   const { draft, season, teams, picks, pool, trades, captainPlayerIds } = (data?.draft ? data : initialData)
 
   // Captain set for badge rendering
-  const captainSet = useMemo(() => new Set(captainPlayerIds || []), [captainPlayerIds])
+  const captainSet = useMemo(() => {
+    const set = new Set(captainPlayerIds || [])
+    pool?.forEach((p) => {
+      const meta = p.registrationMeta as Record<string, unknown> | null
+      if (meta?.isCaptain === true || meta?.captain === "Yes") {
+        set.add(p.playerId)
+      }
+    })
+    return set
+  }, [captainPlayerIds, pool])
 
   // ─── Timer ──────────────────────────────────────────────────────────────
 
@@ -854,7 +863,7 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
               { label: "Total Picks", value: String(madePicks) },
               { label: "Rounds", value: String(draft.rounds) },
               { label: "Teams", value: String(teams.length) },
-              { label: "Trades", value: String(trades.length) },
+              { label: trades.length === 1 ? "Trade" : "Trades", value: String(trades.length) },
             ].map((stat) => (
               <Card key={stat.label}>
                 <CardContent className="py-2 px-3 md:py-3 md:px-4 text-center">
@@ -1048,7 +1057,7 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
                                       onClick={() => pick.playerId && openPlayerCard(pick.playerId)}
                                     >{formatPlayerName(pick.playerName)}</button>
                                     {pick.playerId && captainSet.has(pick.playerId) && (
-                                      <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 border-blue-400 text-blue-600">C</Badge>
+                                      <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 shrink-0 border-blue-400 text-blue-600">C</Badge>
                                     )}
                                     {isRookie && (
                                       <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 border-green-400 text-green-600">R</Badge>

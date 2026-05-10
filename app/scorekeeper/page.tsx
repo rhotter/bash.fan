@@ -68,6 +68,9 @@ export default async function ScorekeeperIndexPage({
     hasShootout: false,
     homePlaceholder: null,
     awayPlaceholder: null,
+    seriesId: null,
+    seriesGameNumber: null,
+    bracketRound: null,
   }))
 
   return (
