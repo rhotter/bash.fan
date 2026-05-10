@@ -1,11 +1,19 @@
 "use client"
 
 import { useState, useEffect, useCallback, useMemo } from "react"
-import { Loader2, Plus, Calendar, Trash2, Edit, Shuffle, Trophy, ArrowRightLeft, AlertCircle } from "lucide-react"
+import { Loader2, Plus, Calendar, Trash2, Edit, Shuffle, Trophy, ArrowRightLeft, AlertCircle, LayoutGrid, List } from "lucide-react"
 import Link from "next/link"
 import { TeamLogo } from "@/components/team-logo"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
 import {
   Select,
   SelectContent,
@@ -70,6 +78,7 @@ export function SeasonScheduleTab({ seasonId, seasonStatus, initialTeams, defaul
   
 
   const [teamFilter, setTeamFilter] = useState("all")
+  const [viewMode, setViewMode] = useState<"cards" | "table">("cards")
   
   const [modalOpen, setModalOpen] = useState(false)
 
@@ -228,7 +237,7 @@ export function SeasonScheduleTab({ seasonId, seasonStatus, initialTeams, defaul
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between gap-4">
-        <div className="flex gap-2 flex-1">
+        <div className="flex gap-2 flex-1 items-center">
           <Select value={teamFilter} onValueChange={setTeamFilter}>
             <SelectTrigger className="w-[180px]">
               <SelectValue placeholder="Filter by team" />
@@ -240,6 +249,26 @@ export function SeasonScheduleTab({ seasonId, seasonStatus, initialTeams, defaul
               ))}
             </SelectContent>
           </Select>
+          <div className="flex items-center border rounded-md">
+            <Button
+              variant="ghost"
+              size="icon"
+              className={`h-8 w-8 rounded-r-none ${viewMode === "cards" ? "bg-muted" : ""}`}
+              onClick={() => setViewMode("cards")}
+              title="Card view"
+            >
+              <LayoutGrid className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className={`h-8 w-8 rounded-l-none ${viewMode === "table" ? "bg-muted" : ""}`}
+              onClick={() => setViewMode("table")}
+              title="Table view"
+            >
+              <List className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {isEditable && (
@@ -375,6 +404,95 @@ export function SeasonScheduleTab({ seasonId, seasonStatus, initialTeams, defaul
               )}
             </div>
           ) : (
+            viewMode === "table" ? (
+              /* ── Condensed Table View ── */
+              <div className="rounded-md border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-[110px]">Date</TableHead>
+                      <TableHead className="w-[60px]">Time</TableHead>
+                      <TableHead className="text-right">Away</TableHead>
+                      <TableHead className="w-[40px] text-center">Score</TableHead>
+                      <TableHead>Home</TableHead>
+                      <TableHead className="w-[80px]">Status</TableHead>
+                      {isEditable && <TableHead className="w-[80px]" />}
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredGames
+                      .sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time))
+                      .map((g) => (
+                      <TableRow key={g.id} className="h-10">
+                        <TableCell className="text-xs text-muted-foreground py-1.5">
+                          {new Date(g.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })}
+                        </TableCell>
+                        <TableCell className="text-xs font-medium py-1.5">
+                          {formatGameTime(g.time)}
+                        </TableCell>
+                        <TableCell className="text-right py-1.5">
+                          <div className="flex items-center justify-end gap-1.5">
+                            <span className={`text-sm ${g.awaySlug === "tbd" ? "text-muted-foreground italic" : ""}`}>
+                              {getTeamDisplay(g.awayTeam, g.awayPlaceholder)}
+                            </span>
+                            {g.awaySlug !== "tbd" && <TeamLogo slug={g.awaySlug} name={g.awayTeam} size={16} />}
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-center py-1.5">
+                          {g.status === "final" ? (
+                            <span className="text-xs font-bold tabular-nums">
+                              {g.awayScore}–{g.homeScore}
+                              {g.isOvertime && <span className="text-muted-foreground font-normal ml-0.5">OT</span>}
+                              {g.hasShootout && <span className="text-muted-foreground font-normal ml-0.5">SO</span>}
+                            </span>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">vs</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="py-1.5">
+                          <div className="flex items-center gap-1.5">
+                            {g.homeSlug !== "tbd" && <TeamLogo slug={g.homeSlug} name={g.homeTeam} size={16} />}
+                            <span className={`text-sm ${g.homeSlug === "tbd" ? "text-muted-foreground italic" : ""}`}>
+                              {getTeamDisplay(g.homeTeam, g.homePlaceholder)}
+                            </span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="py-1.5">
+                          <div className="flex flex-wrap gap-1">
+                            <Badge variant={g.status === "live" ? "destructive" : g.status === "final" ? "secondary" : "default"} className="capitalize text-[10px] px-1.5 py-0">
+                              {g.status}
+                            </Badge>
+                            {g.gameType !== "regular" && (
+                              <Badge variant="outline" className="capitalize text-[10px] px-1.5 py-0">
+                                {g.gameType}
+                              </Badge>
+                            )}
+                            {g.isForfeit && (
+                              <Badge variant="destructive" className="text-[10px] px-1.5 py-0">FF</Badge>
+                            )}
+                          </div>
+                        </TableCell>
+                        {isEditable && (
+                          <TableCell className="py-1.5">
+                            <div className="flex items-center gap-0.5">
+                              <Button variant="ghost" size="icon" className="h-7 w-7" asChild title="Edit Game">
+                                <Link href={`/admin/games/${g.id}/edit`}>
+                                  <Edit className="h-3.5 w-3.5" />
+                                </Link>
+                              </Button>
+                              <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:bg-destructive/10" onClick={() => setDeleteId(g.id)} title="Delete Game">
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        )}
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            ) : (
+            /* ── Card View (existing) ── */
             <div className="space-y-8">
               {sortedDates.map(date => (
                 <div key={date}>
@@ -473,7 +591,7 @@ export function SeasonScheduleTab({ seasonId, seasonStatus, initialTeams, defaul
                   )}
                 </div>
               ))}
-            </div>
+            </div>)
           )}
         </CardContent>
       </Card>

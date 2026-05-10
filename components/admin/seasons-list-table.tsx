@@ -28,7 +28,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { MoreHorizontal, MapPin } from "lucide-react"
+import { MoreVertical, MapPin } from "lucide-react"
 
 export interface SeasonRow {
   id: string
@@ -158,7 +158,7 @@ export function SeasonsListTable({ seasons }: { seasons: SeasonRow[] }) {
                             className="h-7 w-7"
                             onClick={(e) => e.stopPropagation()}
                           >
-                            <MoreHorizontal className="h-4 w-4" />
+                            <MoreVertical className="h-4 w-4" />
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>

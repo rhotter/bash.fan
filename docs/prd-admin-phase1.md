@@ -254,6 +254,7 @@ The overview acts as a mini-dashboard for this specific season, with inline prev
 
 #### Roster tab
 - Player assignments for this season (from `player_seasons`)
+- Contextual Goalie Coverage Alert: Displays an amber warning banner if the number of primary goalies assigned is fewer than the number of teams.
 - Read-only for active/completed seasons
 
 #### Schedule tab
@@ -263,10 +264,9 @@ The overview acts as a mini-dashboard for this specific season, with inline prev
   > **Schedule Wizard** (coming soon)
   > Define the full season schedule including regular season matchups and playoff dates. Configure time slots, bye weeks, and rivalry matchups.
 
-#### Draft tab (placeholder for draft seasons only)
-- Placeholder card:
-  > **Draft Setup** (coming soon)
-  > Configure the draft format: number of rounds, protection list sizes (2–10 per BASH rules), draft order based on previous season standings, and supplemental draft rules.
+#### Draft tab
+- **For draft seasons**: Links to the Draft Creation Wizard or Draft Management Dashboard (`/admin/seasons/[id]/draft`). Provides full setup tools for configuring the player pool, draft order, trades, and keepers.
+- **For active/completed seasons**: Read-only link to the final draft results or public draft board (`/draft/[season]`).
 
 #### Registration tab (placeholder for draft seasons only)
 - Placeholder card:

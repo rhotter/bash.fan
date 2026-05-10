@@ -50,9 +50,9 @@ There is no centralized place for commissioners to manage the league — seasons
   - Season name, type, and initializes the status as draft
 - Draft seasons:
   - Should not be visible on the public site
-  - Should have a placeholder for a player draft wizard — the ability for commissioners to define a draft setup (e.g. number of rounds, number of teams, etc.)
+  - Provides a player draft wizard and draft board for commissioners to configure and run the draft.
   - Should have a placeholder for a player registration wizard
-  - Should have a placeholder for a schedule wizard — the ability for commissioners to define a schedule for the season including playoff dates
+  - Provides a schedule wizard — the ability for commissioners to define a schedule for the season including playoff dates
 
 #### 4.3 Game Management (`/admin/games`)
 - Filterable list of games for the current season (by date, status, team)
