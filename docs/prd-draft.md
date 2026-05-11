@@ -103,9 +103,10 @@ A dedicated, interactive draft system for managing the BASH league draft process
   - `published` — Visible at a public URL for captains, players, and fans
   - `live` — Draft is actively in progress
   - `paused` — Commissioner has temporarily paused the draft (must resume before completing)
-  - `completed` — All rounds finished, results available
+  - `completed` — All rounds finished, results available, shown in footer navigation
+  - `archived` — Removed from public navigation, but direct link remains active (Full Board view only)
 
-  Valid transitions: `draft → published` (purge simulation), `published → live` (start draft), `live → paused`, `paused → live` (resume only — cannot transition directly to `completed` from `paused`), `live → completed`.
+  Valid transitions: `draft → published` (purge simulation), `published → live` (start draft), `live → paused`, `paused → live` (resume only — cannot transition directly to `completed` from `paused`), `live → completed`, `completed → archived`, `archived → completed`.
 
 - **Simulation / Preview Mode**: While in the `draft` state, the commissioner can open the admin presentation view and run a full simulated draft:
   - All admin controls are functional: pick entry, trades, timer, order editing, undo
@@ -318,8 +319,11 @@ stateDiagram-v2
 
     live --> live: Pick confirmed / Trade / Undo
     live --> completed: All picks filled
+    completed --> archived: Hide from public
+    archived --> completed: Show to public
 
     completed --> [*]: Export / Push rosters
+    archived --> [*]: Export / Push rosters
 ```
 
 ### Draft Instance States
@@ -330,7 +334,8 @@ stateDiagram-v2
 | `published` | ✅ Full access | ✅ Pre-draft info only | Public page shows date/time/location countdown. All simulation data has been purged. |
 | `live` | ✅ Admin controls | ✅ Real-time board | Draft is actively in progress |
 | `paused` | ✅ Admin controls | ✅ Board visible (paused) | Commissioner has paused the draft |
-| `completed` | ✅ Results + export | ✅ Final board | All rounds finished, results available |
+| `completed` | ✅ Results + export | ✅ Final board | All rounds finished, results available in footer |
+| `archived` | ✅ Results + export | ✅ Final board (direct link only) | Draft is removed from primary navigation. |
 
 ---
 

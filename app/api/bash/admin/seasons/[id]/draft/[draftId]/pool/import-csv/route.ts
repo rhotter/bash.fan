@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { db, schema } from "@/lib/db"
-import { eq, and } from "drizzle-orm"
+import { eq, and, inArray } from "drizzle-orm"
+import { z } from "zod"
 import { getSession } from "@/lib/admin-session"
 import { canonicalizePlayerName, normalizePlayerName } from "@/lib/player-name"
 import { parseCsv, parseRegistrationMeta } from "@/lib/csv-utils"
@@ -157,16 +158,26 @@ async function handlePreview(request: NextRequest, draftId: string) {
 // ─── Confirm Mode ────────────────────────────────────────────────────────────
 
 async function handleConfirm(request: NextRequest, draftId: string) {
-  const body = await request.json() as {
+  const schemaValidation = z.object({
+    players: z.array(z.any()),
+    mode: z.enum(["append", "overwrite"]).optional()
+  }).safeParse(await request.json())
+
+  if (!schemaValidation.success) {
+    return NextResponse.json({ error: "Invalid payload format" }, { status: 400 })
+  }
+
+  const { players, mode = "append" } = schemaValidation.data as {
     players: MappedPoolPlayer[]
     mode?: "append" | "overwrite"
   }
 
-  const { players, mode = "append" } = body
-
-  if (!players || !Array.isArray(players) || players.length === 0) {
+  if (!players || players.length === 0) {
     return NextResponse.json({ error: "No players to import" }, { status: 400 })
   }
+
+  // No transaction support with neon-http — each operation is idempotent
+  // so partial failure is recoverable by re-importing the CSV.
 
   // Fetch existing pool
   const existingPool = await db
@@ -194,6 +205,9 @@ async function handleConfirm(request: NextRequest, draftId: string) {
   let skipped = 0
   const processedPlayerIds = new Set<number>()
 
+  const updatePromises = []
+  const insertPoolValues = []
+
   for (const player of players) {
     const normalized = normalizePlayerName(player.playerName)
     let playerId = playersByNormalized.get(normalized)?.id ?? null
@@ -214,49 +228,52 @@ async function handleConfirm(request: NextRequest, draftId: string) {
 
     // If already in pool → update registration_meta
     if (poolPlayerIds.has(playerId)) {
-      await db
-        .update(schema.draftPool)
-        .set({ registrationMeta: player.registrationMeta })
-        .where(
-          and(
-            eq(schema.draftPool.draftId, draftId),
-            eq(schema.draftPool.playerId, playerId)
+      updatePromises.push(
+        db.update(schema.draftPool)
+          .set({ registrationMeta: player.registrationMeta })
+          .where(
+            and(
+              eq(schema.draftPool.draftId, draftId),
+              eq(schema.draftPool.playerId, playerId)
+            )
           )
-        )
+      )
       skipped++
-      continue
+    } else {
+      // Insert into pool
+      insertPoolValues.push({
+        draftId,
+        playerId,
+        registrationMeta: player.registrationMeta,
+      })
+      poolPlayerIds.add(playerId)
+      added++
     }
+  }
 
-    // Insert into pool
-    await db.insert(schema.draftPool).values({
-      draftId,
-      playerId,
-      registrationMeta: player.registrationMeta,
-    })
-
-    poolPlayerIds.add(playerId)
-    added++
+  if (updatePromises.length > 0) {
+    await Promise.all(updatePromises)
+  }
+  if (insertPoolValues.length > 0) {
+    await db.insert(schema.draftPool).values(insertPoolValues)
   }
 
   // In overwrite mode, remove pool entries not in the CSV
   let removed = 0
   if (mode === "overwrite") {
     const toRemove = existingPool.filter((p) => !processedPlayerIds.has(p.playerId))
-    for (const entry of toRemove) {
-      await db
-        .delete(schema.draftPool)
-        .where(
-          and(
-            eq(schema.draftPool.draftId, draftId),
-            eq(schema.draftPool.playerId, entry.playerId)
-          )
+    if (toRemove.length > 0) {
+      await db.delete(schema.draftPool).where(
+        and(
+          eq(schema.draftPool.draftId, draftId),
+          inArray(schema.draftPool.playerId, toRemove.map((p) => p.playerId))
         )
+      )
+      removed = toRemove.length
     }
-    removed = toRemove.length
   }
 
   // Recalculate rounds based on the new pool size
-  // Fetch current pool count and team count, then update if rounds were auto-calculated
   const [draft] = await db
     .select()
     .from(schema.draftInstances)
@@ -279,9 +296,6 @@ async function handleConfirm(request: NextRequest, draftId: string) {
 
     if (teamCount > 0) {
       const newSuggestedRounds = Math.max(1, Math.ceil(newPoolCount / teamCount))
-
-      // Update rounds if they matched the old auto-calculated value
-      // (i.e. user never manually overrode them)
       const oldSuggestedRounds = Math.max(1, Math.ceil(existingPool.length / teamCount))
 
       if (draft.rounds === oldSuggestedRounds && newSuggestedRounds !== draft.rounds) {

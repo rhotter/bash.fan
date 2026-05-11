@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { db, schema } from "@/lib/db"
 import { eq, and, inArray } from "drizzle-orm"
+import { z } from "zod"
 import { getSession } from "@/lib/admin-session"
 import { revalidateTag } from "next/cache"
 
@@ -17,7 +18,11 @@ export async function POST(request: NextRequest, context: RouteContext) {
   const { id: seasonId } = await context.params
 
   try {
-    const { mappings } = await request.json()
+    const schemaValidation = z.object({ mappings: z.record(z.string(), z.string()) }).safeParse(await request.json())
+    if (!schemaValidation.success) {
+      return NextResponse.json({ error: "Invalid payload format" }, { status: 400 })
+    }
+    const { mappings } = schemaValidation.data
 
     if (!mappings || Object.keys(mappings).length === 0) {
       return NextResponse.json({ error: "Invalid payload" }, { status: 400 })
@@ -46,6 +51,9 @@ export async function POST(request: NextRequest, context: RouteContext) {
 
     let updatedCount = 0
 
+    // Apply each update (no transaction support with neon-http, but each
+    // update is idempotent so partial failure is recoverable by re-running)
+    const updatePromises = []
     for (const game of playoffGames) {
       let needsUpdate = false
       const updates: Partial<typeof schema.games.$inferInsert> = {}
@@ -63,11 +71,16 @@ export async function POST(request: NextRequest, context: RouteContext) {
       }
 
       if (needsUpdate) {
-        await db.update(schema.games)
-          .set(updates)
-          .where(eq(schema.games.id, game.id))
+        updatePromises.push(
+          db.update(schema.games)
+            .set(updates)
+            .where(eq(schema.games.id, game.id))
+        )
         updatedCount++
       }
+    }
+    if (updatePromises.length > 0) {
+      await Promise.all(updatePromises)
     }
 
     // @ts-expect-error - Next.js canary signature change
