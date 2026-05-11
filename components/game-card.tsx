@@ -76,7 +76,7 @@ export function GameCard({ game, href, seriesText }: { game: BashGame; href?: st
                 "text-xs truncate",
                 awayWon ? "font-semibold" : "text-muted-foreground",
               )}>
-                {game.awayTeam}
+                {game.awaySlug === "tbd" && game.awayPlaceholder ? game.awayPlaceholder : game.awayTeam}
               </span>
             </div>
             <span className={cn(
@@ -93,7 +93,7 @@ export function GameCard({ game, href, seriesText }: { game: BashGame; href?: st
                 "text-xs truncate",
                 homeWon ? "font-semibold" : "text-muted-foreground",
               )}>
-                {game.homeTeam}
+                {game.homeSlug === "tbd" && game.homePlaceholder ? game.homePlaceholder : game.homeTeam}
               </span>
             </div>
             <span className={cn(
