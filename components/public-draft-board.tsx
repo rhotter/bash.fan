@@ -104,7 +104,7 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
   const [positionFilter, setPositionFilter] = useState<string[]>([])
   const [sidebarTab, setSidebarTab] = useState<"recent" | "available">("recent")
   const [mobileTab, setMobileTab] = useState(() =>
-    initialData.draft.status === "completed" ? "byteam" : "board"
+    (initialData.draft.status === "completed" || initialData.draft.status === "archived") ? "byteam" : "board"
   )
   const containerRef = useRef<HTMLDivElement>(null)
 
@@ -619,7 +619,7 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
   // ═══════════════════════════════════════════════════════════════════════════
 
   const isLive = draft.status === "live"
-  const isCompleted = draft.status === "completed"
+  const isCompleted = draft.status === "completed" || draft.status === "archived"
 
   return (
     <div ref={containerRef} className={`min-h-screen bg-background ${isFullscreen ? "p-4" : ""}`}>
