@@ -71,7 +71,7 @@ erDiagram
     players ||--o{ draft_picks : "selected_by"
 ```
 
-The Drizzle schema (`lib/db/schema.ts`) is designed around 22 core tables:
+The Drizzle schema (`lib/db/schema.ts`) defines the following table groups:
 
 1. **League Structure**
    - `seasons`: Defines seasons (e.g., "Fall 2025") and links to Sportability league IDs. Stores configuration like `status` (draft/active/completed), `season_type` (fall/summer), and `playoff_teams`.
@@ -111,6 +111,18 @@ The Drizzle schema (`lib/db/schema.ts`) is designed around 22 core tables:
    - `draft_trades`: Trade records (pre-draft pick swaps and live trades) between teams.
    - `draft_trade_items`: Individual items exchanged in a trade (picks, identified by round/position or pickId).
    - `draft_log`: Audit trail of all draft actions (picks, trades, undos, keepers).
+
+7. **Registration System**
+   - `users` / `accounts` / `sessions` / `verification_tokens`: NextAuth.js authentication tables.
+   - `registration_periods`: Configurable registration windows per season with pricing, capacity limits, and open/close dates.
+   - `registration_questions`: Custom questions attached to registration periods.
+   - `legal_notices`: Waivers and legal documents requiring acknowledgement.
+   - `registration_period_notices`: Junction linking notices to registration periods.
+   - `registrations`: Player registration submissions with status tracking, payment info, and linked player IDs.
+   - `registration_answers`: Responses to custom registration questions.
+   - `notice_acknowledgements`: Records of waiver/notice acceptance.
+   - `discount_codes` / `registration_period_discounts`: Promo codes and per-period discount configuration.
+   - `extras` / `registration_period_extras` / `registration_extras`: Optional add-ons (jerseys, etc.) purchasable during registration.
 
 ## Key Functions and Data Flow
 
@@ -158,8 +170,11 @@ The App Router maps URLs directly to server components:
 - `/` -> Home page (Scoreboard)
 - `/standings`, `/stats` -> Leaderboards and league tables
 - `/player/[slug]`, `/team/[slug]`, `/game/[id]` -> Detail views
+- `/register` -> Player registration flow (temporary — will be removed)
 - `/draft/[season]` -> Public draft board (e.g., `/draft/2026-summer`)
+- `/scorekeeper` -> Game selection for live scoring
+- `/scorekeeper/[id]` -> Live game scorekeeper
 - `/admin/seasons/[id]` -> Season management (Schedule, Standings, Teams, Draft tabs)
 - `/admin/seasons/[id]/draft/[draftId]/board` -> Admin live draft board
+- `/admin/registration` -> Registration period management (questions, discounts, notices, extras)
 - `/admin/franchises` -> Franchise manager
-- `/scorekeeper/[gameId]` -> Live game scorekeeper

@@ -447,13 +447,50 @@ export function DraftTab({ seasonId, seasonStatus, seasonType, teams, rosterCoun
                     </Button>
                   )}
                   {(draft.status === "completed" || draft.status === "archived") && (
-                    <Button
-                      size="sm"
-                      onClick={() => window.open(`/draft/${seasonId}`, "_blank")}
-                    >
-                      <ExternalLink className="h-3.5 w-3.5 mr-1.5" />
-                      View Draft Results
-                    </Button>
+                    <>
+                      <Button
+                        size="sm"
+                        onClick={() => window.open(`/draft/${seasonId}`, "_blank")}
+                      >
+                        <ExternalLink className="h-3.5 w-3.5 mr-1.5" />
+                        View Draft Results
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={async () => {
+                          try {
+                            const action = draft.status === "completed" ? "archive" : "unarchive"
+                            const method = draft.status === "completed" ? "POST" : "DELETE"
+                            const res = await fetch(
+                              `/api/bash/admin/seasons/${seasonId}/draft/${draft.id}/archive`,
+                              { method }
+                            )
+                            if (res.ok) {
+                              toast.success(`Draft results ${draft.status === "completed" ? "hidden from" : "restored to"} public navigation`)
+                              fetchDrafts()
+                            } else {
+                              const err = await res.json()
+                              toast.error(err.error || `Failed to ${action}`)
+                            }
+                          } catch {
+                            toast.error("Connection error")
+                          }
+                        }}
+                      >
+                        {draft.status === "completed" ? (
+                          <>
+                            <EyeOff className="h-3.5 w-3.5 mr-1.5" />
+                            Hide from Public
+                          </>
+                        ) : (
+                          <>
+                            <Eye className="h-3.5 w-3.5 mr-1.5" />
+                            Show to Public
+                          </>
+                        )}
+                      </Button>
+                    </>
                   )}
                   {draft.status === "completed" && (
                     <Button
@@ -521,54 +558,7 @@ export function DraftTab({ seasonId, seasonStatus, seasonType, teams, rosterCoun
                           Revert to Live
                         </DropdownMenuItem>
                       )}
-                      {draft.status === "completed" && (
-                        <DropdownMenuItem
-                          onClick={async () => {
-                            try {
-                              const res = await fetch(
-                                `/api/bash/admin/seasons/${seasonId}/draft/${draft.id}/archive`,
-                                { method: "POST" }
-                              )
-                              if (res.ok) {
-                                toast.success("Draft results removed from public navigation")
-                                fetchDrafts()
-                              } else {
-                                const err = await res.json()
-                                toast.error(err.error || "Failed to archive")
-                              }
-                            } catch {
-                              toast.error("Connection error")
-                            }
-                          }}
-                        >
-                          <EyeOff className="h-4 w-4 mr-2" />
-                          Archive Draft
-                        </DropdownMenuItem>
-                      )}
-                      {draft.status === "archived" && (
-                        <DropdownMenuItem
-                          onClick={async () => {
-                            try {
-                              const res = await fetch(
-                                `/api/bash/admin/seasons/${seasonId}/draft/${draft.id}/archive`,
-                                { method: "DELETE" }
-                              )
-                              if (res.ok) {
-                                toast.success("Draft results restored to public navigation")
-                                fetchDrafts()
-                              } else {
-                                const err = await res.json()
-                                toast.error(err.error || "Failed to restore")
-                              }
-                            } catch {
-                              toast.error("Connection error")
-                            }
-                          }}
-                        >
-                          <Eye className="h-4 w-4 mr-2" />
-                          Unarchive Draft
-                        </DropdownMenuItem>
-                      )}
+
                       <DropdownMenuItem
                         className="text-destructive focus:text-destructive"
                         onClick={() => setDeleteTarget(draft)}
@@ -589,6 +579,21 @@ export function DraftTab({ seasonId, seasonStatus, seasonType, teams, rosterCoun
                 <StatItem icon={Clock} label="Pick Timer" value={`${draft.timerSeconds}s`} />
                 <StatItem icon={ArrowRightLeft} label="Trades" value={draft.tradeCount} />
               </div>
+
+              {/* Public Visibility Callout */}
+              {(seasonStatus === "active" || seasonStatus === "current") && draft.status === "completed" && (
+                <div className="mt-4 pt-4 border-t">
+                  <div className="rounded-lg border bg-blue-50/50 dark:bg-blue-950/20 p-3 flex items-start gap-3">
+                    <AlertCircle className="h-5 w-5 text-blue-500 shrink-0 mt-0.5" />
+                    <div className="flex-1 space-y-1">
+                      <p className="text-sm font-medium text-blue-700 dark:text-blue-300 leading-none">Draft is currently public</p>
+                      <p className="text-xs text-blue-600/80 dark:text-blue-400/80">
+                        The draft results link is visible in the site footer. Since the season is active, you may want to click <strong>Hide from Public</strong> above to clean up the navigation.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Go-Live Readiness — shown for pre-live drafts */}
               {isPreLive && (() => {

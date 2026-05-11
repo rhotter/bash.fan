@@ -44,10 +44,11 @@ export async function GET(
     .where(eq(schema.draftTeamOrder.draftId, draft.id))
     .orderBy(schema.draftTeamOrder.position)
 
-  // Fetch franchise colors
+  // Fetch team colors — season_teams.color takes priority over franchise color
   const seasonTeams = await db
     .select({
       teamSlug: schema.seasonTeams.teamSlug,
+      color: schema.seasonTeams.color,
       franchiseSlug: schema.seasonTeams.franchiseSlug,
     })
     .from(schema.seasonTeams)
@@ -64,14 +65,21 @@ export async function GET(
     const franchises = await db.query.franchises.findMany({
       where: inArray(schema.franchises.slug, franchiseSlugs),
     })
-    const colorMap: Record<string, string> = {}
+    const franchiseColorMap: Record<string, string> = {}
     for (const f of franchises) {
-      if (f.color) colorMap[f.slug] = f.color
+      if (f.color) franchiseColorMap[f.slug] = f.color
     }
     for (const st of seasonTeams) {
-      if (st.franchiseSlug && colorMap[st.franchiseSlug]) {
-        teamColors[st.teamSlug] = colorMap[st.franchiseSlug]
+      if (st.color) {
+        teamColors[st.teamSlug] = st.color
+      } else if (st.franchiseSlug && franchiseColorMap[st.franchiseSlug]) {
+        teamColors[st.teamSlug] = franchiseColorMap[st.franchiseSlug]
       }
+    }
+  } else {
+    // No franchises at all — just use direct team colors
+    for (const st of seasonTeams) {
+      if (st.color) teamColors[st.teamSlug] = st.color
     }
   }
 

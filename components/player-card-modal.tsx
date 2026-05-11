@@ -6,7 +6,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
-import { Loader2, User, BarChart3, Shield, Star, Calendar, Dumbbell, MapPin, Trophy, AlertCircle } from "lucide-react"
+import { Loader2, User, BarChart3, Shield, Star, Calendar, Dumbbell, MapPin, Trophy, AlertCircle, ExternalLink } from "lucide-react"
+import Link from "next/link"
+import { playerSlug } from "@/lib/player-slug"
+import { Button } from "@/components/ui/button"
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -184,11 +187,11 @@ export function PlayerCardModal({
       <DialogContent className="sm:max-w-[480px] max-h-[85vh] overflow-hidden flex flex-col p-0">
         {/* Header */}
         <div
-          className="px-6 pt-5 pb-4"
+          className="px-6 pt-5 pb-4 relative"
           style={teamColor ? { borderBottom: `3px solid ${teamColor}` } : undefined}
         >
           <DialogHeader>
-            <DialogTitle className="text-xl font-bold flex items-center gap-2">
+            <DialogTitle className="text-xl font-bold flex items-center gap-2 pr-6">
               {player.playerName}
               {isRookie && (
                 <Badge variant="secondary" className="text-[10px] bg-green-100 text-green-700 border-green-200">
@@ -199,7 +202,7 @@ export function PlayerCardModal({
           </DialogHeader>
 
           {/* Quick-glance badges */}
-          <div className="flex flex-wrap items-center gap-2 mt-2">
+          <div className="flex flex-wrap items-center gap-2 mt-2 pr-4">
             {skillLevel && (
               <Badge variant="outline" className={`text-xs ${skillColor}`}>
                 {skillLevel}
@@ -220,6 +223,12 @@ export function PlayerCardModal({
                 {gender}
               </Badge>
             )}
+            
+            <Button asChild variant="outline" size="sm" className="h-6 text-[10px] px-2 ml-auto shadow-sm">
+              <Link href={`/player/${playerSlug(player.playerName)}`} target="_blank" rel="noopener noreferrer">
+                All Stats <ExternalLink className="ml-1 h-3 w-3 opacity-70" />
+              </Link>
+            </Button>
           </div>
 
           {/* Drafted-to info */}

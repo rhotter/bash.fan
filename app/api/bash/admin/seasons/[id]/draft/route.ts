@@ -188,15 +188,14 @@ export async function POST(request: NextRequest, context: RouteContext) {
         // The DraftBoardView `autoPopulate` useEffect will handle it safely
         // to assign sequential rounds (R1, R2, etc.) for multiple captains.
         
-        // Set isCaptain on the player_seasons row
+        // Set isCaptain and assign team on the player_seasons row
         await db
           .update(schema.playerSeasons)
-          .set({ isCaptain: true })
+          .set({ isCaptain: true, teamSlug: capTeamSlug })
           .where(
             and(
               eq(schema.playerSeasons.seasonId, seasonId),
-              eq(schema.playerSeasons.playerId, capPlayerId),
-              eq(schema.playerSeasons.teamSlug, capTeamSlug)
+              eq(schema.playerSeasons.playerId, capPlayerId)
             )
           )
       }

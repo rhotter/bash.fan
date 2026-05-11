@@ -62,7 +62,7 @@ export async function POST(
     }
 
     // If shootout decided it, add 1 to the shootout winner
-    const isShootout = state.shootout !== null
+    const isShootout = !!state.shootout
     if (isShootout) {
       const homeSOGoals = state.shootout!.homeAttempts.filter((a) => a.scored).length
       const awaySOGoals = state.shootout!.awayAttempts.filter((a) => a.scored).length
@@ -400,6 +400,6 @@ export async function POST(
     return NextResponse.json({ ok: true, homeScore, awayScore, isOvertime })
   } catch (error) {
     console.error("Failed to finalize game:", error)
-    return NextResponse.json({ error: "Failed to finalize game" }, { status: 500 })
+    return NextResponse.json({ error: "Failed to finalize game", details: error instanceof Error ? error.message : String(error) }, { status: 500 })
   }
 }

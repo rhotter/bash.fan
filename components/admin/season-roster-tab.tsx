@@ -1,6 +1,6 @@
 import { useState, useCallback } from "react"
 import { useRouter } from "next/navigation"
-import { Plus, Search, Loader2, ArrowUpDown } from "lucide-react"
+import { Plus, Search, Loader2, ArrowUpDown, AlertTriangle } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import {
@@ -43,6 +43,7 @@ import { toast } from "sonner"
 import { TeamLogo } from "@/components/team-logo"
 import { Badge } from "@/components/ui/badge"
 import { SportabilityImportModal } from "@/components/admin/sportability-import-modal"
+
 
 interface RosterPlayer {
   playerId: number
@@ -441,7 +442,20 @@ export function SeasonRosterTab({ seasonId, seasonStatus, roster, teams, onRoste
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* Filters */}
+        {/* Goalie coverage alert */}
+        {(() => {
+          const goalieCount = roster.filter((p) => p.isGoalie).length
+          const teamCount = teams.filter((t) => t.teamSlug !== "tbd").length
+          if (teamCount > 0 && goalieCount < teamCount) {
+            return (
+              <div className="flex items-center gap-2 rounded-md border border-amber-500/30 bg-amber-50/50 dark:bg-amber-950/20 px-3 py-2 text-sm text-amber-800 dark:text-amber-300">
+                <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600" />
+                <span>Only <span className="font-semibold">{goalieCount}</span> goalie{goalieCount !== 1 ? "s" : ""} listed — fewer than the <span className="font-semibold">{teamCount}</span> teams configured. Please confirm more players whose primary position is goalie.</span>
+              </div>
+            )
+          }
+          return null
+        })()}
         <div className="flex flex-col sm:flex-row gap-3">
           <div className="relative flex-1">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />

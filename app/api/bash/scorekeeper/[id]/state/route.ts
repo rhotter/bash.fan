@@ -57,11 +57,18 @@ export async function PUT(
       else if (awaySOGoals > homeSOGoals) awayScore++
     }
 
-    // Update game_live state
+    // Upsert game_live state
     await db
-      .update(schema.gameLive)
-      .set({ state, updatedAt: sql`NOW()` })
-      .where(eq(schema.gameLive.gameId, id))
+      .insert(schema.gameLive)
+      .values({
+        gameId: id,
+        state,
+        pinHash: process.env.SCOREKEEPER_PIN || "unknown",
+      })
+      .onConflictDoUpdate({
+        target: schema.gameLive.gameId,
+        set: { state, updatedAt: sql`NOW()` },
+      })
 
     // Set game to live once play starts (period >= 1), update scores
     if (state.period >= 1) {

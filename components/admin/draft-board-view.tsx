@@ -285,7 +285,7 @@ export function DraftBoardView({
   const [autoPopulated, setAutoPopulated] = useState(false)
   useEffect(() => {
     if (autoPopulated) return
-    if (isLive || draft.status === "completed" || isDraft) return
+    if (isLive || draft.status === "completed") return
     if (captains.length === 0) return
 
     // Find current keepers from the initial pool
@@ -958,7 +958,7 @@ export function DraftBoardView({
                 </>
               )}
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => router.push(`/admin/seasons/${seasonId}`)}>
+              <DropdownMenuItem onClick={() => router.push(`/admin/seasons/${seasonId}?tab=Draft`)}>
                 <LogOut className="h-4 w-4 mr-2" />
                 Exit Draft
               </DropdownMenuItem>
@@ -1224,8 +1224,8 @@ export function DraftBoardView({
               <ExternalLink className="h-4 w-4 mr-2" />
               View Draft Results
             </Button>
-            <Button onClick={() => { setDraftCompleteModalOpen(false); router.push(`/admin/seasons/${seasonId}`) }}>
-              Season Settings
+            <Button onClick={() => { setDraftCompleteModalOpen(false); router.push(`/admin/seasons/${seasonId}?tab=Draft`) }}>
+              Return to Season
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1328,22 +1328,6 @@ export function DraftBoardView({
             {/* Team selector + player search */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-3">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-muted-foreground">Active Team</label>
-                  <Select value={selectedTeam} onValueChange={setSelectedTeam}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select team" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {teams.map((t) => (
-                        <SelectItem key={t.teamSlug} value={t.teamSlug}>
-                          {t.teamName} ({keepersForTeam(t.teamSlug).length} / {draft.maxKeepers} keepers)
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
                 {/* Current keepers for selected team */}
                 <div className="space-y-1.5">
                   <label className="text-xs font-medium text-muted-foreground">

@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation"
 import { TeamLogo } from "@/components/team-logo"
 import { periodLabel, formatClock } from "@/lib/scorekeeper-types"
 import { formatGameDate, formatGameTime } from "@/lib/format-time"
-import type { BashGame } from "@/lib/hockey-data"
+import { type BashGame, getSeriesText } from "@/lib/hockey-data"
 
 export function useLiveClock(game: BashGame) {
   const isLive = game.status === "live"
@@ -28,7 +28,7 @@ export function useLiveClock(game: BashGame) {
   return { period: game.livePeriod, clock: formatClock(seconds) }
 }
 
-export function GameCard({ game, href }: { game: BashGame; href?: string }) {
+export function GameCard({ game, href, seriesText }: { game: BashGame; href?: string; seriesText?: string | null }) {
   const router = useRouter()
   const isFinal = game.status === "final"
   const isLive = game.status === "live"
@@ -76,7 +76,7 @@ export function GameCard({ game, href }: { game: BashGame; href?: string }) {
                 "text-xs truncate",
                 awayWon ? "font-semibold" : "text-muted-foreground",
               )}>
-                {game.awayTeam}
+                {game.awaySlug === "tbd" && game.awayPlaceholder ? game.awayPlaceholder : game.awayTeam}
               </span>
             </div>
             <span className={cn(
@@ -93,7 +93,7 @@ export function GameCard({ game, href }: { game: BashGame; href?: string }) {
                 "text-xs truncate",
                 homeWon ? "font-semibold" : "text-muted-foreground",
               )}>
-                {game.homeTeam}
+                {game.homeSlug === "tbd" && game.homePlaceholder ? game.homePlaceholder : game.homeTeam}
               </span>
             </div>
             <span className={cn(
@@ -104,12 +104,18 @@ export function GameCard({ game, href }: { game: BashGame; href?: string }) {
             </span>
           </div>
         </div>
+
+        {seriesText && (
+          <div className="px-3 py-1.5 border-t border-border/20 bg-muted/20 text-[10px] text-muted-foreground font-medium text-center">
+            {seriesText}
+          </div>
+        )}
       </div>
     </div>
   )
 }
 
-export function DateSection({ date, games, gameHref }: { date: string; games: BashGame[]; gameHref?: (game: BashGame) => string }) {
+export function DateSection({ date, games, allGames, gameHref }: { date: string; games: BashGame[]; allGames?: BashGame[]; gameHref?: (game: BashGame) => string }) {
   return (
     <div className="mb-4">
       <div className="mb-1.5">
@@ -119,7 +125,7 @@ export function DateSection({ date, games, gameHref }: { date: string; games: Ba
       </div>
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
         {games.map((game) => (
-          <GameCard key={game.id} game={game} href={gameHref?.(game)} />
+          <GameCard key={game.id} game={game} href={gameHref?.(game)} seriesText={allGames ? getSeriesText(game, allGames) : undefined} />
         ))}
       </div>
     </div>

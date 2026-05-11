@@ -3,6 +3,7 @@ import { db, schema } from "@/lib/db"
 import { eq, ne, and, sql } from "drizzle-orm"
 import { Badge } from "@/components/ui/badge"
 import { SeasonTabs } from "@/components/admin/season-tabs"
+import { SeasonActivationChecklist } from "@/components/admin/season-activation-checklist"
 
 interface SeasonDetailPageProps {
   params: Promise<{ id: string }>
@@ -56,10 +57,22 @@ async function getSeason(id: string) {
   // Sort by player name
   const roster = rawRoster.sort((a, b) => a.playerName.localeCompare(b.playerName))
 
+  const [{ count: gameCount }] = await db
+    .select({ count: sql<number>`cast(count(*) as integer)` })
+    .from(schema.games)
+    .where(eq(schema.games.seasonId, id))
+
+  const drafts = await db
+    .select({ id: schema.draftInstances.id, status: schema.draftInstances.status })
+    .from(schema.draftInstances)
+    .where(eq(schema.draftInstances.seasonId, id))
+
   return {
     ...season,
     teams,
     roster,
+    gameCount,
+    drafts,
   }
 }
 
@@ -102,6 +115,8 @@ export default async function SeasonDetailPage({ params }: SeasonDetailPageProps
           </p>
         </div>
       </div>
+
+      <SeasonActivationChecklist season={season} />
 
       {/* Tabs */}
       <SeasonTabs season={season} />

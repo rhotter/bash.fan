@@ -38,6 +38,9 @@ export function GamePageContent({ initialDetail, initialLiveData, homeRoster, aw
     hasShootout: false,
     homePlaceholder: null,
     awayPlaceholder: null,
+    seriesId: null,
+    seriesGameNumber: null,
+    bracketRound: null,
   }
 
   return (

@@ -1,7 +1,7 @@
 import "./env"
 import { rawSql } from "../lib/db"
 import { sql } from "drizzle-orm"
-import { execSync } from "child_process"
+
 
 const CSV_URL =
   "https://docs.google.com/spreadsheets/d/1D7yVyYqy2AVZRchLQExYcSZoqwUum8wsN6EuK0kZKm4/export?format=csv&gid=2023972233"
@@ -61,9 +61,9 @@ function parseIntSafe(val: string): number {
 }
 
 async function importHistoricalStats() {
-  console.log("Pushing schema via drizzle-kit...")
-  execSync("npx drizzle-kit push", { stdio: "inherit" })
-  console.log("Schema applied.")
+  // console.log("Pushing schema via drizzle-kit...")
+  // execSync("npx drizzle-kit push", { stdio: "inherit" })
+  // console.log("Schema applied.")
 
   console.log("Fetching CSV from Google Sheets...")
   const response = await fetch(CSV_URL)

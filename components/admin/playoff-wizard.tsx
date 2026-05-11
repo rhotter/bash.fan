@@ -675,6 +675,7 @@ export function PlayoffWizard({
                             </div>
                             <div className="col-span-2">
                               <Input
+                                type="time"
                                 placeholder="Time"
                                 value={details.time}
                                 onChange={(e) =>

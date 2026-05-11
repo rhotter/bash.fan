@@ -76,6 +76,7 @@ export async function fetchBashData(seasonParam?: string | null): Promise<BashAp
       g.id, g.date, g.time, g.home_score, g.away_score,
       g.status, g.is_overtime, g.is_playoff, g.is_forfeit, g.location, g.has_boxscore,
       g.game_type, g.has_shootout, g.home_placeholder, g.away_placeholder,
+      g.series_id, g.series_game_number, g.bracket_round,
       ht.name as home_team, ht.slug as home_slug,
       awt.name as away_team, awt.slug as away_slug,
       (gl.game_id IS NOT NULL) as has_live_stats
@@ -85,7 +86,17 @@ export async function fetchBashData(seasonParam?: string | null): Promise<BashAp
     LEFT JOIN game_live gl ON gl.game_id = g.id
     WHERE g.season_id = ${seasonId}
       AND g.id NOT LIKE 'test-%'
-    ORDER BY g.date ASC, CASE WHEN g.time = 'TBD' THEN '23:59'::time ELSE to_timestamp(CASE WHEN g.time LIKE '%a' THEN replace(g.time, 'a', ' AM') ELSE replace(g.time, 'p', ' PM') END, 'HH:MI AM')::time END ASC
+    ORDER BY g.date ASC, 
+      CASE 
+        WHEN g.time = 'TBD' THEN '23:59'::time 
+        WHEN g.time ILIKE '%a%' OR g.time ILIKE '%p%' THEN 
+          to_timestamp(
+            replace(replace(lower(g.time), 'a', ' AM'), 'p', ' PM'), 
+            'HH:MI AM'
+          )::time 
+        ELSE 
+          g.time::time 
+      END ASC
   `)
 
   const games: BashGame[] = rows.map((r) => ({
@@ -113,6 +124,9 @@ export async function fetchBashData(seasonParam?: string | null): Promise<BashAp
     hasShootout: r.has_shootout ?? false,
     homePlaceholder: r.home_placeholder ?? null,
     awayPlaceholder: r.away_placeholder ?? null,
+    seriesId: r.series_id ?? null,
+    seriesGameNumber: r.series_game_number ?? null,
+    bracketRound: r.bracket_round ?? null,
   }))
 
   const standings = computeStandings(games)

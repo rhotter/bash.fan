@@ -35,12 +35,11 @@ export async function PUT(
         const { teamSlug, playerId } = cap as { teamSlug: string; playerId: number }
         await db
           .update(schema.playerSeasons)
-          .set({ isCaptain: true })
+          .set({ isCaptain: true, teamSlug })
           .where(
             and(
               eq(schema.playerSeasons.seasonId, seasonId),
-              eq(schema.playerSeasons.playerId, playerId),
-              eq(schema.playerSeasons.teamSlug, teamSlug)
+              eq(schema.playerSeasons.playerId, playerId)
             )
           )
       }

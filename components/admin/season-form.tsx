@@ -285,6 +285,7 @@ export function SeasonForm({ season }: SeasonFormProps) {
               </p>
             </div>
           </div>
+
         </CardContent>
       </Card>
 
@@ -304,17 +305,6 @@ export function SeasonForm({ season }: SeasonFormProps) {
         </div>
 
         <div className="flex gap-2">
-          {season.status === "draft" && (
-            <Button
-              onClick={() => promptStatusTransition("active")}
-              disabled={saving}
-              variant="outline"
-              size="sm"
-              className="text-green-700 border-green-300 hover:bg-green-50 cursor-pointer"
-            >
-              Activate Season
-            </Button>
-          )}
           <Button
             onClick={handleSave}
             disabled={saving}

@@ -178,6 +178,7 @@ UPDATE games SET game_type = 'regular' WHERE is_playoff = false;
 ### 3. Frontend Components
 
 *   **`components/admin/season-schedule-tab.tsx`** — List View with "Add Game" button and "Generate Schedule" / "Playoff Bracket" wizard launchers.
+    *   View Mode Toggle (Card View vs Condensed Table View) for improved navigational efficiency and data density.
     *   Filter by Team and Filter by Location dropdowns.
     *   Table columns: Date, Time, Away, Home, Location, Type, Status.
     *   Games with `homeTeam = "tbd"` display the `homePlaceholder` text instead.

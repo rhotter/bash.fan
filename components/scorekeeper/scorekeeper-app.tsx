@@ -290,7 +290,11 @@ export function ScorekeeperApp({
   const attendanceForTeam = (team: string) => team === homeSlug ? state.homeAttendance : state.awayAttendance
   const attendingPlayers = (team: string) => {
     const ids = attendanceForTeam(team)
-    return rosterForTeam(team).filter((p) => ids.includes(p.id))
+    const goalieId = goalieIdForTeam(team)
+    const players = rosterForTeam(team).filter((p) => ids.includes(p.id))
+    const skaters = players.filter((p) => p.id !== goalieId)
+    const goalies = players.filter((p) => p.id === goalieId)
+    return [...skaters, ...goalies]
   }
   const attendingSkaters = (team: string) => attendingPlayers(team).filter((p) => p.id !== goalieIdForTeam(team))
   const currentGoalieId = (team: string): string => {
@@ -1506,7 +1510,7 @@ export function ScorekeeperApp({
               <Select value={goalScorer} onValueChange={setGoalScorer}>
                 <SelectTrigger className="mt-1"><SelectValue placeholder="Select player" /></SelectTrigger>
                 <SelectContent>
-                  {attendingSkaters(goalTeam).map((p) => (
+                  {attendingPlayers(goalTeam).map((p) => (
                     <SelectItem key={p.id} value={p.id.toString()}>{p.name}</SelectItem>
                   ))}
                 </SelectContent>
@@ -1517,7 +1521,7 @@ export function ScorekeeperApp({
                 <SelectTrigger className="mt-1"><SelectValue placeholder="None" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">None</SelectItem>
-                  {attendingSkaters(goalTeam).filter((p) => p.id.toString() !== goalScorer).map((p) => (
+                  {attendingPlayers(goalTeam).filter((p) => p.id.toString() !== goalScorer).map((p) => (
                     <SelectItem key={p.id} value={p.id.toString()}>{p.name}</SelectItem>
                   ))}
                 </SelectContent>
@@ -1528,7 +1532,7 @@ export function ScorekeeperApp({
                 <SelectTrigger className="mt-1"><SelectValue placeholder="None" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">None</SelectItem>
-                  {attendingSkaters(goalTeam).filter((p) => p.id.toString() !== goalScorer && p.id.toString() !== goalAssist1).map((p) => (
+                  {attendingPlayers(goalTeam).filter((p) => p.id.toString() !== goalScorer && p.id.toString() !== goalAssist1).map((p) => (
                     <SelectItem key={p.id} value={p.id.toString()}>{p.name}</SelectItem>
                   ))}
                 </SelectContent>
