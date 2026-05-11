@@ -16,7 +16,8 @@ function getTabsForStatus(status: string): Tab[] {
   if (status === "draft") {
     return ["Schedule", "Teams", "Registration", "Draft", "Roster", "Settings"]
   }
-  return ["Schedule", "Teams", "Roster", "Settings"]
+  // Draft tab remains available for active/completed seasons so admins can archive/view drafts
+  return ["Schedule", "Teams", "Roster", "Draft", "Settings"]
 }
 
 type RosterPlayer = { playerId: number; playerName: string; teamSlug: string; isGoalie: boolean; isRookie: boolean }
@@ -35,7 +36,6 @@ interface SeasonTabsProps {
     statsOnly: boolean
     playoffTeams: number | null
     isCurrent: boolean
-    showDraftBoard: boolean | null
     teams: { teamSlug: string; teamName: string; franchiseSlug: string | null; color: string | null }[]
     roster: { playerId: number; playerName: string; teamSlug: string; isGoalie: boolean; isRookie: boolean }[]
   }

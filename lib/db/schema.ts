@@ -26,7 +26,6 @@ export const seasons = pgTable("seasons", {
   adminNotes: text("admin_notes"),
   statsOnly: boolean("stats_only").notNull().default(false),
   playoffTeams: integer("playoff_teams").default(4),
-  showDraftBoard: boolean("show_draft_board").notNull().default(true),
 })
 
 // ─── Franchises ─────────────────────────────────────────────────────────────

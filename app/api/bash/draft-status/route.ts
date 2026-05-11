@@ -1,6 +1,6 @@
 import { db } from "@/lib/db"
 import * as schema from "@/lib/db/schema"
-import { not, eq, sql, and } from "drizzle-orm"
+import { sql, notInArray } from "drizzle-orm"
 import { NextResponse } from "next/server"
 
 /**
@@ -19,13 +19,7 @@ export async function GET() {
         seasonId: schema.draftInstances.seasonId,
       })
       .from(schema.draftInstances)
-      .innerJoin(schema.seasons, eq(schema.draftInstances.seasonId, schema.seasons.id))
-      .where(
-        and(
-          not(eq(schema.draftInstances.status, "draft")),
-          eq(schema.seasons.showDraftBoard, true)
-        )
-      )
+      .where(notInArray(schema.draftInstances.status, ["draft", "archived"]))
       .orderBy(
         sql`CASE ${schema.draftInstances.status}
           WHEN 'live' THEN 0
