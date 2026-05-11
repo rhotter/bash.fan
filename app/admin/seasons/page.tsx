@@ -10,9 +10,8 @@ interface SeasonListPageProps {
 }
 
 async function getSeasons(statusFilter?: string, typeFilter?: string) {
-  // "current" = active + draft (the default view for admins)
-  const statusClause = statusFilter === "current" || !statusFilter
-    ? sql`AND s.status IN ('active', 'draft')`
+  const statusClause = statusFilter === "active" || !statusFilter
+    ? sql`AND s.status = 'active'`
     : statusFilter !== "all"
       ? sql`AND s.status = ${statusFilter}`
       : sql``
@@ -41,10 +40,10 @@ async function getSeasons(statusFilter?: string, typeFilter?: string) {
 export default async function SeasonsListPage({ searchParams }: SeasonListPageProps) {
   const params = await searchParams
   const seasons = await getSeasons(params.status, params.type)
-  const currentStatus = params.status || "current"
+  const currentStatus = params.status || "active"
   const currentType = params.type || "all"
 
-  const statusOptions = ["current", "all", "active", "draft", "completed"]
+  const statusOptions = ["active", "all", "draft", "completed"]
   const typeOptions = ["all", "fall", "summer"]
 
   return (

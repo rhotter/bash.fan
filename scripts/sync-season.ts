@@ -319,41 +319,105 @@ async function runPool<T>(items: T[], fn: (item: T) => Promise<void>) {
 }
 
 // ─── Main ───────────────────────────────────────────────────────────────────
-const SEASON_LEAGUE_MAP: Record<string, string> = {
-  "2023-2024": "49644",
-  "2024-2025": "50076",
-  "2025-2026": "50562",
+const SEASONS = [
+  { id: "1997-1998-playoffs", leagueId: "47943" },
+  { id: "1999-summer", leagueId: "5" },
+  { id: "1999-2000", leagueId: "14" },
+  { id: "2000-summer", leagueId: "229" },
+  { id: "2000-2001", leagueId: "503" },
+  { id: "2001-summer", leagueId: "1189" },
+  { id: "2001-2002", leagueId: "1265" },
+  { id: "2002-summer", leagueId: "1900" },
+  { id: "2002-2003", leagueId: "1901" },
+  { id: "2003-summer", leagueId: "4058" },
+  { id: "2003-2004", leagueId: "4059" },
+  { id: "2004-summer", leagueId: "6487" },
+  { id: "2004-2005", leagueId: "6486" },
+  { id: "2005-summer", leagueId: "8949" },
+  { id: "2005-2006", leagueId: "9865" },
+  { id: "2006-summer", leagueId: "11884" },
+  { id: "2006-2007", leagueId: "12855" },
+  { id: "2007-summer", leagueId: "15097" },
+  { id: "2007-2008", leagueId: "15982" },
+  { id: "2008-summer", leagueId: "18149" },
+  { id: "2008-2009", leagueId: "18903" },
+  { id: "2009-summer", leagueId: "21199" },
+  { id: "2009-2010", leagueId: "22285" },
+  { id: "2010-summer", leagueId: "24698" },
+  { id: "2010-2011", leagueId: "25762" },
+  { id: "2011-summer", leagueId: "28742" },
+  { id: "2011-2012", leagueId: "29373" },
+  { id: "2012-summer", leagueId: "31937" },
+  { id: "2012-2013", leagueId: "32866" },
+  { id: "2013-summer", leagueId: "35021" },
+  { id: "2013-2014", leagueId: "35746" },
+  { id: "2014-summer", leagueId: "37780" },
+  { id: "2014-2015", leagueId: "38418" },
+  { id: "2015-summer", leagueId: "40218" },
+  { id: "2015-2016", leagueId: "41205" },
+  { id: "2016-summer", leagueId: "42385" },
+  { id: "2016-2017", leagueId: "42830" },
+  { id: "2017-summer", leagueId: "44083" },
+  { id: "2017-2018", leagueId: "44570" },
+  { id: "2018-summer", leagueId: "45663" },
+  { id: "2018-2019", leagueId: "46192" },
+  { id: "2019-summer", leagueId: "47083" },
+  { id: "2019-2020", leagueId: "47353" },
+  { id: "2021-summer", leagueId: "48503" },
+  { id: "2021-2022", leagueId: "48607" },
+  { id: "2022-summer", leagueId: "48952" },
+  { id: "2022-2023", leagueId: "49109" },
+  { id: "2023-summer", leagueId: "49433" },
+  { id: "2023-2024", leagueId: "49644" },
+  { id: "2024-summer", leagueId: "49903" },
+  { id: "2024-2025", leagueId: "50076" },
+  { id: "2025-2026", leagueId: "50562" },
+]
+
+const SEASON_LEAGUE_MAP: Record<string, string> = {}
+for (const s of SEASONS) {
+  SEASON_LEAGUE_MAP[s.id] = s.leagueId
 }
 
 async function main() {
   const seasonId = process.argv[2]
-  if (!seasonId || !SEASON_LEAGUE_MAP[seasonId]) {
-    console.error(`Usage: npx tsx scripts/sync-season.ts <seasonId>`)
+  if (!seasonId || (seasonId !== "all" && !SEASON_LEAGUE_MAP[seasonId])) {
+    console.error(`Usage: npx tsx scripts/sync-season.ts <seasonId|all>`)
     console.error(`Available: ${Object.keys(SEASON_LEAGUE_MAP).join(", ")}`)
     process.exit(1)
   }
 
-  const leagueId = SEASON_LEAGUE_MAP[seasonId]
-  console.log(`Syncing ${seasonId} (leagueId=${leagueId})...`)
+  const seasonsToSync = seasonId === "all" ? Object.keys(SEASON_LEAGUE_MAP) : [seasonId]
 
-  // Step 1: Sync schedule
-  const gamesCreated = await syncFullSchedule(leagueId, seasonId)
-  console.log(`Schedule synced: ${gamesCreated} games`)
+  for (const sid of seasonsToSync) {
+    const leagueId = SEASON_LEAGUE_MAP[sid]
+    console.log(`Syncing ${sid} (leagueId=${leagueId})...`)
 
-  // Step 2: Sync boxscores
-  const games = await rawSql(sql`
-    SELECT id FROM games
-    WHERE season_id = ${seasonId} AND status = 'final' AND has_boxscore = false
-    ORDER BY date ASC
-  `)
-  console.log(`Boxscores to sync: ${games.length}`)
+    await rawSql(sql`
+      INSERT INTO seasons (id, name, league_id, is_current, season_type)
+      VALUES (${sid}, ${sid}, ${leagueId}, false, 'fall')
+      ON CONFLICT DO NOTHING
+    `)
 
-  if (games.length > 0) {
-    const result = await runPool(games, (game) => syncBoxscore(game.id, leagueId, seasonId))
-    console.log(`Done: ${result.done} synced, ${result.failed} failed`)
+    // Step 1: Sync schedule
+    const gamesCreated = await syncFullSchedule(leagueId, sid)
+    console.log(`Schedule synced: ${gamesCreated} games`)
+
+    // Step 2: Sync boxscores
+    const games = await rawSql(sql`
+      SELECT id FROM games
+      WHERE season_id = ${sid} AND status = 'final' AND has_boxscore = false
+      ORDER BY date ASC
+    `)
+    console.log(`Boxscores to sync: ${games.length}`)
+
+    if (games.length > 0) {
+      const result = await runPool(games, (game) => syncBoxscore(game.id, leagueId, sid))
+      console.log(`Done: ${result.done} synced, ${result.failed} failed`)
+    }
+
+    console.log(`\n✅ ${sid} sync complete!`)
   }
-
-  console.log(`\n✅ ${seasonId} sync complete!`)
 }
 
 main().catch(console.error)

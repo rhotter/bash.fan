@@ -40,6 +40,7 @@ interface SeasonFormProps {
     adminNotes: string | null
     statsOnly: boolean
     playoffTeams: number | null
+    showDraftBoard: boolean | null
   }
 }
 
@@ -70,6 +71,7 @@ export function SeasonForm({ season }: SeasonFormProps) {
     adminNotes: season.adminNotes || "",
     statsOnly: season.statsOnly || false,
     playoffTeams: season.playoffTeams as number | null,
+    showDraftBoard: season.showDraftBoard ?? true,
   })
 
   async function handleSave() {
@@ -282,6 +284,22 @@ export function SeasonForm({ season }: SeasonFormProps) {
               </Label>
               <p className="text-xs text-muted-foreground">
                 Check this if the season only tracks aggregate stats (no individual game schedules)
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 pt-2">
+            <Checkbox
+              id="showDraftBoard"
+              checked={form.showDraftBoard}
+              onCheckedChange={(checked) => setForm((f) => ({ ...f, showDraftBoard: checked === true }))}
+            />
+            <div className="grid gap-1.5 leading-none">
+              <Label htmlFor="showDraftBoard" className="text-sm font-medium leading-none cursor-pointer">
+                Show Draft Link on Public Site
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Uncheck this to hide the draft results link from the public header/footer after the draft is no longer relevant.
               </p>
             </div>
           </div>

@@ -64,7 +64,7 @@ export async function POST(
     // If shootout decided it, add 1 to the shootout winner
     const isShootout = !!state.shootout
     if (isShootout) {
-      const homeSOGoals = state.shootout.homeAttempts.filter((a) => a.scored).length
+      const homeSOGoals = state.shootout!.homeAttempts.filter((a) => a.scored).length
       const awaySOGoals = state.shootout!.awayAttempts.filter((a) => a.scored).length
       if (homeSOGoals > awaySOGoals) homeScore++
       else if (awaySOGoals > homeSOGoals) awayScore++

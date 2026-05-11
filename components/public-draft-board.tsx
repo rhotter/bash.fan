@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Button } from "@/components/ui/button"
-import { Search, Maximize2, Minimize2, Clock, MapPin, Users, ArrowUpDown, ArrowUp, ArrowDown, Volume2, VolumeX, CalendarPlus, Layers, X, ChevronsRight } from "lucide-react"
+import { Search, Maximize2, Minimize2, Clock, MapPin, Users, ArrowUpDown, ArrowUp, ArrowDown, Volume2, VolumeX, CalendarPlus, Layers, X, ChevronsRight, Eye, EyeOff } from "lucide-react"
 import { PlayerCardModal } from "@/components/player-card-modal"
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -136,6 +136,14 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
     return stored
   })
 
+  const isAnimationsMutedRef = useRef(false)
+  const [isAnimationsMuted, setIsAnimationsMuted] = useState(() => {
+    if (typeof window === "undefined") return false
+    const stored = localStorage.getItem("bash-draft-animations-muted") === "true"
+    isAnimationsMutedRef.current = stored
+    return stored
+  })
+
   useEffect(() => {
     chimeRef.current = new Audio("/sounds/nhl-draft-chime.mp3")
     chimeRef.current.preload = "auto"
@@ -150,6 +158,15 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
       const next = !prev
       isMutedRef.current = next
       localStorage.setItem("bash-draft-muted", String(next))
+      return next
+    })
+  }, [])
+
+  const toggleAnimationsMute = useCallback(() => {
+    setIsAnimationsMuted((prev) => {
+      const next = !prev
+      isAnimationsMutedRef.current = next
+      localStorage.setItem("bash-draft-animations-muted", String(next))
       return next
     })
   }, [])
@@ -331,30 +348,34 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
       if (newest) {
         const team = teams.find((t) => t.teamSlug === newest.teamSlug)
         if (team) {
-          // Trigger banner
-          setAnnouncement({
-            teamName: team.teamName,
-            teamColor: team.color || "#f97316",
-            playerName: newest.playerName || "Unknown",
-            round: newest.round,
-            pickNumber: newest.pickNumber,
-          })
-          setAnnouncementVisible(true)
+          if (!isAnimationsMutedRef.current) {
+            // Trigger banner
+            setAnnouncement({
+              teamName: team.teamName,
+              teamColor: team.color || "#f97316",
+              playerName: newest.playerName || "Unknown",
+              round: newest.round,
+              pickNumber: newest.pickNumber,
+            })
+            setAnnouncementVisible(true)
+
+            // Trigger golden highlight on the cell
+            setHighlightedPickIds(new Set([newest.id]))
+          }
 
           // Play NHL draft chime
           playChime()
 
-          // Trigger golden highlight on the cell
-          setHighlightedPickIds(new Set([newest.id]))
-
-          // Dismiss banner after 5s
-          const timer = setTimeout(() => setAnnouncementVisible(false), 5000)
-          // Clear highlight after 5s
-          const hlTimer = setTimeout(() => setHighlightedPickIds(new Set()), 5000)
-          prevPickCountRef.current = currentCount
-          return () => {
-            clearTimeout(timer)
-            clearTimeout(hlTimer)
+          if (!isAnimationsMutedRef.current) {
+            // Dismiss banner after 5s
+            const timer = setTimeout(() => setAnnouncementVisible(false), 5000)
+            // Clear highlight after 5s
+            const hlTimer = setTimeout(() => setHighlightedPickIds(new Set()), 5000)
+            prevPickCountRef.current = currentCount
+            return () => {
+              clearTimeout(timer)
+              clearTimeout(hlTimer)
+            }
           }
         }
       }
@@ -627,15 +648,26 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
                 {madePicks}/{totalPicks} picks ({progress}%)
               </span>
               {isLive && (
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={toggleMute}
-                  className="h-8 w-8"
-                  title={isMuted ? "Unmute pick sound" : "Mute pick sound"}
-                >
-                  {isMuted ? <VolumeX className="h-3.5 w-3.5" /> : <Volume2 className="h-3.5 w-3.5" />}
-                </Button>
+                <div className="flex gap-1.5">
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={toggleAnimationsMute}
+                    className="h-8 w-8"
+                    title={isAnimationsMuted ? "Show pick animations" : "Hide pick animations"}
+                  >
+                    {isAnimationsMuted ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={toggleMute}
+                    className="h-8 w-8"
+                    title={isMuted ? "Unmute pick sound" : "Mute pick sound"}
+                  >
+                    {isMuted ? <VolumeX className="h-3.5 w-3.5" /> : <Volume2 className="h-3.5 w-3.5" />}
+                  </Button>
+                </div>
               )}
               <Button variant="outline" size="icon" onClick={toggleFullscreen} className="hidden md:flex h-8 w-8">
                 {isFullscreen ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
@@ -876,7 +908,7 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
         )}
 
         {/* Tabs: Board + Available Players / By Team */}
-        <Tabs id="draft-board-tabs" defaultValue={isCompleted ? "byteam" : "board"} value={mobileTab} onValueChange={setMobileTab}>
+        <Tabs id="draft-board-tabs" value={mobileTab} onValueChange={setMobileTab}>
           <TabsList className={isCompleted ? "w-full md:w-auto" : "md:hidden w-full"}>
             {isCompleted && (
               <TabsTrigger value="byteam" className="flex-1 md:flex-none">By Team</TabsTrigger>
