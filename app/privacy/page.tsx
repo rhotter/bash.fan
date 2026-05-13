@@ -42,7 +42,7 @@ export default function PrivacyPage() {
           <h2 className="text-base font-semibold text-foreground mt-6">Contact</h2>
           <p>
             For questions about this policy, contact us via the{" "}
-            <a href="https://github.com/rhotter/bash.fan" className="text-foreground underline">
+            <a href="https://github.com/rhotter/bash" className="text-foreground underline">
               GitHub repository
             </a>.
           </p>
