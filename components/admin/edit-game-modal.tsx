@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -16,6 +16,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { toast } from "sonner"
+import { Plus, Loader2, X, Search, Database } from "lucide-react"
 
 export interface GameFormData {
   id?: string
@@ -44,18 +45,37 @@ interface EditGameModalProps {
   seasonId: string
   defaultLocation: string
   onSaved: () => void
+  onTeamCreated?: () => void
 }
+
+interface GlobalTeam {
+  slug: string
+  name: string
+}
+
+function slugify(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "")
+}
+
+const AD_HOC_GAME_TYPES = ["exhibition", "tryout"]
 
 export function EditGameModal({
   open,
   onOpenChange,
   game,
-  teams,
+  teams: initialTeams,
   seasonId,
   defaultLocation,
   onSaved,
+  onTeamCreated,
 }: EditGameModalProps) {
   const isEditing = !!game?.id
+
+  // Local copy of teams that can grow when new teams are created/assigned inline
+  const [localTeams, setLocalTeams] = useState(initialTeams)
 
   const [formData, setFormData] = useState<GameFormData>({
     date: "",
@@ -77,8 +97,36 @@ export function EditGameModal({
 
   const [isSubmitting, setIsSubmitting] = useState(false)
 
+  // Inline team picker mode: null = dropdown, "create" = new team form, "search" = global team search
+  const [pickerState, setPickerState] = useState<{
+    side: "home" | "away"
+    mode: "create" | "search"
+  } | null>(null)
+
+  // Create-team form state
+  const [newTeamName, setNewTeamName] = useState("")
+  const [newTeamColor, setNewTeamColor] = useState("#6366f1")
+  const [isCreatingTeam, setIsCreatingTeam] = useState(false)
+
+  // Search-from-database state
+  const [globalTeams, setGlobalTeams] = useState<GlobalTeam[]>([])
+  const [isLoadingGlobal, setIsLoadingGlobal] = useState(false)
+  const [globalSearch, setGlobalSearch] = useState("")
+  const [isAssigningTeam, setIsAssigningTeam] = useState(false)
+  const hasFetchedGlobal = useRef(false)
+
+  // Sync local teams when prop changes
+  useEffect(() => {
+    setLocalTeams(initialTeams)
+  }, [initialTeams])
+
   useEffect(() => {
     if (open) {
+      setPickerState(null)
+      setNewTeamName("")
+      setNewTeamColor("#6366f1")
+      setGlobalSearch("")
+      hasFetchedGlobal.current = false
       if (game) {
         setFormData(game)
       } else {
@@ -102,6 +150,24 @@ export function EditGameModal({
       }
     }
   }, [open, game, defaultLocation])
+
+  // Fetch global teams once when search mode is first opened
+  const fetchGlobalTeams = async () => {
+    if (hasFetchedGlobal.current) return
+    hasFetchedGlobal.current = true
+    setIsLoadingGlobal(true)
+    try {
+      const res = await fetch("/api/bash/admin/teams")
+      if (res.ok) {
+        const data = await res.json()
+        setGlobalTeams(data.teams || [])
+      }
+    } catch {
+      toast.error("Failed to load teams")
+    } finally {
+      setIsLoadingGlobal(false)
+    }
+  }
 
   const handleSubmit = async () => {
     if (!formData.date || !formData.time || !formData.homeTeam || !formData.awayTeam) {
@@ -137,8 +203,313 @@ export function EditGameModal({
     }
   }
 
+  /** Create a brand-new team and assign it to the season */
+  const handleCreateTeam = async (side: "home" | "away") => {
+    if (!newTeamName.trim()) {
+      toast.error("Team name is required")
+      return
+    }
+
+    const slug = slugify(newTeamName)
+    if (!slug) {
+      toast.error("Invalid team name")
+      return
+    }
+
+    setIsCreatingTeam(true)
+    try {
+      // 1. Create the team globally
+      const createRes = await fetch("/api/bash/admin/teams", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ slug, name: newTeamName.trim() }),
+      })
+
+      if (!createRes.ok) {
+        const err = await createRes.json()
+        toast.error(err.error || "Failed to create team")
+        return
+      }
+
+      const { team } = await createRes.json()
+
+      // 2. Assign to this season with the chosen color
+      const assignRes = await fetch(`/api/bash/admin/seasons/${seasonId}/teams`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ teamSlug: team.slug, color: newTeamColor }),
+      })
+
+      if (!assignRes.ok) {
+        const err = await assignRes.json()
+        toast.error(err.error || "Failed to assign team to season")
+        return
+      }
+
+      // 3. Add to local teams list and select it
+      const newEntry = { teamSlug: team.slug, teamName: team.name }
+      setLocalTeams((prev) =>
+        [...prev, newEntry].sort((a, b) => a.teamName.localeCompare(b.teamName))
+      )
+      setFormData((f) => ({ ...f, [side === "home" ? "homeTeam" : "awayTeam"]: team.slug }))
+
+      // 4. Reset
+      setPickerState(null)
+      setNewTeamName("")
+      setNewTeamColor("#6366f1")
+
+      // 5. Notify parent so Teams tab refreshes
+      onTeamCreated?.()
+
+      toast.success(`Created "${team.name}" and assigned to season`)
+    } catch {
+      toast.error("Connection error")
+    } finally {
+      setIsCreatingTeam(false)
+    }
+  }
+
+  /** Assign an existing global team to this season and select it */
+  const handleAssignGlobalTeam = async (side: "home" | "away", team: GlobalTeam) => {
+    setIsAssigningTeam(true)
+    try {
+      const res = await fetch(`/api/bash/admin/seasons/${seasonId}/teams`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ teamSlug: team.slug }),
+      })
+
+      if (!res.ok) {
+        const err = await res.json()
+        toast.error(err.error || "Failed to assign team")
+        return
+      }
+
+      // Add to local teams and select
+      const newEntry = { teamSlug: team.slug, teamName: team.name }
+      setLocalTeams((prev) =>
+        [...prev, newEntry].sort((a, b) => a.teamName.localeCompare(b.teamName))
+      )
+      setFormData((f) => ({ ...f, [side === "home" ? "homeTeam" : "awayTeam"]: team.slug }))
+
+      setPickerState(null)
+      setGlobalSearch("")
+
+      onTeamCreated?.()
+
+      toast.success(`Added "${team.name}" to season`)
+    } catch {
+      toast.error("Connection error")
+    } finally {
+      setIsAssigningTeam(false)
+    }
+  }
+
+  const resetPickerState = () => {
+    setPickerState(null)
+    setNewTeamName("")
+    setNewTeamColor("#6366f1")
+    setGlobalSearch("")
+  }
+
   // Include the TBD placeholder team
-  const allTeams = [{ teamSlug: "tbd", teamName: "(TBD)" }, ...teams]
+  const allTeams = [{ teamSlug: "tbd", teamName: "(TBD)" }, ...localTeams]
+  const assignedSlugs = new Set(localTeams.map((t) => t.teamSlug))
+
+  const isAdHocType = AD_HOC_GAME_TYPES.includes(formData.gameType)
+
+  // Global teams not yet assigned to this season
+  const unassignedGlobalTeams = globalTeams.filter(
+    (t) => !assignedSlugs.has(t.slug) && t.slug !== "tbd"
+  )
+  const searchLower = globalSearch.toLowerCase()
+  const filteredGlobalTeams = globalSearch
+    ? unassignedGlobalTeams.filter(
+        (t) => t.name.toLowerCase().includes(searchLower) || t.slug.includes(searchLower)
+      )
+    : unassignedGlobalTeams
+
+  /**
+   * Renders a team selector — either the standard dropdown or (for exhibition/tryout)
+   * a dropdown with inline "Add from database" / "Create team" expansion.
+   */
+  function renderTeamPicker(side: "home" | "away", label: string) {
+    const fieldKey = side === "home" ? "homeTeam" : "awayTeam"
+    const isActive = pickerState?.side === side
+
+    return (
+      <div className="space-y-2">
+        <Label>{label} *</Label>
+
+        {/* ── Inline Create New Team ── */}
+        {isActive && pickerState.mode === "create" ? (
+          <div className="space-y-2 p-3 border rounded-md bg-muted/30">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                New Team
+              </span>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-5 w-5 text-muted-foreground hover:text-foreground"
+                onClick={resetPickerState}
+              >
+                <X className="h-3 w-3" />
+              </Button>
+            </div>
+            <Input
+              placeholder="Team name (e.g. USA, Team Chris)"
+              value={newTeamName}
+              onChange={(e) => setNewTeamName(e.target.value)}
+              className="h-8 text-sm"
+              autoFocus
+            />
+            <div className="flex items-center gap-2">
+              <Label className="text-xs text-muted-foreground shrink-0">Color</Label>
+              <input
+                type="color"
+                value={newTeamColor}
+                onChange={(e) => setNewTeamColor(e.target.value)}
+                className="h-7 w-10 rounded border cursor-pointer"
+              />
+              <span className="text-xs text-muted-foreground font-mono">{newTeamColor}</span>
+            </div>
+            <Button
+              size="sm"
+              className="w-full h-7 text-xs"
+              disabled={isCreatingTeam || !newTeamName.trim()}
+              onClick={() => handleCreateTeam(side)}
+            >
+              {isCreatingTeam ? (
+                <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+              ) : (
+                <Plus className="h-3 w-3 mr-1" />
+              )}
+              Create & Select
+            </Button>
+          </div>
+
+        /* ── Inline Search from Database ── */
+        ) : isActive && pickerState.mode === "search" ? (
+          <div className="space-y-2 p-3 border rounded-md bg-muted/30">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                Add from Database
+              </span>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-5 w-5 text-muted-foreground hover:text-foreground"
+                onClick={resetPickerState}
+              >
+                <X className="h-3 w-3" />
+              </Button>
+            </div>
+            <div className="relative">
+              <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              <Input
+                placeholder="Search teams..."
+                value={globalSearch}
+                onChange={(e) => setGlobalSearch(e.target.value)}
+                className="h-8 text-sm pl-7"
+                autoFocus
+              />
+            </div>
+            <div className="max-h-[160px] overflow-y-auto space-y-1">
+              {isLoadingGlobal ? (
+                <div className="flex justify-center py-4">
+                  <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                </div>
+              ) : filteredGlobalTeams.length === 0 ? (
+                <div className="text-center py-3 text-xs text-muted-foreground">
+                  {globalSearch ? "No matches found." : "All teams are already assigned."}
+                </div>
+              ) : (
+                filteredGlobalTeams.slice(0, 50).map((t) => (
+                  <button
+                    key={t.slug}
+                    className="w-full text-left px-2 py-1.5 rounded text-sm hover:bg-primary/10 transition-colors flex items-center justify-between disabled:opacity-50"
+                    disabled={isAssigningTeam}
+                    onClick={() => handleAssignGlobalTeam(side, t)}
+                  >
+                    <span className="truncate">{t.name}</span>
+                    <span className="text-[10px] text-muted-foreground shrink-0 ml-2">{t.slug}</span>
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+
+        /* ── Default: Team dropdown ── */
+        ) : (
+          <>
+            <Select
+              value={formData[fieldKey]}
+              onValueChange={(val) => setFormData({ ...formData, [fieldKey]: val })}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select team..." />
+              </SelectTrigger>
+              <SelectContent>
+                {allTeams.map((t) => (
+                  <SelectItem key={t.teamSlug} value={t.teamSlug}>
+                    {t.teamName}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            {/* Action buttons for ad-hoc game types */}
+            {isAdHocType && (
+              <div className="flex items-center gap-3">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 text-xs text-primary hover:text-primary/80 px-0"
+                  onClick={() => {
+                    setPickerState({ side, mode: "search" })
+                    fetchGlobalTeams()
+                  }}
+                >
+                  <Database className="h-3 w-3 mr-1" />
+                  Add from database
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 text-xs text-primary hover:text-primary/80 px-0"
+                  onClick={() => {
+                    setPickerState({ side, mode: "create" })
+                    setNewTeamName("")
+                    setNewTeamColor("#6366f1")
+                  }}
+                >
+                  <Plus className="h-3 w-3 mr-1" />
+                  Create new team
+                </Button>
+              </div>
+            )}
+          </>
+        )}
+
+        {/* Score input */}
+        <Input
+          type="number"
+          placeholder="Score"
+          value={formData[side === "home" ? "homeScore" : "awayScore"] ?? ""}
+          onChange={(e) =>
+            setFormData({
+              ...formData,
+              [side === "home" ? "homeScore" : "awayScore"]:
+                e.target.value === "" ? null : parseInt(e.target.value, 10),
+            })
+          }
+        />
+      </div>
+    )
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -212,66 +583,14 @@ export function EditGameModal({
           </div>
 
           <div className="grid grid-cols-5 gap-4 items-end bg-muted/30 p-4 rounded-lg">
-            <div className="col-span-2 space-y-2">
-              <Label>Away Team *</Label>
-              <Select
-                value={formData.awayTeam}
-                onValueChange={(val) => setFormData({ ...formData, awayTeam: val })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select team..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {allTeams.map((t) => (
-                    <SelectItem key={t.teamSlug} value={t.teamSlug}>
-                      {t.teamName}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Input
-                type="number"
-                placeholder="Score"
-                value={formData.awayScore ?? ""}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-                    awayScore: e.target.value === "" ? null : parseInt(e.target.value, 10),
-                  })
-                }
-              />
+            <div className="col-span-2">
+              {renderTeamPicker("away", "Away Team")}
             </div>
             <div className="col-span-1 flex items-center justify-center pb-2 text-sm text-muted-foreground font-medium">
               VS
             </div>
-            <div className="col-span-2 space-y-2">
-              <Label>Home Team *</Label>
-              <Select
-                value={formData.homeTeam}
-                onValueChange={(val) => setFormData({ ...formData, homeTeam: val })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select team..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {allTeams.map((t) => (
-                    <SelectItem key={t.teamSlug} value={t.teamSlug}>
-                      {t.teamName}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Input
-                type="number"
-                placeholder="Score"
-                value={formData.homeScore ?? ""}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-                    homeScore: e.target.value === "" ? null : parseInt(e.target.value, 10),
-                  })
-                }
-              />
+            <div className="col-span-2">
+              {renderTeamPicker("home", "Home Team")}
             </div>
           </div>
 

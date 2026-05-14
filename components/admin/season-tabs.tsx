@@ -98,7 +98,7 @@ export function SeasonTabs({ season }: SeasonTabsProps) {
         {activeTab === "Settings" && <SeasonForm season={season} />}
         {activeTab === "Teams" && <SeasonTeamsTab seasonId={season.id} seasonStatus={season.status} initialTeams={teams} onTeamsChange={handleTeamsChange} />}
         {activeTab === "Roster" && <SeasonRosterTab seasonId={season.id} seasonStatus={season.status} roster={roster} teams={teams} onRosterChange={handleRosterChange} />}
-        {activeTab === "Schedule" && <SeasonScheduleTab seasonId={season.id} seasonStatus={season.status} initialTeams={teams} defaultLocation={season.defaultLocation || "The Lick"} />}
+        {activeTab === "Schedule" && <SeasonScheduleTab seasonId={season.id} seasonStatus={season.status} initialTeams={teams} defaultLocation={season.defaultLocation || "The Lick"} onTeamCreated={() => router.refresh()} />}
         {activeTab === "Draft" && (
           <DraftTab
             seasonId={season.id}

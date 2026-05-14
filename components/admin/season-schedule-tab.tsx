@@ -47,6 +47,7 @@ interface SeasonScheduleTabProps {
   seasonStatus: string
   initialTeams: { teamSlug: string; teamName: string }[]
   defaultLocation: string
+  onTeamCreated?: () => void
 }
 
 export interface ScheduleGame {
@@ -73,7 +74,7 @@ export interface ScheduleGame {
   awayNotes: string | null
 }
 
-export function SeasonScheduleTab({ seasonId, seasonStatus, initialTeams, defaultLocation }: SeasonScheduleTabProps) {
+export function SeasonScheduleTab({ seasonId, seasonStatus, initialTeams, defaultLocation, onTeamCreated }: SeasonScheduleTabProps) {
   const router = useRouter()
   const [games, setGames] = useState<ScheduleGame[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -622,6 +623,7 @@ export function SeasonScheduleTab({ seasonId, seasonStatus, initialTeams, defaul
         seasonId={seasonId}
         defaultLocation={defaultLocation}
         onSaved={handleGamesChanged}
+        onTeamCreated={onTeamCreated}
       />
 
       <AlertDialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
