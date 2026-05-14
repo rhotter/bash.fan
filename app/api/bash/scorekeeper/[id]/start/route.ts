@@ -41,24 +41,28 @@ export async function POST(
     const initialState = createInitialState()
 
     // Default goalies: player with most goalie games in this season for each team
+    // Skip for exhibition/tryout games — no player_seasons entries, goalie selected manually
     const gameInfo = await rawSql(sql`
-      SELECT home_team, away_team, season_id FROM games WHERE id = ${id}
+      SELECT home_team, away_team, season_id, game_type FROM games WHERE id = ${id}
     `)
     if (gameInfo.length > 0) {
-      const { home_team, away_team, season_id } = gameInfo[0]
-      for (const [teamSlug, key] of [[home_team, "homeGoalieId"], [away_team, "awayGoalieId"]] as const) {
-        const rows = await rawSql(sql`
-          SELECT ggs.player_id, COUNT(*) as game_count
-          FROM goalie_game_stats ggs
-          JOIN player_seasons ps ON ggs.player_id = ps.player_id
-            AND ps.season_id = ${season_id} AND ps.team_slug = ${teamSlug}
-          JOIN games g ON ggs.game_id = g.id AND g.is_playoff = false
-          GROUP BY ggs.player_id
-          ORDER BY game_count DESC
-          LIMIT 1
-        `)
-        if (rows.length > 0) {
-          ;(initialState as unknown as Record<string, unknown>)[key] = rows[0].player_id
+      const { home_team, away_team, season_id, game_type } = gameInfo[0]
+      const isAdhocGame = game_type === 'exhibition' || game_type === 'tryout'
+      if (!isAdhocGame) {
+        for (const [teamSlug, key] of [[home_team, "homeGoalieId"], [away_team, "awayGoalieId"]] as const) {
+          const rows = await rawSql(sql`
+            SELECT ggs.player_id, COUNT(*) as game_count
+            FROM goalie_game_stats ggs
+            JOIN player_seasons ps ON ggs.player_id = ps.player_id
+              AND ps.season_id = ${season_id} AND ps.team_slug = ${teamSlug}
+            JOIN games g ON ggs.game_id = g.id AND g.is_playoff = false
+            GROUP BY ggs.player_id
+            ORDER BY game_count DESC
+            LIMIT 1
+          `)
+          if (rows.length > 0) {
+            ;(initialState as unknown as Record<string, unknown>)[key] = rows[0].player_id
+          }
         }
       }
     }

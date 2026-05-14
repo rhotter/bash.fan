@@ -13,7 +13,7 @@ export default async function ScorekeeperPage({ params }: { params: Promise<{ id
   // Get game info
   const gameRows = await rawSql(sql`
     SELECT g.id, g.date, g.time, g.status, g.season_id,
-      g.home_team, g.away_team, g.is_playoff,
+      g.home_team, g.away_team, g.is_playoff, g.game_type,
       ht.name as home_team_name, awt.name as away_team_name
     FROM games g
     JOIN teams ht ON g.home_team = ht.slug
@@ -30,9 +30,20 @@ export default async function ScorekeeperPage({ params }: { params: Promise<{ id
   }
 
   const game = gameRows[0]
+  const isAdhocGame = game.game_type === 'exhibition' || game.game_type === 'tryout'
 
-  // Get rosters for both teams from player_seasons
-  async function getRoster(teamSlug: string, seasonId: string): Promise<RosterPlayer[]> {
+  // Get rosters — exhibition/tryout games use adhoc_game_rosters, others use player_seasons
+  async function getRoster(teamSlug: string, seasonId: string, teamSide: 'home' | 'away'): Promise<RosterPlayer[]> {
+    if (isAdhocGame) {
+      const rows = await rawSql(sql`
+        SELECT p.id, p.name
+        FROM adhoc_game_rosters agr
+        JOIN players p ON agr.player_id = p.id
+        WHERE agr.game_id = ${id} AND agr.team_side = ${teamSide}
+        ORDER BY p.name ASC
+      `)
+      return rows.map((r) => ({ id: r.id, name: r.name }))
+    }
     const rows = await rawSql(sql`
       SELECT p.id, p.name
       FROM player_seasons ps
@@ -44,8 +55,8 @@ export default async function ScorekeeperPage({ params }: { params: Promise<{ id
   }
 
   const [homeRoster, awayRoster] = await Promise.all([
-    getRoster(game.home_team, game.season_id),
-    getRoster(game.away_team, game.season_id),
+    getRoster(game.home_team, game.season_id, 'home'),
+    getRoster(game.away_team, game.season_id, 'away'),
   ])
 
   // Check if there's existing live state

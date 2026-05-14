@@ -44,6 +44,7 @@ export interface BashGameDetail {
   isOvertime: boolean
   isForfeit: boolean
   location: string
+  gameType: string
   homePlayers: PlayerBoxScore[]
   awayPlayers: PlayerBoxScore[]
   homeGoalies: GoalieBoxScore[]
@@ -74,19 +75,32 @@ export async function GET(
     }
 
     const game = gameRows[0]
+    const isAdhocGame = game.game_type === 'exhibition' || game.game_type === 'tryout'
 
     // Get player stats for each team
-    async function getPlayerStats(gameId: string, teamSlug: string, seasonId: string): Promise<PlayerBoxScore[]> {
-      const rows = await rawSql(sql`
-        SELECT p.id, p.name,
-          pgs.goals, pgs.assists, pgs.points,
-          pgs.gwg, pgs.ppg, pgs.shg, pgs.eng, pgs.hat_tricks, pgs.pen, pgs.pim
-        FROM player_game_stats pgs
-        JOIN players p ON pgs.player_id = p.id
-        JOIN player_seasons ps ON p.id = ps.player_id AND ps.season_id = ${seasonId}
-        WHERE pgs.game_id = ${gameId} AND ps.team_slug = ${teamSlug}
-        ORDER BY pgs.points DESC, pgs.goals DESC, p.name ASC
-      `)
+    async function getPlayerStats(gameId: string, teamSlug: string, seasonId: string, teamSide: 'home' | 'away'): Promise<PlayerBoxScore[]> {
+      // Exhibition/tryout games use adhoc_game_rosters instead of player_seasons
+      const rows = isAdhocGame
+        ? await rawSql(sql`
+            SELECT p.id, p.name,
+              pgs.goals, pgs.assists, pgs.points,
+              pgs.gwg, pgs.ppg, pgs.shg, pgs.eng, pgs.hat_tricks, pgs.pen, pgs.pim
+            FROM player_game_stats pgs
+            JOIN players p ON pgs.player_id = p.id
+            JOIN adhoc_game_rosters agr ON agr.player_id = p.id AND agr.game_id = ${gameId}
+            WHERE pgs.game_id = ${gameId} AND agr.team_side = ${teamSide}
+            ORDER BY pgs.points DESC, pgs.goals DESC, p.name ASC
+          `)
+        : await rawSql(sql`
+            SELECT p.id, p.name,
+              pgs.goals, pgs.assists, pgs.points,
+              pgs.gwg, pgs.ppg, pgs.shg, pgs.eng, pgs.hat_tricks, pgs.pen, pgs.pim
+            FROM player_game_stats pgs
+            JOIN players p ON pgs.player_id = p.id
+            JOIN player_seasons ps ON p.id = ps.player_id AND ps.season_id = ${seasonId}
+            WHERE pgs.game_id = ${gameId} AND ps.team_slug = ${teamSlug}
+            ORDER BY pgs.points DESC, pgs.goals DESC, p.name ASC
+          `)
       return rows.map((r) => ({
         id: r.id, name: r.name,
         goals: r.goals, assists: r.assists, points: r.points,
@@ -95,16 +109,26 @@ export async function GET(
       }))
     }
 
-    async function getGoalieStats(gameId: string, teamSlug: string, seasonId: string): Promise<GoalieBoxScore[]> {
-      const rows = await rawSql(sql`
-        SELECT p.id, p.name,
-          ggs.seconds, ggs.goals_against, ggs.shots_against, ggs.saves,
-          ggs.shutouts, ggs.goalie_assists, ggs.result
-        FROM goalie_game_stats ggs
-        JOIN players p ON ggs.player_id = p.id
-        JOIN player_seasons ps ON p.id = ps.player_id AND ps.season_id = ${seasonId}
-        WHERE ggs.game_id = ${gameId} AND ps.team_slug = ${teamSlug}
-      `)
+    async function getGoalieStats(gameId: string, teamSlug: string, seasonId: string, teamSide: 'home' | 'away'): Promise<GoalieBoxScore[]> {
+      const rows = isAdhocGame
+        ? await rawSql(sql`
+            SELECT p.id, p.name,
+              ggs.seconds, ggs.goals_against, ggs.shots_against, ggs.saves,
+              ggs.shutouts, ggs.goalie_assists, ggs.result
+            FROM goalie_game_stats ggs
+            JOIN players p ON ggs.player_id = p.id
+            JOIN adhoc_game_rosters agr ON agr.player_id = p.id AND agr.game_id = ${gameId}
+            WHERE ggs.game_id = ${gameId} AND agr.team_side = ${teamSide}
+          `)
+        : await rawSql(sql`
+            SELECT p.id, p.name,
+              ggs.seconds, ggs.goals_against, ggs.shots_against, ggs.saves,
+              ggs.shutouts, ggs.goalie_assists, ggs.result
+            FROM goalie_game_stats ggs
+            JOIN players p ON ggs.player_id = p.id
+            JOIN player_seasons ps ON p.id = ps.player_id AND ps.season_id = ${seasonId}
+            WHERE ggs.game_id = ${gameId} AND ps.team_slug = ${teamSlug}
+          `)
       return rows.map((r) => ({
         id: r.id, name: r.name,
         seconds: r.seconds,
@@ -121,10 +145,10 @@ export async function GET(
     }
 
     const [homePlayers, awayPlayers, homeGoalies, awayGoalies] = await Promise.all([
-      getPlayerStats(id, game.home_team, game.season_id),
-      getPlayerStats(id, game.away_team, game.season_id),
-      getGoalieStats(id, game.home_team, game.season_id),
-      getGoalieStats(id, game.away_team, game.season_id),
+      getPlayerStats(id, game.home_team, game.season_id, 'home'),
+      getPlayerStats(id, game.away_team, game.season_id, 'away'),
+      getGoalieStats(id, game.home_team, game.season_id, 'home'),
+      getGoalieStats(id, game.away_team, game.season_id, 'away'),
     ])
 
     // Officials — simple query using Drizzle query builder
@@ -148,6 +172,7 @@ export async function GET(
       isOvertime: game.is_overtime,
       isForfeit: game.is_forfeit,
       location: game.location,
+      gameType: game.game_type,
       homePlayers,
       awayPlayers,
       homeGoalies,
