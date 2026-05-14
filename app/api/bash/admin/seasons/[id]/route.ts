@@ -49,11 +49,8 @@ export async function GET(_request: NextRequest, context: RouteContext) {
   })
 }
 
-const VALID_TRANSITIONS: Record<string, string[]> = {
-  draft: ["active"],
-  active: ["completed"],
-  completed: [],
-}
+const VALID_STATUSES = ["draft", "active", "completed", "archived"]
+
 
 export async function PUT(request: NextRequest, context: RouteContext) {
   const isAuthenticated = await getSession()
@@ -89,12 +86,11 @@ export async function PUT(request: NextRequest, context: RouteContext) {
       isCurrent,
     } = body
 
-    // Validate status transition
+    // Validate status
     if (status && status !== existing.status) {
-      const allowed = VALID_TRANSITIONS[existing.status] || []
-      if (!allowed.includes(status)) {
+      if (!VALID_STATUSES.includes(status)) {
         return NextResponse.json(
-          { error: `Cannot transition from ${existing.status} to ${status}` },
+          { error: `Invalid status: ${status}` },
           { status: 400 }
         )
       }
@@ -117,7 +113,7 @@ export async function PUT(request: NextRequest, context: RouteContext) {
     if (isCurrent !== undefined) updates.isCurrent = isCurrent
 
     // Auto-set is_current when activating
-    if (status === "active" && existing.status === "draft") {
+    if (status === "active" && existing.status !== "active") {
       // Validate no players are 'tbd'
       const unassignedPlayers = await db
         .select({ id: schema.playerSeasons.playerId })
