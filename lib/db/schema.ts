@@ -753,3 +753,22 @@ export const draftLog = pgTable("draft_log", {
   detail: jsonb("detail"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
 })
+
+// ─── Ad-Hoc Game Rosters (Exhibition / Tryout) ──────────────────────────────
+
+export const adhocGameRosters = pgTable(
+  "adhoc_game_rosters",
+  {
+    gameId: text("game_id")
+      .notNull()
+      .references(() => games.id, { onDelete: "cascade" }),
+    playerId: integer("player_id")
+      .notNull()
+      .references(() => players.id),
+    teamSide: text("team_side").notNull(), // "home" | "away"
+  },
+  (t) => [
+    primaryKey({ columns: [t.gameId, t.playerId] }),
+    index("idx_adhoc_game_rosters_game").on(t.gameId),
+  ]
+)
