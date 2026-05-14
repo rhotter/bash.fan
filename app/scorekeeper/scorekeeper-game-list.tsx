@@ -10,7 +10,7 @@ const scorekeeperHref = (game: BashGame) => `/scorekeeper/${game.id}`
 export function ScorekeeperGameList({ games }: { games: BashGame[] }) {
   const testGames = games.filter((g) => g.id.startsWith("test-"))
   const realGames = games.filter((g) => !g.id.startsWith("test-"))
-  const { regular, playoff } = splitRegularAndPlayoff(realGames)
+  const { regular, playoff, exhibition, tryout } = splitRegularAndPlayoff(realGames)
 
   return (
     <div className="flex flex-col gap-6">
@@ -31,6 +31,8 @@ export function ScorekeeperGameList({ games }: { games: BashGame[] }) {
       <WeekNavigator
         games={regular}
         playoffGames={playoff.length > 0 ? playoff : undefined}
+        exhibitionGames={exhibition.length > 0 ? exhibition : undefined}
+        tryoutGames={tryout.length > 0 ? tryout : undefined}
         gameHref={scorekeeperHref}
       />
     </div>

@@ -17,6 +17,7 @@ import { AdminGameEditor } from "@/components/admin-editor/admin-game-editor"
 import { useAdmin } from "@/lib/admin-context"
 import { TeamLogo } from "@/components/team-logo"
 import { mutate } from "swr"
+import { GameTypeBadge } from "@/components/game-type-badge"
 
 type SkaterSortKey = "points" | "goals" | "assists" | "pim" | "gwg" | "ppg" | "shg" | "eng" | "hatTricks" | "pen"
 
@@ -86,6 +87,7 @@ export function GameDetail({ game, initialDetail, initialLiveData, homeRoster, a
         <span className="normal-case tracking-normal">{formatGameTime(game.time)}</span>
         <span className="text-border">|</span>
         <span className="normal-case tracking-normal">{game.location}</span>
+        <GameTypeBadge gameType={game.gameType} />
       </div>
 
       {/* Hero Scoreboard */}

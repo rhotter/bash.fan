@@ -69,18 +69,28 @@ function buildWeeks(games: BashGame[]): Week[] {
 export function WeekNavigator({
   games,
   playoffGames,
+  exhibitionGames,
+  tryoutGames,
   gameHref,
 }: {
   games: BashGame[]
   playoffGames?: BashGame[]
+  exhibitionGames?: BashGame[]
+  tryoutGames?: BashGame[]
   gameHref?: (game: BashGame) => string
 }) {
   const regularWeeks = useMemo(() => buildWeeks(games), [games])
   const pWeeks = useMemo(() => buildWeeks(playoffGames || []), [playoffGames])
-  const allWeeks = useMemo(() => [...regularWeeks, ...pWeeks], [regularWeeks, pWeeks])
-  const allFlatGames = useMemo(() => [...games, ...(playoffGames || [])], [games, playoffGames])
+  const eWeeks = useMemo(() => buildWeeks(exhibitionGames || []), [exhibitionGames])
+  const tWeeks = useMemo(() => buildWeeks(tryoutGames || []), [tryoutGames])
+  const allWeeks = useMemo(() => [...regularWeeks, ...pWeeks, ...eWeeks, ...tWeeks], [regularWeeks, pWeeks, eWeeks, tWeeks])
+  const allFlatGames = useMemo(() => [...games, ...(playoffGames || []), ...(exhibitionGames || []), ...(tryoutGames || [])], [games, playoffGames, exhibitionGames, tryoutGames])
   const hasPlayoffs = pWeeks.length > 0
+  const hasExhibition = eWeeks.length > 0
+  const hasTryout = tWeeks.length > 0
   const playoffStartIndex = regularWeeks.length
+  const exhibitionStartIndex = playoffStartIndex + pWeeks.length
+  const tryoutStartIndex = exhibitionStartIndex + eWeeks.length
 
   const defaultIndex = useMemo(() => {
     const today = new Date().toISOString().slice(0, 10)
@@ -132,6 +142,20 @@ export function WeekNavigator({
 
   const selectedWeek = allWeeks[idx]
 
+  // Determine section divider for a given index
+  function getSectionDivider(i: number): { label: string; colorClass: string } | null {
+    if (i === playoffStartIndex && hasPlayoffs) {
+      return { label: "Playoffs", colorClass: "text-muted-foreground/50" }
+    }
+    if (i === exhibitionStartIndex && hasExhibition) {
+      return { label: "Exhibition", colorClass: "text-[#7c3aed]" }
+    }
+    if (i === tryoutStartIndex && hasTryout) {
+      return { label: "Tryouts", colorClass: "text-[#0d9488]" }
+    }
+    return null
+  }
+
   return (
     <div className="flex flex-col gap-4">
       {/* Week navigation strip */}
@@ -140,34 +164,37 @@ export function WeekNavigator({
         className="overflow-x-auto flex gap-1 py-1"
         style={{ scrollbarWidth: "none" }}
       >
-        {allWeeks.map((week, i) => (
-          <Fragment key={`${i >= playoffStartIndex && hasPlayoffs ? "p-" : ""}${week.key}`}>
-            {i === playoffStartIndex && hasPlayoffs && (
-              <div className="shrink-0 flex items-center gap-2 px-2">
-                <div className="w-px h-4 bg-border" />
-                <span className="text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wider">Playoffs</span>
-              </div>
-            )}
-            <button
-              ref={(el) => {
-                if (el) pillRefs.current.set(i, el)
-                else pillRefs.current.delete(i)
-              }}
-              onClick={() => setSelectedIndex(i)}
-              className={cn(
-                "shrink-0 px-3 py-1.5 rounded-full text-[11px] font-medium transition-all whitespace-nowrap cursor-pointer relative",
-                i === idx
-                  ? "bg-foreground text-background"
-                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
+        {allWeeks.map((week, i) => {
+          const divider = getSectionDivider(i)
+          return (
+            <Fragment key={`${divider ? divider.label.toLowerCase().charAt(0) + "-" : ""}${week.key}`}>
+              {divider && (
+                <div className="shrink-0 flex items-center gap-2 px-2">
+                  <div className="w-px h-4 bg-border" />
+                  <span className={cn("text-[10px] font-semibold uppercase tracking-wider", divider.colorClass)}>{divider.label}</span>
+                </div>
               )}
-            >
-              {week.label}
-              {week.isCurrent && i !== idx && (
-                <span className="absolute -bottom-0.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-foreground/40" />
-              )}
-            </button>
-          </Fragment>
-        ))}
+              <button
+                ref={(el) => {
+                  if (el) pillRefs.current.set(i, el)
+                  else pillRefs.current.delete(i)
+                }}
+                onClick={() => setSelectedIndex(i)}
+                className={cn(
+                  "shrink-0 px-3 py-1.5 rounded-full text-[11px] font-medium transition-all whitespace-nowrap cursor-pointer relative",
+                  i === idx
+                    ? "bg-foreground text-background"
+                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                )}
+              >
+                {week.label}
+                {week.isCurrent && i !== idx && (
+                  <span className="absolute -bottom-0.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-foreground/40" />
+                )}
+              </button>
+            </Fragment>
+          )
+        })}
       </div>
 
       {/* Games for selected week */}
