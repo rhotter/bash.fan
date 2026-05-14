@@ -281,7 +281,7 @@ export function SeasonForm({ season }: SeasonFormProps) {
                 Stats-only season
               </Label>
               <p className="text-xs text-muted-foreground">
-                Check this if the season only tracks aggregate stats (no individual game schedules)
+                For legacy seasons imported before we had individual game data. Stats are read from pre-aggregated totals instead of game-by-game box scores.
               </p>
             </div>
           </div>

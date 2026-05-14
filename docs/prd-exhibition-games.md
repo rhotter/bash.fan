@@ -1,12 +1,18 @@
-# PRD: Exhibition Games
+# PRD: Exhibition & Tryout Games
 
-> **Status**: Draft
+> **Status**: Approved
 > **Author**: Chris Torres
 > **Created**: 2026-05-12
+> **Updated**: 2026-05-13
+> **Decision**: Option B (Exhibition Rosters Table)
 
 ## 1. Problem Statement
 
-BASH traditionally plays exhibition games at the end of the season after the championship is decided. These are special one-off matchups like an **Alumni Game** (open to all players past and present) and a **USA vs Canada** game (best players from each country in the league). These games have unique requirements that don't fit the current regular-season or playoff data model:
+BASH has two categories of games that don't fit the current regular-season or playoff data model: **exhibition games** and **tryout games**. Both require ad-hoc rosters, stat isolation from season aggregations, and the ability to add new players on the spot — but they serve different purposes in the league calendar.
+
+### Exhibition Games (End of Season)
+
+BASH traditionally plays exhibition games at the end of the fall season after the championship is decided. These are special one-off matchups like an **Alumni Game** (open to all players past and present) and a **USA vs Canada** game (best players from each country in the league). Unique requirements:
 
 - **Custom teams**: Team names like "Team USA", "Team Canada", "Alumni East", and "Alumni West" don't correspond to any existing franchise or seasonal team.
 - **Mixed rosters**: Players may include alumni or guests who did not play in the current fall season and therefore have no `player_seasons` record.
@@ -14,16 +20,36 @@ BASH traditionally plays exhibition games at the end of the season after the cha
 - **Live scoring**: The scorekeeper app must work for these games so scores can be tracked at the rink and spectators can follow along remotely in real time.
 - **Timing**: Exhibition games happen while the fall season is still technically the "current" season in the system.
 
-Currently, there is no clean way to create a game where the teams and rosters are defined independently of the seasonal `season_teams` / `player_seasons` infrastructure, and several stats queries would inadvertently include exhibition game data.
+### Tryout Games (Start of Season)
+
+At the beginning of each fall season, BASH hosts **2–3 tryout games**. These are essentially pickup games where the focus is on evaluating new players, not competitive results:
+
+- **Day-of teams**: Teams are decided on game day — typically "Team Light" vs "Team Dark" based on jersey colors. These are throwaway team names that don't map to any franchise.
+- **Stats don't matter**: Goals, assists, and scores are tracked for fun and for the scorekeeper's workflow, but they have zero impact on fall season standings or player stat leaderboards.
+- **Walk-up players**: Tryout games attract prospective rookies who have never played in BASH before. These players have no existing `players` record in the system and need to be created on the spot.
+- **Attendance is critical**: In order to be eligible for the fall season, rookies must attend at least one tryout game. Tracking which players showed up and played is the single most important data point from tryouts — the roster serves as the attendance record.
+- **Returning players too**: Tryout games aren't just for rookies. Returning veterans also play, so the roster is a mix of existing `players` records and brand-new entries.
+
+### Shared Infrastructure Gap
+
+Currently, there is no clean way to create a game where the teams and rosters are defined independently of the seasonal `season_teams` / `player_seasons` infrastructure, and several stats queries would inadvertently include non-regular-season game data. Both exhibition and tryout games need:
+
+1. Ad-hoc team names not tied to franchises
+2. Rosters decoupled from `player_seasons`
+3. The ability to add/create players at game time (scorekeeper)
+4. Full scorekeeper and live-scoring support
+5. Complete stat isolation from season and all-time aggregations
 
 ## 2. Goals
 
-- Allow admins to create exhibition games under the current season with custom team names and ad-hoc rosters
-- Ensure exhibition games are **completely excluded** from standings, player stats leaderboards, and all-time stat aggregations
-- Ensure exhibition games are **visible** on the public scores page with clear "Exhibition" labeling
-- Ensure the **scorekeeper app** and **live game tracking** work for exhibition games (rink-side scoring + remote spectator view)
-- Ensure the **game detail page** correctly renders boxscores for exhibition games
-- Keep the implementation minimal — this is for ~2 games per year, not a full parallel scheduling system
+- Allow admins to create exhibition and tryout games under the current season with custom team names and ad-hoc rosters.
+- Ensure exhibition and tryout games are **completely excluded** from standings, player stats leaderboards, and all-time stat aggregations
+- Ensure these games are **visible** on the public scores page with clear "Exhibition" or "Tryout" labeling
+- Ensure the **scorekeeper app** and **live game tracking** work for these games (rink-side scoring + remote spectator view)
+- Allow the scorekeeper to **search for existing players or create new ones** inline during exhibition and tryout games — critical for walk-up rookies at tryouts
+- Ensure the **game detail page** correctly renders boxscores for these games, and labels them as "Exhibition" or "Tryout" games
+- Track **tryout attendance** via roster participation — the roster IS the attendance record for rookie eligibility
+- Keep the implementation minimal — this is for ~2–5 games per year, not a full parallel scheduling system. We assume these games will be added one by one by an admin. 
 
 ## 3. Current State
 
@@ -52,7 +78,7 @@ Currently, there is no clean way to create a game where the teams and rosters ar
 
 Three approaches were evaluated. Each addresses stat isolation, ad-hoc team naming, roster composition, admin workflow, and scorekeeper compatibility.
 
-### Option A: Minimal — Leverage Existing `game_type = 'exhibition'`
+### Option A: Minimal — Leverage Existing `game_type = 'exhibition'` ❌ Rejected
 
 Use the existing `games.game_type` column with no schema changes. Create ad-hoc teams (`team-usa`, `team-canada`, `alumni-east`, `alumni-west`) as rows in the `teams` table, add them to `season_teams` for the fall season, and mark the games as `exhibition`. Patch stats queries to add `game_type = 'regular'` filters.
 
@@ -67,7 +93,9 @@ Use the existing `games.game_type` column with no schema changes. Create ad-hoc 
 
 > **Key risk**: The `player_seasons` primary key is `(player_id, season_id, team_slug)`, so a player *can* be on two teams in the same season. But this creates a confusing data model — their player detail page would show two "Current Season" team entries, and stats queries that join `player_seasons` may double-count or misattribute.
 
-### Option B: Exhibition Rosters Table (Recommended)
+> **Rejection reason**: Data model pollution — players get confusing dual-team entries and no clean separation for future exhibition/charity events.
+
+### Option B: Exhibition Rosters Table ✅ Selected
 
 Use `game_type = 'exhibition'` for the game itself (same as Option A), but introduce a lightweight **exhibition roster** table to decouple exhibition team assignments from `player_seasons`. Create real team rows for the exhibition teams so existing rendering code works without special-casing.
 
@@ -81,7 +109,7 @@ Use `game_type = 'exhibition'` for the game itself (same as Option A), but intro
 | Scales for future exhibitions, charity games, jamborees, etc. | |
 | Exhibition teams as real `teams` rows means all existing rendering code works | |
 
-### Option C: Dedicated Exhibition Season
+### Option C: Dedicated Exhibition Season ❌ Rejected
 
 Create a separate season (e.g., `2025-fall-exhibition`) for exhibition games. The front end would show both seasons' games when viewing the current fall season.
 
@@ -93,6 +121,8 @@ Create a separate season (e.g., `2025-fall-exhibition`) for exhibition games. Th
 | Uses 100% existing admin tooling | Season picker gains noise for end users |
 | Exhibition stats could have their own stats page | Full season infrastructure for 2 games is overkill |
 | | Player management still requires `player_seasons` entries (same data model issue as Option A) |
+
+> **Rejection reason**: Overkill infrastructure for 2 games. Still has the `player_seasons` pollution problem. Would require unsupported multi-season merge on the scores page.
 
 ### Comparison Matrix
 
@@ -254,13 +284,13 @@ async function getExhibitionPlayerStats(gameId: string, teamSide: string): Promi
 
 When rendering game cards on the public scores page, display an "Exhibition" badge for `gameType !== "regular"` games. The scores tab already renders all games from the season query — no filtering change needed.
 
-Visual treatment: A small pill badge (e.g., `⭐ Exhibition`) next to the game time/status, similar to how playoff games are labeled. Use a distinct color (e.g., amber/gold) to differentiate from the blue playoff badge.
+Visual treatment: A small pill badge (e.g., `⭐ Exhibition` or `⭐ Tryout`) next to the game time/status, similar to how playoff games are labeled. Use a distinct color (e.g., amber/gold) to differentiate from the blue playoff badge.
 
 ### 5.5 Game Detail Page
 
 The game detail page (`app/game/[id]/page.tsx`, `components/game-detail.tsx`) should:
 
-- Display the game's `gameType` as "Exhibition" in the game header
+- Display the game's `gameType` as "Exhibition" or "Tryout" in the game header
 - Use the exhibition roster conditional described in §5.3.2 for boxscore rendering
 - Otherwise render identically to a regular game (score, period breakdown, penalties, three stars, etc.)
 
@@ -274,6 +304,42 @@ Exhibition game appearances **will appear** in the player's game log with an "Ex
 - Career stat summary
 
 The query patches in §5.2 handle stat exclusion. The game log queries in `fetch-player-detail.ts` should **include** exhibition games but render them with a distinct visual indicator (e.g., `⭐ Exhibition` badge on the game row, muted styling to differentiate from regular-season entries).
+
+### 5.7 Scorekeeper Inline Player Creation
+
+For **exhibition** and **tryout** game types, the scorekeeper app must support adding players who are not yet in the system. This is critical because:
+
+- **Exhibition games** attract alumni, guests, and walk-ups who may have no existing `players` record
+- **Tryout games** have prospective players attending for the first time who haven't registered
+- The scorekeeper at the rink needs to be able to add these players in real time without switching to the admin panel
+
+#### Flow
+
+When the scorekeeper is recording a goal, assist, or penalty for a player not on the pre-loaded roster:
+
+1. **Search first**: Scorekeeper types the player's name into a search field that queries the full `players` table (not just the game roster). This catches alumni and past players who already exist in the system.
+2. **Create if not found**: If no match is found, a "+ Add New Player" option appears. Tapping it opens a minimal creation form:
+   - **First Name** (required)
+   - **Last Name** (required)
+   - **Position** (optional — defaults to "Forward")
+3. **Insert + Assign**: The new player is inserted into the `players` table and immediately added to the `exhibition_rosters` table (for exhibition games) or a temporary roster context (for tryout games). The scorekeeper can now attribute goals/assists/penalties to them.
+4. **No `player_seasons` created**: The newly created player is NOT added to `player_seasons` — they only exist in the `exhibition_rosters` (or tryout equivalent) and the global `players` table.
+
+#### Scope
+
+This inline creation is **only available** when `game_type` is one of:
+- `exhibition`
+- `tryout`
+
+For `regular`, `playoff`, and `championship` game types, the scorekeeper continues to use the fixed roster from `player_seasons` — no ad-hoc additions.
+
+#### Player slug generation
+
+Newly created players must get a valid slug via `lib/player-slug.ts` (same as the CSV import flow). Duplicate name handling follows the existing pattern: append a numeric suffix if the slug already exists.
+
+#### Tryout game roster behavior
+
+For tryout games, rosters also need to be decoupled from `player_seasons` since tryout players may not be on any team yet. Tryout games should use the same `exhibition_rosters` table — the table name is slightly misleading, but the schema is identical: `game_id + player_id + team_side`. The `exhibition_rosters` table should be renamed or aliased conceptually as **"ad-hoc game rosters"** — it serves any game type that doesn't use `player_seasons` for roster composition.
 
 ---
 
@@ -293,6 +359,9 @@ The query patches in §5.2 handle stat exclusion. The game log queries in `fetch
 - **`DELETE /api/bash/admin/seasons/[id]/exhibition/[gameId]/roster/player/[playerId]`**
   Remove a single player from the exhibition roster.
 
+- **`POST /api/bash/scorekeeper/[id]/player`** (New)
+  Inline player creation from the scorekeeper. Only allowed when `game_type IN ('exhibition', 'tryout')`. Accepts `{ firstName, lastName, position?, teamSide }`. Creates the player in the `players` table (with auto-generated slug), inserts into `exhibition_rosters` for the game, and returns the new player record. Returns `403` if the game type doesn't support inline creation.
+
 ### Modified Endpoints
 
 - **`GET /api/bash/game/[id]`** — Add conditional: when `game_type = 'exhibition'`, use `exhibition_rosters` for boxscore player splitting instead of `player_seasons`.
@@ -305,24 +374,35 @@ The query patches in §5.2 handle stat exclusion. The game log queries in `fetch
 
 ### 7.1 Exhibition Roster Editor (New)
 
-A new section within the Edit Game modal or a dedicated modal, shown only when `gameType = 'exhibition'`:
+A new section within the Edit Game modal or a dedicated modal, shown only when `gameType = 'exhibition'` or `gameType = 'tryout'`:
 
 - **Player search**: Autocomplete search across the full `players` table (not limited to season roster)
 - **Two-column roster**: Home team players on the left, Away team players on the right
 - **Add/remove**: Click to add from search results, click X to remove from roster
 - **Persistence**: Saves to `exhibition_rosters` via the API above
 
+### 7.4 Scorekeeper Inline Player Creation (New)
+
+A lightweight player creation flow within the scorekeeper app, available only for exhibition and tryout game types:
+
+- **Trigger**: When attributing a goal/assist/penalty, the player search shows a "+ Add New Player" option at the bottom of the search results (always visible, pinned)
+- **Inline form**: A compact modal/sheet with First Name, Last Name, and an optional Position select, default to skater. Team side is auto-determined from the context (which team is being scored for)
+- **Search-first UX**: The search field queries the full `players` table. Results show name and any previous team affiliations to help the scorekeeper identify returning alumni vs. true new players
+- **Confirmation**: After creation, the player is immediately available in the scorekeeper's roster dropdown for the rest of the game
+- **Visual indicator**: Newly added players show a small "NEW" badge in the roster list so the scorekeeper can distinguish them from pre-loaded roster players
+
 This can be implemented as:
 - A new tab in the existing `EditGameModal` (simplest, but modal is already dense)
 - A separate "Manage Roster" button on the schedule tab that opens a dedicated modal (recommended — cleaner UX)
+- Reminder: please evaluate this when you implement to ensure a good UX. 
 
 ### 7.2 Scores Tab Badge
 
-Add exhibition badge rendering to the game card component. Minimal change — a conditional `<Badge>` element.
+Add exhibition or tryout badge rendering to the game card component. Minimal change — a conditional `<Badge>` element.
 
 ### 7.3 Game Detail Exhibition Header
 
-Show "Exhibition Game" label in the game detail header when `gameType === 'exhibition'`.
+Show "Exhibition" or "Tryout" label in the game detail header when `gameType === 'exhibition'` or `gameType === 'tryout'`.
 
 ---
 
@@ -346,6 +426,8 @@ Show "Exhibition Game" label in the game detail header when `gameType === 'exhib
 
 9. **Any ad-hoc matchup supported** — The system is not limited to Alumni and USA vs Canada. Any exhibition team can be created (All-Star, charity, sponsor teams, etc.) and any ad-hoc matchup can be scheduled by the admin.
 
+10. **Scorekeeper inline player creation** — For exhibition and tryout games only, the scorekeeper can search for existing players across the full `players` table and create brand new players on the spot. This handles walk-up alumni, guests, and tryout players who arrive on game day without prior registration. Regular/playoff/championship games continue to use fixed `player_seasons` rosters with no ad-hoc additions.
+
 ---
 
 ## 9. Implementation Plan
@@ -361,7 +443,10 @@ Show "Exhibition Game" label in the game detail header when `gameType === 'exhib
 | 7 | API | New exhibition roster CRUD endpoints | 1 hr |
 | 8 | Scores Tab | Add exhibition badge rendering | 20 min |
 | 9 | Admin UI | Exhibition roster editor (player search + two-column assignment) | 2-3 hrs |
-| | | **Total** | **~1 day** |
+| 10 | API | Scorekeeper inline player creation endpoint (`POST /api/bash/scorekeeper/[id]/player`) | 45 min |
+| 11 | Scorekeeper UI | Inline player search + create flow (search existing → create new → add to roster) | 2 hrs |
+| 12 | Scorekeeper | Enable exhibition_rosters for tryout game types (same roster decoupling) | 15 min |
+| | | **Total** | **~1.5 days** |
 
 ---
 
@@ -382,6 +467,11 @@ Show "Exhibition Game" label in the game detail header when `gameType === 'exhib
 - Verify player detail page (`/player/[slug]`) does NOT include exhibition games in season/all-time stat totals
 - Verify standings page does NOT show exhibition teams or include exhibition results
 - Verify all-time stats (`/stats?season=all`) exclude exhibition game data
+- Start scorekeeper for a **tryout** game → verify same ad-hoc roster behavior as exhibition
+- Use scorekeeper inline player creation → search for an existing alumni player → verify they appear in search results and can be added
+- Use scorekeeper inline player creation → create a brand new player → verify they get a valid slug, appear in the roster, and can receive goals/assists
+- Verify newly created players do NOT get `player_seasons` entries
+- Verify inline player creation is blocked (403) for regular/playoff/championship game types
 
 ---
 
@@ -391,6 +481,7 @@ Show "Exhibition Game" label in the game detail header when `gameType === 'exhib
 - [x] ~~Should exhibition teams have custom colors/logos?~~ **Resolved: Yes** — exhibition teams will have custom colors (stored on `season_teams.color` or the team row) and logos via `lib/team-logos.ts`.
 - [x] ~~Should there be a dedicated `/exhibition` or `/events` public page?~~ **Resolved: No** — exhibition games appear on the regular scores page. No dedicated page needed.
 - [x] ~~Are there additional exhibition game formats beyond Alumni and USA vs Canada?~~ **Resolved: Yes** — the system should handle any ad-hoc matchup (All-Star, charity, sponsor teams, etc.). Exhibition teams are just regular team rows that happen to only play in exhibition games.
+- [x] ~~Should the scorekeeper support adding new players during games?~~ **Resolved: Yes** — for exhibition and tryout game types only. Scorekeeper can search existing players or create new ones inline. Regular/playoff games use fixed rosters.
 
 ---
 
@@ -401,3 +492,5 @@ Show "Exhibition Game" label in the game detail header when `gameType === 'exhib
 - Exhibition game scores are visible to the public in real time
 - Zero impact on season standings, player stats, or all-time leaderboards
 - Player detail pages do not show confusing dual-team affiliations
+- Scorekeeper can add walk-up players to exhibition/tryout games without leaving the app
+- Newly created players exist in the system for future seasons (persistent `players` record)

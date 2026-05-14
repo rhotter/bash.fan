@@ -22,6 +22,7 @@ const logoMapping: Record<string, string> = {
   yetis: "yetis_1024.png",
   "last-licks": "last_licks_blue_1024.png",
   licks: "last_licks_blue_1024.png",
+  "coxswain-bawls-hockey-club": "coxswain_bawls_1024.jpg",
 }
 
 // Season-specific logo overrides (takes priority over default)
