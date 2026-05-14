@@ -196,11 +196,9 @@ export function EditGameModal({
                 <SelectContent>
                   <SelectItem value="regular">Regular Season</SelectItem>
                   <SelectItem value="playoff">Playoff</SelectItem>
-                  <SelectItem value="tryout">Tryout</SelectItem>
-                  <SelectItem value="practice">Practice</SelectItem>
-                  <SelectItem value="exhibition">Exhibition</SelectItem>
                   <SelectItem value="championship">Championship</SelectItem>
-                  <SelectItem value="jamboree">Jamboree</SelectItem>
+                  <SelectItem value="exhibition">Exhibition</SelectItem>
+                  <SelectItem value="tryout">Tryout</SelectItem>
                 </SelectContent>
               </Select>
             </div>

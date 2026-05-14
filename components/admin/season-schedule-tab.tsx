@@ -60,7 +60,7 @@ export interface ScheduleGame {
   awayTeam: string
   awayPlaceholder: string | null
   location: string
-  gameType: "regular" | "playoff" | "championship" | "exhibition" | "practice" | "tryout"
+  gameType: "regular" | "playoff" | "championship" | "exhibition" | "tryout"
   status: "upcoming" | "live" | "final"
   homeScore: number | null
   awayScore: number | null
