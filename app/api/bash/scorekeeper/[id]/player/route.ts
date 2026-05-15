@@ -28,6 +28,9 @@ export async function POST(
 
   const { id: gameId } = await params
 
+  // Hoist trimmedName so the catch block can reference it for race-condition recovery
+  let trimmedName = ""
+
   try {
     const { name, teamSide } = await request.json()
 
@@ -38,7 +41,7 @@ export async function POST(
       return NextResponse.json({ error: 'teamSide must be "home" or "away"' }, { status: 400 })
     }
 
-    const trimmedName = name.trim()
+    trimmedName = name.trim()
 
     // Verify game exists and is exhibition/tryout
     const gameRows = await db
@@ -121,11 +124,10 @@ export async function POST(
     // Handle unique constraint violation on players.name
     if (error instanceof Error && error.message.includes("unique")) {
       // Race condition: player was created between our check and insert
-      // Re-fetch and return existing
+      // Re-fetch and return existing (reuse trimmedName — request body stream is already consumed)
       try {
-        const { name } = await request.json()
         const rows = await rawSql(sql`
-          SELECT id, name FROM players WHERE LOWER(name) = LOWER(${name.trim()}) LIMIT 1
+          SELECT id, name FROM players WHERE LOWER(name) = LOWER(${trimmedName}) LIMIT 1
         `)
         if (rows.length > 0) {
           return NextResponse.json({

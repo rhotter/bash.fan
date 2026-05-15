@@ -23,10 +23,13 @@ export async function GET(request: Request) {
     return NextResponse.json({ players: [] })
   }
 
+  // Escape LIKE special characters to prevent pattern injection
+  const escaped = q.replace(/[%_\\]/g, '\\$&')
+
   const players = await db
     .select({ id: schema.players.id, name: schema.players.name })
     .from(schema.players)
-    .where(ilike(schema.players.name, `%${q}%`))
+    .where(ilike(schema.players.name, `%${escaped}%`))
     .orderBy(asc(schema.players.name))
     .limit(20)
 
