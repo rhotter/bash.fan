@@ -71,6 +71,13 @@ export function GameCard({ game, href, seriesText }: { game: BashGame; href?: st
           ) : null}
         </div>
 
+        {/* Optional Game Title */}
+        {game.title && (
+          <div className="px-3 pt-2 pb-0 flex flex-col">
+            <span className="text-xs font-bold text-primary truncate leading-tight">{game.title}</span>
+          </div>
+        )}
+
         {/* Teams and scores */}
         <div className="px-3 py-2 flex flex-col gap-1">
           <div className="flex items-center justify-between gap-2">

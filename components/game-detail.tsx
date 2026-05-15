@@ -80,8 +80,15 @@ export function GameDetail({ game, initialDetail, initialLiveData, homeRoster, a
 
   return (
     <div className="w-full">
+      {/* Game title if present */}
+      {game.title && (
+        <h1 className="text-2xl sm:text-3xl font-black uppercase tracking-tight text-primary mb-3">
+          {game.title}
+        </h1>
+      )}
+
       {/* Game meta */}
-      <div className="flex items-center gap-2 mb-3 text-[11px] text-muted-foreground tracking-wide uppercase font-medium flex-wrap">
+      <div className="flex items-center gap-2 mb-4 text-[11px] text-muted-foreground tracking-wide uppercase font-medium flex-wrap">
         <span>{formatGameDate(game.date)}</span>
         <span className="text-border">|</span>
         <span className="normal-case tracking-normal">{formatGameTime(game.time)}</span>
@@ -239,9 +246,64 @@ export function GameDetail({ game, initialDetail, initialLiveData, homeRoster, a
           </div>
         )}
 
-        {game.status === "upcoming" && !detail && !isLoading && (
-          <div className="text-center py-8">
-            <p className="text-xs text-muted-foreground">Game has not been played yet.</p>
+        {game.status === "upcoming" && !isLoading && (
+          <div className="flex flex-col gap-6">
+            {/* Rosters */}
+            {homeRoster && awayRoster && (homeRoster.length > 0 || awayRoster.length > 0) ? (
+              <>
+                <SectionHeader>Rosters</SectionHeader>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                  {/* Away roster */}
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2">
+                      <TeamLogo slug={game.awaySlug} name={game.awayTeam} size={20} />
+                      <span className="text-xs font-bold uppercase tracking-wide">{game.awayTeam}</span>
+                      <span className="text-[10px] text-muted-foreground">({awayRoster.length})</span>
+                    </div>
+                    <div className="space-y-0.5">
+                      {awayRoster.map((p) => (
+                        <Link
+                          key={p.id}
+                          href={`/player/${playerSlug(p.name)}`}
+                          className="block text-xs text-muted-foreground hover:text-foreground transition-colors py-1 px-2 rounded hover:bg-muted/50"
+                        >
+                          {p.name}
+                        </Link>
+                      ))}
+                      {awayRoster.length === 0 && (
+                        <p className="text-[10px] text-muted-foreground/50 italic px-2">No players assigned</p>
+                      )}
+                    </div>
+                  </div>
+                  {/* Home roster */}
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2">
+                      <TeamLogo slug={game.homeSlug} name={game.homeTeam} size={20} />
+                      <span className="text-xs font-bold uppercase tracking-wide">{game.homeTeam}</span>
+                      <span className="text-[10px] text-muted-foreground">({homeRoster.length})</span>
+                    </div>
+                    <div className="space-y-0.5">
+                      {homeRoster.map((p) => (
+                        <Link
+                          key={p.id}
+                          href={`/player/${playerSlug(p.name)}`}
+                          className="block text-xs text-muted-foreground hover:text-foreground transition-colors py-1 px-2 rounded hover:bg-muted/50"
+                        >
+                          {p.name}
+                        </Link>
+                      ))}
+                      {homeRoster.length === 0 && (
+                        <p className="text-[10px] text-muted-foreground/50 italic px-2">No players assigned</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="text-center py-8">
+                <p className="text-xs text-muted-foreground">Game has not been played yet.</p>
+              </div>
+            )}
           </div>
         )}
 

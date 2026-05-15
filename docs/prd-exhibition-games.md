@@ -42,9 +42,9 @@ Currently, there is no clean way to create a game where the teams and rosters ar
 
 ## 2. Goals
 
-- Allow admins to create exhibition and tryout games under the current season with custom team names and ad-hoc rosters.
+- Allow admins to create exhibition and tryout games under the current season with custom team names, ad-hoc rosters, and optional custom game titles.
 - Ensure exhibition and tryout games are **completely excluded** from standings, player stats leaderboards, and all-time stat aggregations
-- Ensure these games are **visible** on the public scores page with clear "Exhibition" or "Tryout" labeling
+- Ensure these games are **visible** on the public scores page with clear "Exhibition" or "Tryout" labeling and custom titles if provided
 - Ensure the **scorekeeper app** and **live game tracking** work for these games (rink-side scoring + remote spectator view)
 - Allow the scorekeeper to **search for existing players or create new ones** inline during exhibition and tryout games — critical for walk-up rookies at tryouts
 - Ensure the **game detail page** correctly renders boxscores for these games, and labels them as "Exhibition" or "Tryout" games
@@ -199,9 +199,19 @@ These are the initial teams for the 2025 Fall season. The system should support 
 
 Add to `season_teams` for the active fall season so the admin schedule tab can reference them. Standings already filter on `gameType === "regular"`, so these teams never appear in standings rows.
 
-#### No changes to `games` table
+#### Optional `title` column in `games` table
 
-The existing `game_type` column with value `'exhibition'` is sufficient. No new columns needed.
+Exhibition and tryout games often have meaningful titles (e.g., "The Alumni Game", "USA vs Canada Game"). We've added an optional `title` column to the `games` table:
+
+```sql
+ALTER TABLE games ADD COLUMN title TEXT;
+```
+
+When provided, this title is displayed prominently on the public scores page, the game detail page, and used in page metadata.
+
+#### No changes to `games.game_type`
+
+The existing `game_type` column with value `'exhibition'` is sufficient. No new columns needed besides `title`.
 
 ### 5.2 Stats Query Patches
 
@@ -422,7 +432,8 @@ The existing "Add Game" button on the admin schedule tab needs to be updated to 
 
 - **Game type selector**: Add a game type dropdown (Regular, Playoff, Exhibition, Tryout) to the Add Game form. Defaults to "Regular".
 - **Dynamic form**: When game type is changed to `exhibition` or `tryout`:
-  - The team selectors expand beyond `season_teams` to allow selecting any team from the `teams` table, or creating a new ad-hoc team inline (e.g., "Team Light", "Team Dark").
+  - A new "Game Title (optional)" input field appears, allowing admins to set a custom title.
+  - The team selectors expand beyond `season_teams`. The dropdown itself integrates options to select any team from the `teams` table, or create a new ad-hoc team inline via a special "Create new team..." option within the select menu. This avoids cluttering the form with extra buttons.
   - A roster assignment section appears below the team selectors, using the same player search + assignment UI as the Edit Game roster editor (§7.2).
   - For regular/playoff types, the form behaves exactly as it does today.
 
@@ -470,7 +481,7 @@ Add exhibition or tryout badge rendering to the game card component. Minimal cha
 
 ### 7.3 Game Detail Exhibition Header
 
-Show "Exhibition" or "Tryout" label in the game detail header when `gameType === 'exhibition'` or `gameType === 'tryout'`.
+Show "Exhibition" or "Tryout" label in the game detail header when `gameType === 'exhibition'` or `gameType === 'tryout'`. Also, if the game has a custom `title`, it should be displayed above the team matchup or alongside the game metadata (e.g., "⭐ The Alumni Game | Nov 12, 2025").
 
 ---
 
@@ -505,6 +516,10 @@ Show "Exhibition" or "Tryout" label in the game detail header when `gameType ===
 14. **Player position defaults to Skater** — Forward/Defense distinction is assigned later by coaches, not at game-time creation.
 
 15. **Badge colors: purple for exhibition, teal for tryout** — Avoids conflicting with amber (overtime/warning) and blue (playoff) semantics in the design system.
+
+16. **Game Titles** — Games have an optional `title` field to allow meaningful names like "Alumni Game".
+
+17. **Team Picker UI** — Creating teams or selecting from the database happens directly within the Team Select dropdown using special trigger values, rather than through separate off-canvas buttons.
 
 ---
 

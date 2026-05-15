@@ -90,6 +90,7 @@ export const games = pgTable(
     location: text("location").default("The Lick"),
     hasBoxscore: boolean("has_boxscore").notNull().default(false),
     notes: text("notes"),
+    title: text("title"),
     // ─── Schedule Management (additive) ─────────────────────────────────
     gameType: text("game_type").notNull().default("regular"),
     hasShootout: boolean("has_shootout").notNull().default(false),

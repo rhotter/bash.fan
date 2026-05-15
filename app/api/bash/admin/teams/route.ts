@@ -33,6 +33,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Slug and Name are required" }, { status: 400 })
     }
 
+    const existingTeam = await db.select().from(schema.teams).where(eq(schema.teams.slug, slug.trim().toLowerCase())).limit(1)
+    if (existingTeam.length > 0) {
+      return NextResponse.json({ error: "A team with this team name already exists. Please add them from the database." }, { status: 400 })
+    }
+
     const [team] = await db
       .insert(schema.teams)
       .values({ slug: slug.trim().toLowerCase(), name: name.trim() })
@@ -41,6 +46,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ team })
   } catch (error) {
     console.error("Failed to create team:", error)
-    return NextResponse.json({ error: "Internal Server Error. Slug may already exist." }, { status: 500 })
+    return NextResponse.json({ error: "Internal Server Error. Team may already exist." }, { status: 500 })
   }
 }

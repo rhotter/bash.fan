@@ -32,6 +32,7 @@ export interface GameFormData {
   isOvertime: boolean
   hasShootout: boolean
   isForfeit: boolean
+  title?: string | null
   notes: string | null
   homeNotes: string | null
   awayNotes: string | null
@@ -143,6 +144,7 @@ export function EditGameModal({
           isOvertime: false,
           hasShootout: false,
           isForfeit: false,
+          title: null,
           notes: null,
           homeNotes: null,
           awayNotes: null,
@@ -312,9 +314,22 @@ export function EditGameModal({
     setGlobalSearch("")
   }
 
-  // Include the TBD placeholder team
-  const allTeams = [{ teamSlug: "tbd", teamName: "(TBD)" }, ...localTeams]
   const assignedSlugs = new Set(localTeams.map((t) => t.teamSlug))
+  
+  const extraTeams: { teamSlug: string; teamName: string }[] = []
+  if (formData.homeTeam && formData.homeTeam !== "tbd" && !assignedSlugs.has(formData.homeTeam)) {
+    const globalMatch = globalTeams.find(t => t.slug === formData.homeTeam)
+    extraTeams.push({ teamSlug: formData.homeTeam, teamName: globalMatch ? globalMatch.name : formData.homeTeam })
+    assignedSlugs.add(formData.homeTeam)
+  }
+  if (formData.awayTeam && formData.awayTeam !== "tbd" && !assignedSlugs.has(formData.awayTeam)) {
+    const globalMatch = globalTeams.find(t => t.slug === formData.awayTeam)
+    extraTeams.push({ teamSlug: formData.awayTeam, teamName: globalMatch ? globalMatch.name : formData.awayTeam })
+    assignedSlugs.add(formData.awayTeam)
+  }
+
+  // Include the TBD placeholder team
+  const allTeams = [{ teamSlug: "tbd", teamName: "(TBD)" }, ...localTeams, ...extraTeams]
 
   const isAdHocType = AD_HOC_GAME_TYPES.includes(formData.gameType)
 
@@ -433,7 +448,6 @@ export function EditGameModal({
                     onClick={() => handleAssignGlobalTeam(side, t)}
                   >
                     <span className="truncate">{t.name}</span>
-                    <span className="text-[10px] text-muted-foreground shrink-0 ml-2">{t.slug}</span>
                   </button>
                 ))
               )}
@@ -442,56 +456,48 @@ export function EditGameModal({
 
         /* ── Default: Team dropdown ── */
         ) : (
-          <>
-            <Select
-              value={formData[fieldKey]}
-              onValueChange={(val) => setFormData({ ...formData, [fieldKey]: val })}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select team..." />
-              </SelectTrigger>
-              <SelectContent>
-                {allTeams.map((t) => (
-                  <SelectItem key={t.teamSlug} value={t.teamSlug}>
-                    {t.teamName}
+          <Select
+            value={formData[fieldKey]}
+            onValueChange={(val) => {
+              if (val === "__SEARCH__") {
+                setPickerState({ side, mode: "search" })
+                fetchGlobalTeams()
+              } else if (val === "__CREATE__") {
+                setPickerState({ side, mode: "create" })
+                setNewTeamName("")
+                setNewTeamColor("#6366f1")
+              } else {
+                setFormData({ ...formData, [fieldKey]: val })
+              }
+            }}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select team..." />
+            </SelectTrigger>
+            <SelectContent>
+              {allTeams.map((t) => (
+                <SelectItem key={t.teamSlug} value={t.teamSlug}>
+                  {t.teamName}
+                </SelectItem>
+              ))}
+              {isAdHocType && (
+                <>
+                  <SelectItem value="__SEARCH__" className="text-primary font-medium focus:text-primary focus:bg-primary/10 border-t mt-1 pt-2">
+                    <div className="flex items-center">
+                      <Database className="h-3.5 w-3.5 mr-2" />
+                      Add from database...
+                    </div>
                   </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            {/* Action buttons for ad-hoc game types */}
-            {isAdHocType && (
-              <div className="flex items-center gap-3">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="h-6 text-xs text-primary hover:text-primary/80 px-0"
-                  onClick={() => {
-                    setPickerState({ side, mode: "search" })
-                    fetchGlobalTeams()
-                  }}
-                >
-                  <Database className="h-3 w-3 mr-1" />
-                  Add from database
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="h-6 text-xs text-primary hover:text-primary/80 px-0"
-                  onClick={() => {
-                    setPickerState({ side, mode: "create" })
-                    setNewTeamName("")
-                    setNewTeamColor("#6366f1")
-                  }}
-                >
-                  <Plus className="h-3 w-3 mr-1" />
-                  Create new team
-                </Button>
-              </div>
-            )}
-          </>
+                  <SelectItem value="__CREATE__" className="text-primary font-medium focus:text-primary focus:bg-primary/10">
+                    <div className="flex items-center">
+                      <Plus className="h-3.5 w-3.5 mr-2" />
+                      Create new team...
+                    </div>
+                  </SelectItem>
+                </>
+              )}
+            </SelectContent>
+          </Select>
         )}
 
         {/* Score input */}
@@ -580,13 +586,21 @@ export function EditGameModal({
                 onChange={(e) => setFormData({ ...formData, location: e.target.value })}
               />
             </div>
+            <div className="space-y-2 col-span-2">
+              <Label>Game Title (Optional)</Label>
+              <Input
+                placeholder="e.g. The Alumni Game, 2026 Skills Competition"
+                value={formData.title || ""}
+                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+              />
+            </div>
           </div>
 
-          <div className="grid grid-cols-5 gap-4 items-end bg-muted/30 p-4 rounded-lg">
+          <div className="grid grid-cols-5 gap-4 items-start bg-muted/30 p-4 rounded-lg">
             <div className="col-span-2">
               {renderTeamPicker("away", "Away Team")}
             </div>
-            <div className="col-span-1 flex items-center justify-center pb-2 text-sm text-muted-foreground font-medium">
+            <div className="col-span-1 flex items-center justify-center pt-8 text-sm text-muted-foreground font-medium">
               VS
             </div>
             <div className="col-span-2">

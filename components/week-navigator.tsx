@@ -83,14 +83,20 @@ export function WeekNavigator({
   const pWeeks = useMemo(() => buildWeeks(playoffGames || []), [playoffGames])
   const eWeeks = useMemo(() => buildWeeks(exhibitionGames || []), [exhibitionGames])
   const tWeeks = useMemo(() => buildWeeks(tryoutGames || []), [tryoutGames])
-  const allWeeks = useMemo(() => [...regularWeeks, ...pWeeks, ...eWeeks, ...tWeeks], [regularWeeks, pWeeks, eWeeks, tWeeks])
-  const allFlatGames = useMemo(() => [...games, ...(playoffGames || []), ...(exhibitionGames || []), ...(tryoutGames || [])], [games, playoffGames, exhibitionGames, tryoutGames])
+  
+  // Reorder to: Tryouts, Regular, Playoffs, Exhibition
+  const allWeeks = useMemo(() => [...tWeeks, ...regularWeeks, ...pWeeks, ...eWeeks], [tWeeks, regularWeeks, pWeeks, eWeeks])
+  const allFlatGames = useMemo(() => [...(tryoutGames || []), ...games, ...(playoffGames || []), ...(exhibitionGames || [])], [tryoutGames, games, playoffGames, exhibitionGames])
+  
+  const hasTryout = tWeeks.length > 0
+  const hasRegular = regularWeeks.length > 0
   const hasPlayoffs = pWeeks.length > 0
   const hasExhibition = eWeeks.length > 0
-  const hasTryout = tWeeks.length > 0
-  const playoffStartIndex = regularWeeks.length
+  
+  const tryoutStartIndex = 0
+  const regularStartIndex = tWeeks.length
+  const playoffStartIndex = regularStartIndex + regularWeeks.length
   const exhibitionStartIndex = playoffStartIndex + pWeeks.length
-  const tryoutStartIndex = exhibitionStartIndex + eWeeks.length
 
   const defaultIndex = useMemo(() => {
     const today = new Date().toISOString().slice(0, 10)
@@ -144,14 +150,17 @@ export function WeekNavigator({
 
   // Determine section divider for a given index
   function getSectionDivider(i: number): { label: string; colorClass: string } | null {
+    if (i === tryoutStartIndex && hasTryout) {
+      return { label: "Tryouts", colorClass: "text-[#0d9488]" }
+    }
+    if (i === regularStartIndex && hasRegular && hasTryout) {
+      return { label: "Season", colorClass: "text-muted-foreground/50" }
+    }
     if (i === playoffStartIndex && hasPlayoffs) {
       return { label: "Playoffs", colorClass: "text-muted-foreground/50" }
     }
     if (i === exhibitionStartIndex && hasExhibition) {
       return { label: "Exhibition", colorClass: "text-[#7c3aed]" }
-    }
-    if (i === tryoutStartIndex && hasTryout) {
-      return { label: "Tryouts", colorClass: "text-[#0d9488]" }
     }
     return null
   }

@@ -115,6 +115,7 @@ export async function fetchGameDetail(id: string): Promise<BashGameDetail | null
     isForfeit: game.is_forfeit,
     location: game.location,
     gameType: game.game_type,
+    title: game.title ?? null,
     homePlayers,
     awayPlayers,
     homeGoalies,
