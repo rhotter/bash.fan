@@ -7,11 +7,11 @@ export type { BashGameDetail, PlayerBoxScore, GoalieBoxScore }
 export async function fetchGameDetail(id: string): Promise<BashGameDetail | null> {
   const gameResult = await rawSql(sql`
     SELECT g.*,
-      ht.name as home_team_name,
-      awt.name as away_team_name
+      COALESCE(ht.name, g.home_team) as home_team_name,
+      COALESCE(awt.name, g.away_team) as away_team_name
     FROM games g
-    JOIN teams ht ON g.home_team = ht.slug
-    JOIN teams awt ON g.away_team = awt.slug
+    LEFT JOIN teams ht ON g.home_team = ht.slug
+    LEFT JOIN teams awt ON g.away_team = awt.slug
     WHERE g.id = ${id}
   `)
 

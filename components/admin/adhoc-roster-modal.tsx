@@ -44,6 +44,26 @@ export function AdhocRosterModal({
   const [isSearching, setIsSearching] = useState(false)
   const [activeTab, setActiveTab] = useState<"home" | "away">("away")
 
+  const fetchRoster = useCallback(async () => {
+    if (!game) return
+    setIsLoading(true)
+    try {
+      const res = await fetch(`/api/bash/admin/seasons/${seasonId}/adhoc/${game.id}/roster`)
+      if (res.ok) {
+        const data = await res.json()
+        setRoster(data.roster.map((r: { playerId: number; name: string; teamSide: "home" | "away" }) => ({
+          id: r.playerId,
+          name: r.name,
+          teamSide: r.teamSide,
+        })))
+      }
+    } catch {
+      toast.error("Failed to load ad-hoc roster")
+    } finally {
+      setIsLoading(false)
+    }
+  }, [game, seasonId])
+
   useEffect(() => {
     if (open && game) {
       fetchRoster()
@@ -76,26 +96,6 @@ export function AdhocRosterModal({
 
     return () => clearTimeout(timer)
   }, [searchQuery])
-
-  const fetchRoster = useCallback(async () => {
-    if (!game) return
-    setIsLoading(true)
-    try {
-      const res = await fetch(`/api/bash/admin/seasons/${seasonId}/adhoc/${game.id}/roster`)
-      if (res.ok) {
-        const data = await res.json()
-        setRoster(data.roster.map((r: { playerId: number; name: string; teamSide: "home" | "away" }) => ({
-          id: r.playerId,
-          name: r.name,
-          teamSide: r.teamSide,
-        })))
-      }
-    } catch {
-      toast.error("Failed to load ad-hoc roster")
-    } finally {
-      setIsLoading(false)
-    }
-  }, [game, seasonId])
 
   const handleSave = async () => {
     if (!game) return

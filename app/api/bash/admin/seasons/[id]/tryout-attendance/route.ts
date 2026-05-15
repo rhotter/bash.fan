@@ -34,6 +34,7 @@ export async function GET(_request: NextRequest, context: RouteContext) {
     }
 
     // Query: all players who appear in adhoc_game_rosters for tryout games in this season
+    // Returns per-player game attendance details (date + optional title)
     const rows = await rawSql(sql`
       SELECT
         p.id as player_id,
@@ -42,7 +43,14 @@ export async function GET(_request: NextRequest, context: RouteContext) {
         CASE WHEN EXISTS (
           SELECT 1 FROM player_seasons ps
           WHERE ps.player_id = p.id AND ps.season_id != ${seasonId}
-        ) THEN false ELSE true END as is_new_player
+        ) THEN false ELSE true END as is_new_player,
+        json_agg(
+          json_build_object(
+            'gameId', g.id,
+            'date', g.date,
+            'title', g.title
+          ) ORDER BY g.date ASC
+        ) as games
       FROM adhoc_game_rosters agr
       JOIN players p ON agr.player_id = p.id
       JOIN games g ON agr.game_id = g.id
@@ -59,12 +67,24 @@ export async function GET(_request: NextRequest, context: RouteContext) {
         FROM games
         WHERE season_id = ${seasonId} AND game_type = 'tryout'
       `).then((r) => r[0]?.count ?? 0),
-      players: rows.map((r) => ({
-        playerId: r.player_id,
-        name: r.name,
-        tryoutGamesAttended: r.tryout_games_attended,
-        isNewPlayer: r.is_new_player,
-      })),
+      players: rows.map((r) => {
+        // Deduplicate games (a player can appear on multiple team sides in the same game)
+        const seen = new Set<string>()
+        const uniqueGames: { gameId: string; date: string; title: string | null }[] = []
+        for (const g of r.games as { gameId: string; date: string; title: string | null }[]) {
+          if (!seen.has(g.gameId)) {
+            seen.add(g.gameId)
+            uniqueGames.push(g)
+          }
+        }
+        return {
+          playerId: r.player_id,
+          name: r.name,
+          tryoutGamesAttended: r.tryout_games_attended,
+          isNewPlayer: r.is_new_player,
+          games: uniqueGames,
+        }
+      }),
     })
   } catch (err) {
     console.error("Failed to fetch tryout attendance:", err)

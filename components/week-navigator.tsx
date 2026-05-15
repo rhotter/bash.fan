@@ -176,7 +176,7 @@ export function WeekNavigator({
         {allWeeks.map((week, i) => {
           const divider = getSectionDivider(i)
           return (
-            <Fragment key={`${divider ? divider.label.toLowerCase().charAt(0) + "-" : ""}${week.key}`}>
+            <Fragment key={`${i}-${week.key}`}>
               {divider && (
                 <div className="shrink-0 flex items-center gap-2 px-2">
                   <div className="w-px h-4 bg-border" />

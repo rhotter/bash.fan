@@ -28,16 +28,16 @@ export default async function ScorekeeperIndexPage({
       g.is_overtime, g.is_playoff, g.is_forfeit,
       g.location, g.has_boxscore,
       g.game_type,
-      ht.name as home_team_name,
-      awt.name as away_team_name,
+      COALESCE(ht.name, g.home_team) as home_team_name,
+      COALESCE(awt.name, g.away_team) as away_team_name,
       gl.game_id IS NOT NULL as has_live_stats,
       (gl.state->>'period')::int as live_period,
       (gl.state->>'clockSeconds')::float as live_clock_seconds,
       (gl.state->>'clockRunning')::boolean as live_clock_running,
       (gl.state->>'clockStartedAt')::float as live_clock_started_at
     FROM games g
-    JOIN teams ht ON g.home_team = ht.slug
-    JOIN teams awt ON g.away_team = awt.slug
+    LEFT JOIN teams ht ON g.home_team = ht.slug
+    LEFT JOIN teams awt ON g.away_team = awt.slug
     LEFT JOIN game_live gl ON gl.game_id = g.id
     WHERE g.season_id = ${season.id}
     ORDER BY g.date ASC, 

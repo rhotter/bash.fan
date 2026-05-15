@@ -42,7 +42,17 @@ export async function fetchPlayerDetail(slug: string): Promise<PlayerDetail | nu
     `)
   }
 
-  if (playerRows.length === 0) return null
+  // Tryout-only player fallback — no player_seasons record exists
+  if (playerRows.length === 0) {
+    playerRows = [{
+      id: matchedPlayer.id,
+      name: matchedPlayer.name,
+      team_slug: null,
+      team_name: "Tryout Player",
+      is_goalie: false,
+      season_id: currentSeasonId,
+    }]
+  }
 
   const player = playerRows[0]
   const playerSeasonId = player.season_id
@@ -177,13 +187,13 @@ export async function fetchPlayerDetail(slug: string): Promise<PlayerDetail | nu
     rawSql(sql`
       SELECT
         pgs.game_id, g.date, g.home_team, g.away_team, g.home_score, g.away_score, g.is_overtime,
-        ht.name as home_name, awt.name as away_name,
+        COALESCE(ht.name, g.home_team) as home_name, COALESCE(awt.name, g.away_team) as away_name,
         pgs.goals, pgs.assists, pgs.points, pgs.gwg, pgs.ppg, pgs.shg,
         pgs.eng, pgs.hat_tricks, pgs.pen, pgs.pim
       FROM player_game_stats pgs
       JOIN games g ON pgs.game_id = g.id AND g.season_id = ${playerSeasonId} AND NOT g.is_playoff AND g.game_type = 'regular'
-      JOIN teams ht ON g.home_team = ht.slug
-      JOIN teams awt ON g.away_team = awt.slug
+      LEFT JOIN teams ht ON g.home_team = ht.slug
+      LEFT JOIN teams awt ON g.away_team = awt.slug
       WHERE pgs.player_id = ${pid}
       ORDER BY g.date DESC
     `),
@@ -236,13 +246,13 @@ export async function fetchPlayerDetail(slug: string): Promise<PlayerDetail | nu
     rawSql(sql`
       SELECT
         ggs.game_id, g.date, g.home_team, g.away_team, g.home_score, g.away_score,
-        ht.name as home_name, awt.name as away_name,
+        COALESCE(ht.name, g.home_team) as home_name, COALESCE(awt.name, g.away_team) as away_name,
         ggs.seconds, ggs.goals_against, ggs.shots_against, ggs.saves,
         ggs.shutouts, ggs.goalie_assists, ggs.result
       FROM goalie_game_stats ggs
       JOIN games g ON ggs.game_id = g.id AND g.season_id = ${playerSeasonId} AND NOT g.is_playoff AND g.game_type = 'regular'
-      JOIN teams ht ON g.home_team = ht.slug
-      JOIN teams awt ON g.away_team = awt.slug
+      LEFT JOIN teams ht ON g.home_team = ht.slug
+      LEFT JOIN teams awt ON g.away_team = awt.slug
       WHERE ggs.player_id = ${pid}
       ORDER BY g.date DESC
     `),
@@ -316,13 +326,13 @@ export async function fetchPlayerDetail(slug: string): Promise<PlayerDetail | nu
     rawSql(sql`
       SELECT
         pgs.game_id, g.date, g.home_team, g.away_team, g.home_score, g.away_score, g.is_overtime,
-        ht.name as home_name, awt.name as away_name,
+        COALESCE(ht.name, g.home_team) as home_name, COALESCE(awt.name, g.away_team) as away_name,
         pgs.goals, pgs.assists, pgs.points, pgs.gwg, pgs.ppg, pgs.shg,
         pgs.eng, pgs.hat_tricks, pgs.pen, pgs.pim
       FROM player_game_stats pgs
       JOIN games g ON pgs.game_id = g.id AND g.season_id = ${playerSeasonId} AND g.is_playoff AND g.game_type = 'playoff'
-      JOIN teams ht ON g.home_team = ht.slug
-      JOIN teams awt ON g.away_team = awt.slug
+      LEFT JOIN teams ht ON g.home_team = ht.slug
+      LEFT JOIN teams awt ON g.away_team = awt.slug
       WHERE pgs.player_id = ${pid}
       ORDER BY g.date DESC
     `),
@@ -362,13 +372,13 @@ export async function fetchPlayerDetail(slug: string): Promise<PlayerDetail | nu
     rawSql(sql`
       SELECT
         ggs.game_id, g.date, g.home_team, g.away_team, g.home_score, g.away_score,
-        ht.name as home_name, awt.name as away_name,
+        COALESCE(ht.name, g.home_team) as home_name, COALESCE(awt.name, g.away_team) as away_name,
         ggs.seconds, ggs.goals_against, ggs.shots_against, ggs.saves,
         ggs.shutouts, ggs.goalie_assists, ggs.result
       FROM goalie_game_stats ggs
       JOIN games g ON ggs.game_id = g.id AND g.season_id = ${playerSeasonId} AND g.is_playoff AND g.game_type = 'playoff'
-      JOIN teams ht ON g.home_team = ht.slug
-      JOIN teams awt ON g.away_team = awt.slug
+      LEFT JOIN teams ht ON g.home_team = ht.slug
+      LEFT JOIN teams awt ON g.away_team = awt.slug
       WHERE ggs.player_id = ${pid}
       ORDER BY g.date DESC
     `),
@@ -521,7 +531,7 @@ export async function fetchPlayerDetail(slug: string): Promise<PlayerDetail | nu
       stats: buildSkaterStats(r),
     }))
   const games = skaterGameRows.map((r) => {
-    const isHome = r.home_team === teamSlug
+    const isHome = teamSlug ? r.home_team === teamSlug : true
     const teamScore = isHome ? r.home_score : r.away_score
     const opponentScore = isHome ? r.away_score : r.home_score
     let result: string | null = null
@@ -560,7 +570,7 @@ export async function fetchPlayerDetail(slug: string): Promise<PlayerDetail | nu
       stats: buildGoalieStats(r),
     }))
   const goalieGames = goalieGameRows.map((r) => {
-    const isHome = r.home_team === teamSlug
+    const isHome = teamSlug ? r.home_team === teamSlug : true
     return {
       gameId: r.game_id, date: r.date,
       opponent: isHome ? r.away_name : r.home_name,
@@ -593,7 +603,7 @@ export async function fetchPlayerDetail(slug: string): Promise<PlayerDetail | nu
       stats: buildSkaterStats(r),
     }))
   const playoffGames = poSkaterGameRows.map((r) => {
-    const isHome = r.home_team === teamSlug
+    const isHome = teamSlug ? r.home_team === teamSlug : true
     const teamScore = isHome ? r.home_score : r.away_score
     const opponentScore = isHome ? r.away_score : r.home_score
     let result: string | null = null
@@ -629,7 +639,7 @@ export async function fetchPlayerDetail(slug: string): Promise<PlayerDetail | nu
       stats: buildGoalieStats(r),
     }))
   const playoffGoalieGames = poGoalieGameRows.map((r) => {
-    const isHome = r.home_team === teamSlug
+    const isHome = teamSlug ? r.home_team === teamSlug : true
     return {
       gameId: r.game_id, date: r.date,
       opponent: isHome ? r.away_name : r.home_name,
@@ -671,8 +681,8 @@ export async function fetchPlayerDetail(slug: string): Promise<PlayerDetail | nu
 
   return {
     id: player.id, name: player.name,
-    team: player.team_name, teamSlug: player.team_slug,
-    isGoalie: player.is_goalie,
+    team: player.team_name ?? "Unrostered", teamSlug: player.team_slug ?? "",
+    isGoalie: player.is_goalie ?? false,
     seasonStats, allTimeStats, allTimeAllSeasonsStats, perSeasonStats,
     goalieSeasonStats, allTimeGoalieStats, allTimeAllSeasonsGoalieStats, perSeasonGoalieStats,
     games, goalieGames,

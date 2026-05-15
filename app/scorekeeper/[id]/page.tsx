@@ -14,10 +14,10 @@ export default async function ScorekeeperPage({ params }: { params: Promise<{ id
   const gameRows = await rawSql(sql`
     SELECT g.id, g.date, g.time, g.status, g.season_id,
       g.home_team, g.away_team, g.is_playoff, g.game_type,
-      ht.name as home_team_name, awt.name as away_team_name
+      COALESCE(ht.name, g.home_team) as home_team_name, COALESCE(awt.name, g.away_team) as away_team_name
     FROM games g
-    JOIN teams ht ON g.home_team = ht.slug
-    JOIN teams awt ON g.away_team = awt.slug
+    LEFT JOIN teams ht ON g.home_team = ht.slug
+    LEFT JOIN teams awt ON g.away_team = awt.slug
     WHERE g.id = ${id}
   `)
 
@@ -73,6 +73,7 @@ export default async function ScorekeeperPage({ params }: { params: Promise<{ id
       time={game.time}
       status={game.status}
       isPlayoff={!!game.is_playoff}
+      gameType={game.game_type || "regular"}
       homeSlug={game.home_team}
       awaySlug={game.away_team}
       homeTeam={game.home_team_name}
