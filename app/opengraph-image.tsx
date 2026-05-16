@@ -5,5 +5,5 @@ export const contentType = 'image/png'
 export const alt = 'BASH - Bay Area Street Hockey'
 
 export default function OGImage() {
-  return generateOGImage('bash.fan', 'Scores, standings, and stats')
+  return generateOGImage('www.bayareastreethockey.com', 'Scores, standings, and stats')
 }

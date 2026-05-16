@@ -3,11 +3,11 @@ import { getCurrentSeason } from "@/lib/seasons"
 export async function GET() {
   const current = await getCurrentSeason()
 
-  const content = `# bash.fan — Bay Area Street Hockey (BASH) League API
+  const content = `# www.bayareastreethockey.com — Bay Area Street Hockey (BASH) League API
 
 Public, read-only JSON API for BASH league data: games, standings, player/team stats, box scores, and live game state. Data syncs daily from Sportability.
 
-Base URL: https://bash.fan
+Base URL: https://www.bayareastreethockey.com
 
 ## Conventions
 

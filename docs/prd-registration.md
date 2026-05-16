@@ -86,7 +86,7 @@ sequenceDiagram
 
 ### 2.2 Layout & Routing
 
-The canonical entry point is **`bash.fan/register`** — short, memorable, easy to put on flyers and in Slack. **Only one registration period is ever open at a time** (BASH runs sequentially: fall, then summer, etc.), so `/register` is just the funnel for whichever period is currently open. No picker, no period IDs in URLs that players see. The `[periodId]` route exists for confirmation links and historical deep links only.
+The canonical entry point is **`bayareastreethockey.com/register`** — easy to put on flyers and in Slack. **Only one registration period is ever open at a time** (BASH runs sequentially: fall, then summer, etc.), so `/register` is just the funnel for whichever period is currently open. No picker, no period IDs in URLs that players see. The `[periodId]` route exists for confirmation links and historical deep links only.
 
 If no period is currently open, `/register` shows a "Registration is closed — next season opens [date]" message with a link to `/account` for past registrations.
 

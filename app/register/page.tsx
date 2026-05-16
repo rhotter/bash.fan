@@ -104,7 +104,7 @@ export default function RegisterPage() {
             What's New?
           </div>
           <p className="text-sm text-muted-foreground leading-relaxed">
-            While Sportability will be used to register, we will be utilizing a brand new site for live draft results, stat tracking, and scorekeeping. Stay tuned for the debut, but keep tabs on our official site <a href="http://www.bayareastreethockey.com/" className="text-foreground underline">bayareastreethockey.com</a> throughout the season.
+            While Sportability will be used to register, we will be utilizing a brand new site for live draft results, stat tracking, and scorekeeping. Stay tuned for the debut, but keep tabs on our official site <a href="https://www.bayareastreethockey.com/" className="text-foreground underline">bayareastreethockey.com</a> throughout the season.
           </p>
         </div>
 

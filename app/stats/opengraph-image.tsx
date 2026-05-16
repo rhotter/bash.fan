@@ -5,5 +5,5 @@ export const contentType = 'image/png'
 export const alt = 'Stats | BASH'
 
 export default function OGImage() {
-  return generateOGImage('Stats', 'bash.fan')
+  return generateOGImage('Stats', 'www.bayareastreethockey.com')
 }

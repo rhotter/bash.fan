@@ -10,13 +10,13 @@ export default async function OGImage({ params }: { params: Promise<{ slug: stri
   const team = await fetchTeamDetail(slug)
 
   if (!team) {
-    return generateTeamOGImage('Team Not Found', '', 'bash.fan')
+    return generateTeamOGImage('Team Not Found', '', 'www.bayareastreethockey.com')
   }
 
   const r = team.record
   const subtitle = r.gp > 0
     ? `${r.w + r.otw}W-${r.l + r.otl}L | ${r.pts} PTS`
-    : 'bash.fan'
+    : 'www.bayareastreethockey.com'
 
   return generateTeamOGImage(team.name, slug, subtitle)
 }
