@@ -1,10 +1,10 @@
 "use client"
 
-import Image from "next/image"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { MapPin, Calendar, DollarSign, Mail, Info, ExternalLink } from "lucide-react"
 import { useEffect, useState } from "react"
+import { SiteHeader } from "@/components/site-header"
 
 export default function RegisterPage() {
   const [mounted, setMounted] = useState(false)
@@ -16,21 +16,10 @@ export default function RegisterPage() {
   const daysUntil = Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)))
 
   return (
-    <div className="min-h-screen bg-background relative overflow-hidden">
-      {/* Background watermark — BASH logo */}
-      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-        <Image
-          src="/logo.png"
-          alt=""
-          width={600}
-          height={600}
-          className="opacity-[0.03] select-none"
-          aria-hidden="true"
-        />
-      </div>
-
-      {/* Content overlay */}
-      <div className="relative z-10 max-w-3xl mx-auto px-4 py-12 sm:py-16 text-center space-y-12">
+    <div className="flex min-h-screen flex-col bg-background">
+      <SiteHeader />
+      <div className="flex-1">
+        <div className="max-w-3xl mx-auto px-4 py-12 sm:py-16 text-center space-y-12">
 
         {/* Header */}
         <div className="space-y-4">
@@ -56,10 +45,6 @@ export default function RegisterPage() {
               <ExternalLink className="ml-2 h-5 w-5" />
             </a>
           </Button>
-
-          <p className="text-sm text-muted-foreground">
-            If you have difficulty accessing the link, go to <a href="http://sportability.com/" target="_blank" rel="noopener noreferrer" className="underline hover:text-foreground">sportability.com</a> and enter 'BASH' in the search field under 'Find Your League'.
-          </p>
 
           <div className="pt-4 border-t flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-8">
             <div className="space-y-1">
@@ -140,6 +125,7 @@ export default function RegisterPage() {
           </div>
         </div>
       </div>
+    </div>
     </div>
   )
 }

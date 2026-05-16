@@ -3,6 +3,7 @@ import { db, schema, rawSql } from "@/lib/db"
 import { sql, eq, and } from "drizzle-orm"
 import { getSession } from "@/lib/admin-session"
 import { revalidateTag } from "next/cache"
+import { nextGameId } from "@/lib/db/game-id"
 
 interface RouteContext {
   params: Promise<{ id: string }>
@@ -90,7 +91,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
     // Map gameType to isPlayoff correctly
     const isPlayoff = gameType === "playoff" || gameType === "championship"
 
-    const gameId = "gen-" + crypto.randomUUID().slice(0, 8)
+    const gameId = await nextGameId()
 
     await db.insert(schema.games).values({
       id: gameId,

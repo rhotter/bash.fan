@@ -3,6 +3,7 @@ import { db, schema } from "@/lib/db"
 import { eq, and, ne } from "drizzle-orm"
 import { getSession } from "@/lib/admin-session"
 import { revalidateTag } from "next/cache"
+import { nextGameIds } from "@/lib/db/game-id"
 
 interface RouteContext {
   params: Promise<{ id: string }>
@@ -58,10 +59,11 @@ export async function POST(request: NextRequest, context: RouteContext) {
 
     // Insert new games
     if (games.length > 0) {
-      const insertData = games.map(g => ({
+      const ids = await nextGameIds(games.length)
+      const insertData = games.map((g, i) => ({
         ...g,
         seasonId,
-        id: "gen-" + crypto.randomUUID().slice(0, 8),
+        id: ids[i],
         isPlayoff: g.gameType === "playoff" || g.gameType === "championship"
       }))
 

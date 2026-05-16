@@ -3,6 +3,7 @@ import { db, schema } from "@/lib/db"
 import { eq, and } from "drizzle-orm"
 import { getSession } from "@/lib/admin-session"
 import { revalidateTag } from "next/cache"
+import { nextGameIds } from "@/lib/db/game-id"
 
 interface RouteContext {
   params: Promise<{ id: string }>
@@ -58,10 +59,9 @@ export async function POST(request: NextRequest, context: RouteContext) {
 
     // Generate unique IDs for all incoming games to prevent collision with other seasons,
     // while maintaining the relative nextGameId pointers for the bracket tree.
+    const newIds = await nextGameIds(games.length)
     const idMap = new Map<string, string>()
-    for (const g of games) {
-      idMap.set(g.id, "gen-" + crypto.randomUUID().slice(0, 8))
-    }
+    games.forEach((g, i) => idMap.set(g.id, newIds[i]))
 
     // Insert new playoff games
     if (games.length > 0) {
