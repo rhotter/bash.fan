@@ -15,6 +15,7 @@ import { toast } from "sonner"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Badge } from "@/components/ui/badge"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 interface SportabilityImportModalProps {
   seasonId: string
@@ -28,6 +29,7 @@ export function SportabilityImportModal({ seasonId, seasonStatus, onImportComple
   const [step, setStep] = useState<"upload" | "preview">("upload")
   const [isProcessing, setIsProcessing] = useState(false)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
+  const [importMode, setImportMode] = useState<"append" | "overwrite">("overwrite")
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Preview Data
@@ -40,6 +42,7 @@ export function SportabilityImportModal({ seasonId, seasonStatus, onImportComple
     setMappedPlayers([])
     setIsProcessing(false)
     setErrorMsg(null)
+    setImportMode("overwrite")
     if (fileInputRef.current) fileInputRef.current.value = ""
   }
 
@@ -82,7 +85,7 @@ export function SportabilityImportModal({ seasonId, seasonStatus, onImportComple
     }
   }
 
-  const executeImport = async (mode: "overwrite" | "append") => {
+  const executeImport = async () => {
     setIsProcessing(true)
     setErrorMsg(null)
     try {
@@ -90,7 +93,7 @@ export function SportabilityImportModal({ seasonId, seasonStatus, onImportComple
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          mode,
+          mode: importMode,
           players: mappedPlayers,
         }),
       })
@@ -273,25 +276,31 @@ export function SportabilityImportModal({ seasonId, seasonStatus, onImportComple
               </AlertDescription>
             </Alert>
 
-            <DialogFooter className="mt-6 sm:justify-between">
+            <DialogFooter className="mt-6 sm:justify-between items-center gap-y-4">
               <Button variant="ghost" onClick={resetState} disabled={isProcessing}>
                 Cancel
               </Button>
-              <div className="flex space-x-2">
-                <Button 
-                  variant="outline" 
-                  onClick={() => executeImport("append")}
+              <div className="flex space-x-3 items-center">
+                <Select
+                  value={importMode}
+                  onValueChange={(val: "append" | "overwrite") => setImportMode(val)}
                   disabled={isProcessing}
                 >
-                  {isProcessing ? <Loader2 className="h-4 w-4 animate-spin" /> : "Append"}
-                </Button>
+                  <SelectTrigger className="w-[140px]">
+                    <SelectValue placeholder="Import Mode" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="append">Append</SelectItem>
+                    <SelectItem value="overwrite">Overwrite</SelectItem>
+                  </SelectContent>
+                </Select>
                 <Button 
-                  variant="default"
-                  onClick={() => executeImport("overwrite")}
+                  variant={importMode === "overwrite" ? "destructive" : "default"}
+                  onClick={executeImport}
                   disabled={isProcessing}
                 >
                   {isProcessing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
-                  Overwrite
+                  Confirm Import
                 </Button>
               </div>
             </DialogFooter>

@@ -13,8 +13,58 @@ export default function RegisterPage() {
   const closeDate = new Date("2026-05-18T23:59:59")
   const now = mounted ? new Date() : new Date()
   const diffMs = closeDate.getTime() - now.getTime()
+  const isClosed = diffMs <= 0
   const daysUntil = Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)))
 
+  // ─── Registration Closed State ──────────────────────────────────────────────
+  if (isClosed) {
+    return (
+      <div className="flex min-h-screen flex-col bg-background">
+        <SiteHeader />
+        <div className="flex-1 flex items-center justify-center">
+          <div className="max-w-lg mx-auto px-4 py-16 text-center space-y-8">
+            <div className="space-y-4">
+              <Badge variant="outline" className="text-xs uppercase tracking-widest bg-muted text-muted-foreground border-border">
+                Registration Closed
+              </Badge>
+              <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight">
+                BASH 2026 Summer Season
+              </h1>
+              <p className="text-muted-foreground text-base sm:text-lg max-w-md mx-auto">
+                Registration for the Summer 2026 season has closed. Thanks to everyone who signed up!
+              </p>
+            </div>
+
+            <div className="bg-card border rounded-xl p-6 space-y-4 text-left text-sm">
+              <div className="flex items-center gap-2 font-semibold">
+                <Calendar className="h-4 w-4 text-primary" />
+                What&apos;s Next
+              </div>
+              <ul className="text-muted-foreground space-y-2 list-disc pl-5">
+                <li><strong className="text-foreground">Draft:</strong> May 21st</li>
+                <li><strong className="text-foreground">Week 1:</strong> May 30th</li>
+                <li><strong className="text-foreground">Playoffs:</strong> August 15th</li>
+              </ul>
+            </div>
+
+            <div className="space-y-3">
+              <Button variant="outline" size="lg" className="w-full" asChild>
+                <a href="/">← Back to BASH</a>
+              </Button>
+              <p className="text-xs text-muted-foreground">
+                Questions? Reach out to{" "}
+                <a href="mailto:sf.bash.hockey@gmail.com" className="underline hover:text-foreground transition-colors">
+                  sf.bash.hockey@gmail.com
+                </a>
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // ─── Registration Open State ────────────────────────────────────────────────
   return (
     <div className="flex min-h-screen flex-col bg-background">
       <SiteHeader />
@@ -101,7 +151,7 @@ export default function RegisterPage() {
         <div className="bg-primary/5 border border-primary/10 rounded-xl p-6 sm:p-8 max-w-2xl mx-auto text-left space-y-3">
           <div className="flex items-center gap-2 font-bold text-lg text-primary">
             <Info className="h-5 w-5" />
-            What's New?
+            What&apos;s New?
           </div>
           <p className="text-sm text-muted-foreground leading-relaxed">
             While Sportability will be used to register, we will be utilizing a brand new site for live draft results, stat tracking, and scorekeeping. Stay tuned for the debut, but keep tabs on our official site <a href="http://www.bayareastreethockey.com/" className="text-foreground underline">bayareastreethockey.com</a> throughout the season.
@@ -111,7 +161,7 @@ export default function RegisterPage() {
         {/* Footer / Contact */}
         <div className="pt-8 space-y-4 max-w-md mx-auto">
           <p className="text-sm text-muted-foreground">
-            Looking forward to mixing it up with y'all soon!
+            Looking forward to mixing it up with y&apos;all soon!
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 text-sm font-medium">
             <a href="mailto:sf.bash.hockey@gmail.com" className="flex items-center gap-2 hover:text-primary transition-colors">

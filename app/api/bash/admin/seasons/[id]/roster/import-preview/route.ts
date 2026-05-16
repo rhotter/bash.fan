@@ -76,7 +76,18 @@ export async function POST(request: NextRequest, context: RouteContext) {
       }
     }).filter(p => p.playerName.length > 0) // filter out empty rows
 
-    if (mappedPlayers.length === 0) {
+    const deduplicatedPlayers = []
+    const seenNames = new Set<string>()
+    for (const player of mappedPlayers) {
+      const normalized = normalizePlayerName(player.playerName)
+      if (!seenNames.has(normalized)) {
+        seenNames.add(normalized)
+        deduplicatedPlayers.push(player)
+      }
+    }
+    const finalMappedPlayers = deduplicatedPlayers
+
+    if (finalMappedPlayers.length === 0) {
       console.log("DEBUG: No mapped players found. Available headers:", headers)
       return NextResponse.json({ error: "Unable to find valid player names. Ensure the CSV has 'FirstName' and 'LastName' columns (Sportability export format)." }, { status: 400 })
     }
@@ -97,7 +108,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
 
     const existingPlayerIds = Array.from(
       new Set(
-        mappedPlayers
+        finalMappedPlayers
           .map((player) => existingPlayersByNormalized.get(normalizePlayerName(player.playerName))?.id)
           .filter((playerId): playerId is number => typeof playerId === "number")
       )
@@ -118,17 +129,17 @@ export async function POST(request: NextRequest, context: RouteContext) {
     }
     const seasonAssignedIdsSet = new Set(existingSeasonAssignments.map(a => a.playerId))
     
-    const totalInImport = mappedPlayers.length
+    const totalInImport = finalMappedPlayers.length
     
     // Global stats
-    const globalExisting = mappedPlayers.filter((player) =>
+    const globalExisting = finalMappedPlayers.filter((player) =>
       existingPlayersByNormalized.has(normalizePlayerName(player.playerName))
     ).length
     const globalNew = totalInImport - globalExisting
 
     // Season stats
     let seasonExisting = 0
-    mappedPlayers.forEach((player) => {
+    finalMappedPlayers.forEach((player) => {
       const dbPlayer = existingPlayersByNormalized.get(normalizePlayerName(player.playerName))
       if (dbPlayer && seasonAssignedIdsSet.has(dbPlayer.id)) {
         seasonExisting++
@@ -144,7 +155,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
         seasonExisting,
         seasonNew
       },
-      mappedPlayers
+      mappedPlayers: finalMappedPlayers
     })
 
   } catch (error: unknown) {

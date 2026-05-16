@@ -13,12 +13,24 @@ Based on the provided screenshots, the Sportability schedule system includes thr
 
 ### 2. Round Robin Wizard
 A robust 6-step generator that builds a full season schedule mathematically:
-*   **Step 1 (Parameters)**: Games per Week (handles odd teams by assigning byes vs double-headers) and Schedule Length (run for X cycles or approx X games per team).
+*   **Step 1 (Parameters)**: Games per Week (handles odd teams by assigning byes vs double-headers), Schedule Length (run for X cycles or approx X games per team), and **Bye-Week Selector** (odd-team-count only — see below).
 *   **Step 2 (Start Date)**: Sets the start date and week range (Sun-Sat vs Mon-Sun). It generates a generic slot-based round robin pairing (e.g., Team 1 vs Team 4).
 *   **Step 3 (Skipping Weeks)**: Allows admins to exclude specific weeks (e.g., holidays). The wizard pushes all subsequent games out automatically.
 *   **Step 4 (Times and Locations)**: Sets a default Day, Time, and Location for each generic slot across all weeks.
 *   **Step 5 (Game Types)**: Allows setting an entire week as Practice or Exhibition (won't count in standings).
 *   **Step 6 (Save)**: Displays the finalized schedule with actual dates/times, and allows either overwriting the entire existing schedule or appending to it. Team numbers are replaced with real team names when the games are persisted.
+
+#### Bye-Week Selector (Odd Team Count)
+
+When the league has an odd number of core teams (excluding exhibition/tryout teams), one team must sit out each week as a BYE. The wizard provides a dropdown next to the Start Date field:
+
+- **Random** (default): A random team receives the first BYE; subsequent BYEs follow the Berger table rotation algorithm.
+- **Specific team**: The admin selects which team gets the first BYE from the dropdown. The rest of the schedule follows the standard rotation.
+
+The bye-week selector appears inline alongside the Start Date picker with a compact description: "First bye goes to…". The Step 3 preview shows BYE assignments with team names visible via tooltip on hover.
+
+> [!NOTE]
+> Exhibition and tryout teams (identified by `gameType` on their assigned games) are filtered out of the "core" team count used for bye-week calculation and Berger table generation. This ensures bye logic only applies to teams competing in regular-season standings.
 
 ### 3. Playoff Bracket Wizard
 A robust 4-step generator to build a playoff bracket with configurable series formats, automatic bracket progression, and optional play-in games.

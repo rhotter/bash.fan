@@ -49,7 +49,17 @@ export async function GET(_request: NextRequest, context: RouteContext) {
     .innerJoin(schema.players, eq(schema.playerSeasons.playerId, schema.players.id))
     .where(eq(schema.playerSeasons.seasonId, seasonId))
 
-  roster.sort((a, b) => a.playerName.localeCompare(b.playerName))
+  roster.sort((a, b) => {
+    const aParts = a.playerName.trim().split(" ")
+    const bParts = b.playerName.trim().split(" ")
+    const aLast = aParts.length > 1 ? aParts[aParts.length - 1] : aParts[0]
+    const bLast = bParts.length > 1 ? bParts[bParts.length - 1] : bParts[0]
+    
+    if (aLast !== bLast) {
+      return aLast.localeCompare(bLast)
+    }
+    return a.playerName.localeCompare(b.playerName)
+  })
 
   return NextResponse.json({ roster })
 }

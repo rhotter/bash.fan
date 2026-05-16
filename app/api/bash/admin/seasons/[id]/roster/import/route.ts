@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { db, schema } from "@/lib/db"
 import { getSession } from "@/lib/admin-session"
-import { eq, inArray } from "drizzle-orm"
+import { eq } from "drizzle-orm"
 import { canonicalizePlayerName, normalizePlayerName } from "@/lib/player-name"
 
 interface RouteContext {
@@ -64,18 +64,18 @@ export async function POST(request: NextRequest, context: RouteContext) {
       .filter(([normalizedName]) => !existingPlayersByNormalized.has(normalizedName))
       .map(([, name]) => ({ name }))
 
+    let newlyInsertedPlayers: { id: number; name: string }[] = []
     if (namesToInsert.length > 0) {
-      await db.insert(schema.players).values(namesToInsert)
+      newlyInsertedPlayers = await db
+        .insert(schema.players)
+        .values(namesToInsert)
+        .returning({ id: schema.players.id, name: schema.players.name })
     }
 
-    // 3. Fetch all relevant player IDs after inserting any missing players.
-    const dbPlayers = await db
-      .select({ id: schema.players.id, name: schema.players.name })
-      .from(schema.players)
-      .where(inArray(schema.players.name, Array.from(uniqueNamesByNormalized.values())))
-
+    // 3. Combine existing players and newly inserted players to map IDs
+    const allRelevantPlayers = [...existingPlayers, ...newlyInsertedPlayers]
     const nameToIdMap = new Map(
-      dbPlayers.map((player) => [normalizePlayerName(player.name), player.id])
+      allRelevantPlayers.map((player) => [normalizePlayerName(player.name), player.id])
     )
 
     // 4. If Append, find who is already assigned so we can skip them
