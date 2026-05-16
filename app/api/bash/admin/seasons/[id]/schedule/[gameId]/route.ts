@@ -40,6 +40,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     if (body.hasBoxscore !== undefined) updateData.hasBoxscore = body.hasBoxscore
     if (body.gameType !== undefined) updateData.gameType = body.gameType
     if (body.hasShootout !== undefined) updateData.hasShootout = body.hasShootout
+    if (body.title !== undefined) updateData.title = body.title === "" ? null : body.title
     if (body.notes !== undefined) updateData.notes = body.notes === "" ? null : body.notes
     if (body.homeNotes !== undefined) updateData.homeNotes = body.homeNotes === "" ? null : body.homeNotes
     if (body.awayNotes !== undefined) updateData.awayNotes = body.awayNotes === "" ? null : body.awayNotes
@@ -121,6 +122,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     return NextResponse.json({ success: true })
   } catch (error) {
     console.error("Failed to update game:", error)
+    try { require("fs").writeFileSync("/tmp/bash-error.log", JSON.stringify({error: error instanceof Error ? error.message : String(error), stack: error instanceof Error ? error.stack : undefined})) } catch { /* best-effort debug log */ }
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 })
   }
 }

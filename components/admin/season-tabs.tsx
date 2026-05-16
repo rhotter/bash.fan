@@ -8,16 +8,24 @@ import { SeasonTeamsTab } from "./season-teams-tab"
 import { SeasonRosterTab } from "./season-roster-tab"
 import { SeasonScheduleTab } from "./season-schedule-tab"
 import { DraftTab } from "./draft-tab"
+import { TryoutAttendanceTab } from "./tryout-attendance-tab"
 import { SeasonWelcomeModal } from "./season-welcome-modal"
 
-type Tab = "Settings" | "Teams" | "Roster" | "Schedule" | "Draft" | "Registration"
+type Tab = "Settings" | "Teams" | "Roster" | "Schedule" | "Draft" | "Registration" | "Tryout Attendance"
 
-function getTabsForStatus(status: string): Tab[] {
-  if (status === "draft") {
-    return ["Schedule", "Teams", "Registration", "Draft", "Roster", "Settings"]
+function getTabsForStatus(status: string, seasonType: string): Tab[] {
+  const base: Tab[] = status === "draft"
+    ? ["Schedule", "Teams", "Registration", "Draft", "Roster", "Settings"]
+    // Draft tab remains available for active/completed seasons so admins can archive/view drafts
+    : ["Schedule", "Teams", "Roster", "Draft", "Settings"]
+
+  // Tryout Attendance tab only for fall seasons (PRD §7.3)
+  if (seasonType === "fall") {
+    const settingsIdx = base.indexOf("Settings")
+    base.splice(settingsIdx, 0, "Tryout Attendance")
   }
-  // Draft tab remains available for active/completed seasons so admins can archive/view drafts
-  return ["Schedule", "Teams", "Roster", "Draft", "Settings"]
+
+  return base
 }
 
 type RosterPlayer = { playerId: number; playerName: string; teamSlug: string; isGoalie: boolean; isRookie: boolean }
@@ -42,7 +50,7 @@ interface SeasonTabsProps {
 }
 
 export function SeasonTabs({ season }: SeasonTabsProps) {
-  const tabs = getTabsForStatus(season.status)
+  const tabs = getTabsForStatus(season.status, season.seasonType)
   const searchParams = useSearchParams()
   const router = useRouter()
   const tabParam = searchParams.get("tab") as Tab | null
@@ -98,7 +106,7 @@ export function SeasonTabs({ season }: SeasonTabsProps) {
         {activeTab === "Settings" && <SeasonForm season={season} />}
         {activeTab === "Teams" && <SeasonTeamsTab seasonId={season.id} seasonStatus={season.status} initialTeams={teams} onTeamsChange={handleTeamsChange} />}
         {activeTab === "Roster" && <SeasonRosterTab seasonId={season.id} seasonStatus={season.status} roster={roster} teams={teams} onRosterChange={handleRosterChange} />}
-        {activeTab === "Schedule" && <SeasonScheduleTab seasonId={season.id} seasonStatus={season.status} initialTeams={teams} defaultLocation={season.defaultLocation || "The Lick"} />}
+        {activeTab === "Schedule" && <SeasonScheduleTab seasonId={season.id} seasonStatus={season.status} initialTeams={teams} defaultLocation={season.defaultLocation || "The Lick"} onTeamCreated={() => router.refresh()} />}
         {activeTab === "Draft" && (
           <DraftTab
             seasonId={season.id}
@@ -114,6 +122,9 @@ export function SeasonTabs({ season }: SeasonTabsProps) {
             phase={2}
             description="Manage player registration for the upcoming season. Track veteran returns, free agent declarations, rookie signups from pickups, and registration fee status."
           />
+        )}
+        {activeTab === "Tryout Attendance" && (
+          <TryoutAttendanceTab seasonId={season.id} />
         )}
       </div>
 

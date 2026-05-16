@@ -20,11 +20,11 @@ export async function fetchLiveGameData(id: string): Promise<LiveGameData | null
     SELECT gl.state, gl.updated_at,
       g.home_score, g.away_score, g.status,
       g.home_team, g.away_team,
-      ht.name as home_team_name, awt.name as away_team_name
+      COALESCE(ht.name, g.home_team) as home_team_name, COALESCE(awt.name, g.away_team) as away_team_name
     FROM game_live gl
     JOIN games g ON gl.game_id = g.id
-    JOIN teams ht ON g.home_team = ht.slug
-    JOIN teams awt ON g.away_team = awt.slug
+    LEFT JOIN teams ht ON g.home_team = ht.slug
+    LEFT JOIN teams awt ON g.away_team = awt.slug
     WHERE gl.game_id = ${id}
   `)
 

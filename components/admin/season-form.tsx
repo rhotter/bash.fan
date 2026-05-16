@@ -27,6 +27,13 @@ const STANDINGS_OPTIONS = [
   { value: "pts-custom", label: "Custom Points", description: "Custom points calculation." },
 ]
 
+const STATUS_OPTIONS = [
+  { value: "draft", label: "Draft", description: "Season is being set up. Not visible to the public." },
+  { value: "active", label: "Active", description: "Season is in progress. Games can be scored and stats are tracked." },
+  { value: "completed", label: "Completed", description: "Season is finished. Stats are frozen and visible as historical data." },
+  { value: "archived", label: "Archived", description: "Hidden from most views. Data is preserved but not surfaced." },
+]
+
 interface SeasonFormProps {
   season: {
     id: string
@@ -64,6 +71,7 @@ export function SeasonForm({ season }: SeasonFormProps) {
     name: season.name,
     seasonType: season.seasonType,
     leagueId: season.leagueId || "",
+    status: season.status,
     standingsMethod: season.standingsMethod || "pts-pbla",
     gameLength: season.gameLength || 60,
     defaultLocation: season.defaultLocation || "",
@@ -100,21 +108,27 @@ export function SeasonForm({ season }: SeasonFormProps) {
   }
 
   function promptStatusTransition(newStatus: string) {
-    if (newStatus === "completed") {
-      setConfirmDialog({
-        open: true,
-        status: "completed",
-        title: "Mark season as completed?",
-        description: "This is a permanent action that will close the books on this season. It will remain the 'current' season on the public site until you activate a new one.",
-      })
-    } else if (newStatus === "active") {
-      setConfirmDialog({
-        open: true,
-        status: "active",
+    if (newStatus === season.status) return
+    const descriptions: Record<string, { title: string; description: string }> = {
+      draft: {
+        title: "Move season to Draft?",
+        description: "The season will be marked as in-progress setup. It will not be visible as the current season on the public site.",
+      },
+      active: {
         title: "Activate this season?",
-        description: "This will make it the current active season and lock season settings like team count, and playoff configuration.",
-      })
+        description: "This will make it the current active season and lock season settings like team count and playoff configuration.",
+      },
+      completed: {
+        title: "Mark season as completed?",
+        description: "This will close the books on this season. It will remain the \u2018current\u2019 season on the public site until you activate a new one.",
+      },
+      archived: {
+        title: "Archive this season?",
+        description: "The season will be hidden from most views but its data will be preserved. You can restore it later by changing the status back.",
+      },
     }
+    const info = descriptions[newStatus] || { title: `Change status to ${newStatus}?`, description: "Are you sure you want to change the season status?" }
+    setConfirmDialog({ open: true, status: newStatus, ...info })
   }
 
   async function executeStatusTransition() {
@@ -132,6 +146,8 @@ export function SeasonForm({ season }: SeasonFormProps) {
       } else {
         const data = await res.json()
         setError(data.error || "Failed to transition")
+        // Revert dropdown on failure
+        setForm((f) => ({ ...f, status: season.status }))
       }
     } finally {
       setSaving(false)
@@ -201,6 +217,33 @@ export function SeasonForm({ season }: SeasonFormProps) {
                 </SelectContent>
               </Select>
             </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label className="text-xs text-muted-foreground">Season Status</Label>
+            <Select
+              value={form.status}
+              onValueChange={(v) => {
+                setForm((f) => ({ ...f, status: v }))
+                promptStatusTransition(v)
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {STATUS_OPTIONS.map((opt) => (
+                  <SelectItem key={opt.value} value={opt.value}>
+                    <div className="flex flex-col">
+                      <span>{opt.label}</span>
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-[11px] text-muted-foreground">
+              {STATUS_OPTIONS.find((opt) => opt.value === form.status)?.description}
+            </p>
           </div>
         </CardContent>
       </Card>
@@ -281,7 +324,7 @@ export function SeasonForm({ season }: SeasonFormProps) {
                 Stats-only season
               </Label>
               <p className="text-xs text-muted-foreground">
-                Check this if the season only tracks aggregate stats (no individual game schedules)
+                For legacy seasons imported before we had individual game data. Stats are read from pre-aggregated totals instead of game-by-game box scores.
               </p>
             </div>
           </div>
@@ -321,7 +364,13 @@ export function SeasonForm({ season }: SeasonFormProps) {
         </div>
       </div>
 
-      <AlertDialog open={confirmDialog.open} onOpenChange={(open) => !open && setConfirmDialog({ ...confirmDialog, open: false })}>
+      <AlertDialog open={confirmDialog.open} onOpenChange={(open) => {
+        if (!open) {
+          setConfirmDialog({ ...confirmDialog, open: false })
+          // Revert dropdown when dialog is dismissed/cancelled
+          setForm((f) => ({ ...f, status: season.status }))
+        }
+      }}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>{confirmDialog.title}</AlertDialogTitle>
@@ -339,31 +388,7 @@ export function SeasonForm({ season }: SeasonFormProps) {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Complete Season */}
-      {season.status === "active" && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm font-semibold">Complete Season</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium">Mark this season as completed</p>
-                <p className="text-xs text-muted-foreground">Closes the books on this season. It will remain the &lsquo;current&rsquo; season on the public site until you activate a new one.</p>
-              </div>
-              <Button
-                onClick={() => promptStatusTransition("completed")}
-                disabled={saving}
-                variant="outline"
-                size="sm"
-                className="text-muted-foreground cursor-pointer shrink-0"
-              >
-                Complete Season
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+
 
       {/* Danger Zone */}
       <Card className="border-destructive/30">

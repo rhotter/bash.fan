@@ -13,7 +13,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select"
 import { cn } from "@/lib/utils"
-import { Play, Pause, X, AlertTriangle } from "lucide-react"
+import { Play, Pause, X, AlertTriangle, UserPlus } from "lucide-react"
 import Link from "next/link"
 import type {
   LiveGameState, GoalEvent, PenaltyEvent, TimeoutEvent, RosterPlayer, GoalieChangeEvent,
@@ -36,6 +36,19 @@ import { PeriodSummary } from "@/components/scorekeeper/shared/period-summary"
 import { ShootoutPanel } from "@/components/scorekeeper/shared/shootout-panel"
 import { TimeoutButton } from "@/components/scorekeeper/shared/timeout-button"
 import { ScorekeeperSectionHeader as SectionHeader } from "@/components/scorekeeper/shared/section-header"
+import { AddPlayerModal } from "@/components/scorekeeper/add-player-modal"
+
+/** Safe UUID helper — crypto.randomUUID() is unavailable in non-secure (HTTP) contexts on some mobile browsers */
+function uuid(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID()
+  }
+  // Fallback: generate a v4-style UUID from Math.random
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0
+    return (c === "x" ? r : (r & 0x3) | 0x8).toString(16)
+  })
+}
 
 interface Props {
   gameId: string
@@ -43,6 +56,7 @@ interface Props {
   time: string
   status: string
   isPlayoff: boolean
+  gameType?: string
   homeSlug: string
   awaySlug: string
   homeTeam: string
@@ -54,9 +68,9 @@ interface Props {
 }
 
 export function ScorekeeperApp({
-  gameId, date, time, status, isPlayoff,
+  gameId, date, time, status, isPlayoff, gameType,
   homeSlug, awaySlug, homeTeam, awayTeam,
-  homeRoster, awayRoster, existingState,
+  homeRoster: initialHomeRoster, awayRoster: initialAwayRoster, existingState,
   initialAuthenticated = false,
 }: Props) {
   // ─── PIN Gate ────────────────────────────────────────────────────────────
@@ -64,6 +78,39 @@ export function ScorekeeperApp({
   const [pinError, setPinError] = useState("")
   const [authenticated, setAuthenticated] = useState(initialAuthenticated)
   const [starting, setStarting] = useState(false)
+
+  // ─── Ad-hoc rosters (exhibition/tryout) ─────────────────────────────────
+  // Make rosters stateful so new players added via AddPlayerModal appear everywhere
+  const isAdhocGame = gameType === "exhibition" || gameType === "tryout"
+  const [homeRoster, setHomeRoster] = useState(initialHomeRoster)
+  const [awayRoster, setAwayRoster] = useState(initialAwayRoster)
+  const [newPlayerIds, setNewPlayerIds] = useState<Set<number>>(new Set())
+  const [addPlayerModal, setAddPlayerModal] = useState<{ open: boolean; teamSide: "home" | "away" }>({ open: false, teamSide: "home" })
+
+  const handlePlayerAdded = (player: { id: number; name: string }, isNew: boolean) => {
+    const rosterPlayer: RosterPlayer = { id: player.id, name: player.name }
+    if (addPlayerModal.teamSide === "home") {
+      setHomeRoster((prev) => prev.some((p) => p.id === player.id) ? prev : [...prev, rosterPlayer])
+      // Auto-add to attendance
+      setState((prev) => ({
+        ...prev,
+        homeAttendance: prev.homeAttendance.includes(player.id)
+          ? prev.homeAttendance
+          : [...prev.homeAttendance, player.id],
+      }))
+    } else {
+      setAwayRoster((prev) => prev.some((p) => p.id === player.id) ? prev : [...prev, rosterPlayer])
+      setState((prev) => ({
+        ...prev,
+        awayAttendance: prev.awayAttendance.includes(player.id)
+          ? prev.awayAttendance
+          : [...prev.awayAttendance, player.id],
+      }))
+    }
+    if (isNew) {
+      setNewPlayerIds((prev) => new Set(prev).add(player.id))
+    }
+  }
 
   // ─── Game State ──────────────────────────────────────────────────────────
   const [state, setState] = useState<LiveGameState>(() => {
@@ -437,7 +484,7 @@ export function ScorekeeperApp({
     updateState((prev) => {
       const remaining = computeCurrentClock(prev)
       const event: TimeoutEvent = {
-        id: crypto.randomUUID(),
+        id: uuid(),
         team: slug,
         period: prev.period,
         clock: formatClock(remaining),
@@ -526,7 +573,7 @@ export function ScorekeeperApp({
     const key = team === homeSlug ? "homeGoalieId" : "awayGoalieId"
     updateState((prev) => {
       const event: GoalieChangeEvent = {
-        id: crypto.randomUUID(),
+        id: uuid(),
         team,
         period: prev.period,
         clock,
@@ -546,7 +593,7 @@ export function ScorekeeperApp({
     const clock = currentClockString()
     updateState((prev) => {
       const pulls = prev.goaliePulls ?? []
-      const id = crypto.randomUUID()
+      const id = uuid()
       return {
         ...prev,
         goaliePulls: [...pulls, { id, team, period: prev.period, pulledAt: clock, returnedAt: null }],
@@ -653,7 +700,7 @@ export function ScorekeeperApp({
         ),
       }))
     } else {
-      const goalId = crypto.randomUUID()
+      const goalId = uuid()
       const goal: GoalEvent = {
         id: goalId,
         team: goalTeam,
@@ -741,7 +788,7 @@ export function ScorekeeperApp({
       }))
     } else {
       const penalty: PenaltyEvent = {
-        id: crypto.randomUUID(),
+        id: uuid(),
         team: penaltyTeam,
         period: capturedPeriod,
         clock,
@@ -1083,7 +1130,17 @@ export function ScorekeeperApp({
                 onToggle={toggleAttendance}
                 onSelectAll={selectAllAttendance}
                 onUnselectAll={unselectAllAttendance}
+                newPlayerIds={newPlayerIds}
               />
+              {isAdhocGame && (
+                <button
+                  onClick={() => setAddPlayerModal({ open: true, teamSide: "away" })}
+                  className="w-full flex items-center justify-center gap-1.5 py-2 text-[11px] font-medium text-primary hover:bg-primary/5 rounded-lg border border-dashed border-primary/30 transition-colors"
+                >
+                  <UserPlus className="h-3.5 w-3.5" />
+                  Add player to {awayTeam}
+                </button>
+              )}
               <AttendanceList
                 label={homeTeam}
                 count={state.homeAttendance.length}
@@ -1093,7 +1150,17 @@ export function ScorekeeperApp({
                 onToggle={toggleAttendance}
                 onSelectAll={selectAllAttendance}
                 onUnselectAll={unselectAllAttendance}
+                newPlayerIds={newPlayerIds}
               />
+              {isAdhocGame && (
+                <button
+                  onClick={() => setAddPlayerModal({ open: true, teamSide: "home" })}
+                  className="w-full flex items-center justify-center gap-1.5 py-2 text-[11px] font-medium text-primary hover:bg-primary/5 rounded-lg border border-dashed border-primary/30 transition-colors"
+                >
+                  <UserPlus className="h-3.5 w-3.5" />
+                  Add player to {homeTeam}
+                </button>
+              )}
             </div>
 
             <div className="space-y-2">
@@ -1385,8 +1452,26 @@ export function ScorekeeperApp({
           <div className="mt-5">
             <SectionHeader>Attendance</SectionHeader>
             <div className="space-y-3">
-              <AttendanceList label={awayTeam} count={state.awayAttendance.length} team={awaySlug} roster={awayRoster} attendance={state.awayAttendance} onToggle={toggleAttendance} onSelectAll={selectAllAttendance} onUnselectAll={unselectAllAttendance} />
-              <AttendanceList label={homeTeam} count={state.homeAttendance.length} team={homeSlug} roster={homeRoster} attendance={state.homeAttendance} onToggle={toggleAttendance} onSelectAll={selectAllAttendance} onUnselectAll={unselectAllAttendance} />
+              <AttendanceList label={awayTeam} count={state.awayAttendance.length} team={awaySlug} roster={awayRoster} attendance={state.awayAttendance} onToggle={toggleAttendance} onSelectAll={selectAllAttendance} onUnselectAll={unselectAllAttendance} newPlayerIds={newPlayerIds} />
+              {isAdhocGame && (
+                <button
+                  onClick={() => setAddPlayerModal({ open: true, teamSide: "away" })}
+                  className="w-full flex items-center justify-center gap-1.5 py-2 text-[11px] font-medium text-primary hover:bg-primary/5 rounded-lg border border-dashed border-primary/30 transition-colors"
+                >
+                  <UserPlus className="h-3.5 w-3.5" />
+                  Add player to {awayTeam}
+                </button>
+              )}
+              <AttendanceList label={homeTeam} count={state.homeAttendance.length} team={homeSlug} roster={homeRoster} attendance={state.homeAttendance} onToggle={toggleAttendance} onSelectAll={selectAllAttendance} onUnselectAll={unselectAllAttendance} newPlayerIds={newPlayerIds} />
+              {isAdhocGame && (
+                <button
+                  onClick={() => setAddPlayerModal({ open: true, teamSide: "home" })}
+                  className="w-full flex items-center justify-center gap-1.5 py-2 text-[11px] font-medium text-primary hover:bg-primary/5 rounded-lg border border-dashed border-primary/30 transition-colors"
+                >
+                  <UserPlus className="h-3.5 w-3.5" />
+                  Add player to {homeTeam}
+                </button>
+              )}
               <GoalieSelect label={awayTeam} players={attendingPlayers(awaySlug)} value={currentGoalieId(awaySlug)} onChange={(v) => setGoalie(awaySlug, v)} />
               <GoalieSelect label={homeTeam} players={attendingPlayers(homeSlug)} value={currentGoalieId(homeSlug)} onChange={(v) => setGoalie(homeSlug, v)} />
             </div>
@@ -1882,6 +1967,19 @@ export function ScorekeeperApp({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* ─── Add Player Modal (exhibition/tryout only) ─────────── */}
+      {isAdhocGame && (
+        <AddPlayerModal
+          open={addPlayerModal.open}
+          onOpenChange={(open) => setAddPlayerModal((prev) => ({ ...prev, open }))}
+          gameId={gameId}
+          teamSide={addPlayerModal.teamSide}
+          teamName={addPlayerModal.teamSide === "home" ? homeTeam : awayTeam}
+          pin={pin}
+          onPlayerAdded={handlePlayerAdded}
+        />
+      )}
     </div>
   )
 }

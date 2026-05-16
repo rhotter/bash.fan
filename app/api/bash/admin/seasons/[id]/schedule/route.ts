@@ -27,11 +27,12 @@ export async function GET(_request: NextRequest, context: RouteContext) {
         g.home_placeholder as "homePlaceholder", g.away_placeholder as "awayPlaceholder",
         g.next_game_id as "nextGameId", g.next_game_slot as "nextGameSlot",
         g.bracket_round as "bracketRound", g.series_id as "seriesId", g.series_game_number as "seriesGameNumber",
-        ht.name as "homeTeam", ht.slug as "homeSlug",
-        awt.name as "awayTeam", awt.slug as "awaySlug"
+        g.title,
+        COALESCE(ht.name, g.home_team) as "homeTeam", ht.slug as "homeSlug",
+        COALESCE(awt.name, g.away_team) as "awayTeam", awt.slug as "awaySlug"
       FROM games g
-      JOIN teams ht ON g.home_team = ht.slug
-      JOIN teams awt ON g.away_team = awt.slug
+      LEFT JOIN teams ht ON g.home_team = ht.slug
+      LEFT JOIN teams awt ON g.away_team = awt.slug
       WHERE g.season_id = ${id}
       ORDER BY g.date ASC, 
         CASE 
@@ -77,6 +78,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
       hasShootout,
       isForfeit,
       notes,
+      title,
       homeNotes,
       awayNotes,
     } = body
@@ -107,6 +109,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
       hasShootout: hasShootout ?? false,
       isForfeit: isForfeit ?? false,
       notes: notes || null,
+      title: title || null,
       homeNotes: homeNotes || null,
       awayNotes: awayNotes || null,
     })

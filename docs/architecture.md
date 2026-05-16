@@ -81,7 +81,7 @@ The Drizzle schema (`lib/db/schema.ts`) defines the following table groups:
 
 2. **Games & Scheduling**
    - `games`: Stores game details, dates, times, home/away teams, scores, and status (`upcoming` vs `final`). Flags for overtime, shootout, and forfeit. Includes schedule management columns:
-     - `game_type`: Categorizes games as `regular`, `playoff`, `tryout`, `practice`, `exhibition`, `championship`, or `jamboree`. The legacy `is_playoff` boolean is kept for stats queries.
+     - `game_type`: Categorizes games as `regular`, `playoff`, `tryout`, `exhibition`, or `championship`. The legacy `is_playoff` boolean is kept for stats queries.
      - `home_placeholder` / `away_placeholder`: Display labels for unresolved teams (e.g., "Seed 1", "Winner SF-A"). When set, `home_team`/`away_team` reference a sentinel `"tbd"` slug.
      - `bracket_round`: Playoff round identifier (`play-in`, `quarterfinal`, `semifinal`, `final`).
      - `series_id` / `series_game_number`: Groups games into matchup series (e.g., `sf-a` game 1 of 3).
@@ -92,6 +92,7 @@ The Drizzle schema (`lib/db/schema.ts`) defines the following table groups:
 3. **Players & Statistics**
    - `players`: Global player identities.
    - `player_seasons`: Links players to seasons and teams, tracking if they are a goalie, captain (`is_captain`), or rookie (`is_rookie`).
+   - `adhoc_game_rosters`: Links players to exhibition and tryout games, allowing for ad-hoc team composition independent of season rosters.
    - `player_game_stats`: Granular per-game stats for skaters (goals, assists, points, PIM, etc.).
    - `goalie_game_stats`: Granular per-game stats for goalies (shots against, saves, shutouts).
    - `player_season_stats`: Aggregated historical stats for seasons prior to detailed per-game data availability.

@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback, useMemo } from "react"
-import { Loader2, Plus, Calendar, Trash2, Edit, Shuffle, Trophy, ArrowRightLeft, AlertCircle, LayoutGrid, List } from "lucide-react"
+import { Loader2, Plus, Calendar, Trash2, Edit, Shuffle, Trophy, ArrowRightLeft, AlertCircle, LayoutGrid, List, Users } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { TeamLogo } from "@/components/team-logo"
@@ -40,6 +40,7 @@ import { toast } from "sonner"
 import { EditGameModal } from "./edit-game-modal"
 import { RoundRobinWizard } from "./round-robin-wizard"
 import { PlayoffWizard } from "./playoff-wizard"
+import { AdhocRosterModal } from "./adhoc-roster-modal"
 import { formatGameTime } from "@/lib/format-time"
 
 interface SeasonScheduleTabProps {
@@ -47,6 +48,7 @@ interface SeasonScheduleTabProps {
   seasonStatus: string
   initialTeams: { teamSlug: string; teamName: string }[]
   defaultLocation: string
+  onTeamCreated?: () => void
 }
 
 export interface ScheduleGame {
@@ -60,7 +62,7 @@ export interface ScheduleGame {
   awayTeam: string
   awayPlaceholder: string | null
   location: string
-  gameType: "regular" | "playoff" | "championship" | "exhibition" | "practice" | "tryout"
+  gameType: "regular" | "playoff" | "championship" | "exhibition" | "tryout"
   status: "upcoming" | "live" | "final"
   homeScore: number | null
   awayScore: number | null
@@ -68,12 +70,13 @@ export interface ScheduleGame {
   hasShootout: boolean
   isForfeit: boolean
   isPlayoff: boolean
+  title: string | null
   notes: string | null
   homeNotes: string | null
   awayNotes: string | null
 }
 
-export function SeasonScheduleTab({ seasonId, seasonStatus, initialTeams, defaultLocation }: SeasonScheduleTabProps) {
+export function SeasonScheduleTab({ seasonId, seasonStatus, initialTeams, defaultLocation, onTeamCreated }: SeasonScheduleTabProps) {
   const router = useRouter()
   const [games, setGames] = useState<ScheduleGame[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -87,12 +90,17 @@ export function SeasonScheduleTab({ seasonId, seasonStatus, initialTeams, defaul
   const [deleteId, setDeleteId] = useState<string | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
 
+  const [editingGame, setEditingGame] = useState<ScheduleGame | null>(null)
+
   const [deleteScheduleModalOpen, setDeleteScheduleModalOpen] = useState(false)
   const [deleteScheduleMode, setDeleteScheduleMode] = useState<"upcoming" | "all">("upcoming")
   const [isBulkDeleting, setIsBulkDeleting] = useState(false)
 
   const [rrWizardOpen, setRrWizardOpen] = useState(false)
   const [playoffWizardOpen, setPlayoffWizardOpen] = useState(false)
+
+  const [rosterModalOpen, setRosterModalOpen] = useState(false)
+  const [rosterGame, setRosterGame] = useState<ScheduleGame | null>(null)
 
   // Placeholder replacement state
   const [placeholderMappings, setPlaceholderMappings] = useState<Record<string, string>>({})
@@ -176,7 +184,18 @@ export function SeasonScheduleTab({ seasonId, seasonStatus, initialTeams, defaul
   }
 
   const openAddGame = () => {
+    setEditingGame(null)
     setModalOpen(true)
+  }
+
+  const openEditGame = (game: ScheduleGame) => {
+    setEditingGame(game)
+    setModalOpen(true)
+  }
+
+  const openRosterModal = (game: ScheduleGame) => {
+    setRosterGame(game)
+    setRosterModalOpen(true)
   }
 
   const filteredGames = games.filter(g => {
@@ -484,10 +503,18 @@ export function SeasonScheduleTab({ seasonId, seasonStatus, initialTeams, defaul
                         {isEditable && (
                           <TableCell className="py-1.5">
                             <div className="flex items-center gap-0.5">
-                              <Button variant="ghost" size="icon" className="h-7 w-7" asChild title="Edit Game">
+                              {(g.gameType === "exhibition" || g.gameType === "tryout") && (
+                                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openRosterModal(g)} title="Manage Roster">
+                                  <Users className="h-3.5 w-3.5" />
+                                </Button>
+                              )}
+                              <Button variant="ghost" size="icon" className="h-7 w-7" asChild title="Scorekeeper">
                                 <Link href={`/admin/games/${g.id}/edit`}>
-                                  <Edit className="h-3.5 w-3.5" />
+                                  <Trophy className="h-3.5 w-3.5" />
                                 </Link>
+                              </Button>
+                              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEditGame(g)} title="Edit Game">
+                                <Edit className="h-3.5 w-3.5" />
                               </Button>
                               <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:bg-destructive/10" onClick={() => setDeleteId(g.id)} title="Delete Game">
                                 <Trash2 className="h-3.5 w-3.5" />
@@ -571,10 +598,18 @@ export function SeasonScheduleTab({ seasonId, seasonStatus, initialTeams, defaul
                         
                         {isEditable && (
                           <div className="flex items-center gap-1 mt-3 sm:mt-0 ml-4">
-                            <Button variant="ghost" size="icon" asChild title="Edit Game">
+                            {(g.gameType === "exhibition" || g.gameType === "tryout") && (
+                              <Button variant="ghost" size="icon" onClick={() => openRosterModal(g)} title="Manage Roster">
+                                <Users className="h-4 w-4" />
+                              </Button>
+                            )}
+                            <Button variant="ghost" size="icon" asChild title="Scorekeeper">
                               <Link href={`/admin/games/${g.id}/edit`}>
-                                <Edit className="h-4 w-4" />
+                                <Trophy className="h-4 w-4" />
                               </Link>
+                            </Button>
+                            <Button variant="ghost" size="icon" onClick={() => openEditGame(g)} title="Edit Game">
+                              <Edit className="h-4 w-4" />
                             </Button>
                             <Button variant="ghost" size="icon" className="text-destructive hover:bg-destructive/10" onClick={() => setDeleteId(g.id)} title="Delete Game">
                               <Trash2 className="h-4 w-4" />
@@ -616,11 +651,44 @@ export function SeasonScheduleTab({ seasonId, seasonStatus, initialTeams, defaul
 
       <EditGameModal
         open={modalOpen}
-        onOpenChange={setModalOpen}
-        game={null}
+        onOpenChange={(open) => {
+          setModalOpen(open)
+          if (!open) setEditingGame(null)
+        }}
+        game={editingGame ? {
+          id: editingGame.id,
+          date: editingGame.date,
+          time: editingGame.time,
+          homeTeam: editingGame.homeSlug,
+          awayTeam: editingGame.awaySlug,
+          location: editingGame.location,
+          gameType: editingGame.gameType,
+          status: editingGame.status,
+          homeScore: editingGame.homeScore,
+          awayScore: editingGame.awayScore,
+          isOvertime: editingGame.isOvertime,
+          hasShootout: editingGame.hasShootout,
+          isForfeit: editingGame.isForfeit,
+          title: editingGame.title,
+          notes: editingGame.notes,
+          homeNotes: editingGame.homeNotes,
+          awayNotes: editingGame.awayNotes,
+        } : null}
         teams={initialTeams}
         seasonId={seasonId}
         defaultLocation={defaultLocation}
+        onSaved={handleGamesChanged}
+        onTeamCreated={onTeamCreated}
+      />
+
+      <AdhocRosterModal
+        open={rosterModalOpen}
+        onOpenChange={(open) => {
+          setRosterModalOpen(open)
+          if (!open) setRosterGame(null)
+        }}
+        game={rosterGame}
+        seasonId={seasonId}
         onSaved={handleGamesChanged}
       />
 

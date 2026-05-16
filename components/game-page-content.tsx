@@ -34,13 +34,14 @@ export function GamePageContent({ initialDetail, initialLiveData, homeRoster, aw
     liveClockSeconds: (initialLiveData?.state as { clockSeconds?: number })?.clockSeconds ?? null,
     liveClockRunning: (initialLiveData?.state as { clockRunning?: boolean })?.clockRunning ?? null,
     liveClockStartedAt: Number((initialLiveData?.state as { clockStartedAt?: string | number })?.clockStartedAt) || null,
-    gameType: "regular",
+    gameType: initialDetail.gameType ?? "regular",
     hasShootout: false,
     homePlaceholder: null,
     awayPlaceholder: null,
     seriesId: null,
     seriesGameNumber: null,
     bracketRound: null,
+    title: initialDetail.title ?? null,
   }
 
   return (

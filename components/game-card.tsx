@@ -7,6 +7,7 @@ import { TeamLogo } from "@/components/team-logo"
 import { periodLabel, formatClock } from "@/lib/scorekeeper-types"
 import { formatGameDate, formatGameTime } from "@/lib/format-time"
 import { type BashGame, getSeriesText } from "@/lib/hockey-data"
+import { GameTypeBadge } from "@/components/game-type-badge"
 
 export function useLiveClock(game: BashGame) {
   const isLive = game.status === "live"
@@ -47,13 +48,16 @@ export function GameCard({ game, href, seriesText }: { game: BashGame; href?: st
       >
         {/* Status bar */}
         <div className="px-3 pt-2 pb-1 border-b border-border/20 flex items-center justify-between">
-          {isLive && liveClock ? (
-            <span className="text-[10px] tabular-nums font-mono text-muted-foreground/70">
-              {periodLabel(liveClock.period)} {liveClock.clock}
-            </span>
-          ) : (
-            <span className="text-[10px] text-muted-foreground/50">{formatGameTime(game.time)}</span>
-          )}
+          <div className="flex items-center gap-1.5">
+            {isLive && liveClock ? (
+              <span className="text-[10px] tabular-nums font-mono text-muted-foreground/70">
+                {periodLabel(liveClock.period)} {liveClock.clock}
+              </span>
+            ) : (
+              <span className="text-[10px] text-muted-foreground/50">{formatGameTime(game.time)}</span>
+            )}
+            <GameTypeBadge gameType={game.gameType} size="xs" />
+          </div>
           {isLive ? (
             <span className="inline-flex items-center gap-1">
               <span className="relative flex h-1.5 w-1.5">
@@ -66,6 +70,13 @@ export function GameCard({ game, href, seriesText }: { game: BashGame; href?: st
             <span className="text-[9px] text-muted-foreground/50 font-medium uppercase">Final{game.isOvertime ? "/OT" : game.isForfeit ? "/Forfeit" : ""}</span>
           ) : null}
         </div>
+
+        {/* Optional Game Title */}
+        {game.title && (
+          <div className="px-3 pt-2 pb-0 flex flex-col">
+            <span className="text-xs font-bold text-primary truncate leading-tight">{game.title}</span>
+          </div>
+        )}
 
         {/* Teams and scores */}
         <div className="px-3 py-2 flex flex-col gap-1">

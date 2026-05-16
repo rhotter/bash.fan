@@ -31,7 +31,7 @@ export default function RegisterPage() {
 
       {/* Content overlay */}
       <div className="relative z-10 max-w-3xl mx-auto px-4 py-12 sm:py-16 text-center space-y-12">
-        
+
         {/* Header */}
         <div className="space-y-4">
           <Badge variant="outline" className="text-xs uppercase tracking-widest bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/20 backdrop-blur-sm">
@@ -39,7 +39,7 @@ export default function RegisterPage() {
           </Badge>
           <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight">BASH 2026 Summer Season</h1>
           <p className="text-muted-foreground text-lg sm:text-xl max-w-2xl mx-auto">
-            We are thrilled to invite you to register for the upcoming BASH 2026 Summer Season! As we gear up for an exciting summer filled with sticks & sunshine, we want to ensure you have all the details you need to join us.
+            We are thrilled to invite you to register for the upcoming BASH 2026 Summer Season!
           </p>
         </div>
 
@@ -49,7 +49,7 @@ export default function RegisterPage() {
             <h2 className="text-2xl font-bold">Secure Your Spot</h2>
             <p className="text-muted-foreground">All skill levels are welcome!</p>
           </div>
-          
+
           <Button size="lg" className="w-full text-base sm:text-lg h-14 bg-green-600 hover:bg-green-700 text-white" asChild>
             <a href="https://secure.sportability.com/spx/Leagues/League.asp?LgID=50877" target="_blank" rel="noopener noreferrer">
               Register on Sportability
@@ -71,7 +71,7 @@ export default function RegisterPage() {
               </div>
             </div>
             <div className="text-left text-sm text-muted-foreground">
-              Registration closes on<br/>
+              Registration closes on<br />
               <strong className="text-foreground">May 18th, 2026</strong>
             </div>
           </div>
@@ -119,7 +119,7 @@ export default function RegisterPage() {
             What's New?
           </div>
           <p className="text-sm text-muted-foreground leading-relaxed">
-            While Sportability will be used to register, we will be utilizing a brand new site for live draft results, stat tracking, and scorekeeping. Stay tuned for the debut, but keep tabs on our official site <a href="http://www.bayareastreethockey.com/" className="text-foreground underline">bayareastreethockey.com</a> and <a href="https://www.bash.fan/" className="text-foreground underline">bash.fan</a> throughout the season.
+            While Sportability will be used to register, we will be utilizing a brand new site for live draft results, stat tracking, and scorekeeping. Stay tuned for the debut, but keep tabs on our official site <a href="http://www.bayareastreethockey.com/" className="text-foreground underline">bayareastreethockey.com</a> throughout the season.
           </p>
         </div>
 

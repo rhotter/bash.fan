@@ -49,7 +49,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
   const { id: seasonId } = await context.params
 
   try {
-    const { teamSlug } = await request.json()
+    const { teamSlug, color } = await request.json()
 
     if (!teamSlug) {
       return NextResponse.json({ error: "teamSlug is required" }, { status: 400 })
@@ -66,7 +66,11 @@ export async function POST(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: "Season not found" }, { status: 404 })
     }
 
-    await db.insert(schema.seasonTeams).values({ seasonId, teamSlug })
+    await db.insert(schema.seasonTeams).values({
+      seasonId,
+      teamSlug,
+      ...(color ? { color } : {}),
+    })
 
     return NextResponse.json({ ok: true }, { status: 201 })
   } catch (err) {

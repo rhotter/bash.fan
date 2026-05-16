@@ -33,6 +33,7 @@ export interface BashGame {
   seriesId: string | null
   seriesGameNumber: number | null
   bracketRound: string | null
+  title?: string | null
 }
 
 export interface Standing {
@@ -128,14 +129,14 @@ export async function GET(request: Request) {
         g.id, g.date, g.time, g.home_score, g.away_score,
         g.status, g.is_overtime, g.is_playoff, g.is_forfeit, g.location, g.has_boxscore,
         g.game_type, g.has_shootout, g.home_placeholder, g.away_placeholder,
-        g.series_id, g.series_game_number, g.bracket_round,
-        ht.name as home_team, ht.slug as home_slug,
-        awt.name as away_team, awt.slug as away_slug,
+        g.series_id, g.series_game_number, g.bracket_round, g.title,
+        COALESCE(ht.name, g.home_team) as home_team, ht.slug as home_slug,
+        COALESCE(awt.name, g.away_team) as away_team, awt.slug as away_slug,
         (gl.game_id IS NOT NULL) as has_live_stats,
         gl.state as live_state
       FROM games g
-      JOIN teams ht ON g.home_team = ht.slug
-      JOIN teams awt ON g.away_team = awt.slug
+      LEFT JOIN teams ht ON g.home_team = ht.slug
+      LEFT JOIN teams awt ON g.away_team = awt.slug
       LEFT JOIN game_live gl ON gl.game_id = g.id
       WHERE g.season_id = ${seasonId}
         AND g.id NOT LIKE 'test-%'
@@ -180,6 +181,7 @@ export async function GET(request: Request) {
       seriesId: r.series_id ?? null,
       seriesGameNumber: r.series_game_number ?? null,
       bracketRound: r.bracket_round ?? null,
+      title: r.title ?? null,
     }))
 
     const standings = computeStandings(games)

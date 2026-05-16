@@ -11,6 +11,7 @@
 const logoMapping: Record<string, string> = {
   bash: "bash_orange_transparent_1024.png",
   bashers: "bashers_transparent_1024.png",
+  dangleberries: "dangleberries_1024.jpg",
   landsharks: "landsharks_black_1024.png",
   loons: "loons_1024.png",
   regretzkys: "no_regretzkys_1024.png",
@@ -21,6 +22,9 @@ const logoMapping: Record<string, string> = {
   yetis: "yetis_1024.png",
   "last-licks": "last_licks_blue_1024.png",
   licks: "last_licks_blue_1024.png",
+  "coxswain-bawls-hockey-club": "coxswain_bawls_1024.jpg",
+  "team-usa": "team-usa.png",
+  "team-canada": "team-canada.png",
 }
 
 // Season-specific logo overrides (takes priority over default)
