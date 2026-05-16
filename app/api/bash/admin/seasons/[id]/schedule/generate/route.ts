@@ -60,11 +60,19 @@ export async function POST(request: NextRequest, context: RouteContext) {
     // Insert new games
     if (games.length > 0) {
       const ids = await nextGameIds(games.length)
-      const insertData = games.map((g, i) => ({
-        ...g,
-        seasonId,
+      const insertData = games.map((g: Record<string, unknown>, i: number) => ({
         id: ids[i],
-        isPlayoff: g.gameType === "playoff" || g.gameType === "championship"
+        seasonId,
+        date: g.date as string,
+        time: g.time as string,
+        homeTeam: g.homeTeam as string,
+        awayTeam: g.awayTeam as string,
+        homePlaceholder: (g.homePlaceholder as string) ?? null,
+        awayPlaceholder: (g.awayPlaceholder as string) ?? null,
+        location: (g.location as string) || "The Lick",
+        gameType: (g.gameType as string) || "regular",
+        status: "upcoming" as const,
+        isPlayoff: g.gameType === "playoff" || g.gameType === "championship",
       }))
 
       await db.insert(schema.games).values(insertData)

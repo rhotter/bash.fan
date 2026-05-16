@@ -30,8 +30,8 @@ export async function POST(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: "CSV file is empty or has no data rows." }, { status: 400 })
     }
 
-    // Log available headers for debugging if expected columns are missing
-    const headers = Object.keys(rawData[0])
+
+
 
     // Fetch all existing team slugs to validate team assignments
     const allTeams = await db.select({ slug: schema.teams.slug }).from(schema.teams)
@@ -88,7 +88,6 @@ export async function POST(request: NextRequest, context: RouteContext) {
     const finalMappedPlayers = deduplicatedPlayers
 
     if (finalMappedPlayers.length === 0) {
-      console.log("DEBUG: No mapped players found. Available headers:", headers)
       return NextResponse.json({ error: "Unable to find valid player names. Ensure the CSV has 'FirstName' and 'LastName' columns (Sportability export format)." }, { status: 400 })
     }
 
