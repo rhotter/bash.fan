@@ -307,6 +307,25 @@ export async function mergeDuplicatePlayers() {
       await rawSql(sql`UPDATE player_awards SET player_id = ${canonicalId} WHERE player_id = ${dupeId}`)
       await rawSql(sql`UPDATE hall_of_fame SET player_id = ${canonicalId} WHERE player_id = ${dupeId}`)
 
+      await rawSql(sql`
+        DELETE FROM draft_pool
+        WHERE player_id = ${dupeId}
+          AND draft_id IN (SELECT draft_id FROM draft_pool WHERE player_id = ${canonicalId})
+      `)
+      await rawSql(sql`UPDATE draft_pool SET player_id = ${canonicalId} WHERE player_id = ${dupeId}`)
+
+      await rawSql(sql`UPDATE draft_picks SET player_id = ${canonicalId} WHERE player_id = ${dupeId}`)
+      await rawSql(sql`UPDATE draft_trade_items SET player_id = ${canonicalId} WHERE player_id = ${dupeId}`)
+
+      await rawSql(sql`
+        DELETE FROM adhoc_game_rosters
+        WHERE player_id = ${dupeId}
+          AND game_id IN (SELECT game_id FROM adhoc_game_rosters WHERE player_id = ${canonicalId})
+      `)
+      await rawSql(sql`UPDATE adhoc_game_rosters SET player_id = ${canonicalId} WHERE player_id = ${dupeId}`)
+
+      await rawSql(sql`UPDATE users SET player_id = ${canonicalId} WHERE player_id = ${dupeId}`)
+
       await rawSql(sql`DELETE FROM players WHERE id = ${dupeId}`)
       totalMerged++
     }
