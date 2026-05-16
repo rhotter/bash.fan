@@ -793,8 +793,8 @@ All registration API routes require authenticated user sessions (NextAuth). Admi
 - `/account` — Player profile and registration history
 
 ### Existing page changes
-- **Home page**: Add "Upcoming Seasons / Register Now" banner when open periods exist
-- **Navigation**: Add "Register" link to `SiteHeader` when active periods exist
+- **Site Banner**: The unified `SiteBanner` component (in `components/site-banner.tsx`) displays a dismissable "Register for [Season]" banner site-wide when open periods exist. Registration is lower priority than draft announcements (live draft > published draft > registration). Each announcement type is independently dismissable via `localStorage`. The banner is hidden on `/admin` and `/draft` pages.
+- **Navigation**: No dedicated "Register" link in `SiteHeader` — the `SiteBanner` serves as the primary registration CTA. The banner links directly to `/register` and shows a countdown of days remaining until registration closes.
 - **Season detail** (admin): Replace Registration tab placeholder with live registration management
 
 ### Backwards compatibility

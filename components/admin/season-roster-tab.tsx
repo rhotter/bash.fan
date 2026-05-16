@@ -247,6 +247,24 @@ export function SeasonRosterTab({ seasonId, seasonStatus, roster, teams, onRoste
       bValue = getTeamName(b.teamSlug)
     }
 
+    if (sortConfig.key === "playerName") {
+      const aStr = String(aValue).trim()
+      const bStr = String(bValue).trim()
+      const aParts = aStr.split(" ")
+      const bParts = bStr.split(" ")
+      const aLast = aParts.length > 1 ? aParts[aParts.length - 1] : aParts[0]
+      const bLast = bParts.length > 1 ? bParts[bParts.length - 1] : bParts[0]
+
+      if (aLast !== bLast) {
+        return sortConfig.direction === "asc" 
+          ? aLast.localeCompare(bLast) 
+          : bLast.localeCompare(aLast)
+      }
+      return sortConfig.direction === "asc"
+        ? aStr.localeCompare(bStr)
+        : bStr.localeCompare(aStr)
+    }
+
     if (aValue < bValue) return sortConfig.direction === "asc" ? -1 : 1
     if (aValue > bValue) return sortConfig.direction === "asc" ? 1 : -1
     return 0

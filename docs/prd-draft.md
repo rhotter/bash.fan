@@ -103,10 +103,16 @@ A dedicated, interactive draft system for managing the BASH league draft process
   - `published` — Visible at a public URL for captains, players, and fans
   - `live` — Draft is actively in progress
   - `paused` — Commissioner has temporarily paused the draft (must resume before completing)
-  - `completed` — All rounds finished, results available, shown in footer navigation
-  - `archived` — Removed from public navigation, but direct link remains active (Full Board view only)
+  - `completed` — All rounds finished, results available
+  - `archived` — Removed from site-wide announcements, but direct link remains active (Full Board view only)
 
   Valid transitions: `draft → published` (purge simulation), `published → live` (start draft), `live → paused`, `paused → live` (resume only — cannot transition directly to `completed` from `paused`), `live → completed`, `completed → archived`, `archived → completed`.
+
+- **Site-Wide Announcements via `SiteBanner`**: When a draft is `published` or `live`, the unified `SiteBanner` component (in `components/site-banner.tsx`) displays a dismissable announcement banner across all public pages (except `/admin` and `/draft`). The banner links to the draft's public URL and is prioritized over registration announcements:
+  - **Live**: Pulsing green dot + "BASH Draft is LIVE — Watch the picks unfold"
+  - **Published**: Subtle dot + "BASH Draft Board is now available"
+  - Each status is independently dismissable via `localStorage` (keyed by season slug + status), so dismissing the "published" banner doesn't suppress the "live" banner when the draft goes live.
+  - The `SiteBanner` replaces the previous approach of adding a dedicated draft link to the `SiteHeader` navigation bar. This centralizes all ephemeral site announcements (registration, draft) into a single, consistent dismiss-to-hide UX pattern.
 
 - **Simulation / Preview Mode**: While in the `draft` state, the commissioner can open the admin presentation view and run a full simulated draft:
   - All admin controls are functional: pick entry, trades, timer, order editing, undo
@@ -335,7 +341,7 @@ stateDiagram-v2
 | `live` | ✅ Admin controls | ✅ Real-time board | Draft is actively in progress |
 | `paused` | ✅ Admin controls | ✅ Board visible (paused) | Commissioner has paused the draft |
 | `completed` | ✅ Results + export | ✅ Final board | All rounds finished, results available in footer |
-| `archived` | ✅ Results + export | ✅ Final board (direct link only) | Draft is removed from primary navigation. |
+| `archived` | ✅ Results + export | ✅ Final board (direct link only) | Draft is removed from `SiteBanner` announcements. |
 
 ---
 

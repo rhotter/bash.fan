@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo, useCallback } from "react"
+import { useState, useMemo, useCallback, useEffect } from "react"
 import {
   Dialog,
   DialogContent,
@@ -71,23 +71,24 @@ export function RoundRobinWizard({
   const [showOverwriteConfirm, setShowOverwriteConfirm] = useState(false)
 
   // Placeholder mode: when no real teams are assigned, allow specifying a count
-  const [placeholderTeamCount, setPlaceholderTeamCount] = useState(teams.length >= 2 ? teams.length : 6)
+  const [placeholderTeamCount, setPlaceholderTeamCount] = useState<number | "">(teams.length >= 2 ? teams.length : 6)
   const usingPlaceholders = teams.length < 2
 
   // Effective teams: real teams or generated placeholders
   const effectiveTeams = useMemo(() => {
     if (!usingPlaceholders) return teams
-    return Array.from({ length: placeholderTeamCount }, (_, i) => ({
+    const count = typeof placeholderTeamCount === "number" ? placeholderTeamCount : 6
+    return Array.from({ length: count }, (_, i) => ({
       teamSlug: `placeholder-${i + 1}`,
       teamName: `Team ${i + 1}`,
     }))
   }, [teams, usingPlaceholders, placeholderTeamCount])
 
   // Step 1: Parameters
-  const [gamesPerWeek, setGamesPerWeek] = useState(Math.floor((teams.length >= 2 ? teams.length : 6) / 2))
+  const [gamesPerWeek, setGamesPerWeek] = useState<number | "">(Math.floor((teams.length >= 2 ? teams.length : 6) / 2))
   const [lengthMode, setLengthMode] = useState<"cycles" | "gamesPerTeam">("cycles")
   const [cycles, setCycles] = useState(3)
-  const [gamesPerTeam, setGamesPerTeam] = useState(20)
+  const [gamesPerTeam, setGamesPerTeam] = useState<number | "">(20)
 
   // Step 4: Game time defaults
   const [timeDefaults, setTimeDefaults] = useState<string[]>([])
@@ -104,16 +105,49 @@ export function RoundRobinWizard({
   // Step 6: Save mode
   const [saveMode, setSaveMode] = useState<"overwrite" | "append">("overwrite")
 
+  // First week bye logic
+  const [firstByeTeamSlug, setFirstByeTeamSlug] = useState<string>("random")
+  const [randomFirstByeSlug, setRandomFirstByeSlug] = useState<string>("")
+
+  // Initialize randomFirstByeSlug once effectiveTeams is ready
+  useEffect(() => {
+    if (effectiveTeams.length > 0) {
+      const randomIdx = Math.floor(Math.random() * effectiveTeams.length)
+      setRandomFirstByeSlug(effectiveTeams[randomIdx].teamSlug)
+    }
+  }, [effectiveTeams])
+
+  const isOddTeams = effectiveTeams.length % 2 !== 0
+
+  const scheduledTeams = useMemo(() => {
+    if (!isOddTeams) return effectiveTeams
+    
+    const targetSlug = firstByeTeamSlug === "random" ? randomFirstByeSlug : firstByeTeamSlug
+    const targetIdx = effectiveTeams.findIndex(t => t.teamSlug === targetSlug)
+    
+    if (targetIdx > 0) {
+      // Swap the target team to index 0 so it gets the first bye
+      const copy = [...effectiveTeams]
+      const temp = copy[0]
+      copy[0] = copy[targetIdx]
+      copy[targetIdx] = temp
+      return copy
+    }
+    return effectiveTeams
+  }, [effectiveTeams, isOddTeams, firstByeTeamSlug, randomFirstByeSlug])
+
   // ─── Derived data ─────────────────────────────────────────────────────────
 
   const slots = useMemo(() => {
+    const validGamesPerWeek = typeof gamesPerWeek === "number" ? gamesPerWeek : 1
     if (lengthMode === "cycles") {
-      return generateRoundRobin(effectiveTeams.length, gamesPerWeek, cycles)
+      return generateRoundRobin(effectiveTeams.length, validGamesPerWeek, cycles)
     } else {
-      const totalGames = Math.floor((effectiveTeams.length * gamesPerTeam) / 2)
+      const validGamesPerTeam = typeof gamesPerTeam === "number" ? gamesPerTeam : 20
+      const totalGames = Math.floor((effectiveTeams.length * validGamesPerTeam) / 2)
       // Generous max cycles so we have enough games to slice
-      const maxCycles = Math.ceil(gamesPerTeam / Math.max(1, effectiveTeams.length - 1)) + 1
-      return generateRoundRobin(effectiveTeams.length, gamesPerWeek, maxCycles, totalGames)
+      const maxCycles = Math.ceil(validGamesPerTeam / Math.max(1, effectiveTeams.length - 1)) + 1
+      return generateRoundRobin(effectiveTeams.length, validGamesPerWeek, maxCycles, totalGames)
     }
   }, [effectiveTeams.length, gamesPerWeek, lengthMode, cycles, gamesPerTeam])
 
@@ -133,7 +167,6 @@ export function RoundRobinWizard({
   )
 
   // Compute which team has a bye each week (only relevant for odd team counts)
-  const isOddTeams = effectiveTeams.length % 2 !== 0
   const byeTeamsByWeek = useMemo(
     () => computeByeTeams(slots, effectiveTeams.length),
     [slots, effectiveTeams.length]
@@ -216,8 +249,8 @@ export function RoundRobinWizard({
         const slot = weekGames[i]
         const slotInfo = slotsForWeek[i] || { date: baseDate, time: "TBD", location: defaultLocation }
 
-        const homeTeam = effectiveTeams[slot.home]
-        const awayTeam = effectiveTeams[slot.away]
+        const homeTeam = scheduledTeams[slot.home]
+        const awayTeam = scheduledTeams[slot.away]
 
         result.push({
           date: slotInfo.date || baseDate,
@@ -233,14 +266,14 @@ export function RoundRobinWizard({
       }
     }
     return result
-  }, [activeWeeks, slotsByWeek, weekSlots, weekDates, effectiveTeams, defaultLocation, usingPlaceholders])
+  }, [activeWeeks, slotsByWeek, weekSlots, weekDates, scheduledTeams, defaultLocation, usingPlaceholders])
 
   // ─── Navigation ───────────────────────────────────────────────────────────
 
   const totalSteps = 4
   const canGoNext = (): boolean => {
     switch (step) {
-      case 1: return effectiveTeams.length >= 2 && gamesPerWeek >= 1 && cycles >= 1 && startDate !== ""
+      case 1: return effectiveTeams.length >= 2 && typeof gamesPerWeek === "number" && gamesPerWeek >= 1 && cycles >= 1 && startDate !== ""
       case 2: return activeWeeks.length > 0
       case 3: return true
       case 4: return previewGames.length > 0
@@ -272,10 +305,11 @@ export function RoundRobinWizard({
       setWeekSlots((prev) => ({ ...initial, ...prev }))
       
       // Initialize default times state based on first active week length
-      const firstWeekGames = slotsByWeek[activeWeeks[0]]?.length || gamesPerWeek
-      const defaultTimesArray = Array.from({ length: firstWeekGames }, (_, i) => {
-        if (gamesPerWeek === 3) return i === 0 ? "09:00" : i === 1 ? "11:00" : i === 2 ? "13:00" : "TBD"
-        if (gamesPerWeek === 2) return i === 0 ? "12:00" : i === 1 ? "14:00" : "TBD"
+      const gpw = typeof gamesPerWeek === "number" ? gamesPerWeek : 1
+      const firstWeekGames = slotsByWeek[activeWeeks[0]]?.length || gpw
+      const defaultTimesArray: string[] = Array.from({ length: firstWeekGames }, (_, i) => {
+        if (gpw === 3) return i === 0 ? "09:00" : i === 1 ? "11:00" : i === 2 ? "13:00" : "TBD"
+        if (gpw === 2) return i === 0 ? "12:00" : i === 1 ? "14:00" : "TBD"
         return "TBD"
       })
       setTimeDefaults(defaultTimesArray)
@@ -405,9 +439,19 @@ export function RoundRobinWizard({
                             max={12}
                             value={placeholderTeamCount}
                             onChange={(e) => {
-                              const count = Math.max(2, Math.min(12, parseInt(e.target.value) || 2))
-                              setPlaceholderTeamCount(count)
-                              setGamesPerWeek(Math.floor(count / 2))
+                              if (e.target.value === "") {
+                                setPlaceholderTeamCount("")
+                              } else {
+                                const count = Math.max(2, Math.min(12, parseInt(e.target.value) || 2))
+                                setPlaceholderTeamCount(count)
+                                setGamesPerWeek(Math.floor(count / 2))
+                              }
+                            }}
+                            onBlur={() => {
+                              if (placeholderTeamCount === "" || placeholderTeamCount < 2) {
+                                setPlaceholderTeamCount(6)
+                                setGamesPerWeek(3)
+                              }
                             }}
                           />
                           <p className="text-xs text-muted-foreground">
@@ -430,7 +474,18 @@ export function RoundRobinWizard({
                         min={1}
                         max={Math.floor(effectiveTeams.length / 2)}
                         value={gamesPerWeek}
-                        onChange={(e) => setGamesPerWeek(Math.max(1, parseInt(e.target.value) || 1))}
+                        onChange={(e) => {
+                          if (e.target.value === "") {
+                            setGamesPerWeek("")
+                          } else {
+                            setGamesPerWeek(Math.max(1, parseInt(e.target.value) || 1))
+                          }
+                        }}
+                        onBlur={() => {
+                          if (gamesPerWeek === "" || gamesPerWeek < 1) {
+                            setGamesPerWeek(Math.max(1, Math.floor(effectiveTeams.length / 2)))
+                          }
+                        }}
                       />
                       <p className="text-xs text-muted-foreground">
                         Max {Math.floor(effectiveTeams.length / 2)} (each team plays once per week)
@@ -470,23 +525,60 @@ export function RoundRobinWizard({
                           type="number"
                           min={1}
                           value={gamesPerTeam}
-                          onChange={(e) => setGamesPerTeam(Math.max(1, parseInt(e.target.value) || 20))}
+                          onChange={(e) => {
+                            if (e.target.value === "") {
+                              setGamesPerTeam("")
+                            } else {
+                              setGamesPerTeam(parseInt(e.target.value))
+                            }
+                          }}
+                          onBlur={() => {
+                            if (gamesPerTeam === "" || gamesPerTeam < 1) {
+                              setGamesPerTeam(20)
+                            }
+                          }}
                         />
                       )}
                     </div>
                   </div>
                   <div className="mt-6 pt-4 border-t space-y-4">
-                    <p className="text-sm text-muted-foreground">
-                      Choose the date for Week 1. Subsequent weeks will be scheduled 7 days apart.
-                    </p>
-                    <div className="space-y-2">
-                      <Label>Start Date</Label>
-                      <Input
-                        type="date"
-                        value={startDate}
-                        onChange={(e) => setStartDate(e.target.value)}
-                        className="w-[200px]"
-                      />
+                    <div className="flex gap-8">
+                      <div className="space-y-4 flex-1">
+                        <p className="text-sm text-muted-foreground">
+                          Week 1 start date. Subsequent weeks are scheduled 7 days apart.
+                        </p>
+                        <div className="space-y-2">
+                          <Label>Start Date</Label>
+                          <Input
+                            type="date"
+                            value={startDate}
+                            onChange={(e) => setStartDate(e.target.value)}
+                            className="w-[200px]"
+                          />
+                        </div>
+                      </div>
+                      
+                      {isOddTeams && (
+                        <div className="space-y-4 flex-1">
+                          <p className="text-sm text-muted-foreground">
+                            Odd number of teams. Select which team gets the first bye.
+                          </p>
+                          <div className="space-y-2">
+                            <Label>First Week Bye</Label>
+                            <Select value={firstByeTeamSlug} onValueChange={setFirstByeTeamSlug}>
+                              <SelectTrigger className="w-[200px]">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="random">Random (Default)</SelectItem>
+                                {effectiveTeams.map(t => (
+                                  <SelectItem key={t.teamSlug} value={t.teamSlug}>{t.teamName}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                      )}
                     </div>
                     {startDate && (
                       <div className="p-3 border rounded-lg text-sm space-y-1">
@@ -516,21 +608,10 @@ export function RoundRobinWizard({
                     )}
                   </div>
                 </div>
-                {isOddTeams && (
-                  <div className="p-3 border border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-950/30 rounded-lg text-sm flex items-start gap-2">
-                    <Info className="h-4 w-4 mt-0.5 text-amber-600 dark:text-amber-400 shrink-0" />
-                    <div>
-                      <span className="font-medium text-amber-800 dark:text-amber-300">Odd number of teams ({effectiveTeams.length})</span>
-                      <span className="text-amber-700 dark:text-amber-400">
-                        {" "}— one team will have a bye each week. Byes rotate so every team sits out an equal number of times per cycle.
-                      </span>
-                    </div>
-                  </div>
-                )}
                 <div className="p-3 border rounded-lg text-sm bg-muted/10">
                   <strong>Preview:</strong>{" "}
                   {slots.length} total games across {weekNumbers.length} weeks
-                  ({gamesPerWeek} games/week)
+                  ({typeof gamesPerWeek === "number" ? gamesPerWeek : 1} games/week)
                 </div>
               </div>
             )}
@@ -670,9 +751,18 @@ export function RoundRobinWizard({
                         </h4>
                         {weekGames.map((slot, i) => (
                           <div key={i} className="grid grid-cols-12 gap-2 items-center text-sm">
-                            <div className="col-span-3 text-muted-foreground truncate">
-                              {effectiveTeams[slot.away]?.teamName ?? "?"} @ {effectiveTeams[slot.home]?.teamName ?? "?"}
-                            </div>
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <div className="col-span-3 text-muted-foreground truncate cursor-help">
+                                    {scheduledTeams[slot.away]?.teamName ?? "?"} @ {scheduledTeams[slot.home]?.teamName ?? "?"}
+                                  </div>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  {scheduledTeams[slot.away]?.teamName ?? "?"} @ {scheduledTeams[slot.home]?.teamName ?? "?"}
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
                             <div className="col-span-3">
                               <Input
                                 type="date"
@@ -706,9 +796,18 @@ export function RoundRobinWizard({
                             <Badge variant="outline" className="text-[10px] bg-amber-50 text-amber-700 border-amber-300 dark:bg-amber-950 dark:text-amber-400 dark:border-amber-700">
                               BYE
                             </Badge>
-                            <span className="text-xs text-muted-foreground">
-                              {effectiveTeams[byeTeamsByWeek[week]!]?.teamName ?? `Team ${byeTeamsByWeek[week]! + 1}`}
-                            </span>
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <span className="text-xs text-muted-foreground truncate cursor-help max-w-[200px]">
+                                    {scheduledTeams[byeTeamsByWeek[week]!]?.teamName ?? `Team ${byeTeamsByWeek[week]! + 1}`}
+                                  </span>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  {scheduledTeams[byeTeamsByWeek[week]!]?.teamName ?? `Team ${byeTeamsByWeek[week]! + 1}`}
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
                           </div>
                         )}
                       </div>

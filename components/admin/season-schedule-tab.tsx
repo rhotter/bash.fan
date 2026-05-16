@@ -213,14 +213,28 @@ export function SeasonScheduleTab({ seasonId, seasonStatus, initialTeams, defaul
 
   const sortedDates = Object.keys(groupedGames).sort()
 
+  // Identify core league teams (true fall/summer teams).
+  // We exclude ad-hoc tryout/exhibition teams, which we identify
+  // because ALL their scheduled games are 'tryout' or 'exhibition'.
+  const coreTeams = useMemo(() => {
+    return initialTeams.filter(t => {
+      const teamGames = games.filter(g => g.homeSlug === t.teamSlug || g.awaySlug === t.teamSlug)
+      // If team has games and ALL games are exhibition/tryout, it's NOT a core team
+      if (teamGames.length > 0 && teamGames.every(g => g.gameType === "exhibition" || g.gameType === "tryout")) {
+        return false
+      }
+      return true
+    })
+  }, [initialTeams, games])
+
   // Compute bye teams per game date for odd team counts.
   // For each regular-season date, find which season teams are NOT playing.
   const byesByDate = useMemo(() => {
-    const isOdd = initialTeams.length % 2 !== 0
-    if (!isOdd || initialTeams.length < 3) return {} as Record<string, string[]>
+    const isOdd = coreTeams.length % 2 !== 0
+    if (!isOdd || coreTeams.length < 3) return {} as Record<string, string[]>
 
     const result: Record<string, string[]> = {}
-    const allSlugs = new Set(initialTeams.map(t => t.teamSlug))
+    const allSlugs = new Set(coreTeams.map(t => t.teamSlug))
 
     for (const [date, dateGames] of Object.entries(groupedGames)) {
       // Only annotate byes on regular-season game dates
@@ -241,7 +255,7 @@ export function SeasonScheduleTab({ seasonId, seasonStatus, initialTeams, defaul
       if (byes.length > 0) result[date] = byes
     }
     return result
-  }, [groupedGames, initialTeams])
+  }, [groupedGames, coreTeams])
 
 
 
@@ -717,7 +731,7 @@ export function SeasonScheduleTab({ seasonId, seasonStatus, initialTeams, defaul
       <RoundRobinWizard
         open={rrWizardOpen}
         onOpenChange={setRrWizardOpen}
-        teams={initialTeams}
+        teams={coreTeams}
         seasonId={seasonId}
         defaultLocation={defaultLocation}
         onSaved={handleGamesChanged}
@@ -726,7 +740,7 @@ export function SeasonScheduleTab({ seasonId, seasonStatus, initialTeams, defaul
       <PlayoffWizard
         open={playoffWizardOpen}
         onOpenChange={setPlayoffWizardOpen}
-        teams={initialTeams}
+        teams={coreTeams}
         seasonId={seasonId}
         defaultLocation={defaultLocation}
         lastRegularSeasonDate={lastRegularSeasonDate}
