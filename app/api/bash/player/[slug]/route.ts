@@ -262,7 +262,7 @@ export async function GET(
           SUM(pgs.eng)::int as eng, SUM(pgs.hat_tricks)::int as hat_tricks,
           SUM(pgs.pen)::int as pen, SUM(pgs.pim)::int as pim
         FROM player_game_stats pgs
-        JOIN games g ON pgs.game_id = g.id AND g.season_id = ${gameLogSeasonId} AND NOT g.is_playoff
+        JOIN games g ON pgs.game_id = g.id AND g.season_id = ${gameLogSeasonId} AND NOT g.is_playoff AND g.game_type = 'regular'
         WHERE pgs.player_id = ${player.id}
       `),
       // Skater all-time stats (regular season, fall only)
@@ -274,7 +274,7 @@ export async function GET(
           SUM(pgs.eng)::int as eng, SUM(pgs.hat_tricks)::int as hat_tricks,
           SUM(pgs.pen)::int as pen, SUM(pgs.pim)::int as pim
         FROM player_game_stats pgs
-        JOIN games g ON pgs.game_id = g.id AND NOT g.is_playoff
+        JOIN games g ON pgs.game_id = g.id AND NOT g.is_playoff AND g.game_type = 'regular'
         JOIN seasons s ON g.season_id = s.id AND s.season_type = 'fall'
         WHERE pgs.player_id = ${player.id}
       `),
@@ -288,7 +288,7 @@ export async function GET(
           SUM(pgs.eng)::int as eng, SUM(pgs.hat_tricks)::int as hat_tricks,
           SUM(pgs.pen)::int as pen, SUM(pgs.pim)::int as pim
         FROM player_game_stats pgs
-        JOIN games g ON pgs.game_id = g.id AND NOT g.is_playoff
+        JOIN games g ON pgs.game_id = g.id AND NOT g.is_playoff AND g.game_type = 'regular'
         JOIN player_seasons ps ON ps.player_id = pgs.player_id AND ps.season_id = g.season_id
         JOIN teams t ON ps.team_slug = t.slug
         WHERE pgs.player_id = ${player.id}
@@ -303,7 +303,7 @@ export async function GET(
           pgs.goals, pgs.assists, pgs.points, pgs.gwg, pgs.ppg, pgs.shg,
           pgs.eng, pgs.hat_tricks, pgs.pen, pgs.pim
         FROM player_game_stats pgs
-        JOIN games g ON pgs.game_id = g.id AND g.season_id = ${gameLogSeasonId} AND NOT g.is_playoff
+        JOIN games g ON pgs.game_id = g.id AND g.season_id = ${gameLogSeasonId} AND NOT g.is_playoff AND g.game_type = 'regular'
         LEFT JOIN teams ht ON g.home_team = ht.slug
         LEFT JOIN teams awt ON g.away_team = awt.slug
         WHERE pgs.player_id = ${player.id}
@@ -319,7 +319,7 @@ export async function GET(
           COUNT(*) FILTER (WHERE result = 'W')::int as wins,
           COUNT(*) FILTER (WHERE result = 'L')::int as losses
         FROM goalie_game_stats ggs
-        JOIN games g ON ggs.game_id = g.id AND g.season_id = ${gameLogSeasonId} AND NOT g.is_playoff
+        JOIN games g ON ggs.game_id = g.id AND g.season_id = ${gameLogSeasonId} AND NOT g.is_playoff AND g.game_type = 'regular'
         WHERE ggs.player_id = ${player.id}
       `),
       // Goalie all-time stats (regular season, fall only)
@@ -332,7 +332,7 @@ export async function GET(
           COUNT(*) FILTER (WHERE result = 'W')::int as wins,
           COUNT(*) FILTER (WHERE result = 'L')::int as losses
         FROM goalie_game_stats ggs
-        JOIN games g ON ggs.game_id = g.id AND NOT g.is_playoff
+        JOIN games g ON ggs.game_id = g.id AND NOT g.is_playoff AND g.game_type = 'regular'
         JOIN seasons s ON g.season_id = s.id AND s.season_type = 'fall'
         WHERE ggs.player_id = ${player.id}
       `),
@@ -347,7 +347,7 @@ export async function GET(
           COUNT(*) FILTER (WHERE result = 'W')::int as wins,
           COUNT(*) FILTER (WHERE result = 'L')::int as losses
         FROM goalie_game_stats ggs
-        JOIN games g ON ggs.game_id = g.id AND NOT g.is_playoff
+        JOIN games g ON ggs.game_id = g.id AND NOT g.is_playoff AND g.game_type = 'regular'
         JOIN player_seasons ps ON ps.player_id = ggs.player_id AND ps.season_id = g.season_id
         JOIN teams t ON ps.team_slug = t.slug
         WHERE ggs.player_id = ${player.id}
@@ -362,7 +362,7 @@ export async function GET(
           ggs.seconds, ggs.goals_against, ggs.shots_against, ggs.saves,
           ggs.shutouts, ggs.goalie_assists, ggs.result
         FROM goalie_game_stats ggs
-        JOIN games g ON ggs.game_id = g.id AND g.season_id = ${gameLogSeasonId} AND NOT g.is_playoff
+        JOIN games g ON ggs.game_id = g.id AND g.season_id = ${gameLogSeasonId} AND NOT g.is_playoff AND g.game_type = 'regular'
         LEFT JOIN teams ht ON g.home_team = ht.slug
         LEFT JOIN teams awt ON g.away_team = awt.slug
         WHERE ggs.player_id = ${player.id}
@@ -377,7 +377,7 @@ export async function GET(
           SUM(pgs.eng)::int as eng, SUM(pgs.hat_tricks)::int as hat_tricks,
           SUM(pgs.pen)::int as pen, SUM(pgs.pim)::int as pim
         FROM player_game_stats pgs
-        JOIN games g ON pgs.game_id = g.id AND g.is_playoff
+        JOIN games g ON pgs.game_id = g.id AND g.is_playoff AND g.game_type IN ('playoff', 'championship')
         JOIN seasons s ON g.season_id = s.id AND s.season_type = 'fall'
         WHERE pgs.player_id = ${player.id}
       `),
@@ -391,7 +391,7 @@ export async function GET(
           SUM(pgs.eng)::int as eng, SUM(pgs.hat_tricks)::int as hat_tricks,
           SUM(pgs.pen)::int as pen, SUM(pgs.pim)::int as pim
         FROM player_game_stats pgs
-        JOIN games g ON pgs.game_id = g.id AND g.is_playoff
+        JOIN games g ON pgs.game_id = g.id AND g.is_playoff AND g.game_type IN ('playoff', 'championship')
         JOIN player_seasons ps ON ps.player_id = pgs.player_id AND ps.season_id = g.season_id
         JOIN teams t ON ps.team_slug = t.slug
         WHERE pgs.player_id = ${player.id}
@@ -406,7 +406,7 @@ export async function GET(
           pgs.goals, pgs.assists, pgs.points, pgs.gwg, pgs.ppg, pgs.shg,
           pgs.eng, pgs.hat_tricks, pgs.pen, pgs.pim
         FROM player_game_stats pgs
-        JOIN games g ON pgs.game_id = g.id AND g.season_id = ${gameLogSeasonId} AND g.is_playoff
+        JOIN games g ON pgs.game_id = g.id AND g.season_id = ${gameLogSeasonId} AND g.is_playoff AND g.game_type IN ('playoff', 'championship')
         LEFT JOIN teams ht ON g.home_team = ht.slug
         LEFT JOIN teams awt ON g.away_team = awt.slug
         WHERE pgs.player_id = ${player.id}
@@ -422,7 +422,7 @@ export async function GET(
           COUNT(*) FILTER (WHERE result = 'W')::int as wins,
           COUNT(*) FILTER (WHERE result = 'L')::int as losses
         FROM goalie_game_stats ggs
-        JOIN games g ON ggs.game_id = g.id AND g.is_playoff
+        JOIN games g ON ggs.game_id = g.id AND g.is_playoff AND g.game_type IN ('playoff', 'championship')
         JOIN seasons s ON g.season_id = s.id AND s.season_type = 'fall'
         WHERE ggs.player_id = ${player.id}
       `),
@@ -437,7 +437,7 @@ export async function GET(
           COUNT(*) FILTER (WHERE result = 'W')::int as wins,
           COUNT(*) FILTER (WHERE result = 'L')::int as losses
         FROM goalie_game_stats ggs
-        JOIN games g ON ggs.game_id = g.id AND g.is_playoff
+        JOIN games g ON ggs.game_id = g.id AND g.is_playoff AND g.game_type IN ('playoff', 'championship')
         JOIN player_seasons ps ON ps.player_id = ggs.player_id AND ps.season_id = g.season_id
         JOIN teams t ON ps.team_slug = t.slug
         WHERE ggs.player_id = ${player.id}
@@ -452,7 +452,7 @@ export async function GET(
           ggs.seconds, ggs.goals_against, ggs.shots_against, ggs.saves,
           ggs.shutouts, ggs.goalie_assists, ggs.result
         FROM goalie_game_stats ggs
-        JOIN games g ON ggs.game_id = g.id AND g.season_id = ${gameLogSeasonId} AND g.is_playoff
+        JOIN games g ON ggs.game_id = g.id AND g.season_id = ${gameLogSeasonId} AND g.is_playoff AND g.game_type IN ('playoff', 'championship')
         LEFT JOIN teams ht ON g.home_team = ht.slug
         LEFT JOIN teams awt ON g.away_team = awt.slug
         WHERE ggs.player_id = ${player.id}

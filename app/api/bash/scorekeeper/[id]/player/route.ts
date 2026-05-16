@@ -30,6 +30,41 @@ export async function POST(
 
   // Hoist trimmedName so the catch block can reference it for race-condition recovery
   let trimmedName = ""
+  let requestedTeamSide: "home" | "away" | null = null
+
+  async function addPlayerToGame(playerId: number, teamSide: "home" | "away") {
+    // Add to adhoc_game_rosters (upsert — idempotent if already on roster)
+    await db
+      .insert(schema.adhocGameRosters)
+      .values({ gameId, playerId, teamSide })
+      .onConflictDoUpdate({
+        target: [schema.adhocGameRosters.gameId, schema.adhocGameRosters.playerId],
+        set: { teamSide },
+      })
+
+    // Patch game_live.state attendance array so player appears in live scoring UI
+    const liveRows = await db
+      .select({ state: schema.gameLive.state })
+      .from(schema.gameLive)
+      .where(eq(schema.gameLive.gameId, gameId))
+
+    if (liveRows.length > 0) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const state = liveRows[0].state as any
+      if (state) {
+        const attendanceKey = teamSide === "home" ? "homeAttendance" : "awayAttendance"
+        const attendance: number[] = state[attendanceKey] || []
+        if (!attendance.includes(playerId)) {
+          attendance.push(playerId)
+          state[attendanceKey] = attendance
+          await db
+            .update(schema.gameLive)
+            .set({ state })
+            .where(eq(schema.gameLive.gameId, gameId))
+        }
+      }
+    }
+  }
 
   try {
     const { name, teamSide } = await request.json()
@@ -42,6 +77,7 @@ export async function POST(
     }
 
     trimmedName = name.trim()
+    requestedTeamSide = teamSide
 
     // Verify game exists and is exhibition/tryout
     const gameRows = await db
@@ -82,37 +118,7 @@ export async function POST(
       isNew = true
     }
 
-    // Add to adhoc_game_rosters (upsert — idempotent if already on roster)
-    await db
-      .insert(schema.adhocGameRosters)
-      .values({ gameId, playerId, teamSide })
-      .onConflictDoUpdate({
-        target: [schema.adhocGameRosters.gameId, schema.adhocGameRosters.playerId],
-        set: { teamSide },
-      })
-
-    // Patch game_live.state attendance array so player appears in live scoring UI
-    const liveRows = await db
-      .select({ state: schema.gameLive.state })
-      .from(schema.gameLive)
-      .where(eq(schema.gameLive.gameId, gameId))
-
-    if (liveRows.length > 0) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const state = liveRows[0].state as any
-      if (state) {
-        const attendanceKey = teamSide === "home" ? "homeAttendance" : "awayAttendance"
-        const attendance: number[] = state[attendanceKey] || []
-        if (!attendance.includes(playerId)) {
-          attendance.push(playerId)
-          state[attendanceKey] = attendance
-          await db
-            .update(schema.gameLive)
-            .set({ state })
-            .where(eq(schema.gameLive.gameId, gameId))
-        }
-      }
-    }
+    await addPlayerToGame(playerId, teamSide)
 
     return NextResponse.json({
       ok: true,
@@ -122,7 +128,7 @@ export async function POST(
   } catch (error) {
     console.error("Failed to create/add player:", error)
     // Handle unique constraint violation on players.name
-    if (error instanceof Error && error.message.includes("unique")) {
+    if (error instanceof Error && error.message.includes("unique") && requestedTeamSide) {
       // Race condition: player was created between our check and insert
       // Re-fetch and return existing (reuse trimmedName — request body stream is already consumed)
       try {
@@ -130,6 +136,7 @@ export async function POST(
           SELECT id, name FROM players WHERE LOWER(name) = LOWER(${trimmedName}) LIMIT 1
         `)
         if (rows.length > 0) {
+          await addPlayerToGame(rows[0].id, requestedTeamSide)
           return NextResponse.json({
             ok: true,
             player: { id: rows[0].id, name: rows[0].name },
