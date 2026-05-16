@@ -160,7 +160,7 @@ export function WeekNavigator({
       return { label: "Playoffs", colorClass: "text-muted-foreground/50" }
     }
     if (i === exhibitionStartIndex && hasExhibition) {
-      return { label: "Exhibition", colorClass: "text-[#7c3aed]" }
+      return { label: "Exhibition", colorClass: "text-muted-foreground/50" }
     }
     return null
   }

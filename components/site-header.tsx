@@ -11,7 +11,6 @@ const NAV_ITEMS = [
   { label: "Scores", href: "/" },
   { label: "Standings", href: "/standings" },
   { label: "Stats", href: "/stats" },
-  { label: "Register", href: "/register" },
   { label: "About", href: "/about" },
 ]
 

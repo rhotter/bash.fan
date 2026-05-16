@@ -82,7 +82,7 @@ export function GameDetail({ game, initialDetail, initialLiveData, homeRoster, a
     <div className="w-full">
       {/* Game title if present */}
       {game.title && (
-        <h1 className="text-2xl sm:text-3xl font-black uppercase tracking-tight text-primary mb-3">
+        <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-foreground mb-3">
           {game.title}
         </h1>
       )}

@@ -22,6 +22,10 @@ Bay Area Street Hockey (BASH) league stats website. Displays scores, standings, 
 - **Client Data:** SWR hooks with server-side fallback data
 - **Icons:** lucide-react
 
+## Style Guide
+
+Prefer neutral theme tokens (`text-foreground`, `text-muted-foreground`, `bg-muted`, `border-border`) over brand/accent colors for ambient and informational UI; reserve `text-primary` and other strong colors for true CTAs, and avoid all-caps for titles.
+
 ## Architecture
 
 ### Data Flow

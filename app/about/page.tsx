@@ -29,6 +29,15 @@ export default function AboutPage() {
                     <p className="text-muted-foreground max-w-xl mx-auto text-[15px] md:text-base leading-relaxed">
                         BASH is a non-profit, competitive street hockey league founded in 1991. We play on the asphalt of San Francisco, keeping the spirit of outdoor competition alive.
                     </p>
+                    <div className="mt-8">
+                        <Link
+                            href="/register"
+                            className="group inline-flex items-center gap-2 rounded-md bg-foreground px-5 py-2.5 text-sm font-semibold text-background transition-opacity hover:opacity-90"
+                        >
+                            Register for Summer 2026
+                            <ArrowUpRight className="h-4 w-4 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
+                        </Link>
+                    </div>
                 </section>
 
                 {/* Quick Links */}

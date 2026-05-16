@@ -7,7 +7,6 @@ import { TeamLogo } from "@/components/team-logo"
 import { periodLabel, formatClock } from "@/lib/scorekeeper-types"
 import { formatGameDate, formatGameTime } from "@/lib/format-time"
 import { type BashGame, getSeriesText } from "@/lib/hockey-data"
-import { GameTypeBadge } from "@/components/game-type-badge"
 
 export function useLiveClock(game: BashGame) {
   const isLive = game.status === "live"
@@ -56,7 +55,6 @@ export function GameCard({ game, href, seriesText }: { game: BashGame; href?: st
             ) : (
               <span className="text-[10px] text-muted-foreground/50">{formatGameTime(game.time)}</span>
             )}
-            <GameTypeBadge gameType={game.gameType} size="xs" />
           </div>
           {isLive ? (
             <span className="inline-flex items-center gap-1">
@@ -74,7 +72,7 @@ export function GameCard({ game, href, seriesText }: { game: BashGame; href?: st
         {/* Optional Game Title */}
         {game.title && (
           <div className="px-3 pt-2 pb-0 flex flex-col">
-            <span className="text-xs font-bold text-primary truncate leading-tight">{game.title}</span>
+            <span className="text-xs font-bold text-foreground truncate leading-tight">{game.title}</span>
           </div>
         )}
 
