@@ -180,7 +180,7 @@ export function SiteBanner() {
     <div className="relative border-b border-border/60 bg-muted/40">
       <Link
         href={activeBanner.href}
-        className="group flex items-center justify-center gap-x-2 px-8 py-1.5 text-[12px] text-muted-foreground transition-colors hover:bg-muted/70 sm:text-[13px]"
+        className="group flex items-center justify-start gap-x-2 py-1.5 pl-4 pr-8 text-left text-[12px] text-muted-foreground transition-colors hover:bg-muted/70 sm:justify-center sm:px-8 sm:text-[13px]"
       >
         {activeBanner.variant === "live" ? (
           <span className="relative flex h-2 w-2 shrink-0">
