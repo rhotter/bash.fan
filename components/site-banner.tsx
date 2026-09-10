@@ -44,9 +44,9 @@ type BannerConfig = {
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
 // ─── Registration config ────────────────────────────────────────────────────
-// TODO: Remove after Summer 2026 season begins
-const REG_CLOSE_DATE = new Date("2026-05-18T23:59:59")
-const REG_SEASON_LABEL = "Summer 2026"
+// Registration closes September 25, 2026, in San Francisco (PDT).
+const REG_CLOSE_DATE = new Date("2026-09-25T23:59:59-07:00")
+const REG_SEASON_LABEL = "Fall 2026–27"
 
 // ─── Component ──────────────────────────────────────────────────────────────
 
@@ -107,15 +107,15 @@ export function SiteBanner() {
       })() : undefined,
     },
 
-    // Priority 2: Registration (TODO: remove after Summer 2026)
+    // Priority 2: Fall registration
     {
       id: "registration",
-      dismissKey: `bash-reg-banner-dismissed-summer-2026`,
+      dismissKey: `bash-reg-banner-dismissed-fall-2026`,
       label: `Register for ${REG_SEASON_LABEL}`,
-      href: "/register",
+      href: "https://secure.sportability.com/spx/Registration/Choose_pr.asp?LgID=51054",
       variant: "default",
       isActive: !regExpired,
-      hideOnPaths: ["/admin", "/register"],
+      hideOnPaths: ["/admin"],
       suffix: (
         <span className="text-muted-foreground/70">
           {" · "}
