@@ -5,6 +5,7 @@ import { SpeedInsights } from '@vercel/speed-insights/next'
 import { AdminProvider } from '@/lib/admin-context'
 import { ConditionalFooter } from '@/components/conditional-footer'
 import { SiteBanner } from '@/components/site-banner'
+import { Toaster } from '@/components/ui/sonner'
 import './globals.css'
 
 const inter = Inter({
@@ -50,6 +51,7 @@ export default function RootLayout({
           <SiteBanner />
           {children}
           <ConditionalFooter />
+          <Toaster />
         </AdminProvider>
         <Analytics />
         <SpeedInsights />

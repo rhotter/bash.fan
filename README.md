@@ -39,11 +39,20 @@ A stats website for the Bay Area Street Hockey (BASH) league. View live scores, 
    pnpm db:push
    ```
 
-4. Seed data from the Sportability API:
+4. Seed or sync database data:
 
-   ```bash
-   pnpm seed
-   ```
+   - **Option A: Sync from Production DB (Recommended)**
+     Pulls recent completed seasons, boxscores, and live draft boards from production:
+     ```bash
+     PROD_URL='<prod-db-url>' DEV_URL='<dev-db-url>' npx tsx scripts/export-prod-db.ts
+     ```
+     *(Or pass flags: `npx tsx scripts/export-prod-db.ts --from '<prod-url>' --to '<dev-url>'`)*
+
+   - **Option B: Basic Seed (Sportability API)**
+     Seeds historical season data from the external Sportability API:
+     ```bash
+     pnpm seed
+     ```
 
 5. Start the dev server:
 
@@ -53,7 +62,8 @@ A stats website for the Bay Area Street Hockey (BASH) league. View live scores, 
 
 ## Data Sync
 
-Game data is sourced from [Sportability](https://www.sportability.com/). A daily cron job (configured in `vercel.json`) calls `/api/bash/sync` to pull the latest schedule, scores, and boxscores into the database.
+- **Sportability Sync**: External schedule, scores, and boxscores are pulled daily via Vercel cron hitting `/api/bash/sync`.
+- **Production Database Sync**: Native BASH seasons (such as Summer 2026 and 2026–2027 draft boards) are replicated using `scripts/export-prod-db.ts` (`PROD_URL='...' DEV_URL='...' npx tsx scripts/export-prod-db.ts`).
 
 ## Database Schema
 

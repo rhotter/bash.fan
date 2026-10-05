@@ -44,15 +44,17 @@ There is no centralized place for commissioners to manage the league — seasons
 
 #### 4.2 Season Management (`/admin/seasons`)
 - List all seasons with game counts
-- Edit season: name, `is_current` toggle, season type (fall, summer), and a new status field (draft/active/completed)
+- Edit season: name, `is_current` control, season type (fall, summer), and status (draft/active/completed)
 - Create new season with a season wizard
 - Create a season wizard should include:
   - Season name, type, and initializes the status as draft
 - Draft seasons:
-  - Should not be visible on the public site
-  - Provides a player draft wizard and draft board for commissioners to configure and run the draft.
-  - Should have a placeholder for a player registration wizard
+  - Default to staging (hidden from public site when `is_current = false`)
+  - Can be featured on the homepage in **Pre-Season Mode** by setting `is_current = true`, surfacing tryout games, registration, and draft announcements without locking team counts
+  - Provides a player draft wizard and draft board for commissioners to configure and run the draft
   - Provides a schedule wizard — the ability for commissioners to define a schedule for the season including playoff dates
+- Offseason / Fallback logic:
+  - If no season has `is_current = true`, the public homepage and default stats automatically fall back to the **last fully completed season** (ordered chronologically by latest game date), ensuring championship results remain visible while draft seasons stay safely unannounced in staging
 
 #### 4.3 Game Management (`/admin/games`)
 - Filterable list of games for the current season (by date, status, team)

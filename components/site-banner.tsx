@@ -88,7 +88,7 @@ export function SiteBanner() {
       dismissKey: `bash-draft-banner-dismissed-${draftSeasonSlug}-${draftStatus?.status ?? ""}`,
       label: isLive
         ? "BASH Draft is LIVE — Watch the picks unfold"
-        : "Announcing BASH's New Live Draft Tool! Live @7pm",
+        : "BASH Draft: Wed @ 7pm",
       href: `/draft/${draftSeasonSlug}`,
       variant: isLive ? "live" : "default",
       isActive: draftActive && !!draftSeasonSlug,

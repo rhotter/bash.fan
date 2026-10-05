@@ -4,6 +4,7 @@ import { eq, ne, and, sql } from "drizzle-orm"
 import { Badge } from "@/components/ui/badge"
 import { SeasonTabs } from "@/components/admin/season-tabs"
 import { SeasonActivationChecklist } from "@/components/admin/season-activation-checklist"
+import { SeasonHeaderActions } from "@/components/admin/season-header-actions"
 
 interface SeasonDetailPageProps {
   params: Promise<{ id: string }>
@@ -98,16 +99,12 @@ export default async function SeasonDetailPage({ params }: SeasonDetailPageProps
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-start justify-between">
+      <div className="flex items-start justify-between gap-4">
         <div className="space-y-1">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <h1 className="text-xl font-bold">{season.name}</h1>
             <StatusBadge status={season.status} />
-            {season.isCurrent && (
-              <span className="text-[9px] font-bold uppercase tracking-wider text-primary">
-                Current
-              </span>
-            )}
+            <SeasonHeaderActions seasonId={season.id} seasonName={season.name} isCurrent={season.isCurrent} />
           </div>
           <p className="text-sm text-muted-foreground">
             {season.seasonType === "fall" ? "Fall" : "Summer"} season

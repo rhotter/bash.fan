@@ -1,4 +1,4 @@
-import { defineConfig } from "vitest/config"
+import { defineConfig, configDefaults } from "vitest/config"
 import path from "path"
 
 export default defineConfig({
@@ -7,6 +7,7 @@ export default defineConfig({
     environment: "node",
     testTimeout: 30000,
     setupFiles: ["./tests/setup.ts"],
+    exclude: [...configDefaults.exclude, "**/.agents/**"],
   },
   resolve: {
     alias: {

@@ -1,5 +1,5 @@
 import { db, schema } from "@/lib/db"
-import { eq, desc } from "drizzle-orm"
+import { eq, desc, sql } from "drizzle-orm"
 import { unstable_cache } from "next/cache"
 
 export type SeasonType = "summer" | "fall"
@@ -33,18 +33,37 @@ function mapRow(s: typeof schema.seasons.$inferSelect): Season {
 
 export const getCurrentSeason = unstable_cache(
   async (): Promise<Season> => {
+    // 1. Explicitly featured season
     const s = await db.query.seasons.findFirst({
       where: eq(schema.seasons.isCurrent, true),
+      orderBy: [desc(schema.seasons.id)],
     })
-    if (!s) {
-      // Fallback: no season is marked current — use the most recent one
-      const fallback = await db.query.seasons.findFirst({ orderBy: [desc(schema.seasons.id)] })
-      if (fallback) {
-        return mapRow(fallback)
-      }
-      throw new Error("No seasons configured in the database.")
+    if (s) {
+      return mapRow(s)
     }
-    return mapRow(s)
+
+    // 2. Fallback: default to the last fully completed season
+    // Chronologically ordered by latest game date, with season ID as tie-breaker
+    const [lastCompleted] = await db
+      .select()
+      .from(schema.seasons)
+      .where(eq(schema.seasons.status, "completed"))
+      .orderBy(
+        sql`(SELECT MAX(date) FROM games WHERE games.season_id = seasons.id) DESC NULLS LAST`,
+        desc(schema.seasons.id)
+      )
+      .limit(1)
+
+    if (lastCompleted) {
+      return mapRow(lastCompleted)
+    }
+
+    // 3. Ultimate fallback: if no completed seasons exist (e.g. brand new setup), use newest by ID
+    const fallback = await db.query.seasons.findFirst({ orderBy: [desc(schema.seasons.id)] })
+    if (fallback) {
+      return mapRow(fallback)
+    }
+    throw new Error("No seasons configured in the database.")
   },
   ['current-season'],
   { tags: ['seasons'], revalidate: 3600 }

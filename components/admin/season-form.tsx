@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { Loader2, Check, AlertTriangle, HelpCircle, Trash2 } from "lucide-react"
+import { Loader2, Check, AlertTriangle, HelpCircle, Trash2, Globe } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -10,6 +10,8 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Badge } from "@/components/ui/badge"
+import { Switch } from "@/components/ui/switch"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -20,6 +22,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import { toast } from "sonner"
 const STANDINGS_OPTIONS = [
   { value: "pts-pbla", label: "Points (PBLA)", description: "W=3, OTW=2, OTL=1, L=0 (BASH default)" },
   { value: "pts-standard", label: "Points (Standard)", description: "W=2, T=1, OTL=1, L=0" },
@@ -29,7 +32,7 @@ const STANDINGS_OPTIONS = [
 
 const STATUS_OPTIONS = [
   { value: "draft", label: "Draft", description: "Season is being set up. Not visible to the public." },
-  { value: "active", label: "Active", description: "Season is in progress. Games can be scored and stats are tracked." },
+  { value: "active", label: "Active", description: "Move to Active after the draft is finalized and you're ready for regular season games to begin. Official standings, stats tracking, and regular season scoring will be enabled." },
   { value: "completed", label: "Completed", description: "Season is finished. Stats are frozen and visible as historical data." },
   { value: "archived", label: "Archived", description: "Hidden from most views. Data is preserved but not surfaced." },
 ]
@@ -47,6 +50,7 @@ interface SeasonFormProps {
     adminNotes: string | null
     statsOnly: boolean
     playoffTeams: number | null
+    isCurrent?: boolean
     enableSync: boolean
   }
 }
@@ -79,8 +83,10 @@ export function SeasonForm({ season }: SeasonFormProps) {
     adminNotes: season.adminNotes || "",
     statsOnly: season.statsOnly || false,
     playoffTeams: season.playoffTeams as number | null,
+    isCurrent: season.isCurrent ?? false,
     enableSync: season.enableSync ?? true,
   })
+
 
   async function handleSave() {
     setSaving(true)
@@ -96,14 +102,18 @@ export function SeasonForm({ season }: SeasonFormProps) {
 
       if (res.ok) {
         setSaved(true)
+        toast.success("Season settings saved")
         setTimeout(() => setSaved(false), 3000)
         router.refresh()
       } else {
         const data = await res.json()
-        setError(data.error || "Failed to save")
+        const errMsg = data.error || "Failed to save"
+        setError(errMsg)
+        toast.error(errMsg)
       }
     } catch {
       setError("Connection error")
+      toast.error("Connection error")
     } finally {
       setSaving(false)
     }
@@ -118,7 +128,7 @@ export function SeasonForm({ season }: SeasonFormProps) {
       },
       active: {
         title: "Activate this season?",
-        description: "This will make it the current active season and lock season settings like team count and playoff configuration.",
+        description: "Move to Active after the draft is finalized and you're ready for regular season games to begin. Official standings, stats tracking, and regular season scoring will be enabled.",
       },
       completed: {
         title: "Mark season as completed?",
@@ -135,8 +145,8 @@ export function SeasonForm({ season }: SeasonFormProps) {
 
   async function executeStatusTransition() {
     const newStatus = confirmDialog.status
-    setConfirmDialog({ ...confirmDialog, open: false })
     setSaving(true)
+    setError("")
     try {
       const res = await fetch(`/api/bash/admin/seasons/${season.id}`, {
         method: "PUT",
@@ -144,13 +154,29 @@ export function SeasonForm({ season }: SeasonFormProps) {
         body: JSON.stringify({ status: newStatus }),
       })
       if (res.ok) {
+        setForm((f) => ({
+          ...f,
+          status: newStatus,
+          ...(newStatus === "active" ? { isCurrent: true } : {}),
+        }))
+        setConfirmDialog((d) => ({ ...d, open: false }))
+        toast.success(`Season status changed to ${newStatus}`)
         router.refresh()
       } else {
-        const data = await res.json()
-        setError(data.error || "Failed to transition")
+        const data = await res.json().catch(() => ({}))
+        const errMsg = data.error || "Failed to transition"
+        setError(errMsg)
+        toast.error(errMsg)
         // Revert dropdown on failure
         setForm((f) => ({ ...f, status: season.status }))
+        setConfirmDialog((d) => ({ ...d, open: false }))
       }
+    } catch {
+      const errMsg = "Failed to transition season status"
+      setError(errMsg)
+      toast.error(errMsg)
+      setForm((f) => ({ ...f, status: season.status }))
+      setConfirmDialog((d) => ({ ...d, open: false }))
     } finally {
       setSaving(false)
     }
@@ -247,6 +273,50 @@ export function SeasonForm({ season }: SeasonFormProps) {
               {STATUS_OPTIONS.find((opt) => opt.value === form.status)?.description}
             </p>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Featured on Homepage */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-sm font-semibold flex items-center justify-between">
+            <span className="flex items-center gap-2">
+              <Globe className="h-4 w-4 text-muted-foreground" />
+              Featured on Homepage
+            </span>
+            {form.isCurrent ? (
+              <Badge variant="outline" className="border-primary/40 text-primary bg-primary/5 text-[10px] font-medium">
+                <Globe className="h-3 w-3" />
+                Current Season (Homepage)
+              </Badge>
+            ) : (
+              <Badge variant="outline" className="text-muted-foreground border-border text-[10px] font-medium">
+                Not Featured
+              </Badge>
+            )}
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex items-center justify-between gap-4 rounded-lg border p-3">
+            <div className="space-y-0.5">
+              <Label htmlFor="isCurrent" className="text-sm font-medium cursor-pointer">
+                Featured on Homepage
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Display this season by default on the public homepage. Tryout games, registration announcements, and schedules for this season will be featured to visitors.
+              </p>
+            </div>
+            <Switch
+              id="isCurrent"
+              checked={form.isCurrent}
+              onCheckedChange={(checked) => setForm((f) => ({ ...f, isCurrent: checked }))}
+            />
+          </div>
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            {form.isCurrent
+              ? "This season is currently set as the default season on the public homepage. It can remain in Draft status while teams, rosters, drafts, and schedules are being configured."
+              : "This season is not currently featured on the homepage. Toggle this on or use the 'Set as Current Season' button in the header above to make it the default season on the public site."}
+          </p>
         </CardContent>
       </Card>
 
@@ -384,9 +454,11 @@ export function SeasonForm({ season }: SeasonFormProps) {
 
       <AlertDialog open={confirmDialog.open} onOpenChange={(open) => {
         if (!open) {
-          setConfirmDialog({ ...confirmDialog, open: false })
-          // Revert dropdown when dialog is dismissed/cancelled
-          setForm((f) => ({ ...f, status: season.status }))
+          setConfirmDialog((d) => ({ ...d, open: false }))
+          // Revert dropdown only when dismissed/cancelled while not saving
+          if (!saving) {
+            setForm((f) => ({ ...f, status: season.status }))
+          }
         }
       }}>
         <AlertDialogContent>
@@ -397,8 +469,14 @@ export function SeasonForm({ season }: SeasonFormProps) {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={executeStatusTransition} disabled={saving}>
+            <AlertDialogCancel disabled={saving}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault()
+                executeStatusTransition()
+              }}
+              disabled={saving}
+            >
               {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Continue
             </AlertDialogAction>
