@@ -200,12 +200,40 @@ Each row links to the season detail page.
 
 ### 3.4 Season Detail / Edit (`/admin/seasons/[id]`)
 
-**Editable fields**:
+The season lifecycle is governed by two independent controls:
+
+1. **Visibility Scope (`is_current: boolean`)**:
+   - Controls which season is featured across all public-facing surfaces (homepage, game navigator, site banners, and default standings/stats).
+   - Can be set directly on any season—including while in `draft` status—via the **"Set as Current Season"** button in the season header or the toggle in the Settings tab.
+   - Setting a season as current automatically unsets `is_current` on all other seasons.
+   - **Defaulting / Offseason Fallback**: If no season has `is_current = true` (e.g., during the offseason between the end of playoffs and the start of pre-season announcements), `getCurrentSeason()` automatically defaults to the **last fully completed season** (`status = 'completed'`, ordered chronologically by latest game date). This ensures the public homepage and default stats always surface recent championship results rather than unpopulated draft seasons or an empty state.
+
+2. **Competition Stage (`status: text`)**:
+   - **`draft` (Pre-Season / Setup)**: Default status for new seasons. Full administrative editing: team creation, franchise/color assignments, roster imports, draft configuration, and tryout games. When `is_current = true`, the public homepage operates in **Pre-Season Mode** (displaying Tryout games and registration/draft banners without locking any team counts or settings).
+   - **`active` (Ready for Week 1)**: Move to Active after the draft is finalized and the league is ready for regular season games to begin. Enables official standings calculation, player stats tracking, and regular season game scorekeeping.
+   - **`completed` (Post-Season)**: Season is concluded; final standings and stats are frozen for historical reference.
+   - **`archived`**: Hidden from standard views but preserved in the database.
+
+**Header Controls**:
+- **Status Badge**: Displays current status (`draft`, `active`, `completed`).
+- **Current Season Action / Indicator**:
+  - If `isCurrent = false`: Displays a **"Set as Current Season"** button. Clicking opens an `AlertDialog` confirming:
+    > *"This will make [Season Name] the default season on the public homepage, displaying its tryout games and announcements. The season will remain in Draft status, so teams, rosters, drafts, and schedules remain fully editable."*
+  - If `isCurrent = true`: Displays a `Current Season (Homepage)` badge.
+
+**Season Activation Checklist ("Ready for Week 1")**:
+- Positioned prominently at the top of the season detail page.
+- Validates pre-conditions before regular season activation: teams confirmed, all players drafted and assigned to teams (no `tbd` assignments), and regular season schedule generated.
+- Activation modal copy:
+  > *"This indicates the league is Ready for Week 1: the draft is finalized, regular season schedule is confirmed, and official standings and stats tracking will begin. Are you sure you want to proceed?"*
+
+**Editable fields & Settings Form**:
 - Season name
 - Season type (fall / summer)
-- Status (draft → active → completed) — one-way progression with a native `AlertDialog` confirmation to prevent accidental clicks.
-  - Transitioning draft → active **automatically sets `is_current = true`** on this season. Does NOT modify the previous season's `is_current` flag (multiple seasons can have `is_current = true` during a transition, but `getCurrentSeason()` should resolve to the newest active one).
 - League ID (Sportability reference) — optional, can be added later when ready to sync
+- Status dropdown:
+  - `active` description: *"Move to Active after the draft is finalized and you're ready for regular season games to begin. Official standings, stats tracking, and regular season scoring will be enabled."*
+- **Featured on Homepage (`isCurrent`)** toggle card with status indicator
 
 **Season Settings** (collapsible section on the detail page):
 - **Standings method** — dropdown with options from §3.7. Default: `Pts-PBLA` (BASH's current method: W=3, OTW=2, OTL=1, L=0). Determines how standings are calculated and displayed on the public site.
@@ -320,8 +348,52 @@ The standings method determines how team records and points are computed from ga
 | `No-Standings` | Hides won-loss records, removes head-to-head page. | — |
 | `Match-Scores` | Cumulative game score as primary sort (volleyball-style). | — |
 
-> [!NOTE]
-> For Phase 1, the standings method is stored per season and displayed in the admin UI. Actually wiring it into the standings calculation in `fetchBashData()` is a follow-up task — the current Pts-PBLA logic remains the runtime default. This field establishes the data model so the calculation can be made dynamic in a future iteration.
+### 3.8 Pre-Season Lifecycle & Core User Journeys (CUJs)
+
+During the multi-week pre-season period between season creation and opening day puck drop, the league operates in a dedicated **Pre-Season Phase**. The following CUJs define the lifecycle:
+
+#### CUJ 1: Pre-Season Staging & Homepage Launch
+- **Actor**: Commissioner / Admin
+- **Context**: Commissioner creates the upcoming season (e.g., Fall 2026). Tryout dates are booked at the rink.
+- **Steps**:
+  1. Commissioner navigates to `/admin/seasons/[id]`. The season is in `draft` status and `is_current = false`.
+  2. Commissioner adds Tryout games in the Schedule tab.
+  3. Commissioner clicks **"Set as Current Season"** directly in the season header (or Settings tab).
+  4. Confirmation dialog appears explaining: *"This makes [Season] the featured season on the public homepage. The season remains in Draft status, so teams, rosters, and draft setup remain fully editable."*
+  5. Commissioner confirms. The season is now `is_current = true` while remaining `status: 'draft'`.
+- **Outcome**: The public homepage immediately displays the new season's Tryout games, registration banner, and draft announcement. The commissioner has not locked any teams or settings.
+
+#### CUJ 2: Public Pre-Season Experience
+- **Actor**: Player / Fan / Prospective Rookie
+- **Context**: Visiting the BASH website during pre-season.
+- **Steps**:
+  1. User opens `www.bayareastreethockey.com` (or `/`).
+  2. The homepage automatically loads the `is_current` season.
+  3. The top banner announces registration and the published draft date/countdown.
+  4. The game navigator defaults to the **"Tryouts"** week, displaying upcoming tryout matchups, times, and rink locations.
+  5. The Standings tab displays a clean pre-season indicator (*"Regular season standings will appear once games begin"*).
+- **Outcome**: Community has all tryout, draft, and registration info in one place without confusing pre-season games with regular season standings.
+
+#### CUJ 3: Pre-Season Team & Roster Adjustments
+- **Actor**: Commissioner
+- **Context**: Tryouts are underway; registration closes. Based on skater turnout, captains agree to adjust team count (e.g., expanding from 5 teams to 6 teams).
+- **Steps**:
+  1. Commissioner goes to `/admin/seasons/[id]` → **Teams** tab.
+  2. Because the season is in `draft` status, all team controls are completely unlocked.
+  3. Commissioner creates/assigns the 6th team and sets its franchise color.
+  4. In the **Draft** tab, commissioner creates or syncs the draft with the 6 teams and current player pool.
+- **Outcome**: Team count and assignments are adjusted seamlessly without any warning modals or database errors.
+
+#### CUJ 4: Ready for Week 1 / Regular Season Activation
+- **Actor**: Commissioner
+- **Context**: Tryouts are over, the live draft has completed, rosters are pushed to the season, and regular season schedule is confirmed.
+- **Steps**:
+  1. Commissioner views the **Season Activation Checklist** at the top of the season page.
+  2. All checks pass: Teams confirmed, all players drafted/assigned (0 TBD), regular season schedule generated.
+  3. Commissioner clicks **"Activate Season"**.
+  4. Modal confirms: *"This indicates the league is Ready for Week 1: the draft is finalized, regular season schedule is confirmed, and official standings and stats tracking will begin. Are you sure you want to proceed?"*
+  5. Season transitions from `draft` → `active`.
+- **Outcome**: Regular season is officially underway.
 
 ---
 
@@ -345,18 +417,32 @@ All admin API routes validate the session cookie server-side.
 
 ## 5. Public Site Impact
 
-### Season visibility
-Draft seasons must be hidden from the public site. Changes needed:
+### Season visibility & Pre-Season Mode
+The public site dynamically responds to the combination of `is_current` and `status`:
 
-1. **`SeasonSelector`** (`components/season-selector.tsx`): Filter out seasons where `status = 'draft'` — this is already partially handled since the selector only shows seasons with `hasGames || hasStats`, and draft seasons won't have any. However, an explicit `status` check is cleaner.
+1. **`is_current = true` on a `draft` season (Pre-Season Mode)**:
+   - `getCurrentSeason()` returns the current season.
+   - The public homepage (`/`) automatically renders the upcoming season's games. The `WeekNavigator` defaults to the **"Tryouts"** week pill, displaying all scheduled tryout matchups and rink times.
+   - The site banner renders the registration link and the published draft date / countdown banner.
+   - The Standings tab displays a clean pre-season indicator (*"Regular season standings will appear once games begin"*), preventing confusion with 0-0 regular season tables.
+   - In `SeasonSelector` (`components/season-selector.tsx`), other non-current draft seasons remain hidden, but the current season is prominently selected.
 
-2. **`lib/seasons.ts`**: `getAllSeasons()` should exclude draft seasons from the public-facing list. Since the static array won't have a `status` field, draft seasons simply won't be added to the array until they transition to `active`.
+2. **`is_current = true` on an `active` season (Regular Season Mode)**:
+   - Full regular season scores, live scorekeeper, computed standings, and player stat leaderboards are enabled.
 
-3. **`getCurrentSeason()`**: Must never return a draft season. The `is_current` flag should only be set on an active season.
+3. **`is_current = false` and `status = 'draft'` (Staging)**:
+   - Fully hidden from all public selectors, navigators, and site banners.
+
+4. **No season marked `is_current = true` (Offseason Mode / Automatic Completed Season Fallback)**:
+   - When no season has `is_current = true`, `getCurrentSeason()` queries for the last fully completed season (`status = 'completed'`), ordered chronologically by `(SELECT MAX(date) FROM games WHERE games.season_id = seasons.id) DESC NULLS LAST, id DESC`.
+   - The public homepage (`/`) displays the final games and scores of that completed season.
+   - The Standings tab displays the final regular season standings and champion results.
+   - Any draft seasons in progress remain completely hidden in staging until a commissioner explicitly activates them or clicks "Set as Current Season".
+   - If no completed seasons exist in the database (e.g., initial setup), it falls back to the newest season by ID so the system never errors.
 
 ### Backwards compatibility
 - All existing public pages continue to work unchanged
-- The `SEASONS` array in `lib/seasons.ts` remains the public site's source of truth
+- The `is_current` boolean remains the single source of truth for the default public season view
 - No existing API contracts change
 
 ---
@@ -397,6 +483,7 @@ Draft seasons must be hidden from the public site. Changes needed:
 
 - [x] ~~Should the wizard allow setting league_id?~~ **Resolved: Yes, as optional.** League ID is an optional field in both the wizard and the season edit form. Commissioners can add it later when they're ready to connect to Sportability for syncing.
 - [x] ~~Should draft → active auto-set `is_current`?~~ **Resolved: Yes, automatically.** Transitioning a season from draft → active automatically sets `is_current = true` on that season. The previous season's flag is **not** modified — `getCurrentSeason()` should resolve to the newest active season.
+- [x] ~~What happens if no season is set as current?~~ **Resolved: Default to last fully completed season.** If no season has `is_current = true`, `getCurrentSeason()` automatically defaults to the most recent season with `status: 'completed'`, ordered chronologically by latest game date. This prevents empty or unready draft seasons from appearing on the public homepage during the offseason.
 - [x] ~~Session signing secret?~~ **Resolved: Reuse `SCOREKEEPER_PIN`.** Both admin and scorekeeper already share the same `SCOREKEEPER_PIN` env var (confirmed in `validate-pin/route.ts` and all scorekeeper routes). No new env var needed — use `SCOREKEEPER_PIN` as the HMAC signing key for the session cookie.
 
 ---

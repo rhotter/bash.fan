@@ -64,6 +64,28 @@ pnpm seed
 ```
 *(Note: Ensure your `DATABASE_URL` is set before running this command).*
 
+### 4b. Syncing Live Production Data to Dev (Recommended)
+`pnpm seed` imports historical data from Sportability up to the 2025–2026 season. Native BASH seasons (such as Summer 2026 and 2026–2027 pre-season drafts) were managed directly in BASH and exist only in the production database.
+
+To replicate recent seasons, game boxscores, rosters, and live draft boards from production into your development or branch database:
+
+```bash
+# Using Environment Variables (requires both PROD_URL and DEV_URL)
+PROD_URL='<prod-db-url>' DEV_URL='<dev-db-url>' npx tsx scripts/export-prod-db.ts
+
+# Or using CLI Flags
+npx tsx scripts/export-prod-db.ts --from '<prod-db-url>' --to '<dev-db-url>'
+
+# Optional: Sync specific seasons only
+npx tsx scripts/export-prod-db.ts --from '<prod-db-url>' --to '<dev-db-url>' --seasons 2026-summer,bash-2026-2027
+```
+
+> **Safety & Credential Security:**
+> - **Never** save `PROD_URL` into `.env.local` or commit it to Git. Pass it at runtime via command line or environment variables.
+> - The script automatically masks passwords in terminal output.
+> - Source and target URLs cannot be identical (the script will abort to prevent accidental overwrites).
+> - Dynamic name-to-ID alignment ensures that target historical stats are preserved without ID collision.
+
 ### 5. Start the Development Server
 ```bash
 pnpm dev
@@ -108,13 +130,21 @@ To access and test the live scorekeeper logic locally:
 3. Proceed to `http://localhost:3000/scorekeeper` and insert the PIN to manage active games.
 
 ## Data Sync Workflow
-The production site automatically syncs data via a daily Vercel cron job calling `/api/bash/sync`. If you need to force a sync locally to get the absolute latest scores/games:
-1. Ensure your local server is running (`pnpm dev`).
-2. Send a POST request to the local sync endpoint (e.g., using `curl` or Postman):
-   ```bash
-   curl -X POST http://localhost:3000/api/bash/sync
-   ```
-*(Note: The sync process scrapes Sportability and can take a minute to complete.)*
+There are two distinct data sync mechanisms in BASH:
+
+1. **Daily Sportability Sync (`/api/bash/sync`)**:
+   - The production site automatically runs a daily Vercel cron job calling `/api/bash/sync` to scrape scores and schedules from Sportability for traditional fall seasons.
+   - To trigger locally:
+     ```bash
+     curl -X POST http://localhost:3000/api/bash/sync
+     ```
+
+2. **Database Replication from Production (`scripts/export-prod-db.ts`)**:
+   - In-house seasons (e.g., Summer 2026, 2026–2027 draft instances, live scorekeeper games) are created directly within BASH and do not exist on Sportability.
+   - Use `scripts/export-prod-db.ts` to replicate these records from production into your target dev database:
+     ```bash
+     PROD_URL='<prod-db-url>' DEV_URL='<dev-db-url>' npx tsx scripts/export-prod-db.ts
+     ```
 
 ## Testing the Admin Dashboard
 

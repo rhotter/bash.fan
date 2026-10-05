@@ -15,6 +15,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import { toast } from "sonner"
 
 interface SeasonActivationChecklistProps {
   season: {
@@ -93,13 +94,17 @@ export function SeasonActivationChecklist({ season }: SeasonActivationChecklistP
       })
 
       if (res.ok) {
+        toast.success("Season activated successfully")
         router.refresh()
       } else {
         const data = await res.json()
-        setError(data.error || "Failed to activate season")
+        const errMsg = data.error || "Failed to activate season"
+        setError(errMsg)
+        toast.error(errMsg)
       }
     } catch {
       setError("Connection error")
+      toast.error("Connection error")
     } finally {
       setSaving(false)
     }
@@ -164,8 +169,7 @@ export function SeasonActivationChecklist({ season }: SeasonActivationChecklistP
           <AlertDialogHeader>
             <AlertDialogTitle>Activate {season.name}?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will make it the current active season on the public site and lock season settings like team count.
-              Are you sure you want to proceed?
+              This indicates the league is Ready for Week 1: the draft is finalized, regular season schedule is confirmed, and official standings and stats tracking will begin. Are you sure you want to proceed?
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

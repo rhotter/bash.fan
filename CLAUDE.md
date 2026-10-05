@@ -12,6 +12,7 @@ Bay Area Street Hockey (BASH) league stats website. Displays scores, standings, 
 - `pnpm build` — Production build
 - `pnpm lint` — Run ESLint
 - `npx tsx scripts/seed.ts` — Seed database from Sportability API
+- `PROD_URL='<prod-db-url>' DEV_URL='<dev-db-url>' npx tsx scripts/export-prod-db.ts` — Sync recent seasons, boxscores, and draft boards from production into dev database (or `pnpm db:export-prod --from '...' --to '...'`)
 
 ## Tech Stack
 
@@ -52,7 +53,7 @@ Each page follows: async Server Component (data fetch + `generateMetadata`) → 
 - `components/` — Page-level components (scores-tab, standings-tab, stats-tab, etc.)
 - `components/admin/draft-*.tsx` — Draft wizard, board, and pool import components
 - `components/public-draft-board.tsx` — Real-time public draft spectator view
-- `scripts/` — DB seeding and data maintenance utilities
+- `scripts/` — DB seeding, production DB sync (`export-prod-db.ts`), and data maintenance utilities
 
 ### Standings Computation
 
@@ -70,6 +71,8 @@ Standings are computed from the games array (not stored): W=3pts, OTW=2pts, OTL=
 
 ## Environment
 
-- `DATABASE_URL` — Neon Postgres connection string (required), stored in `.env.local`
+- `DATABASE_URL` — Neon Postgres connection string for your dev database (required), stored in `.env.local`
+- `PROD_URL` — Production Neon Postgres connection string (required at runtime for `scripts/export-prod-db.ts`; NEVER save to `.env.local` or commit)
+- `DEV_URL` — Destination dev database connection string for `scripts/export-prod-db.ts` (pass via env or `--to`)
 - To run scripts that need DB access: `export $(cat .env.local | grep -v '^#' | xargs) && npx tsx scripts/your-script.ts`
 - Deployed on Vercel

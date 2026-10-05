@@ -137,6 +137,9 @@ Admins import player rosters via **CSV** files exported from Sportability. The t
 
 > **Note:** Sportability exports `.xlsx` files. Admins must convert to `.csv` before uploading (Excel → Save As CSV, or Google Sheets → Download as CSV). This avoids a heavy `xlsx` dependency that is incompatible with the Next.js server bundler.
 
+### 1b. Production Database Sync (`scripts/export-prod-db.ts`)
+In-house seasons (e.g., Summer seasons, tournament exhibition games, live scorekeeper games, and draft instances) originate within BASH rather than Sportability. The replication utility `scripts/export-prod-db.ts` copies selected seasons and their relational entities (teams, games, boxscores, game officials, awards, and complete draft state) from the production Neon Postgres database into a developer's target database, using dynamic name-to-ID alignment to prevent foreign key or historical stat collisions. Both `PROD_URL` and `DEV_URL` connection strings are passed at execution time (`PROD_URL='...' DEV_URL='...' npx tsx scripts/export-prod-db.ts`).
+
 ### 2. Server-Side Data Fetching (`lib/fetch-*.ts`)
 The application heavily uses Next.js async Server Components. When a page loads, it fetches data using functions located in `lib/fetch-*.ts`, which execute Drizzle ORM queries against Neon Postgres. 
 

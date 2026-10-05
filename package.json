@@ -4,10 +4,11 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint .",
     "seed": "npx tsx scripts/seed.ts",
+    "db:export-prod": "npx tsx scripts/export-prod-db.ts",
     "test": "vitest",
     "test:run": "vitest run",
     "db:introspect": "drizzle-kit introspect",

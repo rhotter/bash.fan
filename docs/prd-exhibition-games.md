@@ -29,6 +29,7 @@ At the beginning of each fall season, BASH hosts **2–3 tryout games**. These a
 - **Walk-up players**: Tryout games attract prospective rookies who have never played in BASH before. These players have no existing `players` record in the system and need to be created on the spot.
 - **Attendance is critical**: In order to be eligible for the fall season, rookies must attend at least one tryout game. Tracking which players showed up and played is the single most important data point from tryouts — the roster serves as the attendance record.
 - **Returning players too**: Tryout games aren't just for rookies. Returning veterans also play, so the roster is a mix of existing `players` records and brand-new entries.
+- **Pre-Season Staging & Homepage Display**: Tryout games are scheduled while the upcoming season is in `status: 'draft'`. Setting `is_current = true` on the draft season features the tryout games on the public homepage under the "Tryouts" week pill, allowing players to view game times and locations without requiring the season to be prematurely activated or locking team counts.
 
 ### Shared Infrastructure Gap
 
@@ -43,6 +44,7 @@ Currently, there is no clean way to create a game where the teams and rosters ar
 ## 2. Goals
 
 - Allow admins to create exhibition and tryout games under the current season with custom team names, ad-hoc rosters, and optional custom game titles.
+- Allow admins to feature tryout games on the public homepage by marking an upcoming draft season as current (`is_current = true`) during pre-season, while keeping teams, rosters, and draft setup completely unlocked.
 - Ensure exhibition and tryout games are **completely excluded** from standings, player stats leaderboards, and all-time stat aggregations
 - Ensure these games are **visible** on the public scores page with clear "Exhibition" or "Tryout" labeling and custom titles if provided
 - Ensure the **scorekeeper app** and **live game tracking** work for these games (rink-side scoring + remote spectator view)

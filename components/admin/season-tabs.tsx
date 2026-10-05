@@ -104,7 +104,9 @@ export function SeasonTabs({ season }: SeasonTabsProps) {
 
       {/* Tab Content */}
       <div>
-        {activeTab === "Settings" && <SeasonForm season={season} />}
+        {activeTab === "Settings" && (
+          <SeasonForm key={`${season.id}-${season.isCurrent}-${season.status}`} season={season} />
+        )}
         {activeTab === "Teams" && <SeasonTeamsTab seasonId={season.id} seasonStatus={season.status} initialTeams={teams} onTeamsChange={handleTeamsChange} />}
         {activeTab === "Roster" && <SeasonRosterTab seasonId={season.id} seasonStatus={season.status} roster={roster} teams={teams} onRosterChange={handleRosterChange} />}
         {activeTab === "Schedule" && <SeasonScheduleTab seasonId={season.id} seasonStatus={season.status} initialTeams={teams} defaultLocation={season.defaultLocation || "The Lick"} onTeamCreated={() => router.refresh()} />}
