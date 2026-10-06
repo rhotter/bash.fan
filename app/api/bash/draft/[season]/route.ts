@@ -135,6 +135,7 @@ export async function GET(
         id: draft.id,
         name: draft.name,
         status: draft.status,
+        draftType: draft.draftType,
         rounds: draft.rounds,
         draftDate: draft.draftDate?.toISOString() || null,
         location: draft.location,

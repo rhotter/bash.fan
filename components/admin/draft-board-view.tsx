@@ -18,7 +18,7 @@ import { Label } from "@/components/ui/label"
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip"
 import { PlayerCardModal } from "@/components/player-card-modal"
 import { resolvePreDraftTrades, type PreDraftTradeInput } from "@/lib/draft-trade-resolver"
-import { generatePickSlots } from "@/lib/draft-helpers"
+import { generatePickSlots, isPlayerGoalie } from "@/lib/draft-helpers"
 import { TeamLogo } from "@/components/team-logo"
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -1612,7 +1612,7 @@ export function DraftBoardView({
                       const newOwnerTeam = isTradedAway ? teams.find(tm => tm.teamSlug === pick.teamSlug) : null
                       const playerInPool = pick?.playerId ? pool.find(p => p.playerId === pick.playerId) : null
                       const isRookie = playerInPool?.registrationMeta?.isRookie === true
-                      const isGoalie = typeof playerInPool?.registrationMeta?.positions === "string" && playerInPool.registrationMeta.positions.includes("G")
+                      const isGoalie = isPlayerGoalie(playerInPool?.registrationMeta?.positions)
 
                       return (
                         <td
@@ -1990,7 +1990,7 @@ export function DraftBoardView({
                             const newOwnerTeam = isTradedAway ? teams.find(tm => tm.teamSlug === pick.teamSlug) : null
                             const playerInPool = pick?.playerId ? pool.find(p => p.playerId === pick.playerId) : null
                             const isRookie = playerInPool?.registrationMeta?.isRookie === true
-                            const isGoalie = typeof playerInPool?.registrationMeta?.positions === "string" && playerInPool.registrationMeta.positions.includes("G")
+                            const isGoalie = isPlayerGoalie(playerInPool?.registrationMeta?.positions)
 
                             return (
                               <td

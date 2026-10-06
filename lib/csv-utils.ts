@@ -12,8 +12,12 @@
  *
  * Returns a deduplicated array of tags from the set ["G", "F", "D"].
  */
+import { isNotGoaliePosition } from "./draft-helpers"
+
 export function parsePositionTags(raw: string | null | undefined): ("G" | "F" | "D")[] {
   if (!raw) return []
+
+  const notGoalie = isNotGoaliePosition(raw)
 
   // Split on commas, slashes, spaces, and common conjunctions
   const tokens = raw
@@ -26,8 +30,8 @@ export function parsePositionTags(raw: string | null | undefined): ("G" | "F" | 
   const tags = new Set<"G" | "F" | "D">()
 
   for (const t of tokens) {
-    // Goalie
-    if (t === "g" || t === "goalie" || t === "goal" || t === "goalkeeper" || t === "netminder") {
+    // Goalie (only if player didn't specify "not goalie")
+    if (!notGoalie && (t === "g" || t === "goalie" || t === "goalies" || t === "goal" || t === "goals" || t === "goalkeeper" || t === "goalkeepers" || t === "netminder" || t === "netminders")) {
       tags.add("G")
     }
     // Forward
@@ -40,12 +44,18 @@ export function parsePositionTags(raw: string | null | undefined): ("G" | "F" | 
     if (t === "d" || t === "defense" || t === "defence" || t === "defenseman" || t === "defenceman") {
       tags.add("D")
     }
-    // "All" → all three
+    // "All" → all positions (or skaters if not goalie)
     if (t === "all") {
-      tags.add("G")
+      if (!notGoalie) tags.add("G")
       tags.add("F")
       tags.add("D")
     }
+  }
+
+  // If player specified "not goalie" with no other position, default to skaters (F, D)
+  if (notGoalie && tags.size === 0) {
+    tags.add("F")
+    tags.add("D")
   }
 
   return Array.from(tags)

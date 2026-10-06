@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button"
 import { Search, Clock, Users, Volume2, VolumeX, CalendarPlus, Layers, X, ChevronsRight, Eye, EyeOff, Trophy, LayoutList, LayoutGrid, ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react"
 import { PlayerCardModal } from "@/components/player-card-modal"
 import { TeamLogo } from "@/components/team-logo"
+import { isPlayerGoalie, matchesPositionFilter } from "@/lib/draft-helpers"
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -53,6 +54,7 @@ interface DraftState {
   id: string
   name: string
   status: string
+  draftType?: string | null
   rounds: number
   draftDate: string | null
   location: string | null
@@ -337,32 +339,7 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
         return p.playerName.toLowerCase().includes(playerSearch.toLowerCase())
       })
       .filter((p) => {
-        if (positionFilter.length === 0) return true
-        const pos = typeof p.registrationMeta?.positions === "string" ? p.registrationMeta.positions.toLowerCase() : ""
-        if (!pos) return false
-
-        // Tokenize: split on commas, slashes, hyphens, whitespace; strip non-alpha chars
-        const tokens = pos.split(/[,/\s-]+/).map((t) => t.replace(/[^a-z]/g, "")).filter(Boolean)
-
-        // Wildcard positions match every filter
-        const wildcards = ["all", "any", "whatever", "both"]
-        if (tokens.some((t) => wildcards.includes(t))) return true
-
-        // Map filter buttons to keywords that indicate that position
-        const filterKeywords: Record<string, string[]> = {
-          "G": ["goalie", "goal", "g", "goalkeeper", "backup goalie"],
-          "D": ["defense", "defence", "def", "d", "rd", "ld", "defensemen", "defenseman"],
-          "C": ["center", "centre", "c"],
-          "F": ["forward", "forwards", "f", "fwd", "wing", "winger", "w", "lw", "rw", "rf",
-                "offense", "left wing", "right wing", "not goalie", "anywhere but goalie", "any but goalie"],
-        }
-
-        return positionFilter.some((filterKey) => {
-          const keywords = filterKeywords[filterKey] || [filterKey.toLowerCase()]
-          return keywords.some((kw) =>
-            tokens.includes(kw) || (kw.includes(" ") && pos.includes(kw))
-          )
-        })
+        return matchesPositionFilter(p.registrationMeta?.positions, positionFilter)
       })
       .sort((a, b) => a.playerName.localeCompare(b.playerName))
   }, [pool, draftedPlayerIds, playerSearch, positionFilter])
@@ -625,11 +602,11 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
             <CardContent>
               <p className="text-sm text-muted-foreground">
                 {teams.length > 0 && pool.length > 0 ? (
-                  <>{draft.rounds}-round {season.name.toLowerCase().includes("summer") ? "summer" : ""} snake draft. Captains will select from a pool of {pool.length} players. Each team enters the draft with their captain as a keeper.</>
+                  <>{draft.rounds}-round {season.name.toLowerCase().includes("summer") ? "summer " : ""}{draft.draftType === "linear" ? "linear" : "snake"} draft. Captains will select from a pool of {pool.length} players. Each team enters the draft with their captain as a keeper.</>
                 ) : teams.length > 0 ? (
-                  <>{draft.rounds}-round {season.name.toLowerCase().includes("summer") ? "summer" : ""} snake draft with {teams.length} teams. Player pool details will be finalized closer to draft day.</>
+                  <>{draft.rounds}-round {season.name.toLowerCase().includes("summer") ? "summer " : ""}{draft.draftType === "linear" ? "linear" : "snake"} draft with {teams.length} teams. Player pool details will be finalized closer to draft day.</>
                 ) : (
-                  <>Snake draft format. Teams, rounds, and player pool details will be finalized closer to draft day.</>
+                  <>{draft.draftType === "linear" ? "Linear" : "Snake"} draft format. Teams, rounds, and player pool details will be finalized closer to draft day.</>
                 )}
               </p>
               <div className="flex flex-wrap gap-x-6 gap-y-1 mt-3 text-xs text-muted-foreground">
@@ -1223,7 +1200,7 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
                               const newOwner = isTradedSlot ? teams.find((t) => t.teamSlug === pick.teamSlug) : null
                               const playerInPool = pick.playerId ? pool.find((p) => p.playerId === pick.playerId) : null
                               const isRookie = playerInPool?.registrationMeta?.isRookie === true
-                              const isGoalie = typeof playerInPool?.registrationMeta?.positions === "string" && playerInPool.registrationMeta.positions.includes("G")
+                              const isGoalie = isPlayerGoalie(playerInPool?.registrationMeta?.positions)
                               const isOnTheClock = currentPick?.id === pick.id
                               const isHighlighted = highlightedPickIds.has(pick.id)
 
