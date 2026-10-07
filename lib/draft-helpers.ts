@@ -68,9 +68,9 @@ export function isNotGoaliePosition(rawPos: unknown): boolean {
   if (typeof rawPos !== "string" || !rawPos.trim()) return false
   const pos = rawPos.toLowerCase()
   return (
-    /\b(not|no|never|non)\s*-?\s*(a\s+)?(goalies?|goalkeepers?|netminders?|goals?|g)\b/i.test(pos) ||
-    /\b(any|anywhere|anything|everything|all)\s+but\s+(a\s+)?(goalies?|goalkeepers?|netminders?|goals?|g)\b/i.test(pos) ||
-    /\bexcept\s+(for\s+)?(a\s+)?(goalies?|goalkeepers?|netminders?|goals?|g)\b/i.test(pos)
+    /\b(not|no|never|non|won'?t|don'?t|can'?t|cannot|prefer\s+not)(\s*-?\s*|\s+(to\s+|play(ing)?\s+|be\s+|put\s+me\s+)*)(a\s+)?(in\s+(the\s+)?(goal|net)|(backup\s+)?(goalies?|goaltenders?)|goalkeepers?|netminders?|g)\b/i.test(pos) ||
+    /\b(any|anywhere|anything|everything|all)\s+but\s+(a\s+)?(in\s+(the\s+)?(goal|net)|(backup\s+)?(goalies?|goaltenders?)|goalkeepers?|netminders?|g)\b/i.test(pos) ||
+    /\bexcept\s+(for\s+)?(a\s+)?(in\s+(the\s+)?(goal|net)|(backup\s+)?(goalies?|goaltenders?)|goalkeepers?|netminders?|g)\b/i.test(pos)
   )
 }
 
@@ -85,9 +85,19 @@ export function isPlayerGoalie(rawPos: unknown): boolean {
   const pos = rawPos.toLowerCase()
   const tokens = pos.split(/[,/\s-]+/).map((t) => t.replace(/[^a-z]/g, "")).filter(Boolean)
 
-  const goalieTokens = ["g", "goalie", "goalies", "goal", "goals", "goalkeeper", "goalkeepers", "netminder", "netminders"]
+  const goalieTokens = [
+    "g",
+    "goalie",
+    "goalies",
+    "goaltender",
+    "goaltenders",
+    "goalkeeper",
+    "goalkeepers",
+    "netminder",
+    "netminders",
+  ]
   if (tokens.some((t) => goalieTokens.includes(t))) return true
-  if (pos.includes("backup goalie") || pos.includes("backup goalies")) return true
+  if (/\b(backup\s+goalies?|in\s+(the\s+)?(goal|net))\b/i.test(pos) && !/\bin\s+(the\s+)?goal[\s-]+scor/i.test(pos)) return true
 
   return false
 }
@@ -109,9 +119,8 @@ export function matchesPositionFilter(rawPos: unknown, filterKeys: string[]): bo
   // Tokenize: split on commas, slashes, hyphens, whitespace; strip non-alpha chars
   const tokens = pos.split(/[,/\s-]+/).map((t) => t.replace(/[^a-z]/g, "")).filter(Boolean)
 
-  // Map filter buttons to keywords that indicate that position
+  // Map skater filter buttons to keywords that indicate that position (G uses isPlayerGoalie)
   const filterKeywords: Record<string, string[]> = {
-    G: ["goalie", "goalies", "goal", "goals", "g", "goalkeeper", "goalkeepers", "netminder", "netminders", "backup goalie", "backup goalies"],
     D: ["defense", "defence", "def", "d", "rd", "ld", "defensemen", "defenseman"],
     C: ["center", "centre", "c"],
     F: [
@@ -134,32 +143,42 @@ export function matchesPositionFilter(rawPos: unknown, filterKeys: string[]): bo
   const matchesD = filterKeywords.D.some((kw) => tokens.includes(kw) || (kw.includes(" ") && pos.includes(kw)))
   const matchesC = filterKeywords.C.some((kw) => tokens.includes(kw) || (kw.includes(" ") && pos.includes(kw)))
   const matchesF = filterKeywords.F.some((kw) => tokens.includes(kw) || (kw.includes(" ") && pos.includes(kw)))
+  const matchesG = isPlayerGoalie(rawPos)
   const hasSpecificSkaterPos = matchesD || matchesC || matchesF
 
-  // If player listed "not goalie" (or equivalent):
+  // If specific skater positions are named, only match those (or G if player is also goalie)
+  // Even if "both", "any", etc. are present (e.g., "Both Forward and Defense", "Any forward position")
+  if (hasSpecificSkaterPos) {
+    return filterKeys.some((k) => {
+      if (k === "D") return matchesD
+      if (k === "C") return matchesC
+      if (k === "F") return matchesF
+      if (k === "G") return matchesG
+      return false
+    })
+  }
+
+  // If player listed "not goalie" (or equivalent) with no specific position:
   if (notGoalie) {
-    const activeSkaterFilters = filterKeys.filter((k) => k !== "G")
-    if (activeSkaterFilters.length === 0) return false
+    return filterKeys.some((k) => k !== "G")
+  }
 
-    // If player specified a position (e.g., "Defense, not goalie"), match only that position
-    if (hasSpecificSkaterPos) {
-      return activeSkaterFilters.some((k) => {
-        if (k === "D") return matchesD
-        if (k === "C") return matchesC
-        if (k === "F") return matchesF
-        return false
-      })
+  // True wildcard positions ("all", "whatever") without specific positions
+  if (tokens.some((t) => ["all", "whatever"].includes(t))) {
+    if (notGoalie) {
+      return filterKeys.some((k) => k !== "G")
     }
-
-    // Generic "not goalie" with no other position matches all skater positions
     return true
   }
 
-  // Wildcard positions match every filter
-  const wildcards = ["all", "any", "whatever", "both"]
-  if (tokens.some((t) => wildcards.includes(t))) return true
+  // "any" or "both" without specific positions defaults to skater positions unless goalie is explicitly indicated
+  if (tokens.some((t) => ["any", "both"].includes(t))) {
+    if (matchesG) return true
+    return filterKeys.some((k) => k !== "G")
+  }
 
   return filterKeys.some((filterKey) => {
+    if (filterKey === "G") return matchesG
     const keywords = filterKeywords[filterKey] || [filterKey.toLowerCase()]
     return keywords.some(
       (kw) => tokens.includes(kw) || (kw.includes(" ") && pos.includes(kw))
@@ -176,10 +195,6 @@ export function getPositionChips(rawPos: unknown): Array<"G" | "D" | "C" | "F"> 
   const pos = rawPos.toLowerCase()
   const notGoalie = isNotGoaliePosition(pos)
   const tokens = pos.split(/[,/\s-]+/).map((t) => t.replace(/[^a-z]/g, "")).filter(Boolean)
-
-  if (tokens.some((t) => ["all", "any", "whatever", "both"].includes(t))) {
-    return notGoalie ? ["D", "C", "F"] : ["G", "D", "C", "F"]
-  }
 
   const chips: Array<"G" | "D" | "C" | "F"> = []
 
@@ -209,10 +224,23 @@ export function getPositionChips(rawPos: unknown): Array<"G" | "D" | "C" | "F"> 
     chips.push("F")
   }
 
-  if (notGoalie && chips.length === 0) {
+  if (chips.length > 0) {
+    return chips
+  }
+
+  // If no specific position matched, check for generic wildcards
+  if (tokens.some((t) => ["all", "whatever"].includes(t))) {
+    return notGoalie ? ["D", "C", "F"] : ["G", "D", "C", "F"]
+  }
+
+  if (tokens.some((t) => ["any", "both"].includes(t))) {
     return ["D", "F"]
   }
 
-  return chips
+  if (notGoalie) {
+    return ["D", "F"]
+  }
+
+  return []
 }
 

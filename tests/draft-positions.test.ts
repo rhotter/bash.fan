@@ -170,10 +170,82 @@ describe("Draft Position Helpers", () => {
       expect(getPositionChips("Winger, Defense")).toEqual(["D", "F"])
       expect(getPositionChips("Defense, not goalie")).toEqual(["D"])
       expect(getPositionChips("not goalie")).toEqual(["D", "F"])
+      expect(getPositionChips("Both Forward and Defense")).toEqual(["D", "F"])
+      expect(getPositionChips("Any forward position")).toEqual(["F"])
       expect(getPositionChips("All")).toEqual(["G", "D", "C", "F"])
       expect(getPositionChips("")).toEqual([])
       expect(getPositionChips(null)).toEqual([])
       expect(getPositionChips(undefined)).toEqual([])
+    })
+  })
+
+  describe("goals vs goalie disambiguation", () => {
+    it("does not treat 'goals' or 'goal scorer' as Goalie", () => {
+      expect(isPlayerGoalie("Goal scorer")).toBe(false)
+      expect(isPlayerGoalie("Scored 10 goals")).toBe(false)
+      expect(isPlayerGoalie("Defense, 5 goals last season")).toBe(false)
+      expect(matchesPositionFilter("Defense, 5 goals last season", ["G"])).toBe(false)
+      expect(matchesPositionFilter("Defense, 5 goals last season", ["D"])).toBe(true)
+      expect(matchesPositionFilter("Both Forward and Defense", ["G"])).toBe(false)
+      expect(matchesPositionFilter("Both Forward and Defense", ["F"])).toBe(true)
+      expect(matchesPositionFilter("Both Forward and Defense", ["D"])).toBe(true)
+    })
+
+    it("does not reject goalies who describe shutouts or goals allowed", () => {
+      expect(isPlayerGoalie("Goalie, no goals against")).toBe(true)
+      expect(isPlayerGoalie("Goalie (no goals allowed)")).toBe(true)
+      expect(matchesPositionFilter("Goalie, no goals against", ["G"])).toBe(true)
+      expect(matchesPositionFilter("Goalie, no goals against", ["D"])).toBe(false)
+    })
+
+    it("correctly handles 'in goal' and negations of 'in goal'", () => {
+      expect(isPlayerGoalie("Plays in goal")).toBe(true)
+      expect(isPlayerGoalie("In goal")).toBe(true)
+      expect(isPlayerGoalie("In net")).toBe(true)
+      expect(isPlayerGoalie("Defense, not in goal")).toBe(false)
+      expect(isPlayerGoalie("Defense, never in goal")).toBe(false)
+      expect(isPlayerGoalie("not backup goalie")).toBe(false)
+      expect(matchesPositionFilter("Defense, not in goal", ["G"])).toBe(false)
+      expect(matchesPositionFilter("Defense, not in goal", ["D"])).toBe(true)
+    })
+
+    it("parses 'in goal' and 'in net' during CSV import", async () => {
+      const { parsePositionTags } = await import("@/lib/csv-utils")
+      expect(parsePositionTags("Plays in goal")).toEqual(["G"])
+      expect(parsePositionTags("In goal")).toEqual(["G"])
+      expect(parsePositionTags("In net")).toEqual(["G"])
+      expect(parsePositionTags("Defense, not in goal")).toEqual(["D"])
+    })
+
+    it("recognizes official 'Goaltender' terminology", async () => {
+      expect(isPlayerGoalie("Goaltender")).toBe(true)
+      expect(isPlayerGoalie("Goaltenders")).toBe(true)
+      expect(isPlayerGoalie("Starting Goaltender")).toBe(true)
+      expect(matchesPositionFilter("Goaltender", ["G"])).toBe(true)
+      expect(matchesPositionFilter("Goaltender", ["D"])).toBe(false)
+      const { parsePositionTags } = await import("@/lib/csv-utils")
+      expect(parsePositionTags("Goaltender")).toEqual(["G"])
+    })
+
+    it("does not treat space-separated 'in goal scoring' as Goalie", async () => {
+      expect(isPlayerGoalie("leader in goal scoring")).toBe(false)
+      expect(isPlayerGoalie("top 5 in goal scoring")).toBe(false)
+      expect(isPlayerGoalie("experienced in goal-scoring")).toBe(false)
+      expect(matchesPositionFilter("leader in goal scoring", ["G"])).toBe(false)
+      const { parsePositionTags } = await import("@/lib/csv-utils")
+      expect(parsePositionTags("leader in goal scoring")).toEqual([])
+    })
+
+    it("correctly handles auxiliary verb non-goalie negations", async () => {
+      expect(isPlayerGoalie("won't play in goal")).toBe(false)
+      expect(isPlayerGoalie("will not play in net")).toBe(false)
+      expect(isPlayerGoalie("not playing goalie")).toBe(false)
+      expect(isPlayerGoalie("can't play goalie")).toBe(false)
+      expect(isPlayerGoalie("prefer not to play goalie")).toBe(false)
+      expect(matchesPositionFilter("won't play in goal", ["G"])).toBe(false)
+      expect(matchesPositionFilter("won't play in goal", ["D"])).toBe(true)
+      const { parsePositionTags } = await import("@/lib/csv-utils")
+      expect(parsePositionTags("will not play in net")).toEqual(["F", "D"])
     })
   })
 })

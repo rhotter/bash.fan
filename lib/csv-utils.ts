@@ -12,7 +12,7 @@
  *
  * Returns a deduplicated array of tags from the set ["G", "F", "D"].
  */
-import { isNotGoaliePosition } from "./draft-helpers"
+import { isNotGoaliePosition, isPlayerGoalie } from "./draft-helpers"
 
 export function parsePositionTags(raw: string | null | undefined): ("G" | "F" | "D")[] {
   if (!raw) return []
@@ -29,11 +29,12 @@ export function parsePositionTags(raw: string | null | undefined): ("G" | "F" | 
 
   const tags = new Set<"G" | "F" | "D">()
 
+  // Goalie (aligned with runtime isPlayerGoalie detection)
+  if (!notGoalie && isPlayerGoalie(raw)) {
+    tags.add("G")
+  }
+
   for (const t of tokens) {
-    // Goalie (only if player didn't specify "not goalie")
-    if (!notGoalie && (t === "g" || t === "goalie" || t === "goalies" || t === "goal" || t === "goals" || t === "goalkeeper" || t === "goalkeepers" || t === "netminder" || t === "netminders")) {
-      tags.add("G")
-    }
     // Forward
     if (t === "f" || t === "forward" || t === "fw" || t === "fwd"
       || t === "wing" || t === "winger" || t === "lw" || t === "rw"

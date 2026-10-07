@@ -1074,11 +1074,14 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
                               const playoffShort = playoffAvail.toLowerCase().startsWith("yes") ? "Y" : playoffAvail.toLowerCase().startsWith("no") ? "N" : "?"
 
                               return (
-                                <div
+                                <button
                                   key={pick.id}
+                                  type="button"
                                   onClick={() => pick.playerId && openPlayerCard(pick.playerId)}
+                                  onMouseEnter={() => pick.playerId && prefetchPlayerStats(pick.playerId)}
+                                  onFocus={() => pick.playerId && prefetchPlayerStats(pick.playerId)}
                                   className={cn(
-                                    "group flex items-baseline gap-2 sm:gap-3 px-2 py-1.5 rounded-md cursor-pointer hover:bg-muted/50 transition-colors",
+                                    "group w-full text-left flex items-baseline gap-2 sm:gap-3 px-2 py-1.5 rounded-md cursor-pointer hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/40 transition-colors",
                                     i % 2 === 0 && "bg-card/15"
                                   )}
                                 >
@@ -1108,7 +1111,7 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
                                   <span className={`hidden md:inline shrink-0 text-[10px] font-medium tabular-nums w-8 text-center ${playoffShort === "Y" ? "text-green-600" : playoffShort === "N" ? "text-red-500" : "text-muted-foreground"}`} title={playoffAvail}>
                                     {playoffShort}
                                   </span>
-                                </div>
+                                </button>
                               )
                             })
                           )}
@@ -1395,16 +1398,17 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
                           : null
 
                         return (
-                          <div
+                          <button
+                            type="button"
                             key={player.playerId}
-                            className="flex items-center justify-between py-1.5 px-2 rounded-sm hover:bg-muted/50 text-xs cursor-pointer"
+                            className="w-full flex items-center justify-between py-1.5 px-2 rounded-sm hover:bg-muted/50 text-xs text-left cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/40"
                             onClick={() => openPlayerCard(player.playerId)}
                             onMouseEnter={() => prefetchPlayerStats(player.playerId)}
                             onFocus={() => prefetchPlayerStats(player.playerId)}
                           >
                             <span className="truncate hover:underline hover:text-primary transition-colors" title={player.playerName}>{player.playerName}</span>
                             <PositionBadges raw={positions} />
-                          </div>
+                          </button>
                         )
                       })}
                       {availablePlayers.length === 0 && (
@@ -1450,9 +1454,10 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
                                       ? playerInPool.registrationMeta.positions
                                       : null
                                     return (
-                                      <div
+                                      <button
+                                        type="button"
                                         key={kp.id}
-                                        className="flex items-center justify-between py-1.5 px-2 rounded-sm hover:bg-muted/50 text-xs cursor-pointer border-t border-border/30 first:border-t-0"
+                                        className="w-full flex items-center justify-between py-1.5 px-2 rounded-sm hover:bg-muted/50 text-xs text-left cursor-pointer border-t border-border/30 first:border-t-0 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/40"
                                         onClick={() => kp.playerId && openPlayerCard(kp.playerId)}
                                         onMouseEnter={() => kp.playerId && prefetchPlayerStats(kp.playerId)}
                                         onFocus={() => kp.playerId && prefetchPlayerStats(kp.playerId)}
@@ -1472,7 +1477,7 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
                                           </div>
                                         </div>
                                         <PositionBadges raw={positions} />
-                                      </div>
+                                      </button>
                                     )
                                   })}
                                 </div>
@@ -1495,9 +1500,10 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
                             : p.playerName
 
                           return (
-                            <div
+                            <button
+                              type="button"
                               key={p.id}
-                              className={`flex items-center py-2 px-2.5 text-xs cursor-pointer hover:bg-muted/30 transition-colors ${i > 0 ? "border-t border-border/50" : ""}`}
+                              className={`w-full flex items-center py-2 px-2.5 text-xs text-left cursor-pointer hover:bg-muted/30 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/40 ${i > 0 ? "border-t border-border/50" : ""}`}
                               style={i === 0 ? { backgroundColor: `${team?.color || '#f97316'}10` } : undefined}
                               onClick={() => p.playerId && openPlayerCard(p.playerId)}
                               onMouseEnter={() => p.playerId && prefetchPlayerStats(p.playerId)}
@@ -1513,7 +1519,7 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
                                 <div className="text-muted-foreground text-[11px]">{team?.teamName}</div>
                               </div>
                               <PositionBadges raw={position} />
-                            </div>
+                            </button>
                           )
                         })
                       )}
@@ -1624,9 +1630,10 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
                                     ? playerInPool.registrationMeta.positions
                                     : null
                                   return (
-                                    <div
+                                    <button
+                                      type="button"
                                       key={kp.id}
-                                      className="flex items-center justify-between py-1.5 px-2 rounded-sm hover:bg-muted/50 text-xs cursor-pointer border-t border-border/30 first:border-t-0"
+                                      className="w-full flex items-center justify-between py-1.5 px-2 rounded-sm hover:bg-muted/50 text-xs text-left cursor-pointer border-t border-border/30 first:border-t-0 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/40"
                                       onClick={() => kp.playerId && openPlayerCard(kp.playerId)}
                                       onMouseEnter={() => kp.playerId && prefetchPlayerStats(kp.playerId)}
                                       onFocus={() => kp.playerId && prefetchPlayerStats(kp.playerId)}
@@ -1646,7 +1653,7 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
                                         </div>
                                       </div>
                                       <PositionBadges raw={positions} />
-                                    </div>
+                                    </button>
                                   )
                                 })}
                               </div>
@@ -1670,9 +1677,10 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
                           : p.playerName
 
                         return (
-                          <div
+                          <button
+                            type="button"
                             key={p.id}
-                            className={`flex items-center py-2 px-2.5 text-xs cursor-pointer hover:bg-muted/30 transition-colors ${i > 0 ? "border-t border-border/50" : ""}`}
+                            className={`w-full flex items-center py-2 px-2.5 text-xs text-left cursor-pointer hover:bg-muted/30 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/40 ${i > 0 ? "border-t border-border/50" : ""}`}
                             style={i === 0 ? { backgroundColor: `${team?.color || '#f97316'}10` } : undefined}
                             onClick={() => p.playerId && openPlayerCard(p.playerId)}
                             onMouseEnter={() => p.playerId && prefetchPlayerStats(p.playerId)}
@@ -1688,7 +1696,7 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
                               <div className="text-muted-foreground text-[11px]">{team?.teamName}</div>
                             </div>
                             <PositionBadges raw={position} />
-                          </div>
+                          </button>
                         )
                       })
                     )}
@@ -1746,16 +1754,17 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
                           : null
 
                         return (
-                          <div
+                          <button
+                            type="button"
                             key={player.playerId}
-                            className="flex items-center justify-between py-1.5 px-2 rounded-sm hover:bg-muted/50 text-xs cursor-pointer"
+                            className="w-full flex items-center justify-between py-1.5 px-2 rounded-sm hover:bg-muted/50 text-xs text-left cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/40"
                             onClick={() => openPlayerCard(player.playerId)}
                             onMouseEnter={() => prefetchPlayerStats(player.playerId)}
                             onFocus={() => prefetchPlayerStats(player.playerId)}
                           >
                             <span className="truncate hover:underline hover:text-primary transition-colors">{player.playerName}</span>
                             <PositionBadges raw={positions} />
-                          </div>
+                          </button>
                         )
                       })}
                       {availablePlayers.length === 0 && (

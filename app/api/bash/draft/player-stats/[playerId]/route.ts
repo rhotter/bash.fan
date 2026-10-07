@@ -1,6 +1,6 @@
 import { db } from "@/lib/db"
 import * as schema from "@/lib/db/schema"
-import { eq, and, sql, ne } from "drizzle-orm"
+import { eq, and, sql, ne, inArray } from "drizzle-orm"
 import { NextResponse } from "next/server"
 import { compareSeasonsDesc } from "@/lib/seasons"
 
@@ -64,91 +64,121 @@ export async function GET(
       })
     }
 
+    // Batch query all skater and goalie game stats grouped by season and playoff status in parallel
+    const [skaterRows, goalieRows] = await Promise.all([
+      db
+        .select({
+          seasonId: schema.games.seasonId,
+          isPlayoff: schema.games.isPlayoff,
+          gp: sql<number>`count(*)`,
+          goals: sql<number>`sum(${schema.playerGameStats.goals})`,
+          assists: sql<number>`sum(${schema.playerGameStats.assists})`,
+          points: sql<number>`sum(${schema.playerGameStats.points})`,
+          pim: sql<number>`sum(${schema.playerGameStats.pim})`,
+        })
+        .from(schema.playerGameStats)
+        .innerJoin(schema.games, eq(schema.playerGameStats.gameId, schema.games.id))
+        .where(
+          and(
+            eq(schema.playerGameStats.playerId, playerId),
+            eq(schema.playerGameStats.isSub, false),
+            inArray(schema.games.gameType, ["regular", "playoff", "championship"])
+          )
+        )
+        .groupBy(schema.games.seasonId, schema.games.isPlayoff),
+
+      db
+        .select({
+          seasonId: schema.games.seasonId,
+          isPlayoff: schema.games.isPlayoff,
+          gp: sql<number>`count(*)`,
+          goalsAgainst: sql<number>`sum(${schema.goalieGameStats.goalsAgainst})`,
+          shotsAgainst: sql<number>`sum(${schema.goalieGameStats.shotsAgainst})`,
+          saves: sql<number>`sum(${schema.goalieGameStats.saves})`,
+          shutouts: sql<number>`sum(${schema.goalieGameStats.shutouts})`,
+        })
+        .from(schema.goalieGameStats)
+        .innerJoin(schema.games, eq(schema.goalieGameStats.gameId, schema.games.id))
+        .where(
+          and(
+            eq(schema.goalieGameStats.playerId, playerId),
+            eq(schema.goalieGameStats.isSub, false),
+            inArray(schema.games.gameType, ["regular", "playoff", "championship"])
+          )
+        )
+        .groupBy(schema.games.seasonId, schema.games.isPlayoff),
+    ])
+
+    type SkaterStatObj = {
+      type: "skater"
+      gp: number
+      goals: number
+      assists: number
+      points: number
+      pim: number
+    }
+    type GoalieStatObj = {
+      type: "goalie"
+      gp: number
+      goalsAgainst: number
+      shotsAgainst: number
+      saves: number
+      shutouts: number
+      savePct: string
+    }
+
+    const skaterMap = new Map<string, SkaterStatObj>()
+    for (const row of skaterRows) {
+      const gp = Number(row.gp ?? 0)
+      if (gp > 0 && row.seasonId) {
+        skaterMap.set(`${row.seasonId}_${row.isPlayoff}`, {
+          type: "skater",
+          gp,
+          goals: Number(row.goals ?? 0),
+          assists: Number(row.assists ?? 0),
+          points: Number(row.points ?? 0),
+          pim: Number(row.pim ?? 0),
+        })
+      }
+    }
+
+    const goalieMap = new Map<string, GoalieStatObj>()
+    for (const row of goalieRows) {
+      const gp = Number(row.gp ?? 0)
+      if (gp > 0 && row.seasonId) {
+        const shotsAgainst = Number(row.shotsAgainst ?? 0)
+        const saves = Number(row.saves ?? 0)
+        goalieMap.set(`${row.seasonId}_${row.isPlayoff}`, {
+          type: "goalie",
+          gp,
+          goalsAgainst: Number(row.goalsAgainst ?? 0),
+          shotsAgainst,
+          saves,
+          shutouts: Number(row.shutouts ?? 0),
+          savePct: shotsAgainst > 0 ? ((saves / shotsAgainst) * 100).toFixed(1) : "0.0",
+        })
+      }
+    }
+
     // Iterate through chronological seasons and take up to 3 seasons with active game appearances
     const filteredSeasons = []
 
     for (const entry of uniqueSortedEntries) {
       if (filteredSeasons.length >= 3) break
 
-      const aggregateSkater = async (isPlayoff: boolean) => {
-        const [ss] = await db
-          .select({
-            gp: sql<number>`count(*)`,
-            goals: sql<number>`sum(${schema.playerGameStats.goals})`,
-            assists: sql<number>`sum(${schema.playerGameStats.assists})`,
-            points: sql<number>`sum(${schema.playerGameStats.points})`,
-            pim: sql<number>`sum(${schema.playerGameStats.pim})`,
-          })
-          .from(schema.playerGameStats)
-          .innerJoin(schema.games, eq(schema.playerGameStats.gameId, schema.games.id))
-          .where(
-            and(
-              eq(schema.playerGameStats.playerId, playerId),
-              eq(schema.games.seasonId, entry.seasonId),
-              eq(schema.games.isPlayoff, isPlayoff),
-              eq(schema.playerGameStats.isSub, false)
-            )
-          )
-        const gp = Number(ss?.gp ?? 0)
-        if (gp <= 0) return null
-        return {
-          type: "skater" as const,
-          gp,
-          goals: Number(ss.goals ?? 0),
-          assists: Number(ss.assists ?? 0),
-          points: Number(ss.points ?? 0),
-          pim: Number(ss.pim ?? 0),
-        }
+      const getStatsForSeason = (asGoalie: boolean) => {
+        const map = asGoalie ? (goalieMap as Map<string, SkaterStatObj | GoalieStatObj>) : (skaterMap as Map<string, SkaterStatObj | GoalieStatObj>)
+        const regular = map.get(`${entry.seasonId}_false`) ?? null
+        const playoff = map.get(`${entry.seasonId}_true`) ?? null
+        return [regular, playoff] as const
       }
 
-      const aggregateGoalie = async (isPlayoff: boolean) => {
-        const [gs] = await db
-          .select({
-            gp: sql<number>`count(*)`,
-            goalsAgainst: sql<number>`sum(${schema.goalieGameStats.goalsAgainst})`,
-            shotsAgainst: sql<number>`sum(${schema.goalieGameStats.shotsAgainst})`,
-            saves: sql<number>`sum(${schema.goalieGameStats.saves})`,
-            shutouts: sql<number>`sum(${schema.goalieGameStats.shutouts})`,
-          })
-          .from(schema.goalieGameStats)
-          .innerJoin(schema.games, eq(schema.goalieGameStats.gameId, schema.games.id))
-          .where(
-            and(
-              eq(schema.goalieGameStats.playerId, playerId),
-              eq(schema.games.seasonId, entry.seasonId),
-              eq(schema.games.isPlayoff, isPlayoff),
-              eq(schema.goalieGameStats.isSub, false)
-            )
-          )
-        const gp = Number(gs?.gp ?? 0)
-        if (gp <= 0) return null
-        const shotsAgainst = Number(gs.shotsAgainst ?? 0)
-        const saves = Number(gs.saves ?? 0)
-        return {
-          type: "goalie" as const,
-          gp,
-          goalsAgainst: Number(gs.goalsAgainst ?? 0),
-          shotsAgainst,
-          saves,
-          shutouts: Number(gs.shutouts ?? 0),
-          savePct: shotsAgainst > 0 ? ((saves / shotsAgainst) * 100).toFixed(1) : "0.0",
-        }
-      }
-
-      const primaryAggregate = entry.isGoalie ? aggregateGoalie : aggregateSkater
-      let [stats, playoffStats] = await Promise.all([
-        primaryAggregate(false),
-        primaryAggregate(true),
-      ])
-
+      let [stats, playoffStats] = getStatsForSeason(entry.isGoalie)
       let actualIsGoalie = entry.isGoalie
+
       if (stats === null && playoffStats === null) {
         // Fall back to checking the other position in case registered position differed from games played
-        const fallbackAggregate = entry.isGoalie ? aggregateSkater : aggregateGoalie
-        const [fbStats, fbPlayoff] = await Promise.all([
-          fallbackAggregate(false),
-          fallbackAggregate(true),
-        ])
+        const [fbStats, fbPlayoff] = getStatsForSeason(!entry.isGoalie)
         if (fbStats !== null || fbPlayoff !== null) {
           stats = fbStats
           playoffStats = fbPlayoff
