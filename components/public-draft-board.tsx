@@ -3,16 +3,18 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react"
 import Image from "next/image"
 import Link from "next/link"
-import useSWR from "swr"
+import useSWR, { preload } from "swr"
 import { cn } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Button } from "@/components/ui/button"
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip"
 import { Search, Clock, Users, Volume2, VolumeX, CalendarPlus, Layers, X, ChevronsRight, Eye, EyeOff, Trophy, LayoutList, LayoutGrid, ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react"
 import { PlayerCardModal } from "@/components/player-card-modal"
 import { TeamLogo } from "@/components/team-logo"
+import { isPlayerGoalie, matchesPositionFilter, getPositionChips } from "@/lib/draft-helpers"
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -53,6 +55,7 @@ interface DraftState {
   id: string
   name: string
   status: string
+  draftType?: string | null
   rounds: number
   draftDate: string | null
   location: string | null
@@ -94,6 +97,41 @@ function formatPlayerNameCompact(name: string | null) {
   const parts = name.split(" ")
   if (parts.length < 2) return name
   return parts.slice(1).join(" ")
+}
+
+function PositionBadges({ raw }: { raw?: string | null }) {
+  if (!raw) return null
+  const chips = getPositionChips(raw)
+  if (chips.length === 0) {
+    return (
+      <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4 shrink-0 ml-2" title={raw}>
+        {raw}
+      </Badge>
+    )
+  }
+
+  return (
+    <div className="flex items-center gap-1 shrink-0 ml-1.5" title={raw}>
+      {chips.map((tag) => {
+        const colorClass =
+          tag === "G"
+            ? "bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300 border-purple-300 dark:border-purple-700"
+            : tag === "D"
+              ? "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300 border-blue-300 dark:border-blue-700"
+              : tag === "C"
+                ? "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300 border-red-300 dark:border-red-700"
+                : "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 border-amber-300 dark:border-amber-700"
+        return (
+          <span
+            key={tag}
+            className={`inline-flex items-center justify-center text-[9px] font-bold h-4 min-w-4 px-1 rounded-full border leading-none ${colorClass}`}
+          >
+            {tag}
+          </span>
+        )
+      })}
+    </div>
+  )
 }
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
@@ -337,32 +375,7 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
         return p.playerName.toLowerCase().includes(playerSearch.toLowerCase())
       })
       .filter((p) => {
-        if (positionFilter.length === 0) return true
-        const pos = typeof p.registrationMeta?.positions === "string" ? p.registrationMeta.positions.toLowerCase() : ""
-        if (!pos) return false
-
-        // Tokenize: split on commas, slashes, hyphens, whitespace; strip non-alpha chars
-        const tokens = pos.split(/[,/\s-]+/).map((t) => t.replace(/[^a-z]/g, "")).filter(Boolean)
-
-        // Wildcard positions match every filter
-        const wildcards = ["all", "any", "whatever", "both"]
-        if (tokens.some((t) => wildcards.includes(t))) return true
-
-        // Map filter buttons to keywords that indicate that position
-        const filterKeywords: Record<string, string[]> = {
-          "G": ["goalie", "goal", "g", "goalkeeper", "backup goalie"],
-          "D": ["defense", "defence", "def", "d", "rd", "ld", "defensemen", "defenseman"],
-          "C": ["center", "centre", "c"],
-          "F": ["forward", "forwards", "f", "fwd", "wing", "winger", "w", "lw", "rw", "rf",
-                "offense", "left wing", "right wing", "not goalie", "anywhere but goalie", "any but goalie"],
-        }
-
-        return positionFilter.some((filterKey) => {
-          const keywords = filterKeywords[filterKey] || [filterKey.toLowerCase()]
-          return keywords.some((kw) =>
-            tokens.includes(kw) || (kw.includes(" ") && pos.includes(kw))
-          )
-        })
+        return matchesPositionFilter(p.registrationMeta?.positions, positionFilter)
       })
       .sort((a, b) => a.playerName.localeCompare(b.playerName))
   }, [pool, draftedPlayerIds, playerSearch, positionFilter])
@@ -375,6 +388,14 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
       .sort((a, b) => new Date(b.pickedAt!).getTime() - new Date(a.pickedAt!).getTime())
       .slice(0, 10)
   }, [picks])
+
+  const keeperPicks = useMemo(() => {
+    return picks.filter((p) => p.playerId !== null && p.isKeeper)
+  }, [picks])
+
+  const prefetchPlayerStats = useCallback((playerId: number) => {
+    preload(`/api/bash/draft/player-stats/${playerId}?currentSeason=${seasonSlug}`, fetcher)
+  }, [seasonSlug])
 
   // ─── "The Pick Is In" Detection ──────────────────────────────────────────
 
@@ -625,11 +646,11 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
             <CardContent>
               <p className="text-sm text-muted-foreground">
                 {teams.length > 0 && pool.length > 0 ? (
-                  <>{draft.rounds}-round {season.name.toLowerCase().includes("summer") ? "summer" : ""} snake draft. Captains will select from a pool of {pool.length} players. Each team enters the draft with their captain as a keeper.</>
+                  <>{draft.rounds}-round {season.name.toLowerCase().includes("summer") ? "summer " : ""}{draft.draftType === "linear" ? "linear" : "snake"} draft. Captains will select from a pool of {pool.length} players. Each team enters the draft with their captain as a keeper.</>
                 ) : teams.length > 0 ? (
-                  <>{draft.rounds}-round {season.name.toLowerCase().includes("summer") ? "summer" : ""} snake draft with {teams.length} teams. Player pool details will be finalized closer to draft day.</>
+                  <>{draft.rounds}-round {season.name.toLowerCase().includes("summer") ? "summer " : ""}{draft.draftType === "linear" ? "linear" : "snake"} draft with {teams.length} teams. Player pool details will be finalized closer to draft day.</>
                 ) : (
-                  <>Snake draft format. Teams, rounds, and player pool details will be finalized closer to draft day.</>
+                  <>{draft.draftType === "linear" ? "Linear" : "Snake"} draft format. Teams, rounds, and player pool details will be finalized closer to draft day.</>
                 )}
               </p>
               <div className="flex flex-wrap gap-x-6 gap-y-1 mt-3 text-xs text-muted-foreground">
@@ -691,24 +712,38 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
                   </span>
                   {isLive && (
                     <div className="flex gap-1.5">
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={toggleAnimationsMute}
-                        className="h-8 w-8"
-                        title={isAnimationsMuted ? "Show pick animations" : "Hide pick animations"}
-                      >
-                        {isAnimationsMuted ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={toggleMute}
-                        className="h-8 w-8"
-                        title={isMuted ? "Unmute pick sound" : "Mute pick sound"}
-                      >
-                        {isMuted ? <VolumeX className="h-3.5 w-3.5" /> : <Volume2 className="h-3.5 w-3.5" />}
-                      </Button>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            onClick={toggleAnimationsMute}
+                            className="h-8 w-8"
+                            aria-label={isAnimationsMuted ? "Show pick animations" : "Hide pick animations"}
+                          >
+                            {isAnimationsMuted ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent side="bottom">
+                          {isAnimationsMuted ? "Show pick animations" : "Hide pick animations"}
+                        </TooltipContent>
+                      </Tooltip>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            onClick={toggleMute}
+                            className="h-8 w-8"
+                            aria-label={isMuted ? "Unmute pick sound" : "Mute pick sound"}
+                          >
+                            {isMuted ? <VolumeX className="h-3.5 w-3.5" /> : <Volume2 className="h-3.5 w-3.5" />}
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent side="bottom">
+                          {isMuted ? "Unmute pick sound" : "Mute pick sound"}
+                        </TooltipContent>
+                      </Tooltip>
                     </div>
                   )}
                 </div>
@@ -1039,11 +1074,14 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
                               const playoffShort = playoffAvail.toLowerCase().startsWith("yes") ? "Y" : playoffAvail.toLowerCase().startsWith("no") ? "N" : "?"
 
                               return (
-                                <div
+                                <button
                                   key={pick.id}
+                                  type="button"
                                   onClick={() => pick.playerId && openPlayerCard(pick.playerId)}
+                                  onMouseEnter={() => pick.playerId && prefetchPlayerStats(pick.playerId)}
+                                  onFocus={() => pick.playerId && prefetchPlayerStats(pick.playerId)}
                                   className={cn(
-                                    "group flex items-baseline gap-2 sm:gap-3 px-2 py-1.5 rounded-md cursor-pointer hover:bg-muted/50 transition-colors",
+                                    "group w-full text-left flex items-baseline gap-2 sm:gap-3 px-2 py-1.5 rounded-md cursor-pointer hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/40 transition-colors",
                                     i % 2 === 0 && "bg-card/15"
                                   )}
                                 >
@@ -1073,7 +1111,7 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
                                   <span className={`hidden md:inline shrink-0 text-[10px] font-medium tabular-nums w-8 text-center ${playoffShort === "Y" ? "text-green-600" : playoffShort === "N" ? "text-red-500" : "text-muted-foreground"}`} title={playoffAvail}>
                                     {playoffShort}
                                   </span>
-                                </div>
+                                </button>
                               )
                             })
                           )}
@@ -1155,6 +1193,8 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
                                     <button
                                       className="truncate text-left text-xs text-foreground hover:text-primary transition-colors min-w-0 cursor-pointer"
                                       onClick={() => pick.playerId && openPlayerCard(pick.playerId)}
+                                      onMouseEnter={() => pick.playerId && prefetchPlayerStats(pick.playerId)}
+                                      onFocus={() => pick.playerId && prefetchPlayerStats(pick.playerId)}
                                       title={pick.playerName || undefined}
                                     >
                                       {(isCaptain || pick.isKeeper) ? formatPlayerNameCompact(pick.playerName) : formatPlayerName(pick.playerName)}
@@ -1189,14 +1229,14 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
                 /* LIVE BOARD — unchanged */
                 <Card>
                   <CardContent className="p-0 overflow-x-auto">
-                    <table className="w-full text-xs md:table-fixed">
+                    <table className="w-full min-w-[700px] text-xs md:table-fixed">
                       <thead>
                         <tr className="border-b bg-muted/50">
                           <th className="px-2 py-2 text-left font-bold text-[10px] uppercase tracking-[0.06em] text-muted-foreground w-10 sticky left-0 bg-muted z-20" style={{ boxShadow: '2px 0 4px -2px rgba(0,0,0,0.1)' }}>Rd</th>
                           {teams.map((team) => (
                             <th
                               key={team.teamSlug}
-                              className="px-2 py-2 text-left font-semibold min-w-[120px] md:min-w-0 border-t-[3px] overflow-hidden"
+                              className="px-2 py-2 text-left font-semibold min-w-[100px] border-t-[3px] overflow-hidden"
                               style={{ borderTopColor: team.color || "#94a3b8" }}
                             >
                               <div className="flex items-center gap-1.5">
@@ -1222,8 +1262,10 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
                               const isTradedSlot = pick.teamSlug !== pick.originalTeamSlug
                               const newOwner = isTradedSlot ? teams.find((t) => t.teamSlug === pick.teamSlug) : null
                               const playerInPool = pick.playerId ? pool.find((p) => p.playerId === pick.playerId) : null
+                              const isCaptain = pick.playerId != null && captainSet.has(pick.playerId)
+                              const isKeeper = pick.isKeeper && !isCaptain
                               const isRookie = playerInPool?.registrationMeta?.isRookie === true
-                              const isGoalie = typeof playerInPool?.registrationMeta?.positions === "string" && playerInPool.registrationMeta.positions.includes("G")
+                              const isGoalie = isPlayerGoalie(playerInPool?.registrationMeta?.positions)
                               const isOnTheClock = currentPick?.id === pick.id
                               const isHighlighted = highlightedPickIds.has(pick.id)
 
@@ -1239,23 +1281,30 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
                                   }`}
                                 >
                                   {pick.playerId ? (
-                                    <div className="flex flex-nowrap items-center gap-1">
+                                    <div className="flex flex-nowrap items-center gap-1 min-w-0">
                                       <button
-                                        className="truncate max-w-[100px] text-left hover:underline hover:text-primary transition-colors cursor-pointer"
+                                        className="truncate min-w-0 flex-1 text-left text-xs hover:underline hover:text-primary transition-colors cursor-pointer"
                                         onClick={() => pick.playerId && openPlayerCard(pick.playerId)}
-                                      >{formatPlayerName(pick.playerName)}</button>
-                                      {pick.playerId && captainSet.has(pick.playerId) && (
-                                        <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 shrink-0 border-blue-400 text-blue-600">C</Badge>
-                                      )}
-                                      {isRookie && (
-                                        <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 border-green-400 text-green-600">R</Badge>
-                                      )}
-                                      {pick.isKeeper && (
-                                        <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 border-amber-400 text-amber-600">K</Badge>
-                                      )}
-                                      {isGoalie && (
-                                        <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 border-purple-400 text-purple-600">G</Badge>
-                                      )}
+                                        onMouseEnter={() => pick.playerId && prefetchPlayerStats(pick.playerId)}
+                                        onFocus={() => pick.playerId && prefetchPlayerStats(pick.playerId)}
+                                        title={pick.playerName || undefined}
+                                      >
+                                        {(isCaptain || pick.isKeeper) ? formatPlayerNameCompact(pick.playerName) : formatPlayerName(pick.playerName)}
+                                      </button>
+                                      <div className="flex items-center gap-0.5 shrink-0">
+                                        {isCaptain && (
+                                          <span className="shrink-0 inline-flex items-center justify-center h-3.5 min-w-3 px-0.5 rounded-[2px] border border-blue-400/70 bg-blue-50/60 dark:bg-blue-950/40 text-[8.5px] font-bold text-blue-600 dark:text-blue-400 leading-none" title="Captain">C</span>
+                                        )}
+                                        {isKeeper && (
+                                          <span className="shrink-0 inline-flex items-center justify-center h-3.5 min-w-3 px-0.5 rounded-[2px] border border-amber-400/70 bg-amber-50/60 dark:bg-amber-950/40 text-[8.5px] font-bold text-amber-600 dark:text-amber-400 leading-none" title="Keeper">K</span>
+                                        )}
+                                        {isRookie && (
+                                          <span className="shrink-0 inline-flex items-center justify-center h-3.5 min-w-3 px-0.5 rounded-[2px] border border-green-400/70 bg-green-50/60 dark:bg-green-950/40 text-[8.5px] font-bold text-green-600 dark:text-green-400 leading-none" title="Rookie">R</span>
+                                        )}
+                                        {isGoalie && (
+                                          <span className="shrink-0 inline-flex items-center justify-center h-3.5 min-w-3 px-0.5 rounded-[2px] border border-purple-400/70 bg-purple-50/60 dark:bg-purple-950/40 text-[8.5px] font-bold text-purple-600 dark:text-purple-400 leading-none" title="Goalie">G</span>
+                                        )}
+                                      </div>
                                     </div>
                                   ) : (
                                     <span className="text-muted-foreground/40">
@@ -1278,6 +1327,12 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
                         ))}
                       </tbody>
                     </table>
+                    <div className="flex flex-wrap items-center justify-end gap-3 px-3 py-2 text-[10px] text-muted-foreground/70 border-t border-border/40 bg-muted/10">
+                      <span className="flex items-center gap-1"><span className="inline-flex items-center justify-center h-3.5 w-3.5 rounded-[3px] border border-blue-400/70 bg-blue-50/60 dark:bg-blue-950/40 text-[8.5px] font-bold text-blue-600 dark:text-blue-400">C</span> Captain</span>
+                      <span className="flex items-center gap-1"><span className="inline-flex items-center justify-center h-3.5 w-3.5 rounded-[3px] border border-amber-400/70 bg-amber-50/60 dark:bg-amber-950/40 text-[8.5px] font-bold text-amber-600 dark:text-amber-400">K</span> Keeper</span>
+                      <span className="flex items-center gap-1"><span className="inline-flex items-center justify-center h-3.5 w-3.5 rounded-[3px] border border-green-400/70 bg-green-50/60 dark:bg-green-950/40 text-[8.5px] font-bold text-green-600 dark:text-green-400">R</span> Rookie</span>
+                      <span className="flex items-center gap-1"><span className="inline-flex items-center justify-center h-3.5 w-3.5 rounded-[3px] border border-purple-400/70 bg-purple-50/60 dark:bg-purple-950/40 text-[8.5px] font-bold text-purple-600 dark:text-purple-400">G</span> Goalie</span>
+                    </div>
                   </CardContent>
                 </Card>
               )}
@@ -1343,18 +1398,17 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
                           : null
 
                         return (
-                          <div
+                          <button
+                            type="button"
                             key={player.playerId}
-                            className="flex items-center justify-between py-1.5 px-2 rounded-sm hover:bg-muted/50 text-xs cursor-pointer"
+                            className="w-full flex items-center justify-between py-1.5 px-2 rounded-sm hover:bg-muted/50 text-xs text-left cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/40"
                             onClick={() => openPlayerCard(player.playerId)}
+                            onMouseEnter={() => prefetchPlayerStats(player.playerId)}
+                            onFocus={() => prefetchPlayerStats(player.playerId)}
                           >
                             <span className="truncate hover:underline hover:text-primary transition-colors" title={player.playerName}>{player.playerName}</span>
-                            {positions && (
-                              <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4 shrink-0 ml-2" title={positions}>
-                                {positions}
-                              </Badge>
-                            )}
-                          </div>
+                            <PositionBadges raw={positions} />
+                          </button>
                         )
                       })}
                       {availablePlayers.length === 0 && (
@@ -1375,13 +1429,64 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
                   <CardHeader className="pb-2">
                     <CardTitle className="text-sm font-semibold flex items-center justify-between">
                       <span>Recent Picks</span>
-                      <Badge variant="secondary" className="text-[10px] font-mono">{recentPicks.length}</Badge>
+                      <Badge variant="secondary" className="text-[10px] font-mono">
+                        {recentPicks.length > 0 ? recentPicks.length : keeperPicks.length}
+                      </Badge>
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="pt-0 pb-2">
                     <div className="space-y-0">
                       {recentPicks.length === 0 ? (
-                        <div className="text-center py-6 text-xs text-muted-foreground">No picks yet</div>
+                        <div className="text-center py-5 px-3 text-xs text-muted-foreground">
+                          {keeperPicks.length > 0 ? (
+                            <div className="space-y-3">
+                              <div className="border rounded-md p-3 bg-muted/20 border-border/40">
+                                <p className="font-semibold text-foreground text-xs">{keeperPicks.length} Keepers Placed</p>
+                                <p className="text-[11px] text-muted-foreground mt-0.5">Live draft picks will appear here as they are made.</p>
+                              </div>
+                              <div className="text-left">
+                                <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/80 px-1">Keeper Roster</span>
+                                <div className="mt-1 space-y-0.5 max-h-[50vh] overflow-y-auto">
+                                  {keeperPicks.map((kp) => {
+                                    const team = teams.find((t) => t.teamSlug === kp.teamSlug)
+                                    const playerInPool = pool.find((pl) => pl.playerId === kp.playerId)
+                                    const positions = typeof playerInPool?.registrationMeta?.positions === "string"
+                                      ? playerInPool.registrationMeta.positions
+                                      : null
+                                    return (
+                                      <button
+                                        type="button"
+                                        key={kp.id}
+                                        className="w-full flex items-center justify-between py-1.5 px-2 rounded-sm hover:bg-muted/50 text-xs text-left cursor-pointer border-t border-border/30 first:border-t-0 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/40"
+                                        onClick={() => kp.playerId && openPlayerCard(kp.playerId)}
+                                        onMouseEnter={() => kp.playerId && prefetchPlayerStats(kp.playerId)}
+                                        onFocus={() => kp.playerId && prefetchPlayerStats(kp.playerId)}
+                                      >
+                                        <div className="flex items-center gap-2 min-w-0 flex-1 mr-2">
+                                          <div
+                                            className="w-1 h-7 rounded-full shrink-0"
+                                            style={{ backgroundColor: team?.color || "#94a3b8" }}
+                                          />
+                                          <div className="min-w-0 flex-1">
+                                            <div className="truncate font-semibold hover:underline hover:text-primary transition-colors">
+                                              {kp.playerName}
+                                            </div>
+                                            <div className="text-[10px] text-muted-foreground truncate">
+                                              {team?.teamName}
+                                            </div>
+                                          </div>
+                                        </div>
+                                        <PositionBadges raw={positions} />
+                                      </button>
+                                    )
+                                  })}
+                                </div>
+                              </div>
+                            </div>
+                          ) : (
+                            "No picks yet"
+                          )}
+                        </div>
                       ) : (
                         recentPicks.map((p, i) => {
                           const team = teams.find((t) => t.teamSlug === p.teamSlug)
@@ -1395,11 +1500,14 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
                             : p.playerName
 
                           return (
-                            <div
+                            <button
+                              type="button"
                               key={p.id}
-                              className={`flex items-center py-2 px-2.5 text-xs cursor-pointer hover:bg-muted/30 transition-colors ${i > 0 ? "border-t border-border/50" : ""}`}
+                              className={`w-full flex items-center py-2 px-2.5 text-xs text-left cursor-pointer hover:bg-muted/30 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/40 ${i > 0 ? "border-t border-border/50" : ""}`}
                               style={i === 0 ? { backgroundColor: `${team?.color || '#f97316'}10` } : undefined}
                               onClick={() => p.playerId && openPlayerCard(p.playerId)}
+                              onMouseEnter={() => p.playerId && prefetchPlayerStats(p.playerId)}
+                              onFocus={() => p.playerId && prefetchPlayerStats(p.playerId)}
                             >
                               <div
                                 className="w-0.5 h-8 rounded-full shrink-0"
@@ -1410,12 +1518,8 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
                                 <div className="font-semibold text-sm truncate" title={p.playerName || undefined}>{abbrevName}</div>
                                 <div className="text-muted-foreground text-[11px]">{team?.teamName}</div>
                               </div>
-                              {position && (
-                                <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4 shrink-0 ml-1" title={position}>
-                                  {position}
-                                </Badge>
-                              )}
-                            </div>
+                              <PositionBadges raw={position} />
+                            </button>
                           )
                         })
                       )}
@@ -1509,20 +1613,63 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
                 {sidebarTab === "recent" && (
                   <div className="space-y-0">
                     {recentPicks.length === 0 ? (
-                      <div className="text-center py-6 text-xs text-muted-foreground">No picks yet</div>
+                      <div className="text-center py-5 px-3 text-xs text-muted-foreground">
+                        {keeperPicks.length > 0 ? (
+                          <div className="space-y-3">
+                            <div className="border rounded-md p-3 bg-muted/20 border-border/40">
+                              <p className="font-semibold text-foreground text-xs">{keeperPicks.length} Keepers Placed</p>
+                              <p className="text-[11px] text-muted-foreground mt-0.5">Live draft picks will appear here as they are made.</p>
+                            </div>
+                            <div className="text-left">
+                              <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/80 px-1">Keeper Roster</span>
+                              <div className="mt-1 space-y-0.5 max-h-[calc(100vh-420px)] min-h-[160px] overflow-y-auto">
+                                {keeperPicks.map((kp) => {
+                                  const team = teams.find((t) => t.teamSlug === kp.teamSlug)
+                                  const playerInPool = pool.find((pl) => pl.playerId === kp.playerId)
+                                  const positions = typeof playerInPool?.registrationMeta?.positions === "string"
+                                    ? playerInPool.registrationMeta.positions
+                                    : null
+                                  return (
+                                    <button
+                                      type="button"
+                                      key={kp.id}
+                                      className="w-full flex items-center justify-between py-1.5 px-2 rounded-sm hover:bg-muted/50 text-xs text-left cursor-pointer border-t border-border/30 first:border-t-0 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/40"
+                                      onClick={() => kp.playerId && openPlayerCard(kp.playerId)}
+                                      onMouseEnter={() => kp.playerId && prefetchPlayerStats(kp.playerId)}
+                                      onFocus={() => kp.playerId && prefetchPlayerStats(kp.playerId)}
+                                    >
+                                      <div className="flex items-center gap-2 min-w-0 flex-1 mr-2">
+                                        <div
+                                          className="w-1 h-7 rounded-full shrink-0"
+                                          style={{ backgroundColor: team?.color || "#94a3b8" }}
+                                        />
+                                        <div className="min-w-0 flex-1">
+                                          <div className="truncate font-semibold hover:underline hover:text-primary transition-colors">
+                                            {kp.playerName}
+                                          </div>
+                                          <div className="text-[10px] text-muted-foreground truncate">
+                                            {team?.teamName}
+                                          </div>
+                                        </div>
+                                      </div>
+                                      <PositionBadges raw={positions} />
+                                    </button>
+                                  )
+                                })}
+                              </div>
+                            </div>
+                          </div>
+                        ) : (
+                          "No picks yet"
+                        )}
+                      </div>
                     ) : (
-                      recentPicks.slice(0, 8).map((p, i) => {
+                      recentPicks.slice(0, 10).map((p, i) => {
                         const team = teams.find((t) => t.teamSlug === p.teamSlug)
                         const playerInPool = p.playerId ? pool.find((pl) => pl.playerId === p.playerId) : null
                         const position = typeof playerInPool?.registrationMeta?.positions === "string"
                           ? playerInPool.registrationMeta.positions
                           : null
-
-                        const posColor = position === "G" ? "text-purple-600 border-purple-300"
-                          : position === "D" ? "text-blue-600 border-blue-300"
-                          : position === "C" ? "text-red-600 border-red-300"
-                          : position === "W" ? "text-green-600 border-green-300"
-                          : "text-muted-foreground border-border"
 
                         const nameParts = (p.playerName || "").split(" ")
                         const abbrevName = nameParts.length >= 2
@@ -1530,11 +1677,14 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
                           : p.playerName
 
                         return (
-                          <div
+                          <button
+                            type="button"
                             key={p.id}
-                            className={`flex items-center py-2 px-2.5 text-xs cursor-pointer hover:bg-muted/30 transition-colors ${i > 0 ? "border-t border-border/50" : ""}`}
+                            className={`w-full flex items-center py-2 px-2.5 text-xs text-left cursor-pointer hover:bg-muted/30 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/40 ${i > 0 ? "border-t border-border/50" : ""}`}
                             style={i === 0 ? { backgroundColor: `${team?.color || '#f97316'}10` } : undefined}
                             onClick={() => p.playerId && openPlayerCard(p.playerId)}
+                            onMouseEnter={() => p.playerId && prefetchPlayerStats(p.playerId)}
+                            onFocus={() => p.playerId && prefetchPlayerStats(p.playerId)}
                           >
                             <div
                               className="w-0.5 h-8 rounded-full shrink-0"
@@ -1545,12 +1695,8 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
                               <div className="font-semibold text-sm truncate" title={p.playerName || undefined}>{abbrevName}</div>
                               <div className="text-muted-foreground text-[11px]">{team?.teamName}</div>
                             </div>
-                            {position && (
-                              <Badge variant="outline" className={`text-[10px] px-1.5 py-0 h-4 shrink-0 font-bold ml-1 ${posColor}`} title={position}>
-                                {position}
-                              </Badge>
-                            )}
-                          </div>
+                            <PositionBadges raw={position} />
+                          </button>
                         )
                       })
                     )}
@@ -1601,25 +1747,24 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
                         </button>
                       )}
                     </div>
-                    <div className="max-h-[400px] overflow-y-auto space-y-0.5">
+                    <div className="max-h-[calc(100vh-320px)] min-h-[350px] overflow-y-auto space-y-0.5 pr-1">
                       {availablePlayers.map((player) => {
                         const positions = typeof player.registrationMeta?.positions === "string"
                           ? player.registrationMeta.positions
                           : null
 
                         return (
-                          <div
+                          <button
+                            type="button"
                             key={player.playerId}
-                            className="flex items-center justify-between py-1.5 px-2 rounded-sm hover:bg-muted/50 text-xs cursor-pointer"
+                            className="w-full flex items-center justify-between py-1.5 px-2 rounded-sm hover:bg-muted/50 text-xs text-left cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/40"
                             onClick={() => openPlayerCard(player.playerId)}
+                            onMouseEnter={() => prefetchPlayerStats(player.playerId)}
+                            onFocus={() => prefetchPlayerStats(player.playerId)}
                           >
                             <span className="truncate hover:underline hover:text-primary transition-colors">{player.playerName}</span>
-                            {positions && (
-                              <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4 shrink-0 ml-2" title={positions}>
-                                {positions}
-                              </Badge>
-                            )}
-                          </div>
+                            <PositionBadges raw={positions} />
+                          </button>
                         )
                       })}
                       {availablePlayers.length === 0 && (

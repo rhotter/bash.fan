@@ -3,6 +3,7 @@ import * as schema from "@/lib/db/schema"
 import { eq, and } from "drizzle-orm"
 import { NextResponse } from "next/server"
 import { getSession } from "@/lib/admin-session"
+import { isPlayerGoalie } from "@/lib/draft-helpers"
 
 export async function POST(
   _req: Request,
@@ -82,8 +83,7 @@ export async function POST(
     const poolEntry = poolMap.get(playerId)
     const meta = poolEntry?.registrationMeta as Record<string, unknown> | null
 
-    const isGoalie =
-      typeof meta?.positions === "string" && meta.positions.includes("G")
+    const isGoalie = isPlayerGoalie(meta?.positions)
     const isRookie = meta?.isRookie === true
     const isCaptain = captainSet.has(`${playerId}-${teamSlug}`)
 

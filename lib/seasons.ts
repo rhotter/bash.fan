@@ -74,7 +74,7 @@ export const getAllSeasons = unstable_cache(
     const rows = await db.query.seasons.findMany({
       orderBy: [desc(schema.seasons.id)],
     })
-    return rows.map(mapRow)
+    return rows.map(mapRow).sort(compareSeasonsDesc)
   },
   ['all-seasons'],
   { tags: ['seasons'], revalidate: 3600 }
@@ -88,5 +88,43 @@ export async function getSeasonById(id: string): Promise<Season | undefined> {
 export async function isStatsOnlySeason(seasonId: string): Promise<boolean> {
   const s = await getSeasonById(seasonId)
   return s?.statsOnly === true
+}
+
+/**
+ * Calculate a numeric chronological sort weight for a season.
+ *
+ * In BASH, within any calendar year Y:
+ * 1. Summer season (Y-summer) runs ~May to August.
+ * 2. Fall season (Y-(Y+1) or bash-Y-(Y+1)) starts ~September of year Y and runs into year Y+1.
+ *
+ * Therefore, chronological progression:
+ * Summer 2025 < Fall 2025-2026 < Summer 2026 < Fall 2026-2027.
+ * Weight = startYear * 10 + (isSummer ? 1 : 2).
+ */
+export function getSeasonSortWeight(
+  seasonId: string,
+  seasonType?: string | null
+): number {
+  if (!seasonId) return 0
+  const match = seasonId.match(/(\d{4})/)
+  const year = match ? parseInt(match[1], 10) : 0
+  const isSummer =
+    seasonType === "summer" || seasonId.toLowerCase().includes("summer")
+  return year * 10 + (isSummer ? 1 : 2)
+}
+
+/**
+ * Comparator to sort seasons in reverse chronological order (newest first).
+ */
+export function compareSeasonsDesc<
+  T extends { id?: string; seasonId?: string; seasonType?: string | null }
+>(a: T, b: T): number {
+  const idA = a.seasonId ?? a.id ?? ""
+  const idB = b.seasonId ?? b.id ?? ""
+  return (
+    getSeasonSortWeight(idB, b.seasonType) -
+    getSeasonSortWeight(idA, a.seasonType) ||
+    idB.localeCompare(idA)
+  )
 }
 
