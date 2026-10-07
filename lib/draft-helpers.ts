@@ -166,3 +166,53 @@ export function matchesPositionFilter(rawPos: unknown, filterKeys: string[]): bo
     )
   })
 }
+
+/**
+ * Extract normalized position chips (G, D, C, F) for display badges.
+ */
+export function getPositionChips(rawPos: unknown): Array<"G" | "D" | "C" | "F"> {
+  if (typeof rawPos !== "string" || !rawPos.trim()) return []
+
+  const pos = rawPos.toLowerCase()
+  const notGoalie = isNotGoaliePosition(pos)
+  const tokens = pos.split(/[,/\s-]+/).map((t) => t.replace(/[^a-z]/g, "")).filter(Boolean)
+
+  if (tokens.some((t) => ["all", "any", "whatever", "both"].includes(t))) {
+    return notGoalie ? ["D", "C", "F"] : ["G", "D", "C", "F"]
+  }
+
+  const chips: Array<"G" | "D" | "C" | "F"> = []
+
+  if (!notGoalie && isPlayerGoalie(rawPos)) {
+    chips.push("G")
+  }
+
+  const matchesD = ["defense", "defence", "def", "d", "rd", "ld", "defensemen", "defenseman"].some(
+    (kw) => tokens.includes(kw) || (kw.includes(" ") && pos.includes(kw))
+  )
+  if (matchesD) {
+    chips.push("D")
+  }
+
+  const matchesC = ["center", "centre", "c"].some(
+    (kw) => tokens.includes(kw) || (kw.includes(" ") && pos.includes(kw))
+  )
+  if (matchesC) {
+    chips.push("C")
+  }
+
+  const matchesF = [
+    "forward", "forwards", "f", "fwd", "wing", "winger", "w",
+    "lw", "rw", "rf", "offense", "left wing", "right wing"
+  ].some((kw) => tokens.includes(kw) || (kw.includes(" ") && pos.includes(kw)))
+  if (matchesF) {
+    chips.push("F")
+  }
+
+  if (notGoalie && chips.length === 0) {
+    return ["D", "F"]
+  }
+
+  return chips
+}
+

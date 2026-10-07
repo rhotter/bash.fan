@@ -160,9 +160,9 @@ export function PlayerCardModal({
     setActiveTab("registration")
   }, [player?.playerId])
 
-  // Fetch previous season stats on demand
+  // Fetch previous season stats as soon as modal is open to eliminate tab-switch delay
   const { data: statsData, isLoading: statsLoading } = useSWR(
-    player && activeTab === "stats"
+    player && open
       ? `/api/bash/draft/player-stats/${player.playerId}?currentSeason=${seasonSlug}`
       : null,
     fetcher,

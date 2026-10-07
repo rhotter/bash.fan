@@ -3,6 +3,7 @@ import {
   isNotGoaliePosition,
   isPlayerGoalie,
   matchesPositionFilter,
+  getPositionChips,
 } from "@/lib/draft-helpers"
 
 describe("Draft Position Helpers", () => {
@@ -155,6 +156,24 @@ describe("Draft Position Helpers", () => {
       expect(parsePositionTags("Goalies")).toEqual(["G"])
       expect(parsePositionTags("Goalkeepers")).toEqual(["G"])
       expect(parsePositionTags("Netminders")).toEqual(["G"])
+    })
+  })
+
+  describe("getPositionChips", () => {
+    it("extracts correct chips from raw positions", () => {
+      expect(getPositionChips("defense")).toEqual(["D"])
+      expect(getPositionChips("Defense")).toEqual(["D"])
+      expect(getPositionChips("Forward")).toEqual(["F"])
+      expect(getPositionChips("Winger")).toEqual(["F"])
+      expect(getPositionChips("Center")).toEqual(["C"])
+      expect(getPositionChips("Goalie")).toEqual(["G"])
+      expect(getPositionChips("Winger, Defense")).toEqual(["D", "F"])
+      expect(getPositionChips("Defense, not goalie")).toEqual(["D"])
+      expect(getPositionChips("not goalie")).toEqual(["D", "F"])
+      expect(getPositionChips("All")).toEqual(["G", "D", "C", "F"])
+      expect(getPositionChips("")).toEqual([])
+      expect(getPositionChips(null)).toEqual([])
+      expect(getPositionChips(undefined)).toEqual([])
     })
   })
 })
