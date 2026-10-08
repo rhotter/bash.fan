@@ -1,5 +1,6 @@
 "use client"
 
+import { useRef, useState } from "react"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 
@@ -24,23 +25,45 @@ export function DraftPlayerBadge({
   className?: string
 }) {
   const { letter, label, description } = playerBadges[kind]
+  const [open, setOpen] = useState(false)
+  const triggerRef = useRef<HTMLButtonElement>(null)
 
   return (
-    <Tooltip>
+    <Tooltip open={open} onOpenChange={setOpen}>
       <TooltipTrigger asChild>
-        <span
-          tabIndex={0}
+        <button
+          ref={triggerRef}
+          type="button"
+          aria-expanded={open}
+          onPointerDown={(event) => {
+            // Keep an open explanation in place until click can toggle it closed.
+            // Radix otherwise closes on pointer-down, then our click reopens it.
+            if (open) event.preventDefault()
+          }}
+          onClick={(event) => {
+            event.preventDefault()
+            event.stopPropagation()
+            setOpen((previous) => !previous)
+          }}
           className={cn(
-            "shrink-0 inline-flex items-center justify-center h-4 min-w-4 px-1 rounded-sm border text-[9px] font-bold uppercase tracking-wider leading-none cursor-help focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+            "relative pointer-events-auto shrink-0 inline-flex items-center justify-center h-4 min-w-4 px-1 rounded-sm border text-[9px] font-bold uppercase tracking-wider leading-none cursor-help touch-manipulation [@media(pointer:coarse)]:min-h-6 [@media(pointer:coarse)]:min-w-6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
             kind === "captain" ? "border-primary/50 text-primary" : "border-border text-muted-foreground",
             className,
           )}
         >
           <span aria-hidden="true">{letter}</span>
           <span className="sr-only">{label}</span>
-        </span>
+        </button>
       </TooltipTrigger>
-      <TooltipContent sideOffset={4}>
+      <TooltipContent
+        sideOffset={4}
+        collisionPadding={8}
+        className="max-w-[calc(100vw-1rem)]"
+        onPointerDownOutside={(event) => {
+          if (triggerRef.current?.contains(event.target as Node)) event.preventDefault()
+        }}
+        onEscapeKeyDown={(event) => event.stopPropagation()}
+      >
         {label} — {description}
       </TooltipContent>
     </Tooltip>

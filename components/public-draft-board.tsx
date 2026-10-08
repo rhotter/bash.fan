@@ -1075,19 +1075,23 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
                               const playoffShort = playoffAvail.toLowerCase().startsWith("yes") ? "Y" : playoffAvail.toLowerCase().startsWith("no") ? "N" : "?"
 
                               return (
-                                <button
+                                <div
                                   key={pick.id}
-                                  type="button"
                                   onClick={() => pick.playerId && openPlayerCard(pick.playerId)}
                                   onMouseEnter={() => pick.playerId && prefetchPlayerStats(pick.playerId)}
                                   onFocus={() => pick.playerId && prefetchPlayerStats(pick.playerId)}
                                   className={cn(
-                                    "group w-full text-left flex items-baseline gap-2 sm:gap-3 px-2 py-1.5 rounded-md cursor-pointer hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/40 transition-colors",
+                                    "relative group w-full text-left flex items-baseline gap-2 sm:gap-3 px-2 py-1.5 rounded-md hover:bg-muted/50 transition-colors",
                                     i % 2 === 0 && "bg-card/15"
                                   )}
                                 >
-                                  <span className="text-muted-foreground/40 tabular-nums text-[10px] shrink-0 w-7 text-right">#{pick.pickNumber}</span>
-                                  <span className="flex-1 min-w-0 flex items-center gap-1.5">
+                                  <button
+                                    type="button"
+                                    aria-label={`View ${pick.playerName}`}
+                                    className="absolute inset-0 rounded-md cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/40"
+                                  />
+                                  <span className="pointer-events-none text-muted-foreground/40 tabular-nums text-[10px] shrink-0 w-7 text-right">#{pick.pickNumber}</span>
+                                  <span className="pointer-events-none flex-1 min-w-0 flex items-center gap-1.5">
                                     <span className="truncate text-xs font-semibold group-hover:text-primary transition-colors">
                                       {pick.playerName}
                                     </span>
@@ -1102,17 +1106,17 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
                                     )}
                                   </span>
                                   {position && (
-                                    <span className="shrink-0 text-[10px] font-medium text-muted-foreground tabular-nums w-12 sm:w-16 text-right truncate" title={position}>
+                                    <span className="relative shrink-0 text-[10px] font-medium text-muted-foreground tabular-nums w-12 sm:w-16 text-right truncate" title={position}>
                                       {position}
                                     </span>
                                   )}
-                                  <span className="hidden md:inline shrink-0 text-[10px] font-medium text-muted-foreground tabular-nums w-16 text-right truncate" title={skillLevel}>
+                                  <span className="relative hidden md:inline shrink-0 text-[10px] font-medium text-muted-foreground tabular-nums w-16 text-right truncate" title={skillLevel}>
                                     {skillLevel || "—"}
                                   </span>
-                                  <span className={`hidden md:inline shrink-0 text-[10px] font-medium tabular-nums w-8 text-center ${playoffShort === "Y" ? "text-green-600" : playoffShort === "N" ? "text-red-500" : "text-muted-foreground"}`} title={playoffAvail}>
+                                  <span className={`relative hidden md:inline shrink-0 text-[10px] font-medium tabular-nums w-8 text-center ${playoffShort === "Y" ? "text-green-600" : playoffShort === "N" ? "text-red-500" : "text-muted-foreground"}`} title={playoffAvail}>
                                     {playoffShort}
                                   </span>
-                                </button>
+                                </div>
                               )
                             })
                           )}
