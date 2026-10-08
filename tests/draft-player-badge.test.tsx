@@ -157,6 +157,8 @@ describe("Draft player badge explanations", () => {
     await tap(badge("Rookie"))
     expect(tooltip()).not.toBeNull()
     expect(document.querySelector('[role="dialog"]')).toBeNull()
+    await tap(tooltip() as HTMLElement)
+    expect(document.querySelector('[role="dialog"]')).toBeNull()
     await tap(container.querySelector('button[aria-label="View Sample Player"]')!)
     expect(document.querySelector('[role="dialog"]')).not.toBeNull()
   })

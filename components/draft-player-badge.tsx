@@ -59,6 +59,7 @@ export function DraftPlayerBadge({
         sideOffset={4}
         collisionPadding={8}
         className="max-w-[calc(100vw-1rem)]"
+        onClick={(event) => event.stopPropagation()}
         onPointerDownOutside={(event) => {
           if (triggerRef.current?.contains(event.target as Node)) event.preventDefault()
         }}
