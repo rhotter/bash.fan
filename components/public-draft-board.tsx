@@ -1075,19 +1075,23 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
                               const playoffShort = playoffAvail.toLowerCase().startsWith("yes") ? "Y" : playoffAvail.toLowerCase().startsWith("no") ? "N" : "?"
 
                               return (
-                                <button
+                                <div
                                   key={pick.id}
-                                  type="button"
                                   onClick={() => pick.playerId && openPlayerCard(pick.playerId)}
                                   onMouseEnter={() => pick.playerId && prefetchPlayerStats(pick.playerId)}
                                   onFocus={() => pick.playerId && prefetchPlayerStats(pick.playerId)}
                                   className={cn(
-                                    "group w-full text-left flex items-baseline gap-2 sm:gap-3 px-2 py-1.5 rounded-md cursor-pointer hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/40 transition-colors",
+                                    "relative group w-full text-left flex items-baseline gap-2 sm:gap-3 px-2 py-1.5 rounded-md hover:bg-muted/50 transition-colors",
                                     i % 2 === 0 && "bg-card/15"
                                   )}
                                 >
-                                  <span className="text-muted-foreground/40 tabular-nums text-[10px] shrink-0 w-7 text-right">#{pick.pickNumber}</span>
-                                  <span className="flex-1 min-w-0 flex items-center gap-1.5">
+                                  <button
+                                    type="button"
+                                    aria-label={`View ${pick.playerName}`}
+                                    className="absolute inset-0 rounded-md cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/40"
+                                  />
+                                  <span className="pointer-events-none text-muted-foreground/40 tabular-nums text-[10px] shrink-0 w-7 text-right">#{pick.pickNumber}</span>
+                                  <span className="pointer-events-none flex-1 min-w-0 flex items-center gap-1.5">
                                     <span className="truncate text-xs font-semibold group-hover:text-primary transition-colors">
                                       {pick.playerName}
                                     </span>
@@ -1102,17 +1106,17 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
                                     )}
                                   </span>
                                   {position && (
-                                    <span className="shrink-0 text-[10px] font-medium text-muted-foreground tabular-nums w-12 sm:w-16 text-right truncate" title={position}>
+                                    <span className="relative shrink-0 text-[10px] font-medium text-muted-foreground tabular-nums w-12 sm:w-16 text-right truncate" title={position}>
                                       {position}
                                     </span>
                                   )}
-                                  <span className="hidden md:inline shrink-0 text-[10px] font-medium text-muted-foreground tabular-nums w-16 text-right truncate" title={skillLevel}>
+                                  <span className="relative hidden md:inline shrink-0 text-[10px] font-medium text-muted-foreground tabular-nums w-16 text-right truncate" title={skillLevel}>
                                     {skillLevel || "—"}
                                   </span>
-                                  <span className={`hidden md:inline shrink-0 text-[10px] font-medium tabular-nums w-8 text-center ${playoffShort === "Y" ? "text-green-600" : playoffShort === "N" ? "text-red-500" : "text-muted-foreground"}`} title={playoffAvail}>
+                                  <span className={`relative hidden md:inline shrink-0 text-[10px] font-medium tabular-nums w-8 text-center ${playoffShort === "Y" ? "text-green-600" : playoffShort === "N" ? "text-red-500" : "text-muted-foreground"}`} title={playoffAvail}>
                                     {playoffShort}
                                   </span>
-                                </button>
+                                </div>
                               )
                             })
                           )}
@@ -1294,13 +1298,13 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
                                       </button>
                                       <div className="flex items-center gap-0.5 shrink-0">
                                         {isCaptain && (
-                                          <DraftPlayerBadge kind="captain" className="h-3.5 min-w-3 px-0.5 rounded-[2px] text-[8.5px] tracking-normal border-blue-400/70 bg-blue-50/60 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400" />
+                                          <DraftPlayerBadge kind="captain" className="h-3.5 min-w-3 px-0.5 rounded-[2px] text-[8.5px] tracking-normal" />
                                         )}
                                         {isKeeper && (
                                           <span className="shrink-0 inline-flex items-center justify-center h-3.5 min-w-3 px-0.5 rounded-[2px] border border-amber-400/70 bg-amber-50/60 dark:bg-amber-950/40 text-[8.5px] font-bold text-amber-600 dark:text-amber-400 leading-none" title="Keeper">K</span>
                                         )}
                                         {isRookie && (
-                                          <DraftPlayerBadge kind="rookie" className="h-3.5 min-w-3 px-0.5 rounded-[2px] text-[8.5px] tracking-normal border-green-400/70 bg-green-50/60 dark:bg-green-950/40 text-green-600 dark:text-green-400" />
+                                          <DraftPlayerBadge kind="rookie" className="h-3.5 min-w-3 px-0.5 rounded-[2px] text-[8.5px] tracking-normal" />
                                         )}
                                         {isGoalie && (
                                           <span className="shrink-0 inline-flex items-center justify-center h-3.5 min-w-3 px-0.5 rounded-[2px] border border-purple-400/70 bg-purple-50/60 dark:bg-purple-950/40 text-[8.5px] font-bold text-purple-600 dark:text-purple-400 leading-none" title="Goalie">G</span>
@@ -1329,9 +1333,9 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
                       </tbody>
                     </table>
                     <div className="flex flex-wrap items-center justify-end gap-3 px-3 py-2 text-[10px] text-muted-foreground/70 border-t border-border/40 bg-muted/10">
-                      <span className="flex items-center gap-1"><span className="inline-flex items-center justify-center h-3.5 w-3.5 rounded-[3px] border border-blue-400/70 bg-blue-50/60 dark:bg-blue-950/40 text-[8.5px] font-bold text-blue-600 dark:text-blue-400">C</span> Captain</span>
+                      <span className="flex items-center gap-1"><span className="inline-flex items-center justify-center h-3.5 w-3.5 rounded-[3px] border border-foreground/40 text-[8.5px] font-bold text-foreground">C</span> Captain</span>
                       <span className="flex items-center gap-1"><span className="inline-flex items-center justify-center h-3.5 w-3.5 rounded-[3px] border border-amber-400/70 bg-amber-50/60 dark:bg-amber-950/40 text-[8.5px] font-bold text-amber-600 dark:text-amber-400">K</span> Keeper</span>
-                      <span className="flex items-center gap-1"><span className="inline-flex items-center justify-center h-3.5 w-3.5 rounded-[3px] border border-green-400/70 bg-green-50/60 dark:bg-green-950/40 text-[8.5px] font-bold text-green-600 dark:text-green-400">R</span> Rookie</span>
+                      <span className="flex items-center gap-1"><span className="inline-flex items-center justify-center h-3.5 w-3.5 rounded-[3px] border border-foreground/40 text-[8.5px] font-bold text-foreground">R</span> Rookie</span>
                       <span className="flex items-center gap-1"><span className="inline-flex items-center justify-center h-3.5 w-3.5 rounded-[3px] border border-purple-400/70 bg-purple-50/60 dark:bg-purple-950/40 text-[8.5px] font-bold text-purple-600 dark:text-purple-400">G</span> Goalie</span>
                     </div>
                   </CardContent>
