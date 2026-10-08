@@ -46,8 +46,7 @@ export function DraftPlayerBadge({
             setOpen((previous) => !previous)
           }}
           className={cn(
-            "relative pointer-events-auto shrink-0 inline-flex items-center justify-center h-4 min-w-4 px-1 rounded-sm border text-[9px] font-bold uppercase tracking-wider leading-none cursor-help touch-manipulation [@media(pointer:coarse)]:min-h-6 [@media(pointer:coarse)]:min-w-6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
-            kind === "captain" ? "border-primary/50 text-primary" : "border-border text-muted-foreground",
+            "relative pointer-events-auto shrink-0 inline-flex items-center justify-center h-4 min-w-4 px-1 rounded-sm border border-foreground/40 text-foreground text-[9px] font-bold uppercase tracking-wider leading-none cursor-help touch-manipulation [@media(pointer:coarse)]:min-h-6 [@media(pointer:coarse)]:min-w-6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground focus-visible:ring-offset-2",
             className,
           )}
         >

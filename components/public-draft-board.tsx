@@ -1298,13 +1298,13 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
                                       </button>
                                       <div className="flex items-center gap-0.5 shrink-0">
                                         {isCaptain && (
-                                          <DraftPlayerBadge kind="captain" className="h-3.5 min-w-3 px-0.5 rounded-[2px] text-[8.5px] tracking-normal border-blue-400/70 bg-blue-50/60 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400" />
+                                          <DraftPlayerBadge kind="captain" className="h-3.5 min-w-3 px-0.5 rounded-[2px] text-[8.5px] tracking-normal" />
                                         )}
                                         {isKeeper && (
                                           <span className="shrink-0 inline-flex items-center justify-center h-3.5 min-w-3 px-0.5 rounded-[2px] border border-amber-400/70 bg-amber-50/60 dark:bg-amber-950/40 text-[8.5px] font-bold text-amber-600 dark:text-amber-400 leading-none" title="Keeper">K</span>
                                         )}
                                         {isRookie && (
-                                          <DraftPlayerBadge kind="rookie" className="h-3.5 min-w-3 px-0.5 rounded-[2px] text-[8.5px] tracking-normal border-green-400/70 bg-green-50/60 dark:bg-green-950/40 text-green-600 dark:text-green-400" />
+                                          <DraftPlayerBadge kind="rookie" className="h-3.5 min-w-3 px-0.5 rounded-[2px] text-[8.5px] tracking-normal" />
                                         )}
                                         {isGoalie && (
                                           <span className="shrink-0 inline-flex items-center justify-center h-3.5 min-w-3 px-0.5 rounded-[2px] border border-purple-400/70 bg-purple-50/60 dark:bg-purple-950/40 text-[8.5px] font-bold text-purple-600 dark:text-purple-400 leading-none" title="Goalie">G</span>

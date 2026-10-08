@@ -74,6 +74,9 @@ describe("Draft player badge explanations", () => {
     await render(<div onClick={parentClick}><DraftPlayerBadge kind={kind} /></div>)
     const trigger = badge(label)
     expect(trigger.tagName).toBe("BUTTON")
+    expect(trigger.className).toContain("text-foreground")
+    expect(trigger.className).toContain("focus-visible:ring-foreground")
+    expect(trigger.className).not.toContain("text-primary")
     expect(trigger.getAttribute("aria-expanded")).toBe("false")
     for (let i = 0; i < 3; i++) {
       await tap(trigger)
