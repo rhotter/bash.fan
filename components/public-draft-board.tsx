@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip"
 import { Search, Clock, Users, Volume2, VolumeX, CalendarPlus, Layers, X, ChevronsRight, Eye, EyeOff, Trophy, LayoutList, LayoutGrid, ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react"
 import { PlayerCardModal } from "@/components/player-card-modal"
+import { DraftPlayerBadge } from "@/components/draft-player-badge"
 import { TeamLogo } from "@/components/team-logo"
 import { isPlayerGoalie, matchesPositionFilter, getPositionChips } from "@/lib/draft-helpers"
 
@@ -1091,13 +1092,13 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
                                       {pick.playerName}
                                     </span>
                                     {isCaptain && (
-                                      <span className="shrink-0 inline-flex items-center justify-center h-4 min-w-4 px-1 rounded-sm border border-primary/50 text-[9px] font-bold uppercase tracking-wider text-primary leading-none">C</span>
+                                      <DraftPlayerBadge kind="captain" />
                                     )}
                                     {pick.isKeeper && !isCaptain && (
                                       <span className="shrink-0 inline-flex items-center justify-center h-4 min-w-4 px-1 rounded-sm border border-border text-[9px] font-bold uppercase tracking-wider text-muted-foreground leading-none">K</span>
                                     )}
                                     {isRookie && (
-                                      <span className="shrink-0 inline-flex items-center justify-center h-4 min-w-4 px-1 rounded-sm border border-border text-[9px] font-bold uppercase tracking-wider text-muted-foreground leading-none">R</span>
+                                      <DraftPlayerBadge kind="rookie" />
                                     )}
                                   </span>
                                   {position && (
@@ -1200,13 +1201,13 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
                                       {(isCaptain || pick.isKeeper) ? formatPlayerNameCompact(pick.playerName) : formatPlayerName(pick.playerName)}
                                     </button>
                                     {isCaptain && (
-                                      <span className="shrink-0 inline-flex items-center justify-center h-4 min-w-4 px-1 rounded-sm border border-primary/50 text-[9px] font-bold uppercase tracking-wider text-primary leading-none">C</span>
+                                      <DraftPlayerBadge kind="captain" />
                                     )}
                                     {pick.isKeeper && !isCaptain && (
                                       <span className="shrink-0 inline-flex items-center justify-center h-4 min-w-4 px-1 rounded-sm border border-border text-[9px] font-bold uppercase tracking-wider text-muted-foreground leading-none">K</span>
                                     )}
                                     {isRookie && (
-                                      <span className="shrink-0 inline-flex items-center justify-center h-4 min-w-4 px-1 rounded-sm border border-border text-[9px] font-bold uppercase tracking-wider text-muted-foreground leading-none">R</span>
+                                      <DraftPlayerBadge kind="rookie" />
                                     )}
                                     {newOwner && (
                                       <span className="shrink-0 text-[9px] italic text-muted-foreground/50" title={`Acquired via trade from ${pick.originalTeamSlug}`}>↔</span>
@@ -1293,13 +1294,13 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
                                       </button>
                                       <div className="flex items-center gap-0.5 shrink-0">
                                         {isCaptain && (
-                                          <span className="shrink-0 inline-flex items-center justify-center h-3.5 min-w-3 px-0.5 rounded-[2px] border border-blue-400/70 bg-blue-50/60 dark:bg-blue-950/40 text-[8.5px] font-bold text-blue-600 dark:text-blue-400 leading-none" title="Captain">C</span>
+                                          <DraftPlayerBadge kind="captain" className="h-3.5 min-w-3 px-0.5 rounded-[2px] text-[8.5px] tracking-normal border-blue-400/70 bg-blue-50/60 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400" />
                                         )}
                                         {isKeeper && (
                                           <span className="shrink-0 inline-flex items-center justify-center h-3.5 min-w-3 px-0.5 rounded-[2px] border border-amber-400/70 bg-amber-50/60 dark:bg-amber-950/40 text-[8.5px] font-bold text-amber-600 dark:text-amber-400 leading-none" title="Keeper">K</span>
                                         )}
                                         {isRookie && (
-                                          <span className="shrink-0 inline-flex items-center justify-center h-3.5 min-w-3 px-0.5 rounded-[2px] border border-green-400/70 bg-green-50/60 dark:bg-green-950/40 text-[8.5px] font-bold text-green-600 dark:text-green-400 leading-none" title="Rookie">R</span>
+                                          <DraftPlayerBadge kind="rookie" className="h-3.5 min-w-3 px-0.5 rounded-[2px] text-[8.5px] tracking-normal border-green-400/70 bg-green-50/60 dark:bg-green-950/40 text-green-600 dark:text-green-400" />
                                         )}
                                         {isGoalie && (
                                           <span className="shrink-0 inline-flex items-center justify-center h-3.5 min-w-3 px-0.5 rounded-[2px] border border-purple-400/70 bg-purple-50/60 dark:bg-purple-950/40 text-[8.5px] font-bold text-purple-600 dark:text-purple-400 leading-none" title="Goalie">G</span>
