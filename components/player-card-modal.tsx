@@ -8,6 +8,7 @@ import { Loader2, User, BarChart3, Trophy, ExternalLink } from "lucide-react"
 import Link from "next/link"
 import { playerSlug } from "@/lib/player-slug"
 import { SectionHeader } from "@/components/stats-table"
+import { DraftPlayerBadge } from "@/components/draft-player-badge"
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -209,9 +210,7 @@ export function PlayerCardModal({
                 <DialogTitle className="text-xl font-black tracking-tight flex items-center gap-2">
                   <span className="truncate">{player.playerName}</span>
                   {isRookie && (
-                    <span className="shrink-0 inline-flex h-4 min-w-4 items-center justify-center rounded-sm border border-border px-1 text-[9px] font-bold uppercase tracking-wider text-muted-foreground leading-none">
-                      R
-                    </span>
+                    <DraftPlayerBadge kind="rookie" />
                   )}
                   <span className="text-muted-foreground/30 text-base font-normal">|</span>
                   <Link
