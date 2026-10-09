@@ -13,7 +13,7 @@ export default async function ScorekeeperPage({ params }: { params: Promise<{ id
   // Get game info
   const gameRows = await rawSql(sql`
     SELECT g.id, g.date, g.time, g.status, g.season_id,
-      g.home_team, g.away_team, g.is_playoff, g.game_type,
+      g.home_team, g.away_team, g.is_playoff, g.is_forfeit, g.game_type,
       COALESCE(ht.name, g.home_team) as home_team_name, COALESCE(awt.name, g.away_team) as away_team_name,
       s.game_length
     FROM games g
@@ -86,6 +86,7 @@ export default async function ScorekeeperPage({ params }: { params: Promise<{ id
       time={game.time}
       status={game.status}
       isPlayoff={!!game.is_playoff}
+      isForfeit={!!game.is_forfeit}
       gameType={game.game_type || "regular"}
       homeSlug={game.home_team}
       awaySlug={game.away_team}

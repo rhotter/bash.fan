@@ -11,6 +11,7 @@ vi.mock("@/components/admin-editor/shots-editor", () => ({
   ShotsEditor: ({ state, onChange }: { state: LiveGameState; onChange: (patch: Partial<LiveGameState>) => void }) => (
     <section>
       <output aria-label="Home shots">{state.homeShots.join(",")}</output>
+      <output aria-label="Pending claim">{state.finalizationPending?.attemptId}</output>
       <button onClick={() => onChange({ homeShots: state.homeShots.map((shots, index) => shots + Number(index === 0)) })}>
         Increase home shots
       </button>
@@ -341,6 +342,51 @@ describe("AdminGameEditor saving", () => {
     expect(fetchMock.mock.calls[0][0]).toBe("/api/bash/scorekeeper/g55/finalize")
     expect(requestBody().expectedState).toEqual(state)
     expect(onSaved).toHaveBeenCalledTimes(1)
+  })
+
+  it.each(["full edit", "failed retry"])("stops saving after a terminal forfeit during %s and retains the returned history", async (mode) => {
+    const state = initialState()
+    state.goals = [{ id: "recorded-goal", team: "home", period: 3, clock: "2:00", scorerId: 10, assist1Id: null, assist2Id: null, flags: [] }]
+    if (mode === "failed retry") state.finalizationPending = { attemptId: "failed-attempt", phase: "failed" }
+    const { finalizationPending: _pending, ...retained } = state
+    fetchMock.mockResolvedValueOnce(reply(409, {
+      code: "GAME_FORFEITED", finalizationCanceled: true, state: retained,
+      error: "This game was forfeited. Live finalization has been canceled; view the official game result.",
+    }))
+    await render(state)
+    if (mode === "full edit") await click("Add home goal")
+    await click("Save")
+
+    expect(container.textContent).toContain("This game was forfeited")
+    expect(container.textContent).not.toContain("Save again to retry")
+    expect(container.querySelector('a[href="/game/g55"]')?.textContent).toBe("View official game result")
+    expect(container.querySelector('output[aria-label="Goal count"]')?.textContent).toBe("1")
+    expect(container.querySelector('output[aria-label="Home shots"]')?.textContent).toBe("5,5,5")
+    expect(container.querySelector('output[aria-label="Pending claim"]')?.textContent).toBe("")
+    expect(button("Save").disabled).toBe(true)
+    expect(button("Add home goal").matches(":disabled")).toBe(true)
+    await click("Save")
+    await click("Add home goal")
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(onSaved).not.toHaveBeenCalled()
+    await click("Cancel")
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it("does not invent a cleared claim when terminal recovery requires a reload", async () => {
+    const state = { ...initialState(), finalizationPending: { attemptId: "failed-attempt", phase: "failed" as const } }
+    const newerRunning = { ...state, finalizationPending: { attemptId: "newer-running-attempt", phase: "running" as const } }
+    fetchMock.mockResolvedValueOnce(reply(409, {
+      code: "GAME_FORFEITED", finalizationCanceled: true, reloadRequired: true, state: newerRunning,
+    }))
+    await render(state)
+    await click("Save")
+    expect(button("Save").disabled).toBe(true)
+    expect(container.querySelector('output[aria-label="Pending claim"]')?.textContent).toBe("failed-attempt")
+    expect(state.finalizationPending.attemptId).toBe("failed-attempt")
+    expect(container.textContent).not.toContain("Save again to retry")
+    expect(onSaved).not.toHaveBeenCalled()
+    expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
   it.each([false, true])("treats unchanged Save as a no-op, including normalized legacy arrays (%s)", async (legacy) => {

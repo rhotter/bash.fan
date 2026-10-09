@@ -89,7 +89,10 @@ beforeEach(() => {
     const { sql, params } = dialect.sqlToQuery(query)
     const [proposedJson, expectedJson] = params.filter((value) => typeof value === "string" && value.startsWith("{")) as string[]
     if (!isDeepStrictEqual(JSON.parse(expectedJson), state)) return []
-    if (!sql.includes("WITH eligible_game") &&
+    if (sql.includes("WITH forfeited_game")) {
+      if (!isForfeit || !state.finalizationPending ||
+        !params.includes(state.finalizationPending.phase) || !params.includes(state.finalizationPending.attemptId)) return []
+    } else if (!sql.includes("WITH eligible_game") &&
       (state.finalizationPending?.phase !== "running" || !params.includes(state.finalizationPending.attemptId))) return []
     const accepted = JSON.parse(proposedJson)
     if (Object.hasOwn(state, "shotCorrections")) accepted.shotCorrections = (state as any).shotCorrections
@@ -122,7 +125,12 @@ beforeEach(() => {
       where: (where: SQL) => ({
         returning: async () => {
           updates.push({ values, where })
-          return forfeitDuringFinalization ? [] : [{ id: "g55" }]
+          if (forfeitDuringFinalization) {
+            isForfeit = true
+            officialGame = { status: "final", hasBoxscore: true, homeScore: 0, awayScore: 1 }
+            return []
+          }
+          return [{ id: "g55" }]
         },
       }),
     }),
@@ -136,7 +144,7 @@ describe("scorekeeper finalization", () => {
     isForfeit = true
     const response = await finalize()
     expect(response.status).toBe(409)
-    expect(await response.json()).toEqual({ error: "Forfeited games cannot be finalized from live scoring" })
+    expect(await response.json()).toMatchObject({ code: "GAME_FORFEITED", finalizationCanceled: true, state })
     expect(mocks.insert).not.toHaveBeenCalled()
     expect(mocks.delete).not.toHaveBeenCalled()
     expect(mocks.update).not.toHaveBeenCalled()
@@ -147,8 +155,9 @@ describe("scorekeeper finalization", () => {
     forfeitDuringFinalization = true
     const response = await finalize()
     expect(response.status).toBe(409)
-    expect(await response.json()).toMatchObject({ stateSaved: true, state: { finalizationPending: { phase: "failed" } } })
-    expect(state.finalizationPending?.phase).toBe("failed")
+    expect(await response.json()).toMatchObject({ code: "GAME_FORFEITED", finalizationCanceled: true, state })
+    expect(state.finalizationPending).toBeUndefined()
+    expect(officialGame).toEqual({ status: "final", hasBoxscore: true, homeScore: 0, awayScore: 1 })
     const query = dialect.sqlToQuery(updates[0].where)
     expect(query.sql).toContain('"games"."is_forfeit" =')
     expect(query.params).toEqual(["g55", false])
@@ -520,7 +529,8 @@ describe("scorekeeper finalization", () => {
     forfeitDuringFinalization = true
     const response = await finalize(undefined, { state: structuredClone(expectedState), expectedState })
     expect(response.status).toBe(409)
-    expect(await response.json()).toMatchObject({ stateSaved: true, state })
+    expect(await response.json()).toMatchObject({ code: "GAME_FORFEITED", finalizationCanceled: true, state })
+    expect(state.finalizationPending).toBeUndefined()
   })
 
   it.each(["bodyless", "proposed"] as const)("rejects an existing running attempt before writes on the %s path", async (path) => {
@@ -718,5 +728,143 @@ describe("scorekeeper finalization", () => {
     expect((await finalize()).status).toBe(401)
     expect(mocks.select).not.toHaveBeenCalled()
     expect(mocks.insert).not.toHaveBeenCalled()
+  })
+})
+
+
+describe("terminal forfeit finalization recovery", () => {
+  it("retires only its claimed marker after a concurrent forfeit and preserves history and the official result", async () => {
+    forfeitDuringFinalization = true
+    const history = structuredClone(state)
+    ;(state as any).shotCorrections = [{ reason: "Audited correction" }]
+    const response = await finalize()
+    expect(response.status).toBe(409)
+    const result = await response.json()
+    expect(result).toMatchObject({ code: "GAME_FORFEITED", finalizationCanceled: true, state })
+    expect(result.stateSaved).toBeUndefined()
+    expect(result.reloadRequired).toBeUndefined()
+    expect(state.finalizationPending).toBeUndefined()
+    expect(state).toMatchObject({ ...history, updatedAt: expect.any(Number), shotCorrections: [{ reason: "Audited correction" }] })
+    const cleanup = dialect.sqlToQuery(mocks.rawSql.mock.calls[1][0])
+    expect(cleanup.sql).toContain("WITH forfeited_game AS MATERIALIZED")
+    expect(cleanup.sql).toContain("AND is_forfeit FOR UPDATE")
+    expect(cleanup.sql).toContain("AND l.state =")
+    expect(cleanup.sql).toContain("->>'attemptId' =")
+    expect(cleanup.sql).toContain("->>'phase' =")
+    expect(cleanup.params).toContain("running")
+    const claimed = JSON.parse(dialect.sqlToQuery(mocks.rawSql.mock.calls[0][0]).params.find(
+      (value) => typeof value === "string" && value.startsWith("{")) as string)
+    expect(cleanup.params).toContain(claimed.finalizationPending.attemptId)
+    expect(officialGame).toEqual({ status: "final", hasBoxscore: true, homeScore: 0, awayScore: 1 })
+
+    // Individual rows may have already been written before the forfeit won.
+    // Existing read-side exclusion protects totals; recovery must not replay
+    // stats, alter the official score, or discard retained scoring history.
+    const retainedStats = structuredClone(inserted)
+    expect(rows("player_game_stats").length).toBeGreaterThan(0)
+    expect(rows("goalie_game_stats").length).toBeGreaterThan(0)
+    const writes = [mocks.rawSql, mocks.insert, mocks.delete, mocks.update].map((mock) => mock.mock.calls.length)
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const retry = await finalize()
+      expect(retry.status).toBe(409)
+      expect(await retry.json()).toMatchObject({ code: "GAME_FORFEITED", finalizationCanceled: true, state })
+      expect(inserted).toEqual(retainedStats)
+    }
+    expect([mocks.rawSql, mocks.insert, mocks.delete, mocks.update].map((mock) => mock.mock.calls.length)).toEqual(writes)
+  })
+
+  it.each(["bodyless", "stale proposal"])("clears a preexisting failed claim using only retained server history via %s", async (path) => {
+    isForfeit = true
+    officialGame = { status: "final", hasBoxscore: true, homeScore: 0, awayScore: 1 }
+    state.finalizationPending = { attemptId: "failed-before-fix", phase: "failed" }
+    state.notes = "Preserved notes"
+    ;(state as any).shotCorrections = [{ reason: "Retained audit" }]
+    const before = structuredClone(state)
+    const stale = { ...before, notes: "Unaccepted editor notes" }
+    const response = await finalize("stale timestamp", path === "stale proposal" ? { state: stale, expectedState: stale } : undefined)
+    expect(response.status).toBe(409)
+    expect(await response.json()).toMatchObject({ code: "GAME_FORFEITED", finalizationCanceled: true, state })
+    const { finalizationPending: _pending, updatedAt: _updated, ...history } = before
+    expect(state).toEqual({ ...history, updatedAt: expect.any(Number) })
+    const cleanup = dialect.sqlToQuery(mocks.rawSql.mock.calls[0][0])
+    expect(cleanup.params).toContain("failed-before-fix")
+    expect(cleanup.params).toContain("failed")
+    expect(mocks.rawSql).toHaveBeenCalledTimes(1)
+    expect(mocks.insert).not.toHaveBeenCalled()
+    expect(mocks.delete).not.toHaveBeenCalled()
+    expect(mocks.update).not.toHaveBeenCalled()
+    expect(officialGame).toEqual({ status: "final", hasBoxscore: true, homeScore: 0, awayScore: 1 })
+  })
+
+  it("does not steal another running claim on an already forfeited game", async () => {
+    isForfeit = true
+    state.finalizationPending = { attemptId: "still-running", phase: "running" }
+    const before = structuredClone(state)
+    const response = await finalize()
+    expect(response.status).toBe(409)
+    const data = await response.json()
+    expect(data).toMatchObject({ code: "GAME_FORFEITED", finalizationCanceled: true, reloadRequired: true })
+    expect(data.state).toBeUndefined()
+    expect(state).toEqual(before)
+    expect(mocks.rawSql).not.toHaveBeenCalled()
+    expect(mocks.insert).not.toHaveBeenCalled()
+    expect(mocks.delete).not.toHaveBeenCalled()
+    expect(mocks.update).not.toHaveBeenCalled()
+  })
+
+  it.each(["running", "failed"] as const)("does not clear a newer %s claim when cancellation loses ownership", async (phase) => {
+    forfeitDuringFinalization = true
+    const save = mocks.rawSql.getMockImplementation()!
+    mocks.rawSql.mockImplementationOnce(save).mockImplementationOnce(async (...args) => {
+      state.finalizationPending = { attemptId: "newer-attempt", phase }
+      return save(...args)
+    })
+    const response = await finalize()
+    expect(response.status).toBe(409)
+    const data = await response.json()
+    expect(data).toMatchObject({ code: "GAME_FORFEITED", finalizationCanceled: true, reloadRequired: true })
+    expect(data.state).toBeUndefined()
+    expect(data.stateSaved).toBeUndefined()
+    expect(state.finalizationPending).toEqual({ attemptId: "newer-attempt", phase })
+    expect(mocks.rawSql).toHaveBeenCalledTimes(2)
+  })
+
+  it.each(["CAS conflict", "database error", "forfeit reversed"])("keeps cancellation terminal without claiming cleanup success after %s", async (failure) => {
+    isForfeit = true
+    state.finalizationPending = { attemptId: "old-failure", phase: "failed" }
+    const before = structuredClone(state)
+    const save = mocks.rawSql.getMockImplementation()!
+    mocks.rawSql.mockImplementationOnce(async (...args) => {
+      if (failure === "database error") throw new Error("Cleanup unavailable")
+      if (failure === "forfeit reversed") { isForfeit = false; return save(...args) }
+      state.notes = "Newer retained history"
+      return save(...args)
+    })
+    vi.spyOn(console, "error").mockImplementation(() => {})
+    const response = await finalize()
+    expect(response.status).toBe(409)
+    const data = await response.json()
+    expect(data).toMatchObject({ code: "GAME_FORFEITED", finalizationCanceled: true, reloadRequired: true })
+    expect(data.state).toBeUndefined()
+    expect(state.finalizationPending).toEqual(before.finalizationPending)
+    if (failure === "CAS conflict") expect(state.notes).toBe("Newer retained history")
+    else expect(state).toEqual(before)
+    expect(mocks.rawSql).toHaveBeenCalledTimes(1)
+    expect(mocks.insert).not.toHaveBeenCalled()
+    expect(mocks.delete).not.toHaveBeenCalled()
+    expect(mocks.update).not.toHaveBeenCalled()
+  })
+
+  it("cancels instead of offering a retry when a write fails after the game becomes forfeited", async () => {
+    mocks.delete.mockImplementationOnce(() => ({ where: async () => {
+      isForfeit = true
+      throw new Error("Write interrupted after forfeit")
+    } }))
+    vi.spyOn(console, "error").mockImplementation(() => {})
+    const response = await finalize()
+    expect(response.status).toBe(409)
+    expect(await response.json()).toMatchObject({ code: "GAME_FORFEITED", finalizationCanceled: true, state })
+    expect(state.finalizationPending).toBeUndefined()
+    expect(mocks.update).not.toHaveBeenCalled()
   })
 })

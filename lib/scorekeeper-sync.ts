@@ -34,7 +34,15 @@ export function clearLocalStorage(gameId: string) {
 
 export type SyncStatus = "synced" | "syncing" | "pending" | "offline"
 
-export function createSyncManager(gameId: string, pin: string) {
+export interface ForfeitedGameResponse {
+  code: "GAME_FORFEITED"
+  error?: string
+  finalizationCanceled?: boolean
+  state?: LiveGameState
+  reloadRequired?: boolean
+}
+
+export function createSyncManager(gameId: string, pin: string, onForfeited?: (data: ForfeitedGameResponse) => void) {
   let timer: ReturnType<typeof setTimeout> | null = null
   let retryTimer: ReturnType<typeof setTimeout> | null = null
   let pendingState: LiveGameState | null = null
@@ -50,6 +58,15 @@ export function createSyncManager(gameId: string, pin: string) {
         headers: { "Content-Type": "application/json", "x-pin": pin },
         body: JSON.stringify(state),
       })
+      if (destroyed) return false
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        if (destroyed) return false
+        if (data.code === "GAME_FORFEITED") {
+          destroy()
+          onForfeited?.(data)
+        }
+      }
       return res.ok
     } catch {
       return false
@@ -57,8 +74,10 @@ export function createSyncManager(gameId: string, pin: string) {
   }
 
   async function flush(): Promise<boolean> {
+    if (destroyed) return false
     if (syncing) {
       const ok = await syncing
+      if (destroyed) return false
       return ok && pendingState ? flush() : ok
     }
     if (!pendingState) return true
@@ -68,6 +87,7 @@ export function createSyncManager(gameId: string, pin: string) {
         const state = pendingState
         pendingState = null
         const ok = await doSync(state)
+        if (destroyed) return false
         if (!ok) {
           // Keep a newer edit made while this request was in flight.
           pendingState ??= state
@@ -95,6 +115,7 @@ export function createSyncManager(gameId: string, pin: string) {
   }
 
   function sendBeacon(state: LiveGameState) {
+    if (destroyed) return
     try {
       const blob = new Blob([JSON.stringify(state)], { type: "application/json" })
       navigator.sendBeacon(`/api/bash/scorekeeper/${gameId}/state?pin=${pin}`, blob)
@@ -109,6 +130,8 @@ export function createSyncManager(gameId: string, pin: string) {
 
   function destroy() {
     destroyed = true
+    pendingState = null
+    onStatusChange = null
     if (timer) clearTimeout(timer)
     if (retryTimer) clearTimeout(retryTimer)
   }

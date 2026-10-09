@@ -18,6 +18,20 @@ async function validateAuth(request: Request): Promise<boolean> {
   return await getSession()
 }
 
+function forfeitResponse() {
+  return NextResponse.json({
+    error: "This game was forfeited. Live scoring has stopped; view the official game result.",
+    code: "GAME_FORFEITED",
+    finalizationCanceled: true,
+  }, { status: 409 })
+}
+
+async function gameIsForfeited(id: string) {
+  const [game] = await db.select({ isForfeit: schema.games.isForfeit })
+    .from(schema.games).where(eq(schema.games.id, id))
+  return game?.isForfeit === true
+}
+
 export async function PUT(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -49,7 +63,7 @@ export async function PUT(
     }
 
     if (gameRows[0].isForfeit) {
-      return NextResponse.json({ error: "Forfeited games cannot be edited from live scoring" }, { status: 409 })
+      return forfeitResponse()
     }
 
     if (gameRows[0].status === "final") {
@@ -85,7 +99,10 @@ export async function PUT(
         AND EXISTS (SELECT 1 FROM games WHERE id = ${id} AND status <> 'final' AND NOT is_forfeit)
       RETURNING game_id
     `)
-    if (!savedRows.length) return NextResponse.json({ error: "A newer state or final result has already been saved. Reload the game." }, { status: 409 })
+    if (!savedRows.length) {
+      if (await gameIsForfeited(id)) return forfeitResponse()
+      return NextResponse.json({ error: "A newer state or final result has already been saved. Reload the game." }, { status: 409 })
+    }
 
     // Set game to live once play starts (period >= 1), update scores
     if (state.period >= 1) {
@@ -138,6 +155,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       FROM games g JOIN game_live l ON l.game_id = g.id LEFT JOIN seasons se ON se.id = g.season_id WHERE g.id = ${id}
     `) as FinalShotContext[]
     if (!context) return NextResponse.json({ error: "Game or saved live state not found" }, { status: 404 })
+    if (context.isForfeit) return forfeitResponse()
     if (!body.expectedState || !isDeepStrictEqual(body.expectedState, context.state)) {
       return NextResponse.json({ error: "Game changed since you opened it. Reload before saving shot corrections." }, { status: 409 })
     }
@@ -155,7 +173,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       return NextResponse.json({ error: error instanceof Error ? error.message : "Invalid shot correction" }, { status: 422 })
     }
     const rows = await rawSql(finalShotUpdateSql(id, context, correction, updates, Date.now()))
-    if (!rows.length) return NextResponse.json({ error: "Game or goalie stats changed while saving. Reload and try again." }, { status: 409 })
+    if (!rows.length) {
+      if (await gameIsForfeited(id)) return forfeitResponse()
+      return NextResponse.json({ error: "Game or goalie stats changed while saving. Reload and try again." }, { status: 409 })
+    }
     return NextResponse.json({ ok: true, requiresFinalization: false, state: rows[0].state })
   } catch (error) {
     console.error("Failed to correct final game shots:", error)

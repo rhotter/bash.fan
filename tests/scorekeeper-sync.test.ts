@@ -3,8 +3,9 @@ import { createSyncManager } from "@/lib/scorekeeper-sync"
 import { createInitialState } from "@/lib/scorekeeper-types"
 
 const pending = () => {
-  let resolve!: (value: { ok: boolean }) => void
-  const promise = new Promise<{ ok: boolean }>((r) => { resolve = r })
+  type Reply = { ok: boolean; status?: number; json?: () => Promise<Record<string, unknown>> }
+  let resolve!: (value: Reply) => void
+  const promise = new Promise<Reply>((r) => { resolve = r })
   return { promise, resolve }
 }
 const state = (updatedAt: number) => ({ ...createInitialState(), updatedAt })
@@ -62,5 +63,68 @@ describe("scorekeeper save/finalize synchronization", () => {
     expect(sync.getLastSyncedUpdatedAt()).toBeNull()
     sync.destroy()
     expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it("cancels pending saves, retry timers and beacons after a terminal forfeit", async () => {
+    const first = pending()
+    const fetch = vi.fn().mockReturnValueOnce(first.promise)
+    const sendBeacon = vi.fn()
+    const onForfeited = vi.fn()
+    const onStatus = vi.fn()
+    vi.stubGlobal("fetch", fetch)
+    vi.stubGlobal("navigator", { sendBeacon })
+    const sync = createSyncManager("g1", "pin", onForfeited)
+    sync.setStatusListener(onStatus)
+    sync.scheduleSync(state(1))
+    const saving = sync.flush()
+    sync.scheduleSync(state(2))
+    const terminal = { code: "GAME_FORFEITED", error: "The game was forfeited", finalizationCanceled: true, state: state(1) }
+    first.resolve({ ok: false, status: 409, json: async () => terminal })
+
+    expect(await saving).toBe(false)
+    expect(onForfeited).toHaveBeenCalledExactlyOnceWith(terminal)
+    expect(sync.getLastSyncedUpdatedAt()).toBeNull()
+    expect(onStatus).not.toHaveBeenCalledWith("offline")
+    expect(vi.getTimerCount()).toBe(0)
+    sync.scheduleSync(state(3))
+    expect(await sync.flush()).toBe(false)
+    sync.sendBeacon(state(3))
+    await vi.advanceTimersByTimeAsync(15000)
+    expect(fetch).toHaveBeenCalledTimes(1)
+    expect(sendBeacon).not.toHaveBeenCalled()
+    expect(onForfeited).toHaveBeenCalledTimes(1)
+  })
+
+  it.each([409, 503])("keeps ordinary %i sync failures retryable", async (status) => {
+    const fetch = vi.fn().mockResolvedValueOnce({ ok: false, status, json: async () => ({ error: "Try again" }) })
+      .mockResolvedValue({ ok: true })
+    const onForfeited = vi.fn()
+    vi.stubGlobal("fetch", fetch)
+    const sync = createSyncManager("g1", "pin", onForfeited)
+    sync.scheduleSync(state(1))
+    await vi.advanceTimersByTimeAsync(500)
+    expect(fetch).toHaveBeenCalledTimes(1)
+    expect(onForfeited).not.toHaveBeenCalled()
+    await vi.advanceTimersByTimeAsync(5000)
+    expect(fetch).toHaveBeenCalledTimes(2)
+    expect(sync.getLastSyncedUpdatedAt()).toBe(1)
+    sync.destroy()
+  })
+
+  it("does not start a queued save or report a terminal result after destruction", async () => {
+    const first = pending()
+    const fetch = vi.fn().mockReturnValueOnce(first.promise)
+    const onForfeited = vi.fn()
+    vi.stubGlobal("fetch", fetch)
+    const sync = createSyncManager("g1", "pin", onForfeited)
+    sync.scheduleSync(state(1))
+    const saving = sync.flush()
+    sync.scheduleSync(state(2))
+    sync.destroy()
+    first.resolve({ ok: false, status: 409, json: async () => ({ code: "GAME_FORFEITED" }) })
+    expect(await saving).toBe(false)
+    await vi.advanceTimersByTimeAsync(15000)
+    expect(fetch).toHaveBeenCalledTimes(1)
+    expect(onForfeited).not.toHaveBeenCalled()
   })
 })

@@ -51,6 +51,7 @@ export function AdminGameEditor({
   const needsFinalization = useRef(initialState.finalizationPending?.phase === "failed")
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState("")
+  const [forfeited, setForfeited] = useState(false)
 
   const nameById = useCallback((id: number | null): string | null => {
     if (id == null) return null
@@ -73,6 +74,7 @@ export function AdminGameEditor({
   }
 
   async function handleSave() {
+    if (saving || forfeited) return
     setSaving(true)
     setError("")
     try {
@@ -90,6 +92,18 @@ export function AdminGameEditor({
         } : { expectedState: savedState.current, state: { ...state, updatedAt: Date.now() } }),
       })
       const result = await response.json().catch(() => ({}))
+      if (result.code === "GAME_FORFEITED") {
+        setForfeited(true)
+        needsFinalization.current = false
+        setError(result.error || "This game was forfeited. Live finalization has been canceled.")
+        // Only accept a confirmed clean snapshot. A reload-required response
+        // must not make us clear a different, still-running claim locally.
+        if (result.finalizationCanceled && result.state && !result.reloadRequired && !result.state.finalizationPending) {
+          savedState.current = result.state
+          setState(result.state)
+        }
+        return
+      }
       // A runtime failure after validated state persistence can be retried
       // against that accepted snapshot without losing the user's corrections.
       if (result.stateSaved && result.state) {
@@ -120,7 +134,7 @@ export function AdminGameEditor({
           <Button variant="outline" onClick={onClose} disabled={saving} className="text-xs h-8">
             Cancel
           </Button>
-          <Button onClick={handleSave} disabled={saving} className="text-xs h-8">
+          <Button onClick={handleSave} disabled={saving || forfeited} className="text-xs h-8">
             {saving ? (
               <>
                 <Loader2 className="h-3 w-3 animate-spin mr-1" />
@@ -133,10 +147,14 @@ export function AdminGameEditor({
         </div>
       </div>
 
+      {forfeited && <p className="mb-4 text-sm">
+        <a href={`/game/${gameId}`} className="text-foreground underline">View official game result</a>
+      </p>}
+
       {needsFinalization.current && <p className="mb-4 text-xs text-destructive">The previous save needs to finish rebuilding its statistics. Save again to retry.</p>}
 
       {/* Editor sections */}
-      <fieldset disabled={saving} className="space-y-8">
+      <fieldset disabled={saving || forfeited} className="space-y-8">
         <GoalsEditor
           state={state}
           onChange={(goals) => updateState({ goals })}
