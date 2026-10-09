@@ -38,7 +38,9 @@ export function createSyncManager(gameId: string, pin: string) {
   let timer: ReturnType<typeof setTimeout> | null = null
   let retryTimer: ReturnType<typeof setTimeout> | null = null
   let pendingState: LiveGameState | null = null
-  let isSyncing = false
+  let syncing: Promise<boolean> | null = null
+  let lastSyncedUpdatedAt: number | null = null
+  let destroyed = false
   let onStatusChange: ((status: SyncStatus) => void) | null = null
 
   async function doSync(state: LiveGameState): Promise<boolean> {
@@ -54,36 +56,37 @@ export function createSyncManager(gameId: string, pin: string) {
     }
   }
 
-  async function flush() {
-    if (isSyncing || !pendingState) return
-
-    isSyncing = true
-    onStatusChange?.("syncing")
-
-    const state = pendingState
-    pendingState = null
-
-    const ok = await doSync(state)
-
-    isSyncing = false
-
-    if (ok) {
-      onStatusChange?.("synced")
-      // Clear any retry timer
-      if (retryTimer) {
-        clearTimeout(retryTimer)
-        retryTimer = null
-      }
-    } else {
-      // Put state back for retry
-      pendingState = state
-      onStatusChange?.("offline")
-      // Retry in 5 seconds
-      retryTimer = setTimeout(() => flush(), 5000)
+  async function flush(): Promise<boolean> {
+    if (syncing) {
+      const ok = await syncing
+      return ok && pendingState ? flush() : ok
     }
+    if (!pendingState) return true
+    const run = async () => {
+      while (pendingState) {
+        onStatusChange?.("syncing")
+        const state = pendingState
+        pendingState = null
+        const ok = await doSync(state)
+        if (!ok) {
+          // Keep a newer edit made while this request was in flight.
+          pendingState ??= state
+          onStatusChange?.("offline")
+          if (!destroyed) retryTimer = setTimeout(() => { void flush() }, 5000)
+          return false
+        }
+        lastSyncedUpdatedAt = state.updatedAt
+        if (retryTimer) { clearTimeout(retryTimer); retryTimer = null }
+      }
+      onStatusChange?.("synced")
+      return true
+    }
+    syncing = run()
+    try { return await syncing } finally { syncing = null }
   }
 
   function scheduleSync(state: LiveGameState) {
+    if (destroyed) return
     pendingState = state
     onStatusChange?.("pending")
 
@@ -105,9 +108,10 @@ export function createSyncManager(gameId: string, pin: string) {
   }
 
   function destroy() {
+    destroyed = true
     if (timer) clearTimeout(timer)
     if (retryTimer) clearTimeout(retryTimer)
   }
 
-  return { scheduleSync, sendBeacon, setStatusListener, destroy, flush }
+  return { scheduleSync, sendBeacon, setStatusListener, destroy, flush, getLastSyncedUpdatedAt: () => lastSyncedUpdatedAt }
 }

@@ -10,8 +10,8 @@ export function ShotsEditor({ state, onChange, homeTeam, awayTeam }: {
   onChange: (patch: Partial<LiveGameState>) => void
   homeTeam: string; awayTeam: string
 }) {
-  const hasOT = state.period >= 4 || state.homeShots.length > 3 || state.awayShots.length > 3
-  const periods = Math.max(state.homeShots.length, state.awayShots.length, state.period, 3)
+  const hasOT = state.homeShots.length > 3 || state.awayShots.length > 3
+  const periods = Math.max(state.homeShots.length, state.awayShots.length, 3)
   const headers = Array.from({ length: periods }, (_, i) => {
     const p = i + 1
     if (p <= 3) return `P${p}`
@@ -35,12 +35,11 @@ export function ShotsEditor({ state, onChange, homeTeam, awayTeam }: {
     const awayShots = [...state.awayShots]
     while (homeShots.length < 4) homeShots.push(0)
     while (awayShots.length < 4) awayShots.push(0)
-    onChange({ period: Math.max(state.period, 4), homeShots, awayShots })
+    onChange({ homeShots, awayShots })
   }
 
   function removeOT() {
     onChange({
-      period: Math.min(state.period, 3),
       homeShots: state.homeShots.slice(0, 3),
       awayShots: state.awayShots.slice(0, 3),
     })

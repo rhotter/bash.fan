@@ -63,6 +63,10 @@ export interface LiveGameState {
   clockStartedAt: number | null // Date.now() when clock was last started
   homeShots: number[] // [p1, p2, p3, ot]
   awayShots: number[]
+  // Required when team shot totals cannot identify each goalie's shots faced.
+  goalieShotsAgainst?: Record<string, number>
+  // Server-owned coordination for the idempotent multi-query stats rebuild.
+  finalizationPending?: { attemptId: string; phase: "running" | "failed" }
   homeTimeoutsUsed: number
   awayTimeoutsUsed: number
   homeAttendance: number[] // player IDs present
