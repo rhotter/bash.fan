@@ -112,7 +112,7 @@ export async function fetchPlayerStats(
             SUM(pgs.pen)::int as pen, SUM(pgs.pim)::int as pim,
             COUNT(DISTINCT g.season_id)::int as seasons_played
           FROM player_game_stats pgs
-          JOIN games g ON pgs.game_id = g.id AND ${playoffFilter} AND ${gameTypeFragment}
+          JOIN games g ON pgs.game_id = g.id AND NOT g.is_forfeit AND ${playoffFilter} AND ${gameTypeFragment}
           JOIN seasons s ON g.season_id = s.id AND ${seasonTypeFragment}
           WHERE NOT pgs.is_sub
           GROUP BY pgs.player_id
@@ -185,7 +185,7 @@ export async function fetchPlayerStats(
           COUNT(DISTINCT g.season_id)::int as seasons_played
         FROM players p
         JOIN goalie_game_stats ggs ON p.id = ggs.player_id
-        JOIN games g ON ggs.game_id = g.id AND ${playoffFilter} AND ${gameTypeFragment}
+        JOIN games g ON ggs.game_id = g.id AND NOT g.is_forfeit AND ${playoffFilter} AND ${gameTypeFragment}
         JOIN seasons s ON g.season_id = s.id AND ${seasonTypeFragment}
         WHERE NOT ggs.is_sub
         GROUP BY p.id, p.name
@@ -243,7 +243,7 @@ export async function fetchPlayerStats(
           SUM(pgs.pim)::int as pim
         FROM players p
         JOIN player_game_stats pgs ON p.id = pgs.player_id
-        JOIN games g ON pgs.game_id = g.id AND g.season_id = ${seasonId} AND ${playoffFragment} AND ${gameTypeFragment}
+        JOIN games g ON pgs.game_id = g.id AND NOT g.is_forfeit AND g.season_id = ${seasonId} AND ${playoffFragment} AND ${gameTypeFragment}
         WHERE NOT pgs.is_sub
         GROUP BY p.id, p.name
         ORDER BY points DESC, goals DESC, p.name ASC
@@ -274,7 +274,7 @@ export async function fetchPlayerStats(
           COUNT(*) FILTER (WHERE ggs.result = 'L')::int as losses
         FROM players p
         JOIN goalie_game_stats ggs ON p.id = ggs.player_id
-        JOIN games g ON ggs.game_id = g.id AND g.season_id = ${seasonId} AND ${playoffFragment} AND ${gameTypeFragment}
+        JOIN games g ON ggs.game_id = g.id AND NOT g.is_forfeit AND g.season_id = ${seasonId} AND ${playoffFragment} AND ${gameTypeFragment}
         LEFT JOIN seasons s ON g.season_id = s.id
         WHERE NOT ggs.is_sub
         GROUP BY p.id, p.name

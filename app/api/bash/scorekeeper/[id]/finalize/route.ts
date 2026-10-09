@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { db, schema } from "@/lib/db"
-import { eq, inArray } from "drizzle-orm"
+import { and, eq, inArray } from "drizzle-orm"
 import type { LiveGameState, GoalEvent } from "@/lib/scorekeeper-types"
 import { computePulledSeconds, clockToElapsed, parseClockString } from "@/lib/scorekeeper-types"
 import { getSession } from "@/lib/admin-session"
@@ -41,6 +41,7 @@ export async function POST(
         homeTeam: schema.games.homeTeam,
         awayTeam: schema.games.awayTeam,
         isPlayoff: schema.games.isPlayoff,
+        isForfeit: schema.games.isForfeit,
         gameLength: schema.seasons.gameLength,
       })
       .from(schema.games)
@@ -51,6 +52,12 @@ export async function POST(
     }
 
     const game = gameRows[0]
+    // Rule 208.3: a forfeit has no individual stats. Preserve the official
+    // schedule result and retained scoring history, even on re-finalization.
+    if (game.isForfeit) {
+      return NextResponse.json({ error: "Forfeited games cannot be finalized from live scoring" }, { status: 409 })
+    }
+
     const homeSlug = game.homeTeam
     const awaySlug = game.awayTeam
 
@@ -75,6 +82,34 @@ export async function POST(
 
     // 4. Determine is_overtime (any goals in period >= 4, or shootout occurred)
     const isOvertime = state.goals.some((g) => g.period >= 4) || isShootout
+
+    // Identify every goalie, including both sides of mid-game substitutions.
+    const goalieIds = new Set<number>()
+    if (state.homeGoalieId != null) goalieIds.add(state.homeGoalieId)
+    if (state.awayGoalieId != null) goalieIds.add(state.awayGoalieId)
+    // Include any goalies from mid-game substitutions
+    for (const change of state.goalieChanges ?? []) {
+      goalieIds.add(change.outGoalieId)
+      goalieIds.add(change.inGoalieId)
+    }
+
+    const goalieAssists = new Map<number, number>()
+
+    // A player can switch between runner and goalie during a game. Classify
+    // each assist using the goalie who was assigned at that event's clock.
+    function goalieAtGoal(goal: GoalEvent): number | null {
+      const changes = (state.goalieChanges ?? [])
+        .filter((change) => change.team === goal.team)
+        .sort((a, b) => a.period - b.period || parseClockString(b.clock) - parseClockString(a.clock))
+      let goalieId = changes[0]?.outGoalieId
+        ?? (goal.team === homeSlug ? state.homeGoalieId : state.awayGoalieId)
+      for (const change of changes) {
+        if (change.period > goal.period ||
+          (change.period === goal.period && parseClockString(change.clock) < parseClockString(goal.clock))) break
+        goalieId = change.inGoalieId
+      }
+      return goalieId
+    }
 
     // 5. Build player stats from events
     const playerStats = new Map<number, {
@@ -105,15 +140,16 @@ export async function POST(
       if (goal.flags.includes("SHG")) scorer.shg++
       if (goal.flags.includes("ENG")) scorer.eng++
 
-      if (goal.assist1Id) {
-        const a1 = getOrCreate(goal.assist1Id)
-        a1.assists++
-        a1.points++
-      }
-      if (goal.assist2Id) {
-        const a2 = getOrCreate(goal.assist2Id)
-        a2.assists++
-        a2.points++
+      const assistingGoalieId = goalieAtGoal(goal)
+      for (const assistId of [goal.assist1Id, goal.assist2Id]) {
+        if (assistId == null) continue
+        if (assistId === assistingGoalieId) {
+          goalieAssists.set(assistId, (goalieAssists.get(assistId) ?? 0) + 1)
+        } else {
+          const assister = getOrCreate(assistId)
+          assister.assists++
+          assister.points++
+        }
       }
     }
 
@@ -148,16 +184,6 @@ export async function POST(
     for (const goal of state.goals) {
       if (goal.period >= 5) continue
       goalCounts.set(goal.scorerId, (goalCounts.get(goal.scorerId) || 0) + 1)
-    }
-
-    // 8. Figure out which players are goalies
-    const goalieIds = new Set<number>()
-    if (state.homeGoalieId != null) goalieIds.add(state.homeGoalieId)
-    if (state.awayGoalieId != null) goalieIds.add(state.awayGoalieId)
-    // Include any goalies from mid-game substitutions
-    for (const change of state.goalieChanges ?? []) {
-      goalieIds.add(change.outGoalieId)
-      goalieIds.add(change.inGoalieId)
     }
 
     // 9. Ensure all referenced players exist (merges can delete players while live game state still references them)
@@ -196,9 +222,9 @@ export async function POST(
       const isSub = subIds.has(playerId)
       const hasSkaterStats = stats.goals > 0 || stats.assists > 0 || stats.pen > 0 || stats.pim > 0
 
-      // Skip pure goalies with no skater stats. Sub goalies still get a pgs row
-      // so the box score shows them on the team they subbed for.
-      if (isGoalie && !isSub && !hasSkaterStats) continue
+      // Goalie assists belong only in goalie_game_stats. Subs are displayed
+      // there via adhoc_game_rosters too, so they need no phantom runner row.
+      if (isGoalie && !hasSkaterStats) continue
 
       const hatTricks = (goalCounts.get(playerId) || 0) >= 3 ? 1 : 0
       const gwg = playerId === gwgScorerId ? 1 : 0
@@ -424,7 +450,7 @@ export async function POST(
           shotsAgainst: gs.shotsAgainst,
           saves: gs.saves,
           shutouts: gs.shutouts,
-          goalieAssists: 0,
+          goalieAssists: goalieAssists.get(gs.goalieId) ?? 0,
           result: gs.result,
           isSub,
         })
@@ -436,6 +462,7 @@ export async function POST(
             shotsAgainst: gs.shotsAgainst,
             saves: gs.saves,
             shutouts: gs.shutouts,
+            goalieAssists: goalieAssists.get(gs.goalieId) ?? 0,
             result: gs.result,
             isSub,
           },
@@ -456,7 +483,7 @@ export async function POST(
 
     // 12. Set game to final
     const notes = state.notes?.trim() || null
-    await db
+    const finalizedGames = await db
       .update(schema.games)
       .set({
         status: "final",
@@ -466,7 +493,14 @@ export async function POST(
         hasBoxscore: true,
         notes,
       })
-      .where(eq(schema.games.id, id))
+      // An admin may mark the game forfeited while stats are being written.
+      // Never replace that official result with the live scoring total.
+      .where(and(eq(schema.games.id, id), eq(schema.games.isForfeit, false)))
+      .returning({ id: schema.games.id })
+
+    if (finalizedGames.length === 0) {
+      return NextResponse.json({ error: "Game was removed or marked forfeited during finalization" }, { status: 409 })
+    }
 
     return NextResponse.json({ ok: true, homeScore, awayScore, isOvertime })
   } catch (error) {
