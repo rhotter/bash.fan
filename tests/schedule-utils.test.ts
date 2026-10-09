@@ -284,5 +284,73 @@ describe("Round-Robin Schedule Generator & Equity", () => {
       expect(gameSlotCounts[t]).toEqual([6, 6, 6])
     }
   })
+
+  it("rebalanceUpcomingGames preserves tbd placeholder games without overwriting them", () => {
+    const games = [
+      { id: "g1", homeTeam: "team-a", awayTeam: "team-b", status: "final" },
+      { id: "g2", homeTeam: "tbd", awayTeam: "team-a", status: "upcoming" },
+      { id: "g3", homeTeam: "team-c", awayTeam: "tbd", status: "upcoming" },
+      { id: "g4", homeTeam: "team-b", awayTeam: "team-c", status: "upcoming" },
+    ]
+    const rebalanced = rebalanceUpcomingGames(games)
+
+    // Verify tbd placeholders are untouched
+    expect(rebalanced[1].homeTeam).toBe("tbd")
+    expect(rebalanced[1].awayTeam).toBe("team-a")
+    expect(rebalanced[2].homeTeam).toBe("team-c")
+    expect(rebalanced[2].awayTeam).toBe("tbd")
+  })
+
+  it("generateRoundRobin maintains slotInDay ordering when pinnedSlots are passed out of order", () => {
+    const numTeams = 7
+    const gamesPerWeek = 3
+    const cycles = 3
+    // Pass pinned slots intentionally out of order
+    const pinnedSlots = [
+      { round: 1, home: 3, away: 4, slotInDay: 2 },
+      { round: 1, home: 1, away: 6, slotInDay: 0 },
+      { round: 1, home: 5, away: 2, slotInDay: 1 },
+    ]
+    const slots = generateRoundRobin(numTeams, gamesPerWeek, cycles, undefined, pinnedSlots)
+    const week1 = slots.filter((s) => s.round === 1)
+
+    expect(week1[0].slotInDay).toBe(0)
+    expect(week1[1].slotInDay).toBe(1)
+    expect(week1[2].slotInDay).toBe(2)
+  })
+
+  it("rebalanceUpcomingGames maintains head-to-head pair equity with prior completed games", () => {
+    // team-a was home against team-b in final game
+    // There are 2 upcoming games between team-a and team-b (total 3 games)
+    // Head-to-head fairness requires |home(a) - home(b)| <= 1 (i.e. 2-1 or 1-2, not 3-0)
+    const games = [
+      { id: "g1", homeTeam: "team-a", awayTeam: "team-b", status: "final" },
+      { id: "g2", homeTeam: "team-a", awayTeam: "team-b", status: "upcoming" },
+      { id: "g3", homeTeam: "team-a", awayTeam: "team-b", status: "upcoming" },
+    ]
+    const rebalanced = rebalanceUpcomingGames(games)
+
+    let aHome = 0
+    let bHome = 0
+    for (const g of rebalanced) {
+      if (g.homeTeam === "team-a") aHome++
+      if (g.homeTeam === "team-b") bHome++
+    }
+    // Out of 3 total games, team-a cannot be home all 3 times
+    expect(Math.abs(aHome - bHome)).toBeLessThanOrEqual(1)
+  })
+
+  it("rebalanceUpcomingGames never corrupts matchups into self-play (home === away)", () => {
+    const games = [
+      { id: "g1", homeTeam: "team-a", awayTeam: "team-b", status: "final" },
+      { id: "g2", homeTeam: "team-b", awayTeam: "team-c", status: "upcoming" },
+      { id: "g3", homeTeam: "team-c", awayTeam: "team-d", status: "upcoming" },
+      { id: "g4", homeTeam: "team-d", awayTeam: "team-a", status: "upcoming" },
+    ]
+    const rebalanced = rebalanceUpcomingGames(games)
+    for (const g of rebalanced) {
+      expect(g.homeTeam).not.toBe(g.awayTeam)
+    }
+  })
 })
 

@@ -13,7 +13,6 @@ Bay Area Street Hockey (BASH) league stats website. Displays scores, standings, 
 - `pnpm lint` — Run ESLint
 - `npx tsx scripts/seed.ts` — Seed database from Sportability API
 - `PROD_URL='<prod-db-url>' DEV_URL='<dev-db-url>' npx tsx scripts/export-prod-db.ts` — Sync recent seasons, boxscores, and draft boards from production into dev database (or `pnpm db:export-prod --from '...' --to '...'`)
-- `npx tsx scripts/rebalance-season.ts --dry-run` — Audit and rebalance current season schedule equity (home/away, time slots) with Week 1 pinned
 
 ## Tech Stack
 
@@ -57,7 +56,7 @@ Each page follows: async Server Component (data fetch + `generateMetadata`) → 
 - `components/admin/playoff-wizard.tsx` — Playoff bracket schedule wizard
 - `components/public-draft-board.tsx` — Real-time public draft spectator view
 - `app/admin/scoresheet/[gameId]/page.tsx` — Print-optimized game scoresheet (US Letter, one page)
-- `scripts/` — DB seeding, production DB sync (`export-prod-db.ts`), schedule rebalancing (`rebalance-season.ts`), and data maintenance utilities
+- `scripts/` — DB seeding, production DB sync (`export-prod-db.ts`), and data maintenance utilities
 
 ### Standings Computation
 

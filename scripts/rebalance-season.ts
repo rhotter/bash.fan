@@ -22,6 +22,8 @@
 
 import "./env"
 import { neon } from "@neondatabase/serverless"
+import { drizzle } from "drizzle-orm/neon-http"
+import * as schema from "../lib/db/schema"
 import {
   generateRoundRobin,
   computeScheduleEquity,
@@ -144,26 +146,46 @@ async function main() {
   const season = seasonRows[0]
   console.log(`Season: ${season.name} (${season.id})`)
 
-  // 2. Fetch existing games
+  if (preserveWeek !== 1) {
+    console.error("Error: Currently only preserving Week 1 (--preserve-week 1) is supported.")
+    process.exit(1)
+  }
+
+  // 2. Fetch existing regular season games
   const existingGames = await sql`
     SELECT id, season_id, date, time, home_team, away_team, location, game_type, status
     FROM games
     WHERE season_id = ${seasonId}
+      AND (game_type = 'regular' OR game_type IS NULL)
+      AND is_playoff = false
     ORDER BY date ASC, time ASC, id ASC
   `
   if (existingGames.length === 0) {
-    console.error(`Error: No games found for season '${seasonId}'. Run initial schedule generation first.`)
+    console.error(`Error: No regular season games found for season '${seasonId}'. Run initial schedule generation first.`)
     process.exit(1)
   }
 
   const dates = [...new Set(existingGames.map((g) => g.date))].sort()
-  console.log(`Total games in schedule: ${existingGames.length} across ${dates.length} dates`)
+  console.log(`Total regular games in schedule: ${existingGames.length} across ${dates.length} dates`)
 
-  const preservedDate = dates[preserveWeek - 1]
-  if (!preservedDate) {
-    console.error(`Error: Week ${preserveWeek} not found in schedule dates.`)
-    process.exit(1)
+  let scheduleDates = dates
+  if (scheduleDates.length !== 21) {
+    if (scheduleDates.length === 0) {
+      console.error(`Error: No regular season games found for season '${seasonId}'. Run initial schedule generation first.`)
+      process.exit(1)
+    }
+    console.warn(`Warning: Expected 21 dates for 7-team, 3-cycle regular season schedule (found ${scheduleDates.length} dates). Deriving weekly schedule from start date ${scheduleDates[0]}...`)
+    const baseDate = new Date(`${scheduleDates[0]}T12:00:00Z`)
+    const derived: string[] = []
+    for (let w = 0; w < 21; w++) {
+      const d = new Date(baseDate)
+      d.setUTCDate(baseDate.getUTCDate() + w * 7)
+      derived.push(d.toISOString().slice(0, 10))
+    }
+    scheduleDates = derived
   }
+
+  const preservedDate = scheduleDates[0]
 
 function getTimeMinutes(timeStr: string): number {
   const match = timeStr.match(/^(\d{1,2}):(\d{2})\s*(a|am|p|pm)?$/i)
@@ -193,8 +215,9 @@ function getTimeMinutes(timeStr: string): number {
     WHERE st.season_id = ${seasonId}
     ORDER BY t.name ASC
   `
-  if (teamRows.length !== 7) {
-    console.warn(`Note: Season has ${teamRows.length} teams (standard is 7 teams).`)
+  if (teamRows.length !== 7 || week1Games.length !== 3) {
+    console.error(`Error: This rebalance script is specialized for 7-team seasons with 3 games on Week 1 (found ${teamRows.length} teams, ${week1Games.length} Week 1 games).`)
+    process.exit(1)
   }
 
   // Determine bye team for Week 1
@@ -204,8 +227,12 @@ function getTimeMinutes(timeStr: string): number {
     playingTeams.add(g.away_team)
   })
   const byeTeams = teamRows.filter((t) => !playingTeams.has(t.team_slug))
-  const week1ByeSlug = byeTeams.length > 0 ? byeTeams[0].team_slug : null
-  console.log(`  Bye: ${byeTeams.map((t) => t.team_name).join(", ") || "None"}`)
+  if (playingTeams.size !== 6 || byeTeams.length !== 1) {
+    console.error("Error: Week 1 games must contain exactly 6 distinct teams with 1 bye team.")
+    process.exit(1)
+  }
+  const week1ByeSlug = byeTeams[0].team_slug
+  console.log(`  Bye: ${byeTeams.map((t) => t.team_name).join(", ")}`)
 
   // 4. Map teams to indices 0..6 to match Week 1 Berger table geometry:
   // Index 0 = Week 1 Bye team
@@ -215,18 +242,15 @@ function getTimeMinutes(timeStr: string): number {
   // Index 2 = Match 2 Away team
   // Index 3 = Match 3 Home team
   // Index 4 = Match 3 Away team
-  const orderedSlugs: string[] = []
-  if (week1Games.length === 3 && week1ByeSlug) {
-    orderedSlugs[0] = week1ByeSlug
-    orderedSlugs[1] = week1Games[0].home_team
-    orderedSlugs[6] = week1Games[0].away_team
-    orderedSlugs[5] = week1Games[1].home_team
-    orderedSlugs[2] = week1Games[1].away_team
-    orderedSlugs[3] = week1Games[2].home_team
-    orderedSlugs[4] = week1Games[2].away_team
-  } else {
-    teamRows.forEach((t) => orderedSlugs.push(t.team_slug))
-  }
+  const orderedSlugs: string[] = [
+    week1ByeSlug,
+    week1Games[0].home_team,
+    week1Games[1].away_team,
+    week1Games[2].home_team,
+    week1Games[2].away_team,
+    week1Games[1].home_team,
+    week1Games[0].away_team,
+  ]
 
   const teamSlugToName = new Map<string, string>()
   teamRows.forEach((t) => teamSlugToName.set(t.team_slug, t.team_name))
@@ -295,13 +319,14 @@ function getTimeMinutes(timeStr: string): number {
     slotsByRound.get(s.round)!.push(s)
   }
 
-  for (let roundNum = 1; roundNum <= dates.length; roundNum++) {
+  for (let roundNum = 1; roundNum <= scheduleDates.length; roundNum++) {
     const roundSlots = slotsByRound.get(roundNum) || []
-    const roundDate = dates[roundNum - 1]
+    const roundDate = scheduleDates[roundNum - 1]
 
     if (roundNum === preserveWeek) {
       // Keep Week 1 games exactly as they are in DB
-      for (const g of week1Games) {
+      for (let i = 0; i < week1Games.length; i++) {
+        const g = week1Games[i]
         rebalancedGames.push({
           id: g.id,
           date: g.date,
@@ -311,12 +336,7 @@ function getTimeMinutes(timeStr: string): number {
           location: g.location || "The Lick",
           gameType: g.game_type || "regular",
           status: g.status,
-          gameNumberInDay:
-            g.time.startsWith("9") || g.time.startsWith("09")
-              ? 1
-              : g.time.startsWith("11")
-              ? 2
-              : 3,
+          gameNumberInDay: i + 1,
         })
       }
     } else {
@@ -341,7 +361,7 @@ function getTimeMinutes(timeStr: string): number {
   }
 
   // 7. Rebalanced Equity Audit
-  const afterReport = computeScheduleEquity(rebalancedGames, teamsForEquity, dates.length)
+  const afterReport = computeScheduleEquity(rebalancedGames, teamsForEquity, scheduleDates.length)
 
   console.log(`\n--- REBALANCED SCHEDULE EQUITY (After) ---`)
   console.table(
@@ -401,41 +421,53 @@ function getTimeMinutes(timeStr: string): number {
     END $$;
   `
 
-  // Delete non-final games for weeks > 1
+  // Safety check: ensure no future final games exist
+  const futureFinalGames = existingGames.filter(
+    (g) => g.date > preservedDate && g.status === "final"
+  )
+  if (futureFinalGames.length > 0) {
+    console.error(
+      `Cannot rebalance: ${futureFinalGames.length} final games already exist after ${preservedDate}.`
+    )
+    process.exit(1)
+  }
+
+  // Delete non-final regular season games for weeks > 1
   await sql`
     DELETE FROM games
     WHERE season_id = ${seasonId}
       AND date > ${preservedDate}
       AND status != 'final'
+      AND (game_type = 'regular' OR game_type IS NULL)
+      AND is_playoff = false
   `
-  console.log(`Deleted unpreserved upcoming games.`)
+  console.log(`Deleted unpreserved upcoming regular season games.`)
 
   // Prepare new games for Weeks 2..21
   const gamesToInsert = rebalancedGames.filter((g) => g.date > preservedDate)
-  const idRows = await sql`
-    SELECT nextval('games_gen_seq') AS n FROM generate_series(1, ${gamesToInsert.length})
-  `
-  const newIds = idRows.map((r) => `g${r.n}`)
-
-  for (let i = 0; i < gamesToInsert.length; i++) {
-    const g = gamesToInsert[i]
-    await sql`
-      INSERT INTO games (
-        id, season_id, date, time, home_team, away_team,
-        location, game_type, status, is_playoff, is_overtime, is_forfeit
-      ) VALUES (
-        ${newIds[i]},
-        ${seasonId},
-        ${g.date},
-        ${normalizeTimeForStorage(g.time)},
-        ${g.homeTeam},
-        ${g.awayTeam},
-        ${g.location || "The Lick"},
-        ${g.gameType || "regular"},
-        ${g.status || "upcoming"},
-        false, false, false
-      )
+  if (gamesToInsert.length > 0) {
+    const idRows = await sql`
+      SELECT nextval('games_gen_seq') AS n FROM generate_series(1, ${gamesToInsert.length})
     `
+    const newIds = idRows.map((r) => `g${r.n}`)
+
+    const db = drizzle(sql, { schema })
+    const insertData = gamesToInsert.map((g, i) => ({
+      id: newIds[i],
+      seasonId: season.id,
+      date: g.date,
+      time: normalizeTimeForStorage(g.time),
+      homeTeam: g.homeTeam,
+      awayTeam: g.awayTeam,
+      location: g.location || "The Lick",
+      gameType: g.gameType || "regular",
+      status: "upcoming" as const,
+      isPlayoff: false,
+      isOvertime: false,
+      isForfeit: false,
+    }))
+
+    await db.insert(schema.games).values(insertData)
   }
 
   console.log(`Inserted ${gamesToInsert.length} rebalanced games for Weeks 2–21.`)

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { db, schema } from "@/lib/db"
-import { eq, and, ne, gt, sql } from "drizzle-orm"
+import { eq, and, ne, gt, sql, or, isNull } from "drizzle-orm"
 import { getSession } from "@/lib/admin-session"
 import { revalidateTag } from "next/cache"
 import { nextGameIds } from "@/lib/db/game-id"
@@ -20,46 +20,71 @@ export async function POST(request: NextRequest, context: RouteContext) {
 
   try {
     const body = await request.json()
-    const { mode, games, force, preserveWeek1 } = body
+    const { mode, games, preserveWeek1 } = body
 
     if (!mode || !games || !Array.isArray(games)) {
       return NextResponse.json({ error: "Invalid payload" }, { status: 400 })
     }
 
-    let minDate: string | null = null
-    if (mode === "overwrite") {
-      // First, check if there are any final games
-      const existingFinalGames = await db.select()
-        .from(schema.games)
-        .where(and(
-          eq(schema.games.seasonId, seasonId),
-          eq(schema.games.status, "final")
-        ))
-        
-      if (existingFinalGames.length > 0 && !force) {
-        return NextResponse.json(
-          { error: "Cannot overwrite schedule because final games exist. Please use force mode or append." },
-          { status: 400 }
-        )
-      }
+    const isRegularSeason = and(
+      eq(schema.games.seasonId, seasonId),
+      eq(schema.games.isPlayoff, false),
+      or(eq(schema.games.gameType, "regular"), isNull(schema.games.gameType))
+    )
 
-      if (preserveWeek1) {
+    const shouldPreserveWeek1 = mode === "overwrite" && Boolean(preserveWeek1)
+    let minDate: string | null = null
+
+    if (mode === "overwrite") {
+      if (shouldPreserveWeek1) {
         const earliest = await db.select({ minDate: sql<string>`MIN(date)` })
           .from(schema.games)
-          .where(eq(schema.games.seasonId, seasonId))
+          .where(isRegularSeason)
         minDate = earliest[0]?.minDate ?? null
-      }
 
-      // Delete existing non-final games (preserving Week 1 if requested)
-      if (preserveWeek1 && minDate) {
-        await db.delete(schema.games).where(and(
-          eq(schema.games.seasonId, seasonId),
-          gt(schema.games.date, minDate),
-          ne(schema.games.status, "final")
-        ))
+        if (minDate) {
+          // Safety: ensure no final regular season games exist after Week 1
+          const futureFinalGames = await db.select()
+            .from(schema.games)
+            .where(and(
+              isRegularSeason,
+              gt(schema.games.date, minDate),
+              eq(schema.games.status, "final")
+            ))
+
+          if (futureFinalGames.length > 0) {
+            return NextResponse.json(
+              { error: `Cannot overwrite schedule: ${futureFinalGames.length} completed regular season games already exist after Week 1.` },
+              { status: 400 }
+            )
+          }
+
+          // Delete existing non-final regular season games after Week 1
+          await db.delete(schema.games).where(and(
+            isRegularSeason,
+            gt(schema.games.date, minDate),
+            ne(schema.games.status, "final")
+          ))
+        }
       } else {
+        // Standard overwrite: block overwrite if any final regular season games exist to prevent duplicate fixtures
+        const existingFinalGames = await db.select()
+          .from(schema.games)
+          .where(and(
+            isRegularSeason,
+            eq(schema.games.status, "final")
+          ))
+          
+        if (existingFinalGames.length > 0) {
+          return NextResponse.json(
+            { error: `Cannot overwrite schedule because ${existingFinalGames.length} completed regular season game(s) already exist. To preserve completed games without creating duplicate fixtures, use schedule rebalancing or append mode.` },
+            { status: 400 }
+          )
+        }
+
+        // Delete existing non-final regular season games
         await db.delete(schema.games).where(and(
-          eq(schema.games.seasonId, seasonId),
+          isRegularSeason,
           ne(schema.games.status, "final")
         ))
       }
@@ -74,7 +99,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
     }
 
     // Insert new games (skip Week 1 games if preserving them)
-    const gamesToInsert = (preserveWeek1 && minDate)
+    const gamesToInsert = (shouldPreserveWeek1 && minDate)
       ? games.filter((g: Record<string, unknown>) => (g.date as string) > minDate!)
       : games
 

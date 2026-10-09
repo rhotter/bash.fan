@@ -25,7 +25,7 @@ function describeDbEndpoint(dbUrl: string): { host: string; label: string } {
 // DB_TARGET selects which connection string to use: "dev" → DATABASE_URL_DEV,
 // "prod" → DATABASE_URL_PROD. Falls back to plain DATABASE_URL if unset.
 // In local development, defaults to "dev". On Vercel / production, defaults to "prod".
-const defaultTarget = (process.env.VERCEL_ENV === "production" || process.env.NODE_ENV === "production") ? "prod" : "dev"
+const defaultTarget = process.env.VERCEL_ENV === "production" ? "prod" : "dev"
 const target = (process.env.DB_TARGET ?? defaultTarget).toLowerCase()
 const targetVar = `DATABASE_URL_${target.toUpperCase()}`
 const url = process.env[targetVar] ?? process.env.DATABASE_URL

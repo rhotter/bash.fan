@@ -251,6 +251,24 @@ export function balanceHomeAway(
         }
       }
     }
+
+    // 3. Strict penalty for head-to-head imbalance between any pair
+    for (const indices of Object.values(pairMeetings)) {
+      if (indices.length <= 1) continue
+      let homeForU = 0
+      let homeForV = 0
+      const u = Math.min(curSlots[indices[0]].home, curSlots[indices[0]].away)
+      for (const idx of indices) {
+        if (curSlots[idx].home === u) homeForU++
+        else homeForV++
+      }
+      const h2hDiff = Math.abs(homeForU - homeForV)
+      const maxAllowedH2H = indices.length % 2 === 0 ? 0 : 1
+      if (h2hDiff > maxAllowedH2H) {
+        cost += (h2hDiff - maxAllowedH2H) * 50000
+      }
+    }
+
     return cost
   }
 
@@ -540,7 +558,9 @@ export function generateRoundRobin(
   // Inject pinned slots if provided
   if (pinnedSlots && pinnedSlots.length > 0 && pinnedRounds) {
     const unpinnedSlots = finalSlots.filter((s) => !pinnedRounds.has(s.round))
-    finalSlots = [...pinnedSlots, ...unpinnedSlots].sort((a, b) => a.round - b.round)
+    finalSlots = [...pinnedSlots, ...unpinnedSlots].sort((a, b) =>
+      a.round !== b.round ? a.round - b.round : (a.slotInDay ?? 0) - (b.slotInDay ?? 0)
+    )
   }
 
   // 1. Balance intra-day game slots so teams rotate equally between Game 1, Game 2, Game 3, ...
@@ -738,10 +758,14 @@ export function rebalanceUpcomingGames<
     time?: string
   }
 >(games: T[]): T[] {
-  const finalGames = games.filter((g) => g.status === "final")
-  const upcomingGames = games.filter((g) => g.status !== "final")
+  const isEligibleUpcoming = (g: T) =>
+    g.status !== "final" &&
+    Boolean(g.homeTeam && g.homeTeam !== "tbd" && g.awayTeam && g.awayTeam !== "tbd")
 
-  if (upcomingGames.length === 0) return games
+  const finalGames = games.filter((g) => g.status === "final")
+  const eligibleUpcoming = games.filter(isEligibleUpcoming)
+
+  if (eligibleUpcoming.length === 0) return games
 
   // Collect all teams
   const teamSet = new Set<string>()
@@ -755,21 +779,30 @@ export function rebalanceUpcomingGames<
 
   if (numTeams < 2) return games
 
-  // Count fixed games from finalGames
+  // Count fixed games from finalGames and track fixed head-to-head meetings
   const fixedHomeCounts = new Array(numTeams).fill(0)
   const fixedAwayCounts = new Array(numTeams).fill(0)
+  const fixedH2H: Record<string, { uHome: number; vHome: number }> = {}
   for (const g of finalGames) {
     const h = teamIndexMap.get(g.homeTeam)
     const a = teamIndexMap.get(g.awayTeam)
     if (h !== undefined) fixedHomeCounts[h]++
     if (a !== undefined) fixedAwayCounts[a]++
+    if (h !== undefined && a !== undefined) {
+      const u = Math.min(h, a)
+      const v = Math.max(h, a)
+      const key = `${u}-${v}`
+      if (!fixedH2H[key]) fixedH2H[key] = { uHome: 0, vHome: 0 }
+      if (h === u) fixedH2H[key].uHome++
+      else fixedH2H[key].vHome++
+    }
   }
 
   // Map upcoming games to slots
-  const upcomingSlots: RoundRobinSlot[] = upcomingGames.map((g, idx) => ({
+  const upcomingSlots: RoundRobinSlot[] = eligibleUpcoming.map((g, idx) => ({
     round: idx,
-    home: teamIndexMap.get(g.homeTeam) ?? 0,
-    away: teamIndexMap.get(g.awayTeam) ?? 0,
+    home: teamIndexMap.get(g.homeTeam)!,
+    away: teamIndexMap.get(g.awayTeam)!,
   }))
 
   // Pair meetings in upcoming
@@ -783,19 +816,32 @@ export function rebalanceUpcomingGames<
     pairMeetings[key].push(idx)
   }
 
+  const allPairKeys = Array.from(new Set([...Object.keys(pairMeetings), ...Object.keys(fixedH2H)]))
+  const parsedPairs = allPairKeys.map((key) => {
+    const [uStr] = key.split("-")
+    const u = parseInt(uStr, 10)
+    return {
+      u,
+      indices: pairMeetings[key] || [],
+      fixedUHome: fixedH2H[key]?.uHome ?? 0,
+      fixedVHome: fixedH2H[key]?.vHome ?? 0,
+    }
+  })
+
   const rng = mulberry32(1234567)
   const result = upcomingSlots.map((s) => ({ ...s }))
 
-  // Cost function taking into account fixed completed games
-  const getCost = () => {
+  // Cost function taking into account fixed completed games and head-to-head pair equity
+  const getCost = (curSlots: RoundRobinSlot[]) => {
     const homeCounts = [...fixedHomeCounts]
     const awayCounts = [...fixedAwayCounts]
-    for (const s of result) {
+    for (const s of curSlots) {
       homeCounts[s.home]++
       awayCounts[s.away]++
     }
 
     let cost = 0
+    // 1. Team Home/Away balance
     for (let t = 0; t < numTeams; t++) {
       const diff = Math.abs(homeCounts[t] - awayCounts[t])
       const total = homeCounts[t] + awayCounts[t]
@@ -804,11 +850,32 @@ export function rebalanceUpcomingGames<
         cost += (diff - maxAllowed) * 10000
       }
     }
+
+    // 2. Strict head-to-head pair equity penalty
+    for (const pair of parsedPairs) {
+      let uHome = pair.fixedUHome
+      let vHome = pair.fixedVHome
+      for (const idx of pair.indices) {
+        if (curSlots[idx].home === pair.u) uHome++
+        else vHome++
+      }
+      const totalMeetings = uHome + vHome
+      if (totalMeetings <= 1) continue
+      const h2hDiff = Math.abs(uHome - vHome)
+      const maxAllowedH2H = totalMeetings % 2 === 0 ? 0 : 1
+      if (h2hDiff > maxAllowedH2H) {
+        cost += (h2hDiff - maxAllowedH2H) * 50000
+      }
+    }
+
     return cost
   }
 
-  let bestCost = getCost()
+  let currentCost = getCost(result)
+  let bestCost = currentCost
+  let bestResult = result.map((s) => ({ ...s }))
   const keys = Object.keys(pairMeetings)
+  let temp = 50.0
 
   for (let iter = 0; iter < 5000; iter++) {
     if (bestCost === 0) break
@@ -820,21 +887,28 @@ export function rebalanceUpcomingGames<
     result[idx].home = result[idx].away
     result[idx].away = tmp
 
-    const newCost = getCost()
-    if (newCost < bestCost) {
-      bestCost = newCost
+    const newCost = getCost(result)
+    const delta = newCost - currentCost
+    if (delta <= 0 || rng() < Math.exp(-delta / temp)) {
+      currentCost = newCost
+      if (currentCost < bestCost) {
+        bestCost = currentCost
+        bestResult = result.map((s) => ({ ...s }))
+      }
     } else {
-      // Revert
+      // Revert swap
+      const rtmp = result[idx].home
       result[idx].home = result[idx].away
-      result[idx].away = tmp
+      result[idx].away = rtmp
     }
+    temp *= 0.999
   }
 
-  // Re-apply to upcomingGames
+  // Re-apply bestResult to upcomingGames
   let upIdx = 0
   return games.map((g) => {
-    if (g.status === "final") return g
-    const s = result[upIdx++]
+    if (!isEligibleUpcoming(g)) return g
+    const s = bestResult[upIdx++]
     const homeTeam = teamList[s.home] ?? g.homeTeam
     const awayTeam = teamList[s.away] ?? g.awayTeam
     return {

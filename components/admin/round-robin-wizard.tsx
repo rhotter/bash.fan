@@ -20,21 +20,11 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { toast } from "sonner"
-import { ChevronLeft, ChevronRight, Calendar, Loader2, Info, CheckCircle2, Scale, Clock } from "lucide-react"
+import { ChevronLeft, ChevronRight, Calendar, Loader2, Info, CheckCircle2, Scale, Clock, AlertTriangle } from "lucide-react"
 import {
   generateRoundRobin,
   computeByeTeams,
@@ -72,7 +62,6 @@ export function RoundRobinWizard({
 }: RoundRobinWizardProps) {
   const [step, setStep] = useState(1)
   const [isSaving, setIsSaving] = useState(false)
-  const [showOverwriteConfirm, setShowOverwriteConfirm] = useState(false)
 
   // Placeholder mode: when no real teams are assigned, allow specifying a count
   const [placeholderTeamCount, setPlaceholderTeamCount] = useState<number | "">(teams.length >= 2 ? teams.length : 6)
@@ -335,7 +324,7 @@ export function RoundRobinWizard({
   
   const handleBack = () => setStep((s) => Math.max(s - 1, 1))
 
-  const handleSave = async (force: boolean = false) => {
+  const handleSave = async () => {
     setIsSaving(true)
     try {
       const res = await fetch(`/api/bash/admin/seasons/${seasonId}/schedule/generate`, {
@@ -343,17 +332,12 @@ export function RoundRobinWizard({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           mode: saveMode,
-          force,
           games: previewGames,
         }),
       })
 
       if (!res.ok) {
         const data = await res.json()
-        if (data.error?.includes("final games exist") && !force) {
-          setShowOverwriteConfirm(true)
-          return
-        }
         throw new Error(data.error || "Failed to generate schedule")
       }
 
@@ -482,12 +466,15 @@ export function RoundRobinWizard({
                           if (e.target.value === "") {
                             setGamesPerWeek("")
                           } else {
-                            setGamesPerWeek(Math.max(1, parseInt(e.target.value) || 1))
+                            const val = parseInt(e.target.value, 10) || 1
+                            const maxGpw = Math.max(1, Math.floor(effectiveTeams.length / 2))
+                            setGamesPerWeek(Math.min(maxGpw, Math.max(1, val)))
                           }
                         }}
                         onBlur={() => {
-                          if (gamesPerWeek === "" || gamesPerWeek < 1) {
-                            setGamesPerWeek(Math.max(1, Math.floor(effectiveTeams.length / 2)))
+                          const maxGpw = Math.max(1, Math.floor(effectiveTeams.length / 2))
+                          if (gamesPerWeek === "" || gamesPerWeek < 1 || gamesPerWeek > maxGpw) {
+                            setGamesPerWeek(maxGpw)
                           }
                         }}
                       />
@@ -845,28 +832,40 @@ export function RoundRobinWizard({
                       <span className="font-semibold text-sm">Schedule Fairness & Equity Audit</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <Badge
-                        variant="outline"
-                        className={
-                          equityReport.isHomeAwayEquitable
-                            ? "bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800"
-                            : "bg-amber-50 text-amber-700 border-amber-300"
-                        }
-                      >
-                        <CheckCircle2 className="h-3 w-3 mr-1 inline" />
-                        Home / Away Balanced
-                      </Badge>
-                      <Badge
-                        variant="outline"
-                        className={
-                          equityReport.isGameSlotsEquitable
-                            ? "bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800"
-                            : "bg-amber-50 text-amber-700 border-amber-300"
-                        }
-                      >
-                        <Clock className="h-3 w-3 mr-1 inline" />
-                        {equityReport.numGameSlotsPerDay} Game Slots Rotated
-                      </Badge>
+                      {equityReport.isHomeAwayEquitable ? (
+                        <Badge
+                          variant="outline"
+                          className="bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800"
+                        >
+                          <CheckCircle2 className="h-3 w-3 mr-1 inline" />
+                          Home / Away Balanced
+                        </Badge>
+                      ) : (
+                        <Badge
+                          variant="outline"
+                          className="bg-amber-50 text-amber-700 border-amber-300 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-800"
+                        >
+                          <AlertTriangle className="h-3 w-3 mr-1 inline" />
+                          H/A Diff: {equityReport.maxHomeAwayDiff}
+                        </Badge>
+                      )}
+                      {equityReport.isGameSlotsEquitable ? (
+                        <Badge
+                          variant="outline"
+                          className="bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800"
+                        >
+                          <Clock className="h-3 w-3 mr-1 inline" />
+                          {equityReport.numGameSlotsPerDay} Game Slots Rotated
+                        </Badge>
+                      ) : (
+                        <Badge
+                          variant="outline"
+                          className="bg-amber-50 text-amber-700 border-amber-300 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-800"
+                        >
+                          <AlertTriangle className="h-3 w-3 mr-1 inline" />
+                          Slots Imbalanced (Diff: {equityReport.maxGameSlotDiff})
+                        </Badge>
+                      )}
                     </div>
                   </div>
 
@@ -975,7 +974,7 @@ export function RoundRobinWizard({
                           const weekNum = Number(weekEntry[0])
                           const byeIdx = byeTeamsByWeek[weekNum]
                           if (byeIdx === undefined) return null
-                          const byeTeam = effectiveTeams[byeIdx]
+                          const byeTeam = scheduledTeams[byeIdx]
                           return (
                             <tr key={`bye-${date}`} className="border-b last:border-0 bg-amber-50/50 dark:bg-amber-950/20">
                               <td className="p-2 text-muted-foreground">{date}</td>
@@ -1014,7 +1013,7 @@ export function RoundRobinWizard({
                   Next <ChevronRight className="h-4 w-4 ml-1" />
                 </Button>
               ) : (
-                <Button onClick={() => handleSave(false)} disabled={isSaving}>
+                <Button onClick={handleSave} disabled={isSaving}>
                   {isSaving ? (
                     <>
                       <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -1029,30 +1028,6 @@ export function RoundRobinWizard({
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      <AlertDialog open={showOverwriteConfirm} onOpenChange={setShowOverwriteConfirm}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Final games exist</AlertDialogTitle>
-            <AlertDialogDescription>
-              There are completed (final) games in this schedule. Overwriting will delete all
-              non-final games. Final games and their stats will be preserved. Continue?
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                setShowOverwriteConfirm(false)
-                handleSave(true)
-              }}
-              className="bg-destructive hover:bg-destructive/90"
-            >
-              Overwrite Non-Final Games
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </>
   )
 }
