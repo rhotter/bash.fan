@@ -10,6 +10,7 @@ export interface RoundRobinSlot {
   round: number
   home: number // team index (0-based)
   away: number // team index (0-based)
+  slotInDay?: number // 0-based intra-day game index (0 = Game 1, 1 = Game 2, etc.)
 }
 
 export interface GeneratedGame {
@@ -20,6 +21,7 @@ export interface GeneratedGame {
   location: string
   gameType: string
   status: string
+  gameNumberInDay?: number // 1-based (1 = Game 1, 2 = Game 2, etc.)
   homePlaceholder?: string | null
   awayPlaceholder?: string | null
   bracketRound?: string | null
@@ -72,6 +74,30 @@ export interface Holiday {
   date: string // YYYY-MM-DD
 }
 
+export interface TeamEquityStats {
+  teamSlug: string
+  teamName: string
+  homeGames: number
+  awayGames: number
+  totalGames: number
+  homeAwayDiff: number // |home - away|
+  gameSlots: Record<number, number> // 1-based intra-day game slot -> count (e.g. { 1: 6, 2: 6, 3: 6 })
+  timeSlots: Record<string, number> // time string -> count
+  byes: number
+  maxStreak: number // max consecutive H or A
+}
+
+export interface ScheduleEquityReport {
+  teams: TeamEquityStats[]
+  isHomeAwayEquitable: boolean
+  isGameSlotsEquitable: boolean
+  isTimeSlotsEquitable: boolean
+  maxHomeAwayDiff: number
+  maxGameSlotDiff: number
+  numGameSlotsPerDay: number
+  slotLabels: { slotNumber: number; label: string; time?: string }[]
+}
+
 // ─── Round Robin (Berger tables) ────────────────────────────────────────────
 
 /**
@@ -82,13 +108,367 @@ export interface Holiday {
  * @param cycles        How many full round-robin cycles to generate.
  * @returns             Array of { round, home, away } using 0-based team indices.
  */
+/**
+ * Deterministic 32-bit pseudo-random number generator (Mulberry32).
+ */
+function mulberry32(a: number) {
+  return function () {
+    let t = (a += 0x6d2b79f5)
+    t = Math.imul(t ^ (t >>> 15), t | 1)
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+  }
+}
+
+/**
+ * Optimize Home/Away orientation for round-robin match slots.
+ *
+ * Guarantees:
+ * 1. Head-to-head fairness: For every pair of teams playing K times,
+ *    |home(u vs v) - home(v vs u)| <= 1.
+ * 2. Global team balance: For every team, |home - away| <= (totalGames % 2).
+ *    (e.g. exactly 9 Home and 9 Away for an 18-game schedule).
+ * 3. Streak minimization: Minimizes consecutive Home or Away games.
+ *
+ * Preserves match order within rounds, keeping game-time rotations intact.
+ */
+export function balanceHomeAway(
+  slots: RoundRobinSlot[],
+  numTeams: number,
+  pinnedRounds?: Set<number>
+): RoundRobinSlot[] {
+  if (numTeams < 2 || slots.length === 0) return slots
+
+  const isPinnedIdx = (idx: number) => (pinnedRounds ? pinnedRounds.has(slots[idx].round) : false)
+
+  const seed = (numTeams * 10007 + slots.length * 37) & 0xffffffff
+  const rng = mulberry32(seed)
+
+  const totalGames = new Array(numTeams).fill(0)
+  for (const s of slots) {
+    if (s.home < numTeams) totalGames[s.home]++
+    if (s.away < numTeams) totalGames[s.away]++
+  }
+
+  const pairMeetings: Record<string, number[]> = {}
+  for (let idx = 0; idx < slots.length; idx++) {
+    const s = slots[idx]
+    const u = Math.min(s.home, s.away)
+    const v = Math.max(s.home, s.away)
+    const key = `${u}-${v}`
+    if (!pairMeetings[key]) pairMeetings[key] = []
+    pairMeetings[key].push(idx)
+  }
+
+  const result = slots.map((s) => ({ ...s }))
+
+  // Initial assignment: alternate for each pair to guarantee head-to-head equity
+  for (const [key, indices] of Object.entries(pairMeetings)) {
+    const [uStr, vStr] = key.split("-")
+    const u = Number(uStr)
+    const v = Number(vStr)
+    const firstIsU = rng() > 0.5
+
+    const pinnedIndices = indices.filter(isPinnedIdx)
+    const unpinnedIndices = indices.filter((i) => !isPinnedIdx(i))
+
+    // Preserve pinned slots exactly as given
+    for (const idx of pinnedIndices) {
+      result[idx].home = slots[idx].home
+      result[idx].away = slots[idx].away
+    }
+
+    if (pinnedIndices.length === 0) {
+      for (let i = 0; i < indices.length; i++) {
+        const idx = indices[i]
+        const uHome = i % 2 === 0 ? firstIsU : !firstIsU
+        result[idx].home = uHome ? u : v
+        result[idx].away = uHome ? v : u
+      }
+    } else {
+      // Alternate remaining meetings around pinned meeting(s)
+      let uHomeCount = pinnedIndices.filter((idx) => slots[idx].home === u).length
+      let vHomeCount = pinnedIndices.length - uHomeCount
+
+      for (const idx of unpinnedIndices) {
+        let uHome: boolean
+        if (uHomeCount < vHomeCount) {
+          uHome = true
+          uHomeCount++
+        } else if (vHomeCount < uHomeCount) {
+          uHome = false
+          vHomeCount++
+        } else {
+          uHome = rng() > 0.5
+          if (uHome) uHomeCount++
+          else vHomeCount++
+        }
+        result[idx].home = uHome ? u : v
+        result[idx].away = uHome ? v : u
+      }
+    }
+  }
+
+  const keys = Object.keys(pairMeetings)
+
+  const getCost = (curSlots: RoundRobinSlot[]) => {
+    const homeCounts = new Array(numTeams).fill(0)
+    const awayCounts = new Array(numTeams).fill(0)
+    for (const s of curSlots) {
+      if (s.home < numTeams) homeCounts[s.home]++
+      if (s.away < numTeams) awayCounts[s.away]++
+    }
+
+    let cost = 0
+    // 1. Strict penalty for |home - away| > (totalGames % 2)
+    for (let t = 0; t < numTeams; t++) {
+      const diff = Math.abs(homeCounts[t] - awayCounts[t])
+      const maxAllowed = totalGames[t] % 2 === 0 ? 0 : 1
+      if (diff > maxAllowed) {
+        cost += (diff - maxAllowed) * 10000
+      }
+    }
+
+    // 2. Penalty for streaks >= 3
+    for (let t = 0; t < numTeams; t++) {
+      const teamGames: RoundRobinSlot[] = []
+      for (const s of curSlots) {
+        if (s.home === t || s.away === t) teamGames.push(s)
+      }
+      teamGames.sort((a, b) => a.round - b.round)
+
+      let streak = 0
+      let lastWasHome: boolean | null = null
+      for (const g of teamGames) {
+        const isHome = g.home === t
+        if (isHome === lastWasHome) {
+          streak++
+          if (streak === 2) cost += 15 // 3 in a row
+          else if (streak >= 3) cost += streak * 100 // 4+ in a row
+        } else {
+          streak = 0
+          lastWasHome = isHome
+        }
+      }
+    }
+    return cost
+  }
+
+  let currentCost = getCost(result)
+  let bestCost = currentCost
+  let bestResult = result.map((s) => ({ ...s }))
+
+  const maxIters = 8000
+  let temp = 50.0
+
+  for (let iter = 0; iter < maxIters; iter++) {
+    if (bestCost === 0) break
+
+    const randKey = keys[Math.floor(rng() * keys.length)]
+    const indices = pairMeetings[randKey]
+    const unpinned = indices.filter((i) => !isPinnedIdx(i))
+    if (unpinned.length === 0) continue
+
+    const moveType = rng()
+
+    if (moveType < 0.6) {
+      // Invert unpinned meetings for this pair
+      for (const idx of unpinned) {
+        const tmp = result[idx].home
+        result[idx].home = result[idx].away
+        result[idx].away = tmp
+      }
+      const newCost = getCost(result)
+      const delta = newCost - currentCost
+      if (delta <= 0 || rng() < Math.exp(-delta / Math.max(0.1, temp))) {
+        currentCost = newCost
+        if (newCost < bestCost) {
+          bestCost = newCost
+          bestResult = result.map((s) => ({ ...s }))
+        }
+      } else {
+        // Revert
+        for (const idx of unpinned) {
+          const tmp = result[idx].home
+          result[idx].home = result[idx].away
+          result[idx].away = tmp
+        }
+      }
+    } else if (unpinned.length >= 2) {
+      // Swap orientations of two unpinned meetings in the same pair
+      const i1 = unpinned[Math.floor(rng() * unpinned.length)]
+      const i2 = unpinned[Math.floor(rng() * unpinned.length)]
+      if (i1 !== i2 && result[i1].home !== result[i2].home) {
+        const tmp1 = result[i1].home
+        result[i1].home = result[i1].away
+        result[i1].away = tmp1
+        const tmp2 = result[i2].home
+        result[i2].home = result[i2].away
+        result[i2].away = tmp2
+        const newCost = getCost(result)
+        const delta = newCost - currentCost
+        if (delta <= 0 || rng() < Math.exp(-delta / Math.max(0.1, temp))) {
+          currentCost = newCost
+          if (newCost < bestCost) {
+            bestCost = newCost
+            bestResult = result.map((s) => ({ ...s }))
+          }
+        } else {
+          // Revert
+          const rtmp1 = result[i1].home
+          result[i1].home = result[i1].away
+          result[i1].away = rtmp1
+          const rtmp2 = result[i2].home
+          result[i2].home = result[i2].away
+          result[i2].away = rtmp2
+        }
+      }
+    }
+
+    temp *= 0.999
+  }
+
+  return bestResult
+}
+
+/**
+ * Optimize intra-day game slot distribution (Game 1, Game 2, Game 3, Game 4...) across all teams.
+ *
+ * Permutes match ordering within each round/week so that every team rotates equally
+ * through the game slots of the day (e.g. Game 1, Game 2, Game 3, Game 4).
+ * Works flexibly for 4 teams (2 games/day), 6-7 teams (3 games/day), 8 teams (4 games/day), etc.
+ */
+export function balanceIntraDayGameSlots(
+  slots: RoundRobinSlot[],
+  numTeams: number,
+  pinnedRounds?: Set<number>
+): RoundRobinSlot[] {
+  if (numTeams < 2 || slots.length === 0) return slots
+
+  const roundMap = new Map<number, RoundRobinSlot[]>()
+  for (const s of slots) {
+    if (!roundMap.has(s.round)) roundMap.set(s.round, [])
+    roundMap.get(s.round)!.push({ ...s })
+  }
+
+  let maxGamesPerDay = 0
+  for (const matches of roundMap.values()) {
+    if (matches.length > maxGamesPerDay) maxGamesPerDay = matches.length
+  }
+  if (maxGamesPerDay <= 1) {
+    return slots.map((s) => ({ ...s, slotInDay: 0 }))
+  }
+
+  const rounds = Array.from(roundMap.keys())
+  const roundMatches = rounds.map((r) => roundMap.get(r)!)
+
+  const seed = (numTeams * 43217 + slots.length * 19) & 0xffffffff
+  const rng = mulberry32(seed)
+
+  const getSlotCounts = () => {
+    const counts = Array.from(
+      { length: numTeams },
+      () => new Array(maxGamesPerDay).fill(0)
+    )
+    for (const matches of roundMatches) {
+      matches.forEach((m, slotIdx) => {
+        if (m.home < numTeams) counts[m.home][slotIdx]++
+        if (m.away < numTeams) counts[m.away][slotIdx]++
+      })
+    }
+    return counts
+  }
+
+  const getCost = () => {
+    const counts = getSlotCounts()
+    let cost = 0
+    for (let t = 0; t < numTeams; t++) {
+      const c = counts[t]
+      const totalGames = c.reduce((a, b) => a + b, 0)
+      const ideal = totalGames / maxGamesPerDay
+      for (let s = 0; s < maxGamesPerDay; s++) {
+        const diff = c[s] - ideal
+        cost += diff * diff * 20
+      }
+      const spread = Math.max(...c) - Math.min(...c)
+      if (spread > 1) {
+        cost += (spread - 1) * 2000
+      }
+    }
+    return cost
+  }
+
+  let currentCost = getCost()
+  let bestCost = currentCost
+  let bestRounds = roundMatches.map((r) => r.map((m) => ({ ...m })))
+
+  const maxIters = 8000
+  let temp = 30.0
+
+  for (let iter = 0; iter < maxIters; iter++) {
+    if (bestCost === 0) break
+
+    const rIdx = Math.floor(rng() * roundMatches.length)
+    const roundNum = rounds[rIdx]
+    if (pinnedRounds?.has(roundNum)) continue
+
+    const matches = roundMatches[rIdx]
+    if (matches.length < 2) continue
+
+    const i1 = Math.floor(rng() * matches.length)
+    const i2 = Math.floor(rng() * matches.length)
+    if (i1 === i2) continue
+
+    const tmp = matches[i1]
+    matches[i1] = matches[i2]
+    matches[i2] = tmp
+
+    const newCost = getCost()
+    const delta = newCost - currentCost
+    if (delta <= 0 || rng() < Math.exp(-delta / Math.max(0.1, temp))) {
+      currentCost = newCost
+      if (newCost < bestCost) {
+        bestCost = newCost
+        bestRounds = roundMatches.map((r) => r.map((m) => ({ ...m })))
+      }
+    } else {
+      matches[i2] = matches[i1]
+      matches[i1] = tmp
+    }
+
+    temp *= 0.999
+  }
+
+  const result: RoundRobinSlot[] = []
+  for (const matches of bestRounds) {
+    matches.forEach((m, slotIdx) => {
+      result.push({ ...m, slotInDay: slotIdx })
+    })
+  }
+  return result
+}
+
+/**
+ * Generate a round-robin schedule using Berger tables, rotated match time slots,
+ * intra-day game slot equity optimization, and automated Home/Away balance optimization.
+ *
+ * @param numTeams      Number of teams (will be bumped to even if odd via a "bye" team).
+ * @param gamesPerWeek  How many games are played each "week" / round.
+ * @param cycles        How many full round-robin cycles to generate.
+ * @returns             Array of { round, home, away, slotInDay } using 0-based team indices.
+ */
 export function generateRoundRobin(
   numTeams: number,
   gamesPerWeek: number,
   cycles: number = 1,
-  maxTotalGames?: number
+  maxTotalGames?: number,
+  pinnedSlots?: RoundRobinSlot[]
 ): RoundRobinSlot[] {
   if (numTeams < 2) return []
+
+  const pinnedRounds = pinnedSlots && pinnedSlots.length > 0
+    ? new Set(pinnedSlots.map((s) => s.round))
+    : undefined
 
   // If odd, add a "bye" sentinel — team at index `n` is the bye.
   const n = numTeams % 2 === 0 ? numTeams : numTeams + 1
@@ -119,7 +499,7 @@ export function generateRoundRobin(
         // Skip bye matches
         if (hasBye && (home >= numTeams || away >= numTeams)) continue
 
-        // Alternate home/away by round for fairness
+        // Initial assignment
         if (round % 2 === 0) {
           roundMatches.push({ round: roundNum, home, away })
         } else {
@@ -145,8 +525,8 @@ export function generateRoundRobin(
     if (maxTotalGames && allSlots.length >= maxTotalGames) break
   }
 
-  // Now chunk into weeks based on gamesPerWeek
-  // Each "week" gets gamesPerWeek games from the flat list in order
+  // Chunk into weeks based on gamesPerWeek if needed
+  let finalSlots = allSlots
   if (gamesPerWeek > 0 && gamesPerWeek < matchesPerRound) {
     const reNumbered: RoundRobinSlot[] = []
     let weekNum = 1
@@ -154,10 +534,315 @@ export function generateRoundRobin(
       reNumbered.push({ ...allSlots[i], round: weekNum })
       if ((i + 1) % gamesPerWeek === 0) weekNum++
     }
-    return reNumbered
+    finalSlots = reNumbered
   }
 
-  return allSlots
+  // Inject pinned slots if provided
+  if (pinnedSlots && pinnedSlots.length > 0 && pinnedRounds) {
+    const unpinnedSlots = finalSlots.filter((s) => !pinnedRounds.has(s.round))
+    finalSlots = [...pinnedSlots, ...unpinnedSlots].sort((a, b) => a.round - b.round)
+  }
+
+  // 1. Balance intra-day game slots so teams rotate equally between Game 1, Game 2, Game 3, ...
+  const slotBalanced = balanceIntraDayGameSlots(finalSlots, numTeams, pinnedRounds)
+
+  // 2. Optimize Home/Away assignments to ensure equity
+  return balanceHomeAway(slotBalanced, numTeams, pinnedRounds)
+}
+
+/**
+ * Compute schedule equity metrics across all teams for home/away and intra-day game slots.
+ */
+export function computeScheduleEquity(
+  games: GeneratedGame[],
+  teams: { teamSlug: string; teamName: string }[],
+  activeWeeksCount?: number
+): ScheduleEquityReport {
+  // If gameNumberInDay is missing on any games, infer it by grouping by date
+  const gamesWithSlot = (() => {
+    const hasMissing = games.some((g) => g.gameNumberInDay === undefined)
+    if (!hasMissing) return games
+
+    const byDate = new Map<string, GeneratedGame[]>()
+    for (const g of games) {
+      const d = g.date || "all"
+      if (!byDate.has(d)) byDate.set(d, [])
+      byDate.get(d)!.push(g)
+    }
+
+    const inferred: GeneratedGame[] = []
+    for (const dayGames of byDate.values()) {
+      dayGames.forEach((g, idx) => {
+        inferred.push({
+          ...g,
+          gameNumberInDay: g.gameNumberInDay ?? idx + 1,
+        })
+      })
+    }
+    return inferred
+  })()
+
+  const teamMetrics: TeamEquityStats[] = teams.map((t) => {
+    const slug = t.teamSlug
+    const name = t.teamName
+
+    const teamGames = gamesWithSlot.filter(
+      (g) =>
+        g.homeTeam === slug ||
+        g.awayTeam === slug ||
+        g.homePlaceholder === name ||
+        g.awayPlaceholder === name
+    )
+
+    let homeCount = 0
+    let awayCount = 0
+    const timeSlotCounts: Record<string, number> = {}
+    const gameSlotCounts: Record<number, number> = {}
+
+    for (const g of teamGames) {
+      const isHome = g.homeTeam === slug || g.homePlaceholder === name
+      if (isHome) homeCount++
+      else awayCount++
+
+      if (g.gameNumberInDay !== undefined) {
+        gameSlotCounts[g.gameNumberInDay] =
+          (gameSlotCounts[g.gameNumberInDay] || 0) + 1
+      }
+
+      if (g.time && g.time !== "TBD") {
+        timeSlotCounts[g.time] = (timeSlotCounts[g.time] || 0) + 1
+      }
+    }
+
+    // Calculate streak
+    const sortedGames = [...teamGames].sort((a, b) => {
+      const dateCmp = (a.date || "").localeCompare(b.date || "")
+      if (dateCmp !== 0) return dateCmp
+      return (a.time || "").localeCompare(b.time || "")
+    })
+
+    let maxStreak = 0
+    let currentStreak = 0
+    let lastWasHome: boolean | null = null
+
+    for (const g of sortedGames) {
+      const isHome = g.homeTeam === slug || g.homePlaceholder === name
+      if (isHome === lastWasHome) {
+        currentStreak++
+      } else {
+        currentStreak = 1
+        lastWasHome = isHome
+      }
+      if (currentStreak > maxStreak) {
+        maxStreak = currentStreak
+      }
+    }
+
+    const totalGames = homeCount + awayCount
+    const byes =
+      activeWeeksCount !== undefined
+        ? Math.max(0, activeWeeksCount - totalGames)
+        : 0
+
+    return {
+      teamSlug: slug,
+      teamName: name,
+      homeGames: homeCount,
+      awayGames: awayCount,
+      totalGames,
+      homeAwayDiff: Math.abs(homeCount - awayCount),
+      gameSlots: gameSlotCounts,
+      timeSlots: timeSlotCounts,
+      byes,
+      maxStreak,
+    }
+  })
+
+  const maxHomeAwayDiff = Math.max(...teamMetrics.map((m) => m.homeAwayDiff), 0)
+  const isHomeAwayEquitable = teamMetrics.every((m) => {
+    const maxAllowed = m.totalGames % 2 === 0 ? 0 : 1
+    return m.homeAwayDiff <= maxAllowed
+  })
+
+  // Intra-day game slot equity
+  const allSlotNumbers = Array.from(
+    new Set(teamMetrics.flatMap((m) => Object.keys(m.gameSlots).map(Number)))
+  ).sort((a, b) => a - b)
+  const numGameSlotsPerDay =
+    allSlotNumbers.length > 0 ? Math.max(...allSlotNumbers) : 1
+
+  let maxGameSlotDiff = 0
+  for (const s of allSlotNumbers) {
+    const counts = teamMetrics.map((m) => m.gameSlots[s] || 0)
+    const diff = Math.max(...counts) - Math.min(...counts)
+    if (diff > maxGameSlotDiff) maxGameSlotDiff = diff
+  }
+  const isGameSlotsEquitable = maxGameSlotDiff <= 2
+
+  // Distinct time slot equity (optional check if clock times are specified)
+  const allTimeKeys = Array.from(
+    new Set(teamMetrics.flatMap((m) => Object.keys(m.timeSlots)))
+  )
+  let isTimeSlotsEquitable = true
+  if (allTimeKeys.length > 1) {
+    for (const key of allTimeKeys) {
+      const counts = teamMetrics.map((m) => m.timeSlots[key] || 0)
+      const min = Math.min(...counts)
+      const max = Math.max(...counts)
+      if (max - min > 2) {
+        isTimeSlotsEquitable = false
+        break
+      }
+    }
+  }
+
+  // Build slot labels with corresponding time if available
+  const slotLabels = (allSlotNumbers.length > 0 ? allSlotNumbers : [1]).map(
+    (s) => {
+      const sample = gamesWithSlot.find(
+        (g) => g.gameNumberInDay === s && g.time && g.time !== "TBD"
+      )
+      return {
+        slotNumber: s,
+        label: `Game ${s}`,
+        time: sample?.time,
+      }
+    }
+  )
+
+  return {
+    teams: teamMetrics,
+    isHomeAwayEquitable,
+    isGameSlotsEquitable,
+    isTimeSlotsEquitable,
+    maxHomeAwayDiff,
+    maxGameSlotDiff,
+    numGameSlotsPerDay,
+    slotLabels,
+  }
+}
+
+/**
+ * Re-balance upcoming games for an in-progress season to compensate for past imbalances.
+ *
+ * Completed games ('final') remain untouched. Upcoming games have their Home/Away
+ * orientations optimized to bring each team as close to 50/50 as possible.
+ */
+export function rebalanceUpcomingGames<
+  T extends {
+    id?: string
+    homeTeam: string
+    awayTeam: string
+    status: string
+    date?: string
+    time?: string
+  }
+>(games: T[]): T[] {
+  const finalGames = games.filter((g) => g.status === "final")
+  const upcomingGames = games.filter((g) => g.status !== "final")
+
+  if (upcomingGames.length === 0) return games
+
+  // Collect all teams
+  const teamSet = new Set<string>()
+  for (const g of games) {
+    if (g.homeTeam && g.homeTeam !== "tbd") teamSet.add(g.homeTeam)
+    if (g.awayTeam && g.awayTeam !== "tbd") teamSet.add(g.awayTeam)
+  }
+  const teamList = Array.from(teamSet)
+  const teamIndexMap = new Map(teamList.map((slug, i) => [slug, i]))
+  const numTeams = teamList.length
+
+  if (numTeams < 2) return games
+
+  // Count fixed games from finalGames
+  const fixedHomeCounts = new Array(numTeams).fill(0)
+  const fixedAwayCounts = new Array(numTeams).fill(0)
+  for (const g of finalGames) {
+    const h = teamIndexMap.get(g.homeTeam)
+    const a = teamIndexMap.get(g.awayTeam)
+    if (h !== undefined) fixedHomeCounts[h]++
+    if (a !== undefined) fixedAwayCounts[a]++
+  }
+
+  // Map upcoming games to slots
+  const upcomingSlots: RoundRobinSlot[] = upcomingGames.map((g, idx) => ({
+    round: idx,
+    home: teamIndexMap.get(g.homeTeam) ?? 0,
+    away: teamIndexMap.get(g.awayTeam) ?? 0,
+  }))
+
+  // Pair meetings in upcoming
+  const pairMeetings: Record<string, number[]> = {}
+  for (let idx = 0; idx < upcomingSlots.length; idx++) {
+    const s = upcomingSlots[idx]
+    const u = Math.min(s.home, s.away)
+    const v = Math.max(s.home, s.away)
+    const key = `${u}-${v}`
+    if (!pairMeetings[key]) pairMeetings[key] = []
+    pairMeetings[key].push(idx)
+  }
+
+  const rng = mulberry32(1234567)
+  const result = upcomingSlots.map((s) => ({ ...s }))
+
+  // Cost function taking into account fixed completed games
+  const getCost = () => {
+    const homeCounts = [...fixedHomeCounts]
+    const awayCounts = [...fixedAwayCounts]
+    for (const s of result) {
+      homeCounts[s.home]++
+      awayCounts[s.away]++
+    }
+
+    let cost = 0
+    for (let t = 0; t < numTeams; t++) {
+      const diff = Math.abs(homeCounts[t] - awayCounts[t])
+      const total = homeCounts[t] + awayCounts[t]
+      const maxAllowed = total % 2 === 0 ? 0 : 1
+      if (diff > maxAllowed) {
+        cost += (diff - maxAllowed) * 10000
+      }
+    }
+    return cost
+  }
+
+  let bestCost = getCost()
+  const keys = Object.keys(pairMeetings)
+
+  for (let iter = 0; iter < 5000; iter++) {
+    if (bestCost === 0) break
+    const randKey = keys[Math.floor(rng() * keys.length)]
+    const indices = pairMeetings[randKey]
+    const idx = indices[Math.floor(rng() * indices.length)]
+
+    const tmp = result[idx].home
+    result[idx].home = result[idx].away
+    result[idx].away = tmp
+
+    const newCost = getCost()
+    if (newCost < bestCost) {
+      bestCost = newCost
+    } else {
+      // Revert
+      result[idx].home = result[idx].away
+      result[idx].away = tmp
+    }
+  }
+
+  // Re-apply to upcomingGames
+  let upIdx = 0
+  return games.map((g) => {
+    if (g.status === "final") return g
+    const s = result[upIdx++]
+    const homeTeam = teamList[s.home] ?? g.homeTeam
+    const awayTeam = teamList[s.away] ?? g.awayTeam
+    return {
+      ...g,
+      homeTeam,
+      awayTeam,
+    }
+  })
 }
 
 /**
@@ -303,11 +988,37 @@ export function mapRoundRobinToGames(
         location: dateInfo.location,
         gameType,
         status: "upcoming",
+        gameNumberInDay: slot.slotInDay !== undefined ? slot.slotInDay + 1 : i + 1,
       })
     }
   }
 
   return games
+}
+
+/**
+ * Returns default game start time (24-hour HH:mm) based on intra-day game index and total games per day.
+ * - 4 games/day: 08:00, 10:00, 12:00, 14:00 (8:00, 10:00, 12:00, 2:00)
+ * - 3 games/day: 09:00, 11:00, 13:00 (9:00, 11:00, 1:00)
+ * - 2 games/day: 10:00, 12:00 (10:00, 12:00)
+ * - 1 game/day:  10:00
+ */
+export function getDefaultTimeForSlot(slotIndex: number, totalGamesPerDay: number): string {
+  if (totalGamesPerDay === 4) {
+    return slotIndex === 0 ? "08:00" : slotIndex === 1 ? "10:00" : slotIndex === 2 ? "12:00" : slotIndex === 3 ? "14:00" : "TBD"
+  }
+  if (totalGamesPerDay === 3) {
+    return slotIndex === 0 ? "09:00" : slotIndex === 1 ? "11:00" : slotIndex === 2 ? "13:00" : "TBD"
+  }
+  if (totalGamesPerDay === 2) {
+    return slotIndex === 0 ? "10:00" : slotIndex === 1 ? "12:00" : "TBD"
+  }
+  if (totalGamesPerDay === 1) {
+    return "10:00"
+  }
+  const startHour = 8 + slotIndex * 2
+  const hh = startHour < 10 ? `0${startHour}` : `${startHour}`
+  return `${hh}:00`
 }
 
 // ─── Playoff Bracket ────────────────────────────────────────────────────────

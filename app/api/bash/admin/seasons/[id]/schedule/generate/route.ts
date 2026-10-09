@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { db, schema } from "@/lib/db"
-import { eq, and, ne } from "drizzle-orm"
+import { eq, and, ne, gt, sql } from "drizzle-orm"
 import { getSession } from "@/lib/admin-session"
 import { revalidateTag } from "next/cache"
 import { nextGameIds } from "@/lib/db/game-id"
@@ -20,12 +20,13 @@ export async function POST(request: NextRequest, context: RouteContext) {
 
   try {
     const body = await request.json()
-    const { mode, games, force } = body
+    const { mode, games, force, preserveWeek1 } = body
 
     if (!mode || !games || !Array.isArray(games)) {
       return NextResponse.json({ error: "Invalid payload" }, { status: 400 })
     }
 
+    let minDate: string | null = null
     if (mode === "overwrite") {
       // First, check if there are any final games
       const existingFinalGames = await db.select()
@@ -42,12 +43,26 @@ export async function POST(request: NextRequest, context: RouteContext) {
         )
       }
 
-      // Delete existing non-final games (or all if forced, but we'd need to delete child records for finals first if forcing)
-      // Since generator is for regular season, we'll just delete non-finals.
-      await db.delete(schema.games).where(and(
-        eq(schema.games.seasonId, seasonId),
-        ne(schema.games.status, "final")
-      ))
+      if (preserveWeek1) {
+        const earliest = await db.select({ minDate: sql<string>`MIN(date)` })
+          .from(schema.games)
+          .where(eq(schema.games.seasonId, seasonId))
+        minDate = earliest[0]?.minDate ?? null
+      }
+
+      // Delete existing non-final games (preserving Week 1 if requested)
+      if (preserveWeek1 && minDate) {
+        await db.delete(schema.games).where(and(
+          eq(schema.games.seasonId, seasonId),
+          gt(schema.games.date, minDate),
+          ne(schema.games.status, "final")
+        ))
+      } else {
+        await db.delete(schema.games).where(and(
+          eq(schema.games.seasonId, seasonId),
+          ne(schema.games.status, "final")
+        ))
+      }
     }
 
     // Ensure the sentinel "tbd" team exists for placeholder games
@@ -58,10 +73,14 @@ export async function POST(request: NextRequest, context: RouteContext) {
         .onConflictDoNothing()
     }
 
-    // Insert new games
-    if (games.length > 0) {
-      const ids = await nextGameIds(games.length)
-      const insertData = games.map((g: Record<string, unknown>, i: number) => ({
+    // Insert new games (skip Week 1 games if preserving them)
+    const gamesToInsert = (preserveWeek1 && minDate)
+      ? games.filter((g: Record<string, unknown>) => (g.date as string) > minDate!)
+      : games
+
+    if (gamesToInsert.length > 0) {
+      const ids = await nextGameIds(gamesToInsert.length)
+      const insertData = gamesToInsert.map((g: Record<string, unknown>, i: number) => ({
         id: ids[i],
         seasonId,
         date: g.date as string,
@@ -81,7 +100,11 @@ export async function POST(request: NextRequest, context: RouteContext) {
 
     // @ts-expect-error - Next.js canary changed revalidateTag signature // TODO: Remove after Next.js stabilizes
     revalidateTag("seasons")
-    return NextResponse.json({ success: true, count: games.length })
+    return NextResponse.json({
+      success: true,
+      count: gamesToInsert.length,
+      preservedCount: games.length - gamesToInsert.length,
+    })
   } catch (error) {
     console.error("Failed to generate schedule:", error)
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 })
