@@ -82,6 +82,7 @@ export async function GET(
           and(
             eq(schema.playerGameStats.playerId, playerId),
             eq(schema.playerGameStats.isSub, false),
+            eq(schema.games.isForfeit, false),
             inArray(schema.games.gameType, ["regular", "playoff", "championship"])
           )
         )
@@ -103,6 +104,7 @@ export async function GET(
           and(
             eq(schema.goalieGameStats.playerId, playerId),
             eq(schema.goalieGameStats.isSub, false),
+            eq(schema.games.isForfeit, false),
             inArray(schema.games.gameType, ["regular", "playoff", "championship"])
           )
         )
