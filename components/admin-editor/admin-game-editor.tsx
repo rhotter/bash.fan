@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback } from "react"
+import { useState, useCallback, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Loader2 } from "lucide-react"
 import type { LiveGameState, RosterPlayer } from "@/lib/scorekeeper-types"
@@ -13,6 +13,8 @@ import { GoalieChangesEditor } from "./goalie-changes-editor"
 import { OfficialsEditor } from "./officials-editor"
 import { NotesEditor } from "./notes-editor"
 import { ThreeStarsEditor } from "./three-stars-editor"
+import { gameEditMode } from "@/lib/game-edit-mode"
+import { GoalieShotAllocation, type ShotAllocationGoalie } from "@/components/scorekeeper/shared/goalie-shot-allocation"
 import { ShootoutEditor } from "./shootout-editor"
 
 interface AdminGameEditorProps {
@@ -26,6 +28,7 @@ interface AdminGameEditorProps {
   homeRoster: RosterPlayer[]
   awayRoster: RosterPlayer[]
   playerNames: Record<number, string>
+  savedGoalies: ShotAllocationGoalie[]
   onClose: () => void
   onSaved: () => void
 }
@@ -33,7 +36,7 @@ interface AdminGameEditorProps {
 export function AdminGameEditor({
   gameId, state: initialState, pin,
   homeSlug, awaySlug, homeTeam, awayTeam,
-  homeRoster, awayRoster, playerNames,
+  homeRoster, awayRoster, playerNames, savedGoalies,
   onClose, onSaved,
 }: AdminGameEditorProps) {
   const [state, setState] = useState<LiveGameState>(() => {
@@ -44,6 +47,8 @@ export function AdminGameEditor({
     if (!s.timeouts) s.timeouts = []
     return s
   })
+  const savedState = useRef(initialState)
+  const needsFinalization = useRef(initialState.finalizationPending?.phase === "failed")
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState("")
 
@@ -55,6 +60,14 @@ export function AdminGameEditor({
     return player?.name ?? `#${id}`
   }, [playerNames, homeRoster, awayRoster])
 
+  const allocationGoalies = [...savedGoalies]
+  for (const [slug, team, assigned] of [[homeSlug, homeTeam, state.homeGoalieId], [awaySlug, awayTeam, state.awayGoalieId]] as const) {
+    const ids = [assigned, ...(state.goalieChanges ?? []).filter((c) => c.team === slug).flatMap((c) => [c.outGoalieId, c.inGoalieId])]
+    for (const id of ids) {
+      if (id != null && !allocationGoalies.some((g) => g.id === id)) allocationGoalies.push({ id, name: nameById(id) ?? `#${id}`, team })
+    }
+  }
+
   function updateState(patch: Partial<LiveGameState>) {
     setState((prev) => ({ ...prev, ...patch }))
   }
@@ -63,27 +76,30 @@ export function AdminGameEditor({
     setSaving(true)
     setError("")
     try {
-      // 1. Save state
-      const stateRes = await fetch(`/api/bash/scorekeeper/${gameId}/state`, {
-        method: "PUT",
+      const mode = gameEditMode(savedState.current, state)
+      if (mode === "unchanged" && !needsFinalization.current) { onSaved(); return }
+      // A shot-only correction never replays historical events. Full edits are
+      // validated together by finalization before the proposed state is saved.
+      const shotsOnly = mode === "shots" && !needsFinalization.current
+      const response = await fetch(`/api/bash/scorekeeper/${gameId}/${shotsOnly ? "state" : "finalize"}`, {
+        method: shotsOnly ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json", "x-pin": pin },
-        body: JSON.stringify({ ...state, updatedAt: Date.now() }),
+        body: JSON.stringify(shotsOnly ? {
+          expectedState: savedState.current, homeShots: state.homeShots, awayShots: state.awayShots,
+          goalieShotsAgainst: state.goalieShotsAgainst,
+        } : { expectedState: savedState.current, state: { ...state, updatedAt: Date.now() } }),
       })
-      if (!stateRes.ok) {
-        const data = await stateRes.json().catch(() => ({}))
-        throw new Error(data.error || "Failed to save state")
+      const result = await response.json().catch(() => ({}))
+      // A runtime failure after validated state persistence can be retried
+      // against that accepted snapshot without losing the user's corrections.
+      if (result.stateSaved && result.state) {
+        savedState.current = result.state
+        setState(result.state)
+        needsFinalization.current = true
       }
+      if (!response.ok) throw new Error(result.error || "Failed to save game")
 
-      // 2. Re-finalize
-      const finalizeRes = await fetch(`/api/bash/scorekeeper/${gameId}/finalize`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "x-pin": pin },
-      })
-      if (!finalizeRes.ok) {
-        const data = await finalizeRes.json().catch(() => ({}))
-        throw new Error(data.error || "Failed to finalize")
-      }
-
+      needsFinalization.current = false
       onSaved()
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error")
@@ -117,8 +133,10 @@ export function AdminGameEditor({
         </div>
       </div>
 
+      {needsFinalization.current && <p className="mb-4 text-xs text-destructive">The previous save needs to finish rebuilding its statistics. Save again to retry.</p>}
+
       {/* Editor sections */}
-      <div className="space-y-8">
+      <fieldset disabled={saving} className="space-y-8">
         <GoalsEditor
           state={state}
           onChange={(goals) => updateState({ goals })}
@@ -142,6 +160,9 @@ export function AdminGameEditor({
           onChange={updateState}
           homeTeam={homeTeam} awayTeam={awayTeam}
         />
+
+        <GoalieShotAllocation goalies={allocationGoalies} value={state.goalieShotsAgainst}
+          onChange={(goalieShotsAgainst) => updateState({ goalieShotsAgainst })} />
 
         <AttendanceEditor
           state={state}
@@ -190,7 +211,7 @@ export function AdminGameEditor({
           state={state}
           onChange={(notes) => updateState({ notes })}
         />
-      </div>
+      </fieldset>
     </div>
   )
 }

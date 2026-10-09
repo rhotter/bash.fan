@@ -204,6 +204,10 @@ export function GameDetail({ game, initialDetail, initialLiveData, homeRoster, a
             homeRoster={homeRoster}
             awayRoster={awayRoster}
             playerNames={{ ...(liveData?.playerNames ?? {}), ...buildPlayerNameMap(detail) }}
+            savedGoalies={[
+              ...(detail?.homeGoalies ?? []).map((g) => ({ id: g.id, name: g.name, team: game.homeTeam })),
+              ...(detail?.awayGoalies ?? []).map((g) => ({ id: g.id, name: g.name, team: game.awayTeam })),
+            ]}
             onClose={() => {
               setEditMode(false)
               if (searchParams.get("edit")) router.replace(`/game/${game.id}`)
