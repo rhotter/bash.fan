@@ -56,7 +56,9 @@ describe("scorekeeper shot-only API", () => {
   })
   it("rejects forfeits before any mutation", async () => {
     context.isForfeit = true
-    expect((await PATCH(request({ ...correction, expectedState: context.state }), params)).status).toBe(422)
+    const response = await PATCH(request({ ...correction, expectedState: context.state }), params)
+    expect(response.status).toBe(409)
+    expect(await response.json()).toMatchObject({ code: "GAME_FORFEITED", finalizationCanceled: true })
     expect(mocks.rawSql).toHaveBeenCalledTimes(1)
   })
   it("rejects legacy full-state shot edits instead of silently diverging team and goalie totals", async () => {
@@ -77,6 +79,40 @@ describe("scorekeeper shot-only API", () => {
     Object.assign(context.state, { period: 3, homeAttendance: [1], awayAttendance: [2], homeGoalieId: 1, awayGoalieId: 2 })
     expect((await PUT(request({ expectedState: context.state, state: { ...context.state, notes: "edit" } }, "PUT"), params)).status).toBe(409)
     expect(mocks.rawSql).not.toHaveBeenCalled()
+    expect(mocks.update).not.toHaveBeenCalled()
+  })
+})
+
+
+describe("terminal forfeits during state sync", () => {
+  it.each([PUT, POST])("reports a terminal forfeit for autosave and beacon before writes", async (handler) => {
+    context.isForfeit = true
+    const before = structuredClone(context)
+    const response = await handler(request(context.state, "POST"), params)
+    expect(response.status).toBe(409)
+    expect(await response.json()).toMatchObject({ code: "GAME_FORFEITED", finalizationCanceled: true })
+    expect(mocks.rawSql).not.toHaveBeenCalled()
+    expect(mocks.update).not.toHaveBeenCalled()
+    expect(context).toEqual(before)
+  })
+
+  it("reports a terminal forfeit when autosave loses to a concurrent forfeit", async () => {
+    context.status = "live"
+    mocks.select.mockImplementation(() => ({ from: () => ({ where: async () => [context] }) }))
+    mocks.rawSql.mockReset().mockImplementationOnce(async () => { context.isForfeit = true; return [] })
+    const response = await PUT(request(context.state, "PUT"), params)
+    expect(response.status).toBe(409)
+    expect(await response.json()).toMatchObject({ code: "GAME_FORFEITED", finalizationCanceled: true })
+    expect(mocks.rawSql).toHaveBeenCalledTimes(1)
+    expect(mocks.update).not.toHaveBeenCalled()
+  })
+
+  it("reports a terminal forfeit when a shot correction loses to a concurrent forfeit", async () => {
+    mocks.rawSql.mockReset().mockResolvedValueOnce([context]).mockImplementationOnce(async () => { context.isForfeit = true; return [] })
+    const response = await PATCH(request({ ...correction, expectedState: context.state }), params)
+    expect(response.status).toBe(409)
+    expect(await response.json()).toMatchObject({ code: "GAME_FORFEITED", finalizationCanceled: true })
+    expect(mocks.rawSql).toHaveBeenCalledTimes(2)
     expect(mocks.update).not.toHaveBeenCalled()
   })
 })

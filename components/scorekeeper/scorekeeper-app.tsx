@@ -25,7 +25,7 @@ import {
 } from "@/lib/scorekeeper-types"
 import {
   saveToLocalStorage, loadFromLocalStorage, clearLocalStorage,
-  createSyncManager, type SyncStatus,
+  createSyncManager, type SyncStatus, type ForfeitedGameResponse,
 } from "@/lib/scorekeeper-sync"
 import { INFRACTIONS } from "@/components/scorekeeper/shared/constants"
 import { FieldLabel } from "@/components/scorekeeper/shared/field-label"
@@ -58,6 +58,7 @@ interface Props {
   time: string
   status: string
   isPlayoff: boolean
+  isForfeit?: boolean
   gameType?: string
   homeSlug: string
   awaySlug: string
@@ -72,7 +73,7 @@ interface Props {
 }
 
 export function ScorekeeperApp({
-  gameId, date, time, status, isPlayoff, gameType,
+  gameId, date, time, status, isPlayoff, isForfeit = false, gameType,
   homeSlug, awaySlug, homeTeam, awayTeam,
   homeRoster: initialHomeRoster, awayRoster: initialAwayRoster, existingState,
   initialAuthenticated = false,
@@ -154,9 +155,39 @@ export function ScorekeeperApp({
   const [periodEditOpen, setPeriodEditOpen] = useState(false)
   const [finalizeOpen, setFinalizeOpen] = useState(false)
   const [finalizing, setFinalizing] = useState(false)
-  const [finalized, setFinalized] = useState(status === "final" && !existingState?.finalizationPending)
+  const [finalized, setFinalized] = useState(status === "final" && !isForfeit && !existingState?.finalizationPending)
   const [pendingFinalize, setPendingFinalize] = useState(false)
+  const [forfeited, setForfeited] = useState(isForfeit)
+  const forfeitedRef = useRef(isForfeit)
+  const finalizationInFlight = useRef(false)
+  const [finalizeError, setFinalizeError] = useState<string | null>(null)
   const [showThreeStars, setShowThreeStars] = useState(false)
+
+  const handleForfeited = useCallback((data: ForfeitedGameResponse) => {
+    // Stop timers and unload writes immediately, before React renders the
+    // terminal screen. A forfeit is not a successful score finalization.
+    forfeitedRef.current = true
+    syncRef.current?.destroy()
+    syncRef.current = null
+    setForfeited(true)
+    setFinalized(false)
+    setPendingFinalize(false)
+    setFinalizeOpen(false)
+    setFinalizeError(data.error || "This game was forfeited. Live finalization has been canceled.")
+    if (data.finalizationCanceled && data.state && !data.reloadRequired && !data.state.finalizationPending) {
+      latestState.current = data.state
+      setState(data.state)
+      // Retain the recorded history without retaining a canceled retry claim.
+      saveToLocalStorage(gameId, data.state)
+    }
+    // Without an authoritative clean snapshot, preserve the existing history
+    // and claim. The official result link reloads the server's current result.
+    try { localStorage.removeItem(`bash-finalize-${gameId}`) } catch { /* Storage may be unavailable. */ }
+  }, [gameId])
+
+  useEffect(() => {
+    if (isForfeit) handleForfeited({ code: "GAME_FORFEITED", error: "This game was forfeited. View the official game result." })
+  }, [isForfeit, handleForfeited])
 
   // Goal form state
   const [goalScorer, setGoalScorer] = useState<string>("")
@@ -254,6 +285,7 @@ export function ScorekeeperApp({
 
   // ─── Load from localStorage on mount ─────────────────────────────────────
   useEffect(() => {
+    if (forfeitedRef.current) return
     const saved = loadFromLocalStorage(gameId)
     if (saved && saved.updatedAt > state.updatedAt) {
       setState(saved)
@@ -263,32 +295,39 @@ export function ScorekeeperApp({
 
   // ─── Sync manager lifecycle ──────────────────────────────────────────────
   useEffect(() => {
-    if (!authenticated) return
-    const mgr = createSyncManager(gameId, pin)
+    if (!authenticated || forfeited || isForfeit) return
+    const mgr = createSyncManager(gameId, pin, handleForfeited)
     mgr.setStatusListener(setSyncStatus)
     syncRef.current = mgr
-    return () => mgr.destroy()
-  }, [authenticated, gameId, pin])
+    return () => {
+      mgr.destroy()
+      if (syncRef.current === mgr) syncRef.current = null
+    }
+  }, [authenticated, forfeited, isForfeit, gameId, pin, handleForfeited])
 
   // ─── Save to localStorage on change ──────────────────────────────────────
   useEffect(() => {
-    if (authenticated && !finalized) {
+    if (authenticated && !finalized && !forfeited && !isForfeit && !forfeitedRef.current) {
       saveToLocalStorage(gameId, state)
       if (!state.finalizationPending) syncRef.current?.scheduleSync(state)
     }
-  }, [state, authenticated, finalized, gameId])
+  }, [state, authenticated, finalized, forfeited, isForfeit, gameId])
 
   // ─── Page unload beacon ──────────────────────────────────────────────────
   useEffect(() => {
-    if (!authenticated) return
+    if (!authenticated || forfeited || isForfeit) return
     const handler = () => syncRef.current?.sendBeacon(state)
     window.addEventListener("beforeunload", handler)
     return () => window.removeEventListener("beforeunload", handler)
-  }, [state, authenticated])
+  }, [state, authenticated, forfeited, isForfeit])
 
   // ─── Check for pending finalize on mount ───────────────────────────────
   useEffect(() => {
     try {
+      if (forfeitedRef.current) {
+        localStorage.removeItem(`bash-finalize-${gameId}`)
+        return
+      }
       if (localStorage.getItem(`bash-finalize-${gameId}`)) {
         setPendingFinalize(true)
       }
@@ -299,33 +338,38 @@ export function ScorekeeperApp({
 
   // ─── Auto-finalize when back online ────────────────────────────────────
   useEffect(() => {
-    if (!pendingFinalize || !authenticated || finalized) return
+    if (!pendingFinalize || !authenticated || finalized || forfeited || isForfeit) return
 
     let cancelled = false
 
     async function tryFinalize() {
       // Give sync manager time to send latest state
       await new Promise(r => setTimeout(r, 2000))
-      if (cancelled) return
+      if (cancelled || forfeitedRef.current || finalizationInFlight.current || latestState.current.finalizationPending?.phase === "running") return
+      finalizationInFlight.current = true
       try {
         const retryingSavedState = latestState.current.finalizationPending?.phase === "failed"
         const synced = retryingSavedState || await syncRef.current?.flush()
-        if (!synced) return
+        if (!synced || cancelled || forfeitedRef.current) return
         const syncedAt = retryingSavedState ? latestState.current.updatedAt : syncRef.current?.getLastSyncedUpdatedAt()
         if (syncedAt == null) return
         const res = await fetch(`/api/bash/scorekeeper/${gameId}/finalize`, {
           method: "POST",
           headers: { "x-pin": pin, "x-state-updated-at": String(syncedAt) },
         })
-        if (res.ok && !cancelled) {
-          const data = await res.json().catch(() => ({}))
+        const data = await res.json().catch(() => ({}))
+        if (cancelled || forfeitedRef.current) return
+        if (data.code === "GAME_FORFEITED") {
+          handleForfeited(data)
+          return
+        }
+        if (res.ok) {
           setState((prev) => { const { finalizationPending: _pending, ...clean } = prev; return data.state ?? clean })
           setFinalized(true)
           clearLocalStorage(gameId)
           setPendingFinalize(false)
           localStorage.removeItem(`bash-finalize-${gameId}`)
-        } else if (!res.ok && !cancelled) {
-          const data = await res.json().catch(() => ({}))
+        } else {
           if (data.stateSaved && data.state) setState(data.state)
           setFinalizeError(data.details || data.error || `Server error (${res.status})`)
           setFinalizeOpen(true)
@@ -334,6 +378,8 @@ export function ScorekeeperApp({
         }
       } catch {
         // Still offline
+      } finally {
+        finalizationInFlight.current = false
       }
     }
 
@@ -345,10 +391,11 @@ export function ScorekeeperApp({
       cancelled = true
       window.removeEventListener("online", handler)
     }
-  }, [pendingFinalize, authenticated, finalized, gameId, pin])
+  }, [pendingFinalize, authenticated, finalized, forfeited, isForfeit, gameId, pin, handleForfeited])
 
   // ─── Helpers ─────────────────────────────────────────────────────────────
   const updateState = useCallback((updater: (prev: LiveGameState) => LiveGameState) => {
+    if (forfeitedRef.current) return
     setState((prev) => {
       const next = updater(prev)
       next.updatedAt = Date.now()
@@ -893,9 +940,9 @@ export function ScorekeeperApp({
     }))
   }
 
-  const [finalizeError, setFinalizeError] = useState<string | null>(null)
-
   async function handleFinalize() {
+    if (forfeitedRef.current || finalizationInFlight.current || state.finalizationPending?.phase === "running") return
+    finalizationInFlight.current = true
     setFinalizing(true)
     setFinalizeError(null)
     try {
@@ -904,13 +951,19 @@ export function ScorekeeperApp({
         const synced = await syncRef.current?.flush()
         if (!synced) throw new Error("The latest changes have not synced yet")
       }
+      if (forfeitedRef.current) return
 
       const res = await fetch(`/api/bash/scorekeeper/${gameId}/finalize`, {
         method: "POST",
         headers: { "x-pin": pin, "x-state-updated-at": String(state.updatedAt) },
       })
+      const data = await res.json().catch(() => ({}))
+      if (forfeitedRef.current) return
+      if (data.code === "GAME_FORFEITED") {
+        handleForfeited(data)
+        return
+      }
       if (res.ok) {
-        const data = await res.json().catch(() => ({}))
         setState((prev) => { const { finalizationPending: _pending, ...clean } = prev; return data.state ?? clean })
         setFinalized(true)
         clearLocalStorage(gameId)
@@ -918,20 +971,22 @@ export function ScorekeeperApp({
         setPendingFinalize(false)
         localStorage.removeItem(`bash-finalize-${gameId}`)
       } else {
-        const data = await res.json().catch(() => ({}))
         if (data.stateSaved && data.state) setState(data.state)
         const msg = data.details || data.error || `Server error (${res.status})`
         setFinalizeError(msg)
         console.error("Finalize failed:", res.status, data)
       }
     } catch (err) {
+      if (forfeitedRef.current) return
       // Network error — mark for auto-retry when back online
       console.error("Finalize network error:", err)
       setPendingFinalize(true)
       localStorage.setItem(`bash-finalize-${gameId}`, "1")
       setFinalizeOpen(false)
+    } finally {
+      finalizationInFlight.current = false
+      setFinalizing(false)
     }
-    setFinalizing(false)
   }
 
   // ═════════════════════════════════════════════════════════════════════════
@@ -943,6 +998,16 @@ export function ScorekeeperApp({
     syncStatus === "syncing" ? "bg-foreground/30 animate-pulse" :
     syncStatus === "pending" ? "bg-foreground/20" :
     "bg-red-500"
+
+  // The official forfeit result is authoritative even when the retained live
+  // history still has a pending claim or a different score.
+  if (forfeited || isForfeit) {
+    return <div className="mx-auto max-w-sm space-y-4 px-4 py-12 text-center">
+      <h1 className="text-lg font-bold">Game forfeited</h1>
+      <p className="text-sm text-muted-foreground">{finalizeError || "This game was forfeited. View the official game result."}</p>
+      <a href={`/game/${gameId}`} className="text-sm text-foreground underline">View official game result</a>
+    </div>
+  }
 
   // PIN Screen
   if (!authenticated) {

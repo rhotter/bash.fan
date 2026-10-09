@@ -40,11 +40,61 @@ export async function POST(
     return savedRows[0]?.state as LiveGameState | undefined
   }
 
+  async function forfeitedFinalization(snapshot: LiveGameState, ownedRunningClaim = false) {
+    const terminal = {
+      error: "This game was forfeited. Live finalization has been canceled; view the official game result.",
+      code: "GAME_FORFEITED",
+      finalizationCanceled: true,
+    }
+    const pending = snapshot?.finalizationPending
+    if (!pending) return NextResponse.json({ ...terminal, state: snapshot }, { status: 409 })
+
+    // A retry may retire an existing failed claim, or the original request may
+    // retire its own running claim. Never unlock another running attempt.
+    if ((pending.phase !== "failed" && !ownedRunningClaim) ||
+      typeof pending.attemptId !== "string" || !pending.attemptId) {
+      return NextResponse.json({ ...terminal, reloadRequired: true }, { status: 409 })
+    }
+    try {
+      const cleanState = { ...snapshot, updatedAt: Date.now() }
+      delete cleanState.finalizationPending
+      const savedRows = await rawSql(sql`
+        WITH forfeited_game AS MATERIALIZED (
+          SELECT id FROM games WHERE id = ${id} AND is_forfeit FOR UPDATE
+        )
+        UPDATE game_live l SET state = ${JSON.stringify(cleanState)}::jsonb, updated_at = NOW()
+        WHERE l.game_id IN (SELECT id FROM forfeited_game) AND l.state = ${JSON.stringify(snapshot)}::jsonb
+          AND l.state->'finalizationPending'->>'attemptId' = ${pending.attemptId}
+          AND l.state->'finalizationPending'->>'phase' = ${pending.phase}
+        RETURNING l.state
+      `)
+      if (savedRows[0]?.state) {
+        return NextResponse.json({ ...terminal, state: savedRows[0].state }, { status: 409 })
+      }
+    } catch (error) {
+      console.error("Could not clear forfeited finalization claim:", error)
+    }
+    return NextResponse.json({
+      ...terminal,
+      error: `${terminal.error} The saved claim could not be cleared; reload. If it remains blocked, administrator review is required.`,
+      reloadRequired: true,
+    }, { status: 409 })
+  }
+
   async function failedFinalization(error: string, status: number, details?: string) {
     if (!acceptedState) {
       return NextResponse.json({ error, ...(details ? { details } : {}),
         ...(claimAttempted ? { reloadRequired: true } : {}),
       }, { status })
+    }
+    // An administrator can forfeit the game during any of the sequential
+    // writes. A confirmed forfeit is terminal, not a retryable rebuild failure.
+    try {
+      const games = await db.select({ isForfeit: schema.games.isForfeit })
+        .from(schema.games).where(eq(schema.games.id, id))
+      if (games[0]?.isForfeit) return await forfeitedFinalization(acceptedState, true)
+    } catch (readError) {
+      console.error("Could not check forfeit after finalization failed:", readError)
     }
     try {
       const failedState = await replaceClaimedState({
@@ -94,30 +144,6 @@ export async function POST(
 
     type AuditedState = LiveGameState & { shotCorrections?: unknown }
     const storedState = liveRows[0].state as AuditedState
-    const pendingFinalization = storedState?.finalizationPending
-    const retryingFailedFinalization = pendingFinalization?.phase === "failed" &&
-      typeof pendingFinalization.attemptId === "string" && pendingFinalization.attemptId.length > 0
-    if (pendingFinalization && !retryingFailedFinalization) {
-      return NextResponse.json({ error: "Finalization is already in progress; reload before retrying. If it remains blocked, administrator review is required" }, { status: 409 })
-    }
-    if (proposed && !isDeepStrictEqual(proposed.expectedState, storedState)) {
-      return NextResponse.json({ error: "Live scoring changed before finalization; reload and try again" }, { status: 409 })
-    }
-    const state: AuditedState = proposed ? { ...proposed.state, updatedAt: Date.now() } : { ...storedState }
-    // Never trust a client-supplied claim, including a forged failed marker.
-    // Retry provenance comes exclusively from the stored server-owned marker.
-    delete state.finalizationPending
-    if (proposed) {
-      // The audit belongs to the server, even when an editor sends an older,
-      // omitted, or modified copy of it in the proposed snapshot.
-      if (Object.hasOwn(storedState, "shotCorrections")) state.shotCorrections = storedState.shotCorrections
-      else delete state.shotCorrections
-    }
-    const expectedUpdatedAt = request.headers.get("x-state-updated-at")
-    if (!proposed && expectedUpdatedAt !== null && expectedUpdatedAt !== String(state?.updatedAt)) {
-      return NextResponse.json({ error: "Live scoring changed before finalization; reload and try again" }, { status: 409 })
-    }
-
     // 2. Get game info
     const gameRows = await db
       .select({
@@ -144,7 +170,31 @@ export async function POST(
     // Rule 208.3: a forfeit has no individual stats. Preserve the official
     // schedule result and retained scoring history, even on re-finalization.
     if (game.isForfeit) {
-      return NextResponse.json({ error: "Forfeited games cannot be finalized from live scoring" }, { status: 409 })
+      return await forfeitedFinalization(storedState)
+    }
+
+    const pendingFinalization = storedState?.finalizationPending
+    const retryingFailedFinalization = pendingFinalization?.phase === "failed" &&
+      typeof pendingFinalization.attemptId === "string" && pendingFinalization.attemptId.length > 0
+    if (pendingFinalization && !retryingFailedFinalization) {
+      return NextResponse.json({ error: "Finalization is already in progress; reload before retrying. If it remains blocked, administrator review is required" }, { status: 409 })
+    }
+    if (proposed && !isDeepStrictEqual(proposed.expectedState, storedState)) {
+      return NextResponse.json({ error: "Live scoring changed before finalization; reload and try again" }, { status: 409 })
+    }
+    const state: AuditedState = proposed ? { ...proposed.state, updatedAt: Date.now() } : { ...storedState }
+    // Never trust a client-supplied claim, including a forged failed marker.
+    // Retry provenance comes exclusively from the stored server-owned marker.
+    delete state.finalizationPending
+    if (proposed) {
+      // The audit belongs to the server, even when an editor sends an older,
+      // omitted, or modified copy of it in the proposed snapshot.
+      if (Object.hasOwn(storedState, "shotCorrections")) state.shotCorrections = storedState.shotCorrections
+      else delete state.shotCorrections
+    }
+    const expectedUpdatedAt = request.headers.get("x-state-updated-at")
+    if (!proposed && expectedUpdatedAt !== null && expectedUpdatedAt !== String(state?.updatedAt)) {
+      return NextResponse.json({ error: "Live scoring changed before finalization; reload and try again" }, { status: 409 })
     }
 
     const homeSlug = game.homeTeam
