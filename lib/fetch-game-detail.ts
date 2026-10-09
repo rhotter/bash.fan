@@ -55,6 +55,7 @@ export interface BashGameDetail {
   notes: string | null
   seasonName?: string
   seasonLocation?: string | null
+  gameLength?: number | null
 }
 
 export async function fetchGameDetail(id: string): Promise<BashGameDetail | null> {
@@ -180,10 +181,12 @@ export async function fetchGameDetail(id: string): Promise<BashGameDetail | null
 
   const seasonRows = await db.select({
     name: schema.seasons.name,
-    defaultLocation: schema.seasons.defaultLocation
+    defaultLocation: schema.seasons.defaultLocation,
+    gameLength: schema.seasons.gameLength,
   }).from(schema.seasons).where(eq(schema.seasons.id, game.season_id))
   const seasonName = seasonRows.length > 0 ? seasonRows[0].name : game.season_id
   const seasonLocation = seasonRows.length > 0 ? seasonRows[0].defaultLocation : null
+  const gameLength = seasonRows.length > 0 ? seasonRows[0].gameLength : 60
 
   return {
     id,
@@ -209,5 +212,6 @@ export async function fetchGameDetail(id: string): Promise<BashGameDetail | null
     notes: game.notes ?? null,
     seasonName,
     seasonLocation,
+    gameLength,
   }
 }

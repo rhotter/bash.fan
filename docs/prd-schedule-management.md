@@ -1,5 +1,8 @@
 # Schedule Management PRD & Implementation Plan
 
+> **Status**: Implementation Complete
+> **Parent PRD**: [prd-admin-page.md](./prd-admin-page.md)
+
 ## Goal Description
 The objective is to build a robust Schedule Management module for the BASH Admin Dashboard to replace the legacy Sportability interface. This module will allow admins to view, filter, edit, and manage games for the current/active season. It will mirror the functionality provided by Sportability (game types, scores, special flags, and summaries) while modernizing the UI/UX and optimizing the underlying data model.
 
@@ -21,8 +24,10 @@ A robust generator that builds a full season schedule mathematically with guaran
 
 #### Schedule Equity & Fairness Engine (`lib/schedule-utils.ts`)
 *   **50/50 Home & Away**: Strict balance (e.g. 9 Home / 9 Away for 18 games), head-to-head alternation (2-1 or 1-2 across 3 meetings), and minimal consecutive streaks (≤ 2–3).
-*   **Intra-day Slot Rotation**: Teams rotate equally between Game 1, Game 2, Game 3, Game 4... across the season.
+*   **Intra-day Slot Rotation**: Teams rotate equally between Game 1, Game 2, Game 3, Game 4... across the season via simulated annealing.
 *   **Pinned Slots**: Preserves completed or announced game weeks (e.g. Week 1) while optimizing remaining weeks around them.
+*   **Simulated Annealing Optimizer**: Probabilistic optimization algorithm that balances multiple competing constraints (intra-day slot balance, streak minimization, head-to-head fairness) with zero runtime dependencies.
+*   **Upcoming Game Rebalancing (`rebalanceUpcomingGames()`)**: Rebalances unplayed regular-season matchups while strictly preserving completed/final games, retaining balanced H2H meetings, and optimizing time slot equity.
 
 #### Bye-Week Selector (Odd Team Count)
 
@@ -74,6 +79,19 @@ These are the typical configurations, but the wizard should support full customi
 *   **Step 3 (Enter Game Details)**: Assign Dates, Times, and Locations to all games in the bracket, grouped by round. For best-of-3 series, all potential games (1, 2, 3) are scheduled upfront — Game 3 can be cancelled later if unnecessary (2-0 sweep). Later round games show opponents as "Winner SF-A" etc.
 *   **Step 4 (Review & Save)**: Displays the finalized bracket grouped by round with linked game references. An in-app `AlertDialog` confirms overwriting any existing playoff tournament. Saving automatically tags all generated games with `gameType = "playoff"`.
 
+### 4. Schedule Export & Calendar Integration
+Allows players, captains, and spectators to export games directly into external calendar applications (Apple Calendar, Google Calendar, Outlook) via standard iCalendar (`.ics`) files generated client-side:
+
+*   **Format & Timezone**: RFC 5545 compliant `.ics` output with an embedded `VTIMEZONE` definition for `America/Los_Angeles`, covering standard US Daylight Saving Time transition rules.
+*   **Dynamic Event Duration**: The event duration is calculated dynamically as **$\text{season.game\_length} \times 2$** (in minutes) based on `schema.seasons.gameLength` (default 60 minutes $\rightarrow$ 120 minutes / 2 hours). This accurately reflects the typical 2-hour rink slot allocated for warmups, games, and post-game handshakes.
+*   **Rollover Precision**: End times are computed using UTC epoch arithmetic (`Date.UTC(y, m - 1, d, h, min + durationMinutes)`), avoiding timezone shifts or truncation across midnight, month-end, leap day, and year-end boundaries.
+*   **Location Hierarchy**: Prioritizes `seasonLocation` (e.g., "The Lick") with automatic fallback to `game.location`. Throws a clear error if neither is defined.
+*   **TBD / All-Day Handling**: Games with time listed as `"TBD"` generate all-day calendar events (`DTSTART;VALUE=DATE:...` with next-day exclusive `DTEND`).
+*   **Touchpoints**:
+    *   **Per-Game**: "ADD TO CAL" button in the game header on `/game/[id]` ([`components/game-detail.tsx`](file:///Users/christorres/Desktop/bash/components/game-detail.tsx)).
+    *   **Team Schedule**: "ADD TO CAL" button on `/team/[slug]` ([`components/team-page-content.tsx`](file:///Users/christorres/Desktop/bash/components/team-page-content.tsx)) to download the full seasonal fixture list.
+*   **Data Pipelines**: `fetchGameDetail` and `fetchTeamDetail` query `gameLength` from `schema.seasons` and forward it to client components.
+
 ---
 
 ## Decisions Made
@@ -82,7 +100,7 @@ The following decisions have been finalized after design review:
 
 1.  **Placeholder Architecture → Option A (Clean Schema).** We will update the database schema (adding `homePlaceholder`/`awayPlaceholder` columns) rather than creating dummy teams in the `teams` table. This replaces the previous `seed-1`, `seed-2` auto-generation logic which has been removed from the season creation API. The `teams` table will contain only real teams going forward.
 
-2.  **Round Robin Wizard → Sportability-style placeholders.** The wizard will use generic "Team 1 vs Team 4" placeholders throughout generation, assigning real team names only at save time (Step 6). This mirrors Sportability's approach and allows admins to build a schedule before team rosters/assignments are finalized.
+2.  **Round Robin Wizard → Sportability-style placeholders.** The wizard will use generic "Team 1 vs Team 4" placeholders throughout generation, assigning real team names only at save time (Step 4). This mirrors Sportability's approach and allows admins to build a schedule before team rosters/assignments are finalized.
 
 3.  **Playoff Wizard → Support early bracket creation.** Admins can save a bracket with placeholder team names (e.g., "Seed 1", "Seed 2") early in the season. They can revisit the bracket later to replace placeholders with real teams once standings are finalized.
 
@@ -203,7 +221,7 @@ UPDATE games SET game_type = 'regular' WHERE is_playoff = false;
     *   Dropdowns for Game Type and Status.
     *   Toggles for Overtime, Shootout, and Forfeit.
     *   Tabbed notes area (League Summary | Away Notes | Home Notes).
-*   **`components/admin/round-robin-wizard.tsx`** — 6-step round robin generator.
+*   **`components/admin/round-robin-wizard.tsx`** — 4-step round robin generator.
     *   Uses a Berger tables algorithm combined with simulated annealing equity optimization:
         *   Guarantees 50/50 Home/Away balance across all teams.
         *   Evenly distributes intra-day game slots (`Game 1`, `Game 2`, `Game 3`, `Game 4`...) across teams.
@@ -219,10 +237,18 @@ UPDATE games SET game_type = 'regular' WHERE is_playoff = false;
     *   Renders a print-optimized HTML page matching the legacy Sportability scoresheet layout: per-team roster, scoring table (11 blank rows), penalty table (10 blank rows), goalie table (4 blank rows), shot tracking grids (Per 1-3 + OT, numbers 01-24), timeouts, officials/signatures box, scoring/shots summary grids, notes box, and a "Game Stars" table (Star #1/2/3).
     *   Styled with `@page { size: letter }` and `@media print` CSS to fit exactly on one printed page.
     *   Accessed via a `Printer` icon button on each game row in the schedule tab; opens in a new tab and auto-triggers `window.print()`.
+*   **`lib/calendar-export.ts`** — Client-side RFC 5545 iCalendar generation.
+    *   Generates `.ics` calendar events in `America/Los_Angeles` timezone with embedded `VTIMEZONE`.
+    *   Calculates end time dynamically based on $\text{season.game\_length} \times 2$ (default 120 minutes / 2 hours).
+    *   Handles UTC rollover arithmetic, location hierarchy fallback, and all-day TBD events.
+*   **`components/game-detail.tsx` & `components/team-page-content.tsx`** — User-facing "ADD TO CAL" buttons.
+    *   Game detail view triggers download for individual games (`game-[id].ics`).
+    *   Team detail view triggers download for all games in the team's schedule (`[slug]-schedule.ics`).
 
-### 4. Public Site (deferred)
+### 4. Public Site Integration
 
-Public-facing bracket display is **out of scope** for this PR. It will be addressed in a follow-up once the admin tooling and data model are stable.
+*   **Public Schedule & Calendar Export**: ✅ **Complete**. Public scoreboard (`/`), game details (`/game/[id]`), and team pages (`/team/[slug]`) display scheduled games and provide one-click iCalendar export buttons.
+*   **Public Bracket Display**: ⏳ **Deferred**. Public-facing visual tournament bracket view is deferred to a follow-up phase once the admin playoff workflow is battle-tested.
 
 ---
 

@@ -16,6 +16,9 @@ export interface CalendarEventInput {
   seasonLocation?: string | null
   title?: string | null
   seasonName?: string
+  gameLengthMinutes?: number | null
+  durationMinutes?: number
+  durationHours?: number
 }
 
 /**
@@ -108,12 +111,22 @@ export function generateICS(events: CalendarEventInput[]): string {
       }
 
       const startStr = formatICSDateTime(y, m, d, h, min)
-      // Default: 1 hour duration
-      const endH = h + 1
-      // Handle midnight rollover (unlikely for BASH but safe)
-      const endStr = endH < 24
-        ? formatICSDateTime(y, m, d, endH, min)
-        : formatICSDateTime(y, m, d + 1 > 31 ? 1 : d + 1, 0, min) // simplified; Date handles overflow
+      // Event duration: season game length * 2 (or custom durationMinutes/durationHours, defaulting to 120 minutes)
+      const durationMinutes =
+        event.durationMinutes ??
+        (event.gameLengthMinutes != null && event.gameLengthMinutes > 0
+          ? Math.round(event.gameLengthMinutes * 2)
+          : event.durationHours != null
+          ? Math.round(event.durationHours * 60)
+          : 120)
+      const endDate = new Date(Date.UTC(y, m - 1, d, h, min + durationMinutes))
+      const endStr = formatICSDateTime(
+        endDate.getUTCFullYear(),
+        endDate.getUTCMonth() + 1,
+        endDate.getUTCDate(),
+        endDate.getUTCHours(),
+        endDate.getUTCMinutes()
+      )
       dtStartLine = `DTSTART;TZID=${BASH_TIMEZONE}:${startStr}`
       dtEndLine = `DTEND;TZID=${BASH_TIMEZONE}:${endStr}`
     }
@@ -122,7 +135,7 @@ export function generateICS(events: CalendarEventInput[]): string {
       ? event.title 
       : `BASH: ${event.awayTeam} @ ${event.homeTeam}`
     
-    const location = event.seasonLocation
+    const location = event.seasonLocation || event.location
     if (!location || !location.trim()) {
       throw new Error(`Location is not provided for season: ${event.seasonName || "unknown"}`)
     }

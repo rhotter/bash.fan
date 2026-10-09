@@ -50,6 +50,7 @@ export function TeamPageContent({ team }: { team: TeamDetail }) {
         location: g.location,
         seasonLocation: team.seasonLocation,
         seasonName: team.seasonName,
+        gameLengthMinutes: team.gameLength ?? 60,
       }
     })
   }, [team])

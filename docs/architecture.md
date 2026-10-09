@@ -157,10 +157,20 @@ Pure utility functions (no side effects, no DB calls) used by the admin wizards:
 - **`computeScheduleEquity()`**: Calculates comprehensive equity metrics (Home/Away distribution, intra-day slot counts, max streak) for admin review.
 - **`getDefaultTimeForSlot()`**: Provides league-size-aware default start times (e.g. 8:00, 10:00, 12:00, 2:00 for 4 games/day; 9:00, 11:00, 1:00 for 3 games/day; 10:00, 12:00 for 2 games/day).
 - **`mapRoundRobinToGames()`**: Maps generic slot pairings to real teams, dates, and `gameNumberInDay`.
+- **`rebalanceUpcomingGames()`**: Rebalances remaining unplayed fixtures in an active season while pinning completed matches, preserving head-to-head meeting distribution, and applying simulated annealing to optimize intra-day time slot fairness.
 - **`generateBracket()`**: Builds a linked playoff bracket for 4–8 teams using standard seeding (#1v#8, #4v#5, #2v#7, #3v#6) with byes and auto play-in for odd counts. Supports per-round series lengths (best-of-1 or best-of-3).
 - **`checkSeriesClinch()`**: Determines if a best-of-N series has been decided.
 
 > **Topological Generation & ID Constraints**: When playoff brackets are generated, child nodes (like Finals) are topologically sorted and inserted before parent nodes (like Semi-finals) to ensure correct `nextGameId` reference ordering. Note: `nextGameId` is a **soft reference** (application-enforced, not a DB-level FK) to simplify game deletion workflows. Generated games use `g`-prefixed sequential IDs (`g1`, `g2`, ...) backed by a Postgres sequence (`games_gen_seq`) that automatically synchronizes with the maximum existing numeric ID in the `games` table, preventing primary-key collisions. A sentinel `"tbd"` team slug is automatically upserted to safely support Placeholder Mode before real team seedings are resolved.
+
+### 4a. Calendar & Schedule Export (`lib/calendar-export.ts`)
+The application generates RFC 5545 compliant iCalendar (`.ics`) files client-side for schedule integration:
+- **Timezone**: All BASH game times are anchored to `America/Los_Angeles` using an embedded `VTIMEZONE` component with standard US Daylight Saving Time transition rules.
+- **Dynamic Event Duration**: Event length is calculated dynamically as $\text{season.game\_length} \times 2$ (in minutes) based on `schema.seasons.gameLength` (defaulting to 120 minutes / 2 hours). This accommodates pre-game warmups, the game itself, and post-game rink slot reservations.
+- **Rollover Precision**: Date and time calculations use UTC arithmetic (`Date.UTC(y, m - 1, d, h, min + durationMinutes)`), preventing timezone drift or truncation across midnight, month-end, and year-end rollovers.
+- **Location Hierarchy**: Prioritizes `seasonLocation` with fallback to `game.location`.
+- **TBD Handling**: Games with time `"TBD"` generate full-day date-type events (`DTSTART;VALUE=DATE:...`).
+- **Entry Points**: Available per-game on `/game/[id]` ([`components/game-detail.tsx`](file:///Users/christorres/Desktop/bash/components/game-detail.tsx)) and for entire team fixture lists on `/team/[slug]` ([`components/team-page-content.tsx`](file:///Users/christorres/Desktop/bash/components/team-page-content.tsx)).
 
 ### 5. Draft System (`app/api/bash/admin/seasons/[id]/draft/`)
 The draft system manages the entire lifecycle of a league draft:

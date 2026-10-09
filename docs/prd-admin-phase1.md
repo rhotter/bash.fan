@@ -102,7 +102,7 @@ export const seasons = pgTable("seasons", {
   seasonType: text("season_type").notNull().default("fall"),
   status: text("status").notNull().default("active"),       // draft | active | completed
   standingsMethod: text("standings_method").notNull().default("pts-pbla"), // see §3.7
-  gameLength: integer("game_length").notNull().default(60),  // in minutes
+  gameLength: integer("game_length").notNull().default(60),  // in minutes — goalie GAA base & calendar event duration (gameLength * 2)
   defaultLocation: text("default_location"),                 // e.g. "James Lick Arena"
   adminNotes: text("admin_notes"),                           // private commissioner notes
   playoffTeams: integer("playoff_teams"),                    // Number of teams that make playoffs (nullable for historical seasons)
@@ -262,7 +262,7 @@ The overview acts as a mini-dashboard for this specific season, with inline prev
 - For completed seasons: shows "Season complete" with final standings link
 
 **Settings summary** (read-only card):
-- Displays current standings method, game length, default location, league ID as a compact key-value list
+- Displays current standings method, game length (used for goalie GAA and $2\times$ calendar export duration), default location, league ID as a compact key-value list
 - "Edit Settings" button opens the settings form (§3.4 editable fields + season settings)
 
 **Registration status** (banner):
