@@ -12,13 +12,17 @@ Based on the provided screenshots, the Sportability schedule system includes thr
 *   **Add/Edit Game Form**: Date, Time, Away Team, Home Team, Location, Game Type, Reschedule/Cancel Options, Special Flags, and Summaries. An "Add Game" view provides a blank state of the edit form.
 
 ### 2. Round Robin Wizard
-A robust 6-step generator that builds a full season schedule mathematically:
-*   **Step 1 (Parameters)**: Games per Week (handles odd teams by assigning byes vs double-headers), Schedule Length (run for X cycles or approx X games per team), and **Bye-Week Selector** (odd-team-count only — see below).
-*   **Step 2 (Start Date)**: Sets the start date and week range (Sun-Sat vs Mon-Sun). It generates a generic slot-based round robin pairing (e.g., Team 1 vs Team 4).
-*   **Step 3 (Skipping Weeks)**: Allows admins to exclude specific weeks (e.g., holidays). The wizard pushes all subsequent games out automatically.
-*   **Step 4 (Times and Locations)**: Sets a default Day, Time, and Location for each generic slot across all weeks.
-*   **Step 5 (Game Types)**: Allows setting an entire week as Practice or Exhibition (won't count in standings).
-*   **Step 6 (Save)**: Displays the finalized schedule with actual dates/times, and allows either overwriting the entire existing schedule or appending to it. Team numbers are replaced with real team names when the games are persisted.
+A robust generator that builds a full season schedule mathematically with guaranteed equity:
+*   **Step 1 (Parameters & Start Date)**: Games per Week (handles odd teams by assigning byes vs double-headers), Schedule Length (run for X cycles or approx X games per team), Start Date, and **Bye-Week Selector** (odd-team-count only — see below).
+*   **Step 2 (Dates & Holidays)**: Allows admins to exclude specific weeks (e.g., holidays). The wizard pushes all subsequent games out automatically.
+*   **Step 3 (Game Times and Locations)**: Sets a default Time and Location for each generic slot across all weeks. Uses smart league-size defaults (e.g. 8:00, 10:00, 12:00, 2:00 for 4 games/day; 9:00, 11:00, 1:00 for 3 games/day; 10:00, 12:00 for 2 games/day).
+*   **Step 4 (Review, Equity Audit & Save)**: Displays the finalized schedule and a **Schedule Fairness & Equity Audit** table displaying each team's Home/Away count (guaranteed 50/50 split), intra-day time slot distribution (`Game 1`, `Game 2`, `Game 3`, `Game 4`...), byes, and max streaks.
+*   **Stand-alone Rebalance Tool (`scripts/rebalance-season.ts`)**: Safe backend CLI utility for rebalancing an existing season schedule with Week 1 pinned.
+
+#### Schedule Equity & Fairness Engine (`lib/schedule-utils.ts`)
+*   **50/50 Home & Away**: Strict balance (e.g. 9 Home / 9 Away for 18 games), head-to-head alternation (2-1 or 1-2 across 3 meetings), and minimal consecutive streaks (≤ 2–3).
+*   **Intra-day Slot Rotation**: Teams rotate equally between Game 1, Game 2, Game 3, Game 4... across the season.
+*   **Pinned Slots**: Preserves completed or announced game weeks (e.g. Week 1) while optimizing remaining weeks around them.
 
 #### Bye-Week Selector (Odd Team Count)
 
@@ -88,7 +92,7 @@ The following decisions have been finalized after design review:
 
 6.  **Topological Insertion Order.** Because playoff games reference downstream games via the `nextGameId` soft reference (application-enforced, not a DB-level FK), we insert them using a topological sort. Child games (like Finals) are inserted before parent games (like Semi-finals) to ensure referential correctness and enable future FK enforcement if needed.
 
-7.  **Dynamic ID Generation.** To prevent cross-season primary key collisions, schedule generation (both Round Robin and Playoff) uses dynamic `gen-[UUID]` IDs on the server side instead of static IDs like `playoff-1`.
+7.  **Sequential ID Generation.** To preserve uniform Sportability-compatible formatting (`g1`, `g2`, ...) and prevent primary key collisions across seasons, schedule generation (both Round Robin and Playoff) generates IDs using a Postgres sequence (`games_gen_seq`) synchronized with `MAX(CAST(SUBSTRING(id FROM 2) AS bigint))` of existing games.
 
 8.  **TBD Sentinel Upserts.** The `tbd` sentinel team is automatically upserted before playoff and round-robin scheduling to satisfy foreign-key constraints on `homeTeam` and `awayTeam` when utilizing Placeholder Mode.
 
@@ -180,9 +184,9 @@ UPDATE games SET game_type = 'regular' WHERE is_playoff = false;
 *   **[NEW]** `PATCH /api/bash/admin/seasons/[id]/schedule/[gameId]` — Update a game. For playoff games with a `seriesId`, checks if completing this game clinches the series (team wins ⌈seriesLength/2⌉ games in the series). If the series is decided and the game has a `nextGameId`, automatically advances the series winner to the downstream game's `homeTeam` or `awayTeam` (based on `nextGameSlot`).
 *   **[NEW]** `DELETE /api/bash/admin/seasons/[id]/schedule/[gameId]` — Delete a game. Must first delete child records from `playerGameStats`, `goalieGameStats`, `gameOfficials`, and `gameLive` (no cascade defined). Should refuse deletion if the game has `status = "final"` with boxscore data, unless force-confirmed.
 *   **[NEW]** `POST /api/bash/admin/seasons/[id]/schedule/generate` — Bulk insert for the Round Robin Wizard. Supports two modes:
-    *   **Overwrite**: Deletes existing games (only those with `status != "final"` unless force-confirmed) and inserts the new schedule.
+    *   **Overwrite**: Deletes existing games (only those with `status != "final"` unless force-confirmed) and inserts the new schedule. Supports `preserveWeek1: boolean` option to retain existing Week 1 games (and games on/before the new schedule's start date) untouched while populating Weeks 2..N.
     *   **Append**: Inserts new games alongside existing ones.
-    *   Generated game IDs use a dynamic `gen-[UUID]` format to avoid cross-season primary key collisions.
+    *   Generated game IDs use a Postgres sequence `games_gen_seq` to generate sequential Sportability-compatible `g[n]` IDs without collision.
     *   Automatically upserts the `tbd` sentinel team to satisfy foreign key constraints for Placeholder Mode.
 *   **[NEW]** `POST /api/bash/admin/seasons/[id]/schedule/playoffs` — Bulk insert for the Playoff Wizard. Creates linked games with `nextGameId`/`nextGameSlot`/`seriesId`/`bracketRound` references. Applies topological sorting prior to bulk DB insertion to ensure child games (Finals) are inserted before parent games (Semi-finals). Supports 4–8 teams with standard bracket seeding, configurable series length per round (quarterfinals, semi-finals, finals: 1 or 3), and auto play-in for odd team counts.
 *   **[NEW]** `POST /api/bash/admin/seasons/[id]/schedule/resolve-seeds` — Replaces placeholder teams (e.g., "Seed 1") with actual team IDs throughout the bracket based on a provided mapping payload.
@@ -200,7 +204,10 @@ UPDATE games SET game_type = 'regular' WHERE is_playoff = false;
     *   Toggles for Overtime, Shootout, and Forfeit.
     *   Tabbed notes area (League Summary | Away Notes | Home Notes).
 *   **`components/admin/round-robin-wizard.tsx`** — 6-step round robin generator.
-    *   Uses a Berger tables algorithm in the browser to generate pairings.
+    *   Uses a Berger tables algorithm combined with simulated annealing equity optimization:
+        *   Guarantees 50/50 Home/Away balance across all teams.
+        *   Evenly distributes intra-day game slots (`Game 1`, `Game 2`, `Game 3`, `Game 4`...) across teams.
+        *   Supports dynamic default start times based on games per day (4 games: 8:00, 10:00, 12:00, 2:00; 3 games: 9:00, 11:00, 1:00; 2 games: 10:00, 12:00).
     *   Manages state internally; sends final payload to server at save.
 *   **`components/admin/playoff-wizard.tsx`** — 4-step bracket generator.
     *   Supports 4–8 teams (default 4) with standard bracket seeding and auto play-in for odd counts.

@@ -55,6 +55,15 @@ beforeEach(() => {
   vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} })
   vi.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(() => {})
   vi.stubGlobal("fetch", vi.fn(async () => ({ json: async () => ({}) })))
+  const storage: Record<string, string> = {}
+  vi.stubGlobal("localStorage", {
+    getItem: vi.fn((key: string) => storage[key] ?? null),
+    setItem: vi.fn((key: string, val: string) => { storage[key] = String(val) }),
+    removeItem: vi.fn((key: string) => { delete storage[key] }),
+    clear: vi.fn(() => { Object.keys(storage).forEach((k) => delete storage[k]) }),
+    length: 0,
+    key: vi.fn(),
+  })
   container = document.createElement("div")
   document.body.append(container)
   root = createRoot(container)

@@ -4,6 +4,7 @@ import { useState, useMemo, useCallback, useEffect } from "react"
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogFooter,
@@ -19,25 +20,17 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { toast } from "sonner"
-import { ChevronLeft, ChevronRight, Calendar, Loader2, Info } from "lucide-react"
+import { ChevronLeft, ChevronRight, Calendar, Loader2, Info, CheckCircle2, Scale, Clock, AlertTriangle } from "lucide-react"
 import {
   generateRoundRobin,
   computeByeTeams,
   getHolidaysForYear,
+  computeScheduleEquity,
+  getDefaultTimeForSlot,
   type RoundRobinSlot,
   type Holiday,
   type GeneratedGame,
@@ -69,7 +62,6 @@ export function RoundRobinWizard({
 }: RoundRobinWizardProps) {
   const [step, setStep] = useState(1)
   const [isSaving, setIsSaving] = useState(false)
-  const [showOverwriteConfirm, setShowOverwriteConfirm] = useState(false)
 
   // Placeholder mode: when no real teams are assigned, allow specifying a count
   const [placeholderTeamCount, setPlaceholderTeamCount] = useState<number | "">(teams.length >= 2 ? teams.length : 6)
@@ -122,7 +114,7 @@ export function RoundRobinWizard({
 
   const scheduledTeams = useMemo(() => {
     if (!isOddTeams) return effectiveTeams
-    
+
     const targetSlug = firstByeTeamSlug === "random" ? randomFirstByeSlug : firstByeTeamSlug
     const targetIdx = effectiveTeams.findIndex(t => t.teamSlug === targetSlug)
     
@@ -142,15 +134,15 @@ export function RoundRobinWizard({
   const slots = useMemo(() => {
     const validGamesPerWeek = typeof gamesPerWeek === "number" ? gamesPerWeek : 1
     if (lengthMode === "cycles") {
-      return generateRoundRobin(effectiveTeams.length, validGamesPerWeek, cycles)
+      return generateRoundRobin(scheduledTeams.length, validGamesPerWeek, cycles)
     } else {
       const validGamesPerTeam = typeof gamesPerTeam === "number" ? gamesPerTeam : 20
-      const totalGames = Math.floor((effectiveTeams.length * validGamesPerTeam) / 2)
+      const totalGames = Math.floor((scheduledTeams.length * validGamesPerTeam) / 2)
       // Generous max cycles so we have enough games to slice
-      const maxCycles = Math.ceil(validGamesPerTeam / Math.max(1, effectiveTeams.length - 1)) + 1
-      return generateRoundRobin(effectiveTeams.length, validGamesPerWeek, maxCycles, totalGames)
+      const maxCycles = Math.ceil(validGamesPerTeam / Math.max(1, scheduledTeams.length - 1)) + 1
+      return generateRoundRobin(scheduledTeams.length, validGamesPerWeek, maxCycles, totalGames)
     }
-  }, [effectiveTeams.length, gamesPerWeek, lengthMode, cycles, gamesPerTeam])
+  }, [scheduledTeams.length, gamesPerWeek, lengthMode, cycles, gamesPerTeam])
 
   // Group slots by week/round
   const slotsByWeek = useMemo(() => {
@@ -263,11 +255,16 @@ export function RoundRobinWizard({
           location: slotInfo.location || defaultLocation,
           gameType: "regular",
           status: "upcoming",
+          gameNumberInDay: slot.slotInDay !== undefined ? slot.slotInDay + 1 : i + 1,
         })
       }
     }
     return result
   }, [activeWeeks, slotsByWeek, weekSlots, weekDates, scheduledTeams, defaultLocation, usingPlaceholders])
+
+  const equityReport = useMemo(() => {
+    return computeScheduleEquity(previewGames, scheduledTeams, activeWeeks.length)
+  }, [previewGames, scheduledTeams, activeWeeks.length])
 
   // ─── Navigation ───────────────────────────────────────────────────────────
 
@@ -284,21 +281,16 @@ export function RoundRobinWizard({
 
   const handleNext = () => {
     if (step === 2) {
+      const gpw = typeof gamesPerWeek === "number" ? gamesPerWeek : 1
       // Initialize weekSlots with defaults when moving past step 2
       const initial: Record<number, WeekSlot[]> = {}
       for (const week of activeWeeks) {
-        const numGames = slotsByWeek[week]?.length || 0
+        const numGames = slotsByWeek[week]?.length || gpw
         const baseDate = weekDates[week] || ""
         initial[week] = Array.from({ length: numGames }, (_, i) => {
-          let defaultTime = "TBD"
-          if (gamesPerWeek === 3) {
-            defaultTime = i === 0 ? "09:00" : i === 1 ? "11:00" : i === 2 ? "13:00" : "TBD"
-          } else if (gamesPerWeek === 2) {
-            defaultTime = i === 0 ? "12:00" : i === 1 ? "14:00" : "TBD"
-          }
           return {
             date: baseDate,
-            time: defaultTime,
+            time: getDefaultTimeForSlot(i, numGames),
             location: defaultLocation,
           }
         })
@@ -306,12 +298,9 @@ export function RoundRobinWizard({
       setWeekSlots((prev) => ({ ...initial, ...prev }))
       
       // Initialize default times state based on first active week length
-      const gpw = typeof gamesPerWeek === "number" ? gamesPerWeek : 1
       const firstWeekGames = slotsByWeek[activeWeeks[0]]?.length || gpw
       const defaultTimesArray: string[] = Array.from({ length: firstWeekGames }, (_, i) => {
-        if (gpw === 3) return i === 0 ? "09:00" : i === 1 ? "11:00" : i === 2 ? "13:00" : "TBD"
-        if (gpw === 2) return i === 0 ? "12:00" : i === 1 ? "14:00" : "TBD"
-        return "TBD"
+        return getDefaultTimeForSlot(i, firstWeekGames)
       })
       setTimeDefaults(defaultTimesArray)
     }
@@ -335,7 +324,7 @@ export function RoundRobinWizard({
   
   const handleBack = () => setStep((s) => Math.max(s - 1, 1))
 
-  const handleSave = async (force: boolean = false) => {
+  const handleSave = async () => {
     setIsSaving(true)
     try {
       const res = await fetch(`/api/bash/admin/seasons/${seasonId}/schedule/generate`, {
@@ -343,17 +332,12 @@ export function RoundRobinWizard({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           mode: saveMode,
-          force,
           games: previewGames,
         }),
       })
 
       if (!res.ok) {
         const data = await res.json()
-        if (data.error?.includes("final games exist") && !force) {
-          setShowOverwriteConfirm(true)
-          return
-        }
         throw new Error(data.error || "Failed to generate schedule")
       }
 
@@ -404,6 +388,9 @@ export function RoundRobinWizard({
               Round Robin Wizard
               <Badge variant="outline" className="ml-2">Step {step}/{totalSteps}</Badge>
             </DialogTitle>
+            <DialogDescription className="sr-only">
+              Configure and generate a balanced round-robin league schedule
+            </DialogDescription>
           </DialogHeader>
 
           {/* Progress bar */}
@@ -479,12 +466,15 @@ export function RoundRobinWizard({
                           if (e.target.value === "") {
                             setGamesPerWeek("")
                           } else {
-                            setGamesPerWeek(Math.max(1, parseInt(e.target.value) || 1))
+                            const val = parseInt(e.target.value, 10) || 1
+                            const maxGpw = Math.max(1, Math.floor(effectiveTeams.length / 2))
+                            setGamesPerWeek(Math.min(maxGpw, Math.max(1, val)))
                           }
                         }}
                         onBlur={() => {
-                          if (gamesPerWeek === "" || gamesPerWeek < 1) {
-                            setGamesPerWeek(Math.max(1, Math.floor(effectiveTeams.length / 2)))
+                          const maxGpw = Math.max(1, Math.floor(effectiveTeams.length / 2))
+                          if (gamesPerWeek === "" || gamesPerWeek < 1 || gamesPerWeek > maxGpw) {
+                            setGamesPerWeek(maxGpw)
                           }
                         }}
                       />
@@ -834,6 +824,94 @@ export function RoundRobinWizard({
                   </div>
                 </div>
 
+                {/* Schedule Fairness & Equity Audit */}
+                <div className="p-4 border rounded-lg bg-card space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Scale className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                      <span className="font-semibold text-sm">Schedule Fairness & Equity Audit</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {equityReport.isHomeAwayEquitable ? (
+                        <Badge
+                          variant="outline"
+                          className="bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800"
+                        >
+                          <CheckCircle2 className="h-3 w-3 mr-1 inline" />
+                          Home / Away Balanced
+                        </Badge>
+                      ) : (
+                        <Badge
+                          variant="outline"
+                          className="bg-amber-50 text-amber-700 border-amber-300 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-800"
+                        >
+                          <AlertTriangle className="h-3 w-3 mr-1 inline" />
+                          H/A Diff: {equityReport.maxHomeAwayDiff}
+                        </Badge>
+                      )}
+                      {equityReport.isGameSlotsEquitable ? (
+                        <Badge
+                          variant="outline"
+                          className="bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800"
+                        >
+                          <Clock className="h-3 w-3 mr-1 inline" />
+                          {equityReport.numGameSlotsPerDay} Game Slots Rotated
+                        </Badge>
+                      ) : (
+                        <Badge
+                          variant="outline"
+                          className="bg-amber-50 text-amber-700 border-amber-300 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-800"
+                        >
+                          <AlertTriangle className="h-3 w-3 mr-1 inline" />
+                          Slots Imbalanced (Diff: {equityReport.maxGameSlotDiff})
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="border rounded-md overflow-x-auto">
+                    <table className="w-full text-xs">
+                      <thead className="bg-muted/50 border-b">
+                        <tr>
+                          <th className="text-left p-2 font-medium">Team</th>
+                          <th className="text-center p-2 font-medium">Home</th>
+                          <th className="text-center p-2 font-medium">Away</th>
+                          <th className="text-center p-2 font-medium">Total</th>
+                          {equityReport.slotLabels.map((slot) => (
+                            <th key={slot.slotNumber} className="text-center p-2 font-medium whitespace-nowrap">
+                              <div>{slot.label}</div>
+                              {slot.time && (
+                                <div className="text-[10px] text-muted-foreground font-normal">
+                                  {formatGameTime(slot.time)}
+                                </div>
+                              )}
+                            </th>
+                          ))}
+                          {isOddTeams && <th className="text-center p-2 font-medium">Byes</th>}
+                          <th className="text-center p-2 font-medium whitespace-nowrap">Max Streak</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y">
+                        {equityReport.teams.map((t) => (
+                          <tr key={t.teamSlug} className="hover:bg-muted/20">
+                            <td className="p-2 font-medium whitespace-nowrap">{t.teamName}</td>
+                            <td className="p-2 text-center text-emerald-600 dark:text-emerald-400 font-semibold">{t.homeGames}</td>
+                            <td className="p-2 text-center text-sky-600 dark:text-sky-400 font-semibold">{t.awayGames}</td>
+                            <td className="p-2 text-center text-muted-foreground">{t.totalGames}</td>
+                            {equityReport.slotLabels.map((slot) => (
+                              <td key={slot.slotNumber} className="p-2 text-center font-mono font-medium">
+                                {t.gameSlots[slot.slotNumber] ?? 0}
+                              </td>
+                            ))}
+                            {isOddTeams && <td className="p-2 text-center text-amber-600 dark:text-amber-400 font-medium">{t.byes}</td>}
+                            <td className="p-2 text-center text-muted-foreground">{t.maxStreak} H/A</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
                 <div className="space-y-2">
                   <Label>Save Mode</Label>
                   <div className="flex items-center gap-4">
@@ -896,7 +974,7 @@ export function RoundRobinWizard({
                           const weekNum = Number(weekEntry[0])
                           const byeIdx = byeTeamsByWeek[weekNum]
                           if (byeIdx === undefined) return null
-                          const byeTeam = effectiveTeams[byeIdx]
+                          const byeTeam = scheduledTeams[byeIdx]
                           return (
                             <tr key={`bye-${date}`} className="border-b last:border-0 bg-amber-50/50 dark:bg-amber-950/20">
                               <td className="p-2 text-muted-foreground">{date}</td>
@@ -935,7 +1013,7 @@ export function RoundRobinWizard({
                   Next <ChevronRight className="h-4 w-4 ml-1" />
                 </Button>
               ) : (
-                <Button onClick={() => handleSave(false)} disabled={isSaving}>
+                <Button onClick={handleSave} disabled={isSaving}>
                   {isSaving ? (
                     <>
                       <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -950,30 +1028,6 @@ export function RoundRobinWizard({
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      <AlertDialog open={showOverwriteConfirm} onOpenChange={setShowOverwriteConfirm}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Final games exist</AlertDialogTitle>
-            <AlertDialogDescription>
-              There are completed (final) games in this schedule. Overwriting will delete all
-              non-final games. Final games and their stats will be preserved. Continue?
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                setShowOverwriteConfirm(false)
-                handleSave(true)
-              }}
-              className="bg-destructive hover:bg-destructive/90"
-            >
-              Overwrite Non-Final Games
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </>
   )
 }

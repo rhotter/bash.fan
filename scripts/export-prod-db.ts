@@ -416,6 +416,26 @@ async function main() {
   console.log(
     `   Games: ${prodGames.length}, Officials: ${officialsCount}, Skater Stats: ${pgsCount}, Goalie Stats: ${ggsCount}, Awards: ${prodAwards.length}.`
   );
+
+  // Synchronize games_gen_seq in dev DB with highest copied game ID
+  await dev`
+    DO $$
+    DECLARE
+      max_id bigint;
+      cur_seq bigint;
+    BEGIN
+      CREATE SEQUENCE IF NOT EXISTS games_gen_seq START 1;
+      SELECT COALESCE(MAX(CAST(SUBSTRING(id FROM 2) AS bigint)), 0)
+        INTO max_id
+        FROM games
+        WHERE id ~ '^g[0-9]+$';
+      SELECT last_value INTO cur_seq FROM games_gen_seq;
+      IF max_id >= cur_seq THEN
+        PERFORM setval('games_gen_seq', max_id, true);
+      END IF;
+    END $$;
+  `;
+
   console.log("\n=== Export & Sync Completed Successfully! ===");
 }
 

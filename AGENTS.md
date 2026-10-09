@@ -47,9 +47,10 @@ Each page follows: async Server Component (data fetch + `generateMetadata`) → 
 - `lib/fetch-*.ts` — Server-side data fetching functions (raw SQL queries)
 - `lib/hockey-data.ts` — SWR hooks for client-side data
 - `lib/db/schema.ts` — Drizzle ORM schema (39 tables)
+- `lib/db/game-id.ts` — Collision-free sequential `g[n]` game ID generator backed by `games_gen_seq`
 - `lib/draft-helpers.ts` — Snake/linear pick slot generation
 - `lib/draft-trade-resolver.ts` — Chain trade resolution engine
-- `lib/schedule-utils.ts` — Round-robin and playoff bracket generation (pure functions)
+- `lib/schedule-utils.ts` — Round-robin and playoff bracket generation, Berger tables, and simulated annealing equity optimizer (home/away, intra-day time slots)
 - `components/` — Page-level components (scores-tab, standings-tab, stats-tab, etc.)
 - `components/admin/draft-*.tsx` — Draft wizard, board, and pool import components
 - `components/admin/playoff-wizard.tsx` — Playoff bracket schedule wizard

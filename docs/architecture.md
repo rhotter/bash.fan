@@ -151,12 +151,16 @@ While initial page loads are server-rendered, the application uses SWR hooks (e.
 
 ### 4. Schedule Generation (`lib/schedule-utils.ts`)
 Pure utility functions (no side effects, no DB calls) used by the admin wizards:
-- **`generateRoundRobin()`**: Berger tables algorithm for fair round-robin pairings with configurable games-per-week and multi-cycle support.
-- **`mapRoundRobinToGames()`**: Maps generic slot pairings to real teams and dates.
+- **`generateRoundRobin()`**: Berger tables algorithm enhanced with deterministic simulated annealing optimization. Guarantees 50/50 Home/Away balance (e.g. 9H/9A for 18 games), head-to-head fairness, and equal intra-day game slot rotation (`Game 1`, `Game 2`, `Game 3`, `Game 4`...) across any league size. Supports `pinnedSlots` to preserve announced/completed rounds while rebalancing remaining weeks.
+- **`balanceIntraDayGameSlots()`**: Optimizes match ordering within each day so teams rotate equitably through daily time slots (spread ≤ 1).
+- **`balanceHomeAway()`**: Optimizes Home/Away designations while preserving time slot ordering, minimizing streaks (≤ 2–3 consecutive), and honoring pinned slots.
+- **`computeScheduleEquity()`**: Calculates comprehensive equity metrics (Home/Away distribution, intra-day slot counts, max streak) for admin review.
+- **`getDefaultTimeForSlot()`**: Provides league-size-aware default start times (e.g. 8:00, 10:00, 12:00, 2:00 for 4 games/day; 9:00, 11:00, 1:00 for 3 games/day; 10:00, 12:00 for 2 games/day).
+- **`mapRoundRobinToGames()`**: Maps generic slot pairings to real teams, dates, and `gameNumberInDay`.
 - **`generateBracket()`**: Builds a linked playoff bracket for 4–8 teams using standard seeding (#1v#8, #4v#5, #2v#7, #3v#6) with byes and auto play-in for odd counts. Supports per-round series lengths (best-of-1 or best-of-3).
 - **`checkSeriesClinch()`**: Determines if a best-of-N series has been decided.
 
-> **Topological Generation Constraints**: When playoff brackets are generated, child nodes (like Finals) are topologically sorted and inserted before parent nodes (like Semi-finals) to ensure correct `nextGameId` reference ordering. Note: `nextGameId` is a **soft reference** (application-enforced, not a DB-level FK) to simplify game deletion workflows. Dynamic `gen-[UUID]` IDs prevent cross-season primary-key collisions, and a sentinel `"tbd"` team slug is automatically upserted to safely support Placeholder Mode before real team seedings are resolved.
+> **Topological Generation & ID Constraints**: When playoff brackets are generated, child nodes (like Finals) are topologically sorted and inserted before parent nodes (like Semi-finals) to ensure correct `nextGameId` reference ordering. Note: `nextGameId` is a **soft reference** (application-enforced, not a DB-level FK) to simplify game deletion workflows. Generated games use `g`-prefixed sequential IDs (`g1`, `g2`, ...) backed by a Postgres sequence (`games_gen_seq`) that automatically synchronizes with the maximum existing numeric ID in the `games` table, preventing primary-key collisions. A sentinel `"tbd"` team slug is automatically upserted to safely support Placeholder Mode before real team seedings are resolved.
 
 ### 5. Draft System (`app/api/bash/admin/seasons/[id]/draft/`)
 The draft system manages the entire lifecycle of a league draft:
