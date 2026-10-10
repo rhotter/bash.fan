@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip"
 import { Search, Clock, Users, Volume2, VolumeX, CalendarPlus, Layers, X, ChevronsRight, Eye, EyeOff, Trophy, LayoutList, LayoutGrid, ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react"
 import { PlayerCardModal } from "@/components/player-card-modal"
-import { DraftPlayerBadge } from "@/components/draft-player-badge"
+import { DraftPlayerBadge, DraftTradeBadge } from "@/components/draft-player-badge"
 import { TeamLogo } from "@/components/team-logo"
 import { isPlayerGoalie, matchesPositionFilter, getPositionChips } from "@/lib/draft-helpers"
 
@@ -90,14 +90,6 @@ function formatPlayerName(name: string | null) {
   const parts = name.split(" ")
   if (parts.length < 2) return name
   return `${parts[0][0]}. ${parts.slice(1).join(" ")}`
-}
-
-/** Last name only — used when badges (C/K) eat into the column width */
-function formatPlayerNameCompact(name: string | null) {
-  if (!name) return "—"
-  const parts = name.split(" ")
-  if (parts.length < 2) return name
-  return parts.slice(1).join(" ")
 }
 
 function PositionBadges({ raw }: { raw?: string | null }) {
@@ -1082,7 +1074,8 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
                                   onFocus={() => pick.playerId && prefetchPlayerStats(pick.playerId)}
                                   className={cn(
                                     "relative group w-full text-left flex items-baseline gap-2 sm:gap-3 px-2 py-1.5 rounded-md hover:bg-muted/50 transition-colors",
-                                    i % 2 === 0 && "bg-card/15"
+                                    i % 2 === 0 && "bg-card/15",
+                                    (isCaptain || pick.isKeeper || isRookie) && "max-sm:pt-6"
                                   )}
                                 >
                                   <button
@@ -1091,18 +1084,29 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
                                     className="absolute inset-0 rounded-md cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/40"
                                   />
                                   <span className="pointer-events-none text-muted-foreground/40 tabular-nums text-[10px] shrink-0 w-7 text-right">#{pick.pickNumber}</span>
-                                  <span className="pointer-events-none flex-1 min-w-0 flex items-center gap-1.5">
-                                    <span className="truncate text-xs font-semibold group-hover:text-primary transition-colors">
-                                      {pick.playerName}
+                                  <span className="pointer-events-none flex-1 min-w-0 flex flex-col items-start gap-1">
+                                    <span className="flex w-full min-w-0 items-center gap-1.5">
+                                      <span className="truncate text-xs font-semibold group-hover:text-primary transition-colors">
+                                        {pick.playerName}
+                                      </span>
+                                      {(isCaptain || pick.isKeeper || isRookie) && (
+                                        <span data-slot="draft-player-badges" className="absolute right-2 top-0 flex min-h-6 items-center gap-0.5 sm:static sm:min-h-0 sm:gap-1.5">
+                                          {isCaptain && (
+                                            <DraftPlayerBadge kind="captain" />
+                                          )}
+                                          {pick.isKeeper && !isCaptain && (
+                                            <DraftPlayerBadge kind="keeper" />
+                                          )}
+                                          {isRookie && (
+                                            <DraftPlayerBadge kind="rookie" />
+                                          )}
+                                        </span>
+                                      )}
                                     </span>
-                                    {isCaptain && (
-                                      <DraftPlayerBadge kind="captain" />
-                                    )}
-                                    {pick.isKeeper && !isCaptain && (
-                                      <span className="shrink-0 inline-flex items-center justify-center h-4 min-w-4 px-1 rounded-sm border border-border text-[9px] font-bold uppercase tracking-wider text-muted-foreground leading-none">K</span>
-                                    )}
-                                    {isRookie && (
-                                      <DraftPlayerBadge kind="rookie" />
+                                    {pick.teamSlug !== pick.originalTeamSlug && (
+                                      <DraftTradeBadge
+                                        originalTeamName={teams.find((t) => t.teamSlug === pick.originalTeamSlug)?.teamName ?? pick.originalTeamSlug}
+                                      />
                                     )}
                                   </span>
                                   {position && (
@@ -1113,7 +1117,7 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
                                   <span className="relative hidden md:inline shrink-0 text-[10px] font-medium text-muted-foreground tabular-nums w-16 text-right truncate" title={skillLevel}>
                                     {skillLevel || "—"}
                                   </span>
-                                  <span className={`relative hidden md:inline shrink-0 text-[10px] font-medium tabular-nums w-8 text-center ${playoffShort === "Y" ? "text-green-600" : playoffShort === "N" ? "text-red-500" : "text-muted-foreground"}`} title={playoffAvail}>
+                                  <span className="relative hidden md:inline shrink-0 text-[10px] font-medium tabular-nums w-8 text-center text-foreground" title={playoffAvail}>
                                     {playoffShort}
                                   </span>
                                 </div>
@@ -1192,7 +1196,10 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
                             const isRookie = meta?.isRookie === true
 
                             return (
-                              <td key={team.teamSlug} className="px-3 py-2 align-middle border-b border-border/20 border-l border-border/20">
+                              <td key={team.teamSlug} className={cn(
+                                "relative px-3 py-2 align-middle border-b border-border/20 border-l border-border/20",
+                                (isCaptain || pick.isKeeper || isRookie) && "max-sm:pt-6"
+                              )}>
                                 {pick.playerId ? (
                                   <div className="flex items-center gap-1.5 min-w-0">
                                     <button
@@ -1202,25 +1209,33 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
                                       onFocus={() => pick.playerId && prefetchPlayerStats(pick.playerId)}
                                       title={pick.playerName || undefined}
                                     >
-                                      {(isCaptain || pick.isKeeper) ? formatPlayerNameCompact(pick.playerName) : formatPlayerName(pick.playerName)}
+                                      {formatPlayerName(pick.playerName)}
                                     </button>
-                                    {isCaptain && (
-                                      <DraftPlayerBadge kind="captain" />
-                                    )}
-                                    {pick.isKeeper && !isCaptain && (
-                                      <span className="shrink-0 inline-flex items-center justify-center h-4 min-w-4 px-1 rounded-sm border border-border text-[9px] font-bold uppercase tracking-wider text-muted-foreground leading-none">K</span>
-                                    )}
-                                    {isRookie && (
-                                      <DraftPlayerBadge kind="rookie" />
-                                    )}
-                                    {newOwner && (
-                                      <span className="shrink-0 text-[9px] italic text-muted-foreground/50" title={`Acquired via trade from ${pick.originalTeamSlug}`}>↔</span>
+                                    {(isCaptain || pick.isKeeper || isRookie) && (
+                                      <span data-slot="draft-player-badges" className="absolute right-1 top-0 flex min-h-6 items-center gap-0.5 sm:static sm:min-h-0 sm:gap-1.5">
+                                        {isCaptain && (
+                                          <DraftPlayerBadge kind="captain" />
+                                        )}
+                                        {pick.isKeeper && !isCaptain && (
+                                          <DraftPlayerBadge kind="keeper" />
+                                        )}
+                                        {isRookie && (
+                                          <DraftPlayerBadge kind="rookie" />
+                                        )}
+                                      </span>
                                     )}
                                   </div>
                                 ) : (
                                   <span className="text-muted-foreground/40 text-[10px]">
                                     {newOwner ? `→ ${newOwner.teamName}` : "—"}
                                   </span>
+                                )}
+                                {isTradedSlot && (
+                                  <div className="mt-1">
+                                    <DraftTradeBadge
+                                      originalTeamName={team.teamName}
+                                    />
+                                  </div>
                                 )}
                               </td>
                             )
@@ -1231,7 +1246,7 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
                   </table>
                 </div>
               ) : (
-                /* LIVE BOARD — unchanged */
+                /* Live board */
                 <Card>
                   <CardContent className="p-0 overflow-x-auto">
                     <table className="w-full min-w-[700px] text-xs md:table-fixed">
@@ -1277,7 +1292,7 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
                               return (
                                 <td
                                   key={team.teamSlug}
-                                  className={`px-2 py-1.5 transition-colors duration-1000 ${
+                                  className={`relative px-2 py-1.5 transition-colors duration-1000 ${(isCaptain || isKeeper || isRookie || isGoalie) ? "max-sm:pt-6" : ""} ${
                                     isHighlighted
                                       ? "bg-amber-100"
                                       : isOnTheClock
@@ -1294,20 +1309,20 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
                                         onFocus={() => pick.playerId && prefetchPlayerStats(pick.playerId)}
                                         title={pick.playerName || undefined}
                                       >
-                                        {(isCaptain || pick.isKeeper) ? formatPlayerNameCompact(pick.playerName) : formatPlayerName(pick.playerName)}
+                                        {formatPlayerName(pick.playerName)}
                                       </button>
-                                      <div className="flex items-center gap-0.5 shrink-0">
+                                      <div data-slot="draft-player-badges" className="absolute right-1 top-0 flex min-h-6 items-center gap-0.5 shrink-0 sm:static sm:min-h-0">
                                         {isCaptain && (
                                           <DraftPlayerBadge kind="captain" className="h-3.5 min-w-3 px-0.5 rounded-[2px] text-[8.5px] tracking-normal" />
                                         )}
                                         {isKeeper && (
-                                          <span className="shrink-0 inline-flex items-center justify-center h-3.5 min-w-3 px-0.5 rounded-[2px] border border-amber-400/70 bg-amber-50/60 dark:bg-amber-950/40 text-[8.5px] font-bold text-amber-600 dark:text-amber-400 leading-none" title="Keeper">K</span>
+                                          <DraftPlayerBadge kind="keeper" className="h-3.5 min-w-3 px-0.5 rounded-[2px] text-[8.5px] tracking-normal" />
                                         )}
                                         {isRookie && (
                                           <DraftPlayerBadge kind="rookie" className="h-3.5 min-w-3 px-0.5 rounded-[2px] text-[8.5px] tracking-normal" />
                                         )}
                                         {isGoalie && (
-                                          <span className="shrink-0 inline-flex items-center justify-center h-3.5 min-w-3 px-0.5 rounded-[2px] border border-purple-400/70 bg-purple-50/60 dark:bg-purple-950/40 text-[8.5px] font-bold text-purple-600 dark:text-purple-400 leading-none" title="Goalie">G</span>
+                                          <span className="shrink-0 inline-flex items-center justify-center h-3.5 min-w-3 px-0.5 rounded-[2px] border border-purple-400/70 bg-purple-50/60 dark:bg-purple-950/40 text-[8.5px] font-bold text-purple-600 dark:text-purple-400 leading-none max-sm:h-3 max-sm:min-w-3 max-sm:text-[8px]" title="Goalie">G</span>
                                         )}
                                       </div>
                                     </div>
@@ -1322,8 +1337,15 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
                                       )}
                                     </span>
                                   )}
-                                  {pick.playerId && isTradedSlot && newOwner && (
-                                    <div className="text-[10px] text-blue-500">→ {newOwner.teamName}</div>
+                                  {isTradedSlot && (
+                                    <div className="mt-1 flex flex-col items-start gap-1">
+                                      {pick.playerId && newOwner && (
+                                        <span className="text-[10px] text-muted-foreground">→ {newOwner.teamName}</span>
+                                      )}
+                                      <DraftTradeBadge
+                                        originalTeamName={team.teamName}
+                                      />
+                                    </div>
                                   )}
                                 </td>
                               )
@@ -1334,7 +1356,7 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
                     </table>
                     <div className="flex flex-wrap items-center justify-end gap-3 px-3 py-2 text-[10px] text-muted-foreground/70 border-t border-border/40 bg-muted/10">
                       <span className="flex items-center gap-1"><span className="inline-flex items-center justify-center h-3.5 w-3.5 rounded-[3px] border border-foreground/40 text-[8.5px] font-bold text-foreground">C</span> Captain</span>
-                      <span className="flex items-center gap-1"><span className="inline-flex items-center justify-center h-3.5 w-3.5 rounded-[3px] border border-amber-400/70 bg-amber-50/60 dark:bg-amber-950/40 text-[8.5px] font-bold text-amber-600 dark:text-amber-400">K</span> Keeper</span>
+                      <span className="flex items-center gap-1"><span className="inline-flex items-center justify-center h-3.5 w-3.5 rounded-[3px] border border-foreground/40 text-[8.5px] font-bold text-foreground">K</span> Keeper</span>
                       <span className="flex items-center gap-1"><span className="inline-flex items-center justify-center h-3.5 w-3.5 rounded-[3px] border border-foreground/40 text-[8.5px] font-bold text-foreground">R</span> Rookie</span>
                       <span className="flex items-center gap-1"><span className="inline-flex items-center justify-center h-3.5 w-3.5 rounded-[3px] border border-purple-400/70 bg-purple-50/60 dark:bg-purple-950/40 text-[8.5px] font-bold text-purple-600 dark:text-purple-400">G</span> Goalie</span>
                     </div>

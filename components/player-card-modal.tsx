@@ -7,6 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Loader2, User, BarChart3, Trophy, ExternalLink } from "lucide-react"
 import Link from "next/link"
 import { playerSlug } from "@/lib/player-slug"
+import { cn } from "@/lib/utils"
 import { SectionHeader } from "@/components/stats-table"
 import { DraftPlayerBadge } from "@/components/draft-player-badge"
 
@@ -207,10 +208,12 @@ export function PlayerCardModal({
           <div className="pr-6">
             <div className="min-w-0 flex-1">
               <DialogHeader>
-                <DialogTitle className="text-xl font-black tracking-tight flex items-center gap-2">
+                <DialogTitle className={cn("relative text-xl font-black tracking-tight flex items-center gap-2", isRookie && "max-sm:pt-6")}>
                   <span className="truncate">{player.playerName}</span>
                   {isRookie && (
-                    <DraftPlayerBadge kind="rookie" />
+                    <span data-slot="draft-player-badges" className="absolute right-0 top-0 flex min-h-6 items-center sm:static sm:min-h-0">
+                      <DraftPlayerBadge kind="rookie" />
+                    </span>
                   )}
                   <span className="text-muted-foreground/30 text-base font-normal">|</span>
                   <Link
