@@ -27,33 +27,36 @@ async function getGameData(gameId: string) {
   return (rows[0] as ScoresheetGameData) || null
 }
 
-async function getRoster(seasonId: string, teamSlug: string, gameId: string, teamSide: "home" | "away") {
-  const [seasonRows, adhocRows] = await Promise.all([
-    rawSql(sql`
-      SELECT
-        p.name,
-        ps.is_captain,
-        ps.is_goalie,
-        false AS is_sub
-      FROM player_seasons ps
-      JOIN players p ON p.id = ps.player_id
-      WHERE ps.season_id = ${seasonId}
-        AND ps.team_slug = ${teamSlug}
-      ORDER BY p.name ASC
-    `),
-    rawSql(sql`
-      SELECT
-        p.name,
-        false AS is_captain,
-        false AS is_goalie,
-        agr.is_sub
-      FROM adhoc_game_rosters agr
-      JOIN players p ON p.id = agr.player_id
-      WHERE agr.game_id = ${gameId}
-        AND agr.team_side = ${teamSide}
-      ORDER BY p.name ASC
-    `),
-  ])
+async function getRoster(seasonId: string | null | undefined, teamSlug: string | null | undefined, gameId: string, teamSide: "home" | "away") {
+  const seasonRowsPromise = teamSlug && seasonId
+    ? rawSql(sql`
+        SELECT
+          p.name,
+          ps.is_captain,
+          ps.is_goalie,
+          false AS is_sub
+        FROM player_seasons ps
+        JOIN players p ON p.id = ps.player_id
+        WHERE ps.season_id = ${seasonId}
+          AND ps.team_slug = ${teamSlug}
+        ORDER BY p.name ASC
+      `)
+    : Promise.resolve([])
+
+  const adhocRowsPromise = rawSql(sql`
+    SELECT
+      p.name,
+      false AS is_captain,
+      false AS is_goalie,
+      agr.is_sub
+    FROM adhoc_game_rosters agr
+    JOIN players p ON p.id = agr.player_id
+    WHERE agr.game_id = ${gameId}
+      AND agr.team_side = ${teamSide}
+    ORDER BY p.name ASC
+  `)
+
+  const [seasonRows, adhocRows] = await Promise.all([seasonRowsPromise, adhocRowsPromise])
 
   return mergeScoresheetRosters(
     seasonRows as ScoresheetRosterPlayer[],

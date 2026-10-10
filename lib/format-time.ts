@@ -143,8 +143,8 @@ export function compareGameTimes(timeA?: string | null, timeB?: string | null): 
 export function compareGamesChronological<
   T extends { date?: string | null; time?: string | null; id?: string | number }
 >(a: T, b: T): number {
-  const dateA = a.date?.trim() || "9999-99-99"
-  const dateB = b.date?.trim() || "9999-99-99"
+  const dateA = a.date?.split("T")[0].trim() || "9999-99-99"
+  const dateB = b.date?.split("T")[0].trim() || "9999-99-99"
   if (dateA !== dateB) {
     return dateA.localeCompare(dateB)
   }

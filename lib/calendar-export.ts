@@ -3,6 +3,8 @@
  * All BASH games are in America/Los_Angeles.
  */
 
+import { toHHMM } from "./format-time"
+
 /** IANA timezone for all BASH game times */
 const BASH_TIMEZONE = "America/Los_Angeles"
 
@@ -84,32 +86,29 @@ export function generateICS(events: CalendarEventInput[]): string {
   const stamp = formatUTCStamp(new Date())
 
   for (const event of events) {
-    const isTBD = event.time === "TBD"
-    const [y, m, d] = event.date.split("-").map(Number)
+    if (!event.date || typeof event.date !== "string") {
+      continue
+    }
+    const datePart = event.date.split("T")[0].trim()
+    if (!datePart.includes("-")) continue
+    const parts = datePart.split("-").map(Number)
+    if (parts.length !== 3 || parts.some((n) => isNaN(n))) continue
+    const [y, m, d] = parts[0] > 1000 ? [parts[0], parts[1], parts[2]] : [parts[2], parts[0], parts[1]]
+    if (y < 1000 || m < 1 || m > 12 || d < 1 || d > 31) continue
+
+    const hhmm = toHHMM(event.time)
     
     let dtStartLine: string
     let dtEndLine: string
 
-    if (isTBD) {
+    if (!hhmm) {
       // All-day event — DATE values have no timezone
       dtStartLine = `DTSTART;VALUE=DATE:${formatAllDayDate(y, m, d)}`
-      // All-day DTEND is exclusive, so next day
-      const next = new Date(y, m - 1, d + 1)
-      dtEndLine = `DTEND;VALUE=DATE:${formatAllDayDate(next.getFullYear(), next.getMonth() + 1, next.getDate())}`
+      // All-day DTEND is exclusive, so next day (using Date.UTC to prevent DST shifts)
+      const next = new Date(Date.UTC(y, m - 1, d + 1))
+      dtEndLine = `DTEND;VALUE=DATE:${formatAllDayDate(next.getUTCFullYear(), next.getUTCMonth() + 1, next.getUTCDate())}`
     } else {
-      // Parse time string: handles "14:00", "9:00p", "9:00pm", "9:00 PM", etc.
-      let h: number, min: number
-      const ampmMatch = event.time.match(/^(\d{1,2}):(\d{2})\s*(a|am|p|pm)$/i)
-      if (ampmMatch) {
-        h = parseInt(ampmMatch[1], 10)
-        min = parseInt(ampmMatch[2], 10)
-        const isPM = ampmMatch[3].toLowerCase().startsWith("p")
-        if (isPM && h !== 12) h += 12
-        else if (!isPM && h === 12) h = 0
-      } else {
-        ;[h, min] = event.time.split(":").map(Number)
-      }
-
+      const [h, min] = hhmm.split(":").map(Number)
       const startStr = formatICSDateTime(y, m, d, h, min)
       // Event duration: season game length * 2 (or custom durationMinutes/durationHours, defaulting to 120 minutes)
       const durationMinutes =

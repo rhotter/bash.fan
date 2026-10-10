@@ -238,6 +238,25 @@ describe("fetchBatchScoresheets helper", () => {
       "g_missing_date",
     ])
   })
+
+  it("merges season and adhoc rosters case-insensitively without duplicating players", async () => {
+    const { mergeScoresheetRosters } = await import("@/lib/fetch-scoresheets")
+    const seasonRoster = [
+      { name: "John Doe", is_captain: true, is_goalie: false, is_sub: false },
+    ]
+    const adhocRoster = [
+      { name: "john doe", is_captain: false, is_goalie: true, is_sub: true },
+      { name: "Jane Smith", is_captain: false, is_goalie: false, is_sub: false },
+    ]
+
+    const merged = mergeScoresheetRosters(seasonRoster, adhocRoster)
+    expect(merged.length).toBe(2)
+    const john = merged.find((p) => p.name.toLowerCase() === "john doe")
+    expect(john).toBeDefined()
+    expect(john?.is_captain).toBe(true)
+    expect(john?.is_goalie).toBe(true)
+    expect(john?.is_sub).toBe(true)
+  })
 })
 
 describe("toHHMM and normalizeTimeForStorage utilities", () => {

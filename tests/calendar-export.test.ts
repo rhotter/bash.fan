@@ -172,8 +172,8 @@ describe("iCalendar Export (generateICS)", () => {
     expect(() => generateICS([event])).toThrowError("Location is not provided for season: Summer 2026")
   })
 
-  it("correctly formats all-day TBD events", () => {
-    const event: CalendarEventInput = {
+  it("correctly formats all-day TBD events (including lowercase and missing time)", () => {
+    const eventTBD: CalendarEventInput = {
       id: "g9",
       date: "2026-10-10",
       time: "TBD",
@@ -181,9 +181,68 @@ describe("iCalendar Export (generateICS)", () => {
       awayTeam: "Loons",
       seasonLocation: "The Lick",
     }
+    const ics1 = generateICS([eventTBD])
+    expect(ics1).toContain("DTSTART;VALUE=DATE:20261010")
+    expect(ics1).toContain("DTEND;VALUE=DATE:20261011")
 
+    const eventLowercase: CalendarEventInput = {
+      id: "g10",
+      date: "2026-10-10",
+      time: "tbd",
+      homeTeam: "Yetis",
+      awayTeam: "Loons",
+      seasonLocation: "The Lick",
+    }
+    const ics2 = generateICS([eventLowercase])
+    expect(ics2).toContain("DTSTART;VALUE=DATE:20261010")
+    expect(ics2).toContain("DTEND;VALUE=DATE:20261011")
+  })
+
+  it("handles times with seconds like '9:00:00 PM'", () => {
+    const event: CalendarEventInput = {
+      id: "g11",
+      date: "2026-10-10",
+      time: "9:00:00 PM",
+      homeTeam: "Yetis",
+      awayTeam: "Loons",
+      seasonLocation: "The Lick",
+    }
     const ics = generateICS([event])
-    expect(ics).toContain("DTSTART;VALUE=DATE:20261010")
-    expect(ics).toContain("DTEND;VALUE=DATE:20261011")
+    expect(ics).toContain("DTSTART;TZID=America/Los_Angeles:20261010T210000")
+    expect(ics).toContain("DTEND;TZID=America/Los_Angeles:20261010T230000")
+  })
+
+  it("safely skips events with empty, null, or invalid dates", () => {
+    const events: CalendarEventInput[] = [
+      {
+        id: "g-empty-date",
+        date: "",
+        time: "9:00am",
+        homeTeam: "Yetis",
+        awayTeam: "Loons",
+        seasonLocation: "The Lick",
+      },
+      {
+        id: "g-valid",
+        date: "2026-10-10",
+        time: "9:00am",
+        homeTeam: "Yetis",
+        awayTeam: "Loons",
+        seasonLocation: "The Lick",
+      },
+      {
+        id: "g-invalid-date",
+        date: "bad-date",
+        time: "11:00am",
+        homeTeam: "Yetis",
+        awayTeam: "Loons",
+        seasonLocation: "The Lick",
+      },
+    ]
+
+    const ics = generateICS(events)
+    expect(ics).toContain("DTSTART;TZID=America/Los_Angeles:20261010T090000")
+    expect(ics).not.toContain("0NaNNaN")
+    expect(ics).not.toContain("NaNa")
   })
 })

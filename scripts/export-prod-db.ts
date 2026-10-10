@@ -301,6 +301,7 @@ async function main() {
       await dev`DELETE FROM player_game_stats WHERE game_id = ANY(${orphanIds});`;
       await dev`DELETE FROM goalie_game_stats WHERE game_id = ANY(${orphanIds});`;
       await dev`DELETE FROM adhoc_game_rosters WHERE game_id = ANY(${orphanIds});`;
+      await dev`DELETE FROM game_live WHERE game_id = ANY(${orphanIds});`;
       await dev`DELETE FROM games WHERE id = ANY(${orphanIds});`;
       console.log(`   Cleaned up ${orphanIds.length} obsolete game(s) in dev.`);
     }

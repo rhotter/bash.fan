@@ -234,27 +234,31 @@ UPDATE games SET game_type = 'regular' WHERE is_playoff = false;
     *   Visual bracket rendered via CSS/SVG for the review step.
 *   **`app/admin/scoresheet/[gameId]/page.tsx`** — Printable game scoresheet.
     *   Server Component fetches game info (date, time, teams, location), team rosters (`player_seasons` + `players`), and assigned officials (`game_officials`).
-    *   Renders a print-optimized HTML page matching the legacy Sportability scoresheet layout: per-team roster, scoring table (11 blank rows), penalty table (10 blank rows), goalie table (4 blank rows), shot tracking grids (Per 1-3 + OT, numbers 01-24), timeouts, officials/signatures box, scoring/shots summary grids, notes box, and a "Game Stars" table (Star #1/2/3).
-    *   Styled with `@page { size: letter }` and `@media print` CSS to fit exactly on one printed page.
+    *   Renders a print-optimized HTML page matching the legacy Sportability scoresheet layout: per-team roster, scoring table (11 blank rows), penalty table (11 blank rows), goalie table (3 blank rows), shot tracking grids (Per 1-3 + OT, numbers 01-24 evenly spaced), timeouts, officials/signatures box, scoring/shots summary grids, and a "Game Stars" table (Star #1/2/3).
+    *   The legacy notes box was removed to maximize vertical sheet readability, providing extra header height with an enlarged BASH logo and dynamic font scaling for player rosters (with auto-scaling for 16+, 20+, and 24+ player teams).
+    *   Styled with `@page { size: letter; margin: 0.25in; }` and `@media print` CSS to fit exactly on one printed page.
     *   Accessed via a `Printer` icon button on each game row in the schedule tab; opens in a new tab and auto-triggers `window.print()`.
 *   **`app/admin/scoresheet/season/[id]/page.tsx`** — Printable batch scoresheets.
-    *   Server Component fetches all remaining unplayed games (`status != 'final'`) in chronological order (`date ASC, time ASC`) with rosters and officials.
+    *   Server Component fetches all remaining unplayed games (`status != 'final'`) in chronological order (`date ASC, time ASC`) with rosters and officials via `lib/fetch-scoresheets.ts`.
     *   Enforces strict 1-page-per-game print formatting via CSS page breaks (`break-after: page; page-break-after: always; break-inside: avoid;`).
     *   Auto-triggers `window.print()` on mount and includes an on-screen toolbar with print button and back link.
 *   **`components/admin/game-scoresheet.tsx`** — Shared, reusable scoresheet component used by both single and batch scoresheet routes, ensuring visual and structural fidelity.
-*   **`components/admin/season-schedule-tab.tsx`** — Top-level "Print Remaining Scoresheets" button.
-    *   Placed in schedule tab header alongside wizard launchers. Opens batch scoresheet route in new tab; automatically disables with tooltip if all games are final.
+*   **`components/admin/season-schedule-tab.tsx`** — Top-level "Print Remaining Scoresheets" button & Chronological Schedule Sorting.
+    *   Top-level action rendered as a condensed print emoji (`🖨️`) placed 3rd in the header action bar (directly to the left of "+ New Game"). Opens batch scoresheet route in new tab; automatically disables with tooltip if all games are final.
+    *   **Chronological Time Sorting**: Uses `compareGamesChronological` from `lib/format-time.ts` to convert 12-hour AM/PM and 24h formats to 24-hour representations, ensuring true chronological ordering (`9:00am -> 11:00am -> 1:00pm -> 11:00pm -> TBD`) across both List (Table) View and Card View per-date groupings, resolving naive alphabetical sorting bugs.
 *   **`lib/calendar-export.ts`** — Client-side RFC 5545 iCalendar generation.
     *   Generates `.ics` calendar events in `America/Los_Angeles` timezone with embedded `VTIMEZONE`.
     *   Calculates end time dynamically based on $\text{season.game\_length} \times 2$ (default 120 minutes / 2 hours).
     *   Handles UTC rollover arithmetic, location hierarchy fallback, and all-day TBD events.
+*   **`scripts/export-prod-db.ts`** — Dev Database Sync with Orphan Pruning.
+    *   Automatically prunes obsolete dev games that no longer exist in production (e.g. from schedule rebalances or deletions), cascading deletions across `game_officials`, `player_game_stats`, `goalie_game_stats`, `adhoc_game_rosters`, and `game_live`.
 *   **`components/game-detail.tsx` & `components/team-page-content.tsx`** — User-facing "ADD TO CAL" buttons.
     *   Game detail view triggers download for individual games (`game-[id].ics`).
     *   Team detail view triggers download for all games in the team's schedule (`[slug]-schedule.ics`).
 
 ### 4. Public Site Integration
 
-*   **Public Schedule & Calendar Export**: ✅ **Complete**. Public scoreboard (`/`), game details (`/game/[id]`), and team pages (`/team/[slug]`) display scheduled games and provide one-click iCalendar export buttons.
+*   **Public Schedule & Calendar Export**: ✅ **Complete**. Public scoreboard (`/`), game details (`/game/[id]`), and team pages (`/team/[slug]`) display scheduled games in chronological order and provide one-click iCalendar export buttons.
 *   **Public Bracket Display**: ⏳ **Deferred**. Public-facing visual tournament bracket view is deferred to a follow-up phase once the admin playoff workflow is battle-tested.
 
 ---

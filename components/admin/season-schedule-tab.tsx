@@ -278,7 +278,7 @@ export function SeasonScheduleTab({ seasonId, seasonStatus, initialTeams, defaul
 
   const totalUpcoming = games.filter(g => g.status === "upcoming").length
   const totalToDelete = deleteScheduleMode === "all" ? games.length : totalUpcoming
-  const remainingGamesCount = useMemo(() => games.filter(g => g.status !== "final").length, [games])
+  const remainingGamesCount = useMemo(() => games.filter(g => g.status?.toLowerCase() !== "final").length, [games])
 
   const lastRegularSeasonGame = games
     .filter(g => g.gameType === "regular" && g.date)

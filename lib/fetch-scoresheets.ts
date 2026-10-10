@@ -26,21 +26,22 @@ export function mergeScoresheetRosters(
   const map = new Map<string, ScoresheetRosterPlayer>()
   for (const player of seasonRoster) {
     const name = player.name?.trim() || ""
-    if (name) map.set(name, { ...player, name })
+    if (name) map.set(name.toLowerCase(), { ...player, name })
   }
   for (const player of adhocRoster) {
     const name = player.name?.trim() || ""
     if (!name) continue
-    const existing = map.get(name)
+    const key = name.toLowerCase()
+    const existing = map.get(key)
     if (existing) {
-      map.set(name, {
-        name,
+      map.set(key, {
+        name: existing.name || name,
         is_captain: existing.is_captain || player.is_captain,
         is_goalie: existing.is_goalie || player.is_goalie,
         is_sub: player.is_sub ?? existing.is_sub,
       })
     } else {
-      map.set(name, { ...player, name })
+      map.set(key, { ...player, name })
     }
   }
   return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name))

@@ -140,6 +140,8 @@ Admins import player rosters via **CSV** files exported from Sportability. The t
 ### 1b. Production Database Sync (`scripts/export-prod-db.ts`)
 In-house seasons (e.g., Summer seasons, tournament exhibition games, live scorekeeper games, and draft instances) originate within BASH rather than Sportability. The replication utility `scripts/export-prod-db.ts` copies selected seasons and their relational entities (teams, games, boxscores, game officials, awards, and complete draft state) from the production Neon Postgres database into a developer's target database, using dynamic name-to-ID alignment to prevent foreign key or historical stat collisions. Both `PROD_URL` and `DEV_URL` connection strings are passed at execution time (`PROD_URL='...' DEV_URL='...' npx tsx scripts/export-prod-db.ts`).
 
+During replication, the script performs automated dev orphan game pruning: any games present in the developer's target database for the synced season that no longer exist in production (e.g., from upstream schedule rebalancing or fixture deletions) are automatically pruned, cascading cleanly across dependent child rows in `game_officials`, `player_game_stats`, `goalie_game_stats`, `adhoc_game_rosters`, and `game_live`.
+
 ### 2. Server-Side Data Fetching (`lib/fetch-*.ts`)
 The application heavily uses Next.js async Server Components. When a page loads, it fetches data using functions located in `lib/fetch-*.ts`, which execute Drizzle ORM queries against Neon Postgres. 
 
@@ -171,6 +173,21 @@ The application generates RFC 5545 compliant iCalendar (`.ics`) files client-sid
 - **Location Hierarchy**: Prioritizes `seasonLocation` with fallback to `game.location`.
 - **TBD Handling**: Games with time `"TBD"` generate full-day date-type events (`DTSTART;VALUE=DATE:...`).
 - **Entry Points**: Available per-game on `/game/[id]` ([`components/game-detail.tsx`](file:///Users/christorres/Desktop/bash/components/game-detail.tsx)) and for entire team fixture lists on `/team/[slug]` ([`components/team-page-content.tsx`](file:///Users/christorres/Desktop/bash/components/team-page-content.tsx)).
+
+### 4b. Scoresheet Generation & Batch Printing (`app/admin/scoresheet/`, `components/admin/game-scoresheet.tsx`, `lib/fetch-scoresheets.ts`)
+Print-ready game scoresheets are generated server-side conforming strictly to US Letter specifications (`@page { size: letter; margin: 0.25in; }`):
+- **Single Game Scoresheet** (`/admin/scoresheet/[gameId]`): Renders home/away team rosters with captain/goalie badges, scoring table (11 blank rows), penalty table (11 blank rows), goalie table (3 blank rows), shot tracking grids (Per 1-3 + OT, numbers 01-24 evenly distributed), timeouts, official signatures box, scoring/shots summary grids, and a "Game Stars" selection table (Star #1/2/3).
+- **Batch Scoresheet Engine** (`/admin/scoresheet/season/[id]`): Fetches all remaining unplayed games (`status != 'final'`) in chronological order via `fetchRemainingScoresheetGames` in `lib/fetch-scoresheets.ts`. Seamlessly aggregates season rosters (`player_seasons`) and ad-hoc rosters (`adhoc_game_rosters`) without duplicates.
+- **Strict 1-Page CSS Pagination**: Uses CSS page-break constraints (`break-after: page; page-break-after: always; break-inside: avoid;`) so that in multi-game batches, every game occupies exactly one physical page when printed or exported as a PDF.
+- **Dynamic Layout & Typography**: Vertical space is maximized by omitting unnecessary notes boxes, allocating additional height to the header logo and dynamically scaling roster row heights and font sizes based on player count (adaptive scaling for 16+, 20+, and 24+ skaters) to prevent spillover onto second pages.
+- **Auto-Print & Manual Controls**: Auto-mounts browser print dialog via `AutoPrint` with non-printing on-screen controls for manual re-triggering and season navigation.
+- **Schedule Integration**: Accessible via a condensed print emoji button (`🖨️`) placed 3rd in the schedule tab action bar (left of "+ New Game"), which disables automatically when all season fixtures are final.
+
+### 4c. Chronological Date & Time Sorting (`lib/format-time.ts`)
+Ensures accurate, non-alphabetical chronological ordering across all schedule and scoresheet views:
+- **`toHHMM(time)`**: Parses 12-hour AM/PM formats (`9:00 AM`, `1:00 PM`, `11:30 PM`), seconds notation (`9:00:00 AM`), and 24-hour time strings into standardized 24-hour `HH:MM` representations (`09:00`, `13:00`, `23:30`), with fallback to `"99:99"` for `TBD`, unparseable, or missing times.
+- **`compareGameTimes(a, b)`**: Compares game times chronologically using `toHHMM`, correctly ordering morning games before afternoon and night matches (`9:00am -> 11:00am -> 1:00pm -> 11:00pm -> TBD`).
+- **`compareGamesChronological(a, b)`**: Normalizes dates (stripping ISO timestamps via `split("T")[0]`), compares dates lexicographically, and applies `compareGameTimes` for games on the same date. Eliminates naive alphabetical sorting bugs in both list and card schedule views.
 
 ### 5. Draft System (`app/api/bash/admin/seasons/[id]/draft/`)
 The draft system manages the entire lifecycle of a league draft:

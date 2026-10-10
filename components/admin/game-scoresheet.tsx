@@ -312,14 +312,18 @@ export function GameScoresheet({
   let dateStr = game.date || ""
   if (game.date) {
     try {
-      const parsed = new Date(game.date)
-      if (!isNaN(parsed.getTime())) {
-        dateStr = parsed.toLocaleDateString("en-US", {
-          month: "numeric",
-          day: "numeric",
-          year: "numeric",
-          timeZone: "UTC",
-        })
+      const datePart = game.date.split("T")[0].trim()
+      if (datePart.includes("-")) {
+        const parts = datePart.split("-").map(Number)
+        if (parts.length === 3 && parts.every((n) => !isNaN(n))) {
+          const [y, m, d] = parts[0] > 1000 ? [parts[0], parts[1], parts[2]] : [parts[2], parts[0], parts[1]]
+          dateStr = `${m}/${d}/${y}`
+        }
+      } else {
+        const parsed = new Date(game.date)
+        if (!isNaN(parsed.getTime())) {
+          dateStr = `${parsed.getUTCMonth() + 1}/${parsed.getUTCDate()}/${parsed.getUTCFullYear()}`
+        }
       }
     } catch {
       // Keep dateStr fallback

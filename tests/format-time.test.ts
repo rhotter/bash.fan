@@ -125,5 +125,26 @@ describe("lib/format-time", () => {
       expect(sorted[0].id).toBe("g-alpha")
       expect(sorted[1].id).toBe("g-beta")
     })
+
+    it("correctly treats ISO timestamps with 'T' and plain YYYY-MM-DD as the same date", () => {
+      const games = [
+        { id: "g2", date: "2026-10-11T00:00:00.000Z", time: "1:00pm" },
+        { id: "g1", date: "2026-10-11", time: "9:00am" },
+      ]
+      const sorted = [...games].sort(compareGamesChronological)
+      expect(sorted[0].id).toBe("g1")
+      expect(sorted[1].id).toBe("g2")
+    })
+
+    it("sorts whitespace-only dates to the end alongside null/undefined", () => {
+      const games = [
+        { id: "g-blank", date: "   ", time: "9:00am" },
+        { id: "g-valid", date: "2026-10-11", time: "9:00am" },
+        { id: "g-empty", date: "", time: "9:00am" },
+      ]
+      const sorted = [...games].sort(compareGamesChronological)
+      expect(sorted[0].id).toBe("g-valid")
+      expect(sorted.slice(1).map((g) => g.id)).toEqual(["g-blank", "g-empty"])
+    })
   })
 })
