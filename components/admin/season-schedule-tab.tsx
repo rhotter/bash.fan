@@ -33,6 +33,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
@@ -269,6 +270,7 @@ export function SeasonScheduleTab({ seasonId, seasonStatus, initialTeams, defaul
 
   const totalUpcoming = games.filter(g => g.status === "upcoming").length
   const totalToDelete = deleteScheduleMode === "all" ? games.length : totalUpcoming
+  const remainingGamesCount = useMemo(() => games.filter(g => g.status !== "final").length, [games])
 
   const lastRegularSeasonGame = games
     .filter(g => g.gameType === "regular" && g.date)
@@ -312,7 +314,7 @@ export function SeasonScheduleTab({ seasonId, seasonStatus, initialTeams, defaul
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {isEditable && (
+          {isEditable ? (
             <>
               <Button variant="outline" onClick={() => setRrWizardOpen(true)}>
                 <Shuffle className="h-4 w-4 mr-2" />
@@ -322,11 +324,78 @@ export function SeasonScheduleTab({ seasonId, seasonStatus, initialTeams, defaul
                 <Trophy className="h-4 w-4 mr-2" />
                 Playoff Bracket
               </Button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="inline-flex">
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      disabled={isLoading || remainingGamesCount === 0}
+                      onClick={() => window.open(`/admin/scoresheet/season/${encodeURIComponent(seasonId)}`, "_blank")}
+                      aria-label="Print Remaining Scoresheets"
+                      title={
+                        games.length === 0
+                          ? "No games scheduled in this season"
+                          : remainingGamesCount === 0
+                            ? "All games in this season are final"
+                            : "Print scoresheets for all remaining games"
+                      }
+                    >
+                      <span className="text-base leading-none" role="img" aria-label="Print scoresheets">
+                        🖨️
+                      </span>
+                    </Button>
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>
+                    {games.length === 0
+                      ? "No games scheduled in this season"
+                      : remainingGamesCount === 0
+                        ? "All games in this season are final"
+                        : `Print scoresheets for ${remainingGamesCount} remaining game${remainingGamesCount === 1 ? "" : "s"}`}
+                  </p>
+                </TooltipContent>
+              </Tooltip>
               <Button onClick={openAddGame}>
                 <Plus className="h-4 w-4 mr-2" />
                 Add Game
               </Button>
             </>
+          ) : (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="inline-flex">
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    disabled={isLoading || remainingGamesCount === 0}
+                    onClick={() => window.open(`/admin/scoresheet/season/${encodeURIComponent(seasonId)}`, "_blank")}
+                    aria-label="Print Remaining Scoresheets"
+                    title={
+                      games.length === 0
+                        ? "No games scheduled in this season"
+                        : remainingGamesCount === 0
+                          ? "All games in this season are final"
+                          : "Print scoresheets for all remaining games"
+                    }
+                  >
+                    <span className="text-base leading-none" role="img" aria-label="Print scoresheets">
+                      🖨️
+                    </span>
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>
+                  {games.length === 0
+                    ? "No games scheduled in this season"
+                    : remainingGamesCount === 0
+                      ? "All games in this season are final"
+                      : `Print scoresheets for ${remainingGamesCount} remaining game${remainingGamesCount === 1 ? "" : "s"}`}
+                </p>
+              </TooltipContent>
+            </Tooltip>
           )}
         </div>
       </div>

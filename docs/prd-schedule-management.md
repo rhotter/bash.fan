@@ -237,6 +237,13 @@ UPDATE games SET game_type = 'regular' WHERE is_playoff = false;
     *   Renders a print-optimized HTML page matching the legacy Sportability scoresheet layout: per-team roster, scoring table (11 blank rows), penalty table (10 blank rows), goalie table (4 blank rows), shot tracking grids (Per 1-3 + OT, numbers 01-24), timeouts, officials/signatures box, scoring/shots summary grids, notes box, and a "Game Stars" table (Star #1/2/3).
     *   Styled with `@page { size: letter }` and `@media print` CSS to fit exactly on one printed page.
     *   Accessed via a `Printer` icon button on each game row in the schedule tab; opens in a new tab and auto-triggers `window.print()`.
+*   **`app/admin/scoresheet/season/[id]/page.tsx`** — Printable batch scoresheets.
+    *   Server Component fetches all remaining unplayed games (`status != 'final'`) in chronological order (`date ASC, time ASC`) with rosters and officials.
+    *   Enforces strict 1-page-per-game print formatting via CSS page breaks (`break-after: page; page-break-after: always; break-inside: avoid;`).
+    *   Auto-triggers `window.print()` on mount and includes an on-screen toolbar with print button and back link.
+*   **`components/admin/game-scoresheet.tsx`** — Shared, reusable scoresheet component used by both single and batch scoresheet routes, ensuring visual and structural fidelity.
+*   **`components/admin/season-schedule-tab.tsx`** — Top-level "Print Remaining Scoresheets" button.
+    *   Placed in schedule tab header alongside wizard launchers. Opens batch scoresheet route in new tab; automatically disables with tooltip if all games are final.
 *   **`lib/calendar-export.ts`** — Client-side RFC 5545 iCalendar generation.
     *   Generates `.ics` calendar events in `America/Los_Angeles` timezone with embedded `VTIMEZONE`.
     *   Calculates end time dynamically based on $\text{season.game\_length} \times 2$ (default 120 minutes / 2 hours).

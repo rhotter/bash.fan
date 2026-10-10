@@ -11,6 +11,15 @@ beforeEach(() => {
   vi.useFakeTimers()
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true)
   vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} })
+  const storage: Record<string, string> = {}
+  vi.stubGlobal("localStorage", {
+    getItem: vi.fn((key: string) => storage[key] ?? null),
+    setItem: vi.fn((key: string, val: string) => { storage[key] = String(val) }),
+    removeItem: vi.fn((key: string) => { delete storage[key] }),
+    clear: vi.fn(() => { Object.keys(storage).forEach((k) => delete storage[k]) }),
+    length: 0,
+    key: vi.fn(),
+  })
   localStorage.clear()
   container = document.createElement("div")
   document.body.append(container)

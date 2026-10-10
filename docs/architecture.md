@@ -196,3 +196,5 @@ The App Router maps URLs directly to server components:
 - `/admin/seasons/[id]/draft/[draftId]/board` -> Admin live draft board
 - `/admin/registration` -> Registration period management (questions, discounts, notices, extras)
 - `/admin/franchises` -> Franchise manager
+- `/admin/scoresheet/[gameId]` -> Printable single-game scoresheet
+- `/admin/scoresheet/season/[id]` -> Print-ready batch scoresheets for remaining games

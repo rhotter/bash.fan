@@ -193,6 +193,7 @@ async function main() {
   const prodPS = await prod`
     SELECT * FROM player_seasons WHERE season_id = ANY(${seasons});
   `;
+  await dev`DELETE FROM player_seasons WHERE season_id = ANY(${seasons});`;
   for (const ps of prodPS) {
     const devPlayerId = devIdByProdId.get(ps.player_id);
     if (!devPlayerId) continue;
