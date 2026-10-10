@@ -50,6 +50,6 @@ export default [
     },
   },
   {
-    ignores: [".next/", "node_modules/", "drizzle/"],
+    ignores: [".next/", "node_modules/", "drizzle/", ".worktrees/"],
   },
 ];

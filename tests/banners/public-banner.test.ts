@@ -11,6 +11,8 @@
  * - SWR configuration and layout stability
  */
 
+import fs from "fs"
+import path from "path"
 import { describe, expect, it } from "vitest"
 import {
   createMockBanner,
@@ -154,16 +156,16 @@ describe("Public Banner API: Priority & Recency Ranking", () => {
     expect(selected?.id).toBe("high")
   })
 
-  it("breaks priority tie using recency (most recent createdAt wins)", () => {
+  it("breaks priority tie using recency (most recent updatedAt wins)", () => {
     const older = createMockBanner({
       id: "older-same-priority",
       priority: 20,
-      createdAt: new Date("2026-10-01T00:00:00Z"),
+      updatedAt: new Date("2026-10-01T00:00:00Z"),
     })
     const newer = createMockBanner({
       id: "newer-same-priority",
       priority: 20,
-      createdAt: new Date("2026-10-03T00:00:00Z"),
+      updatedAt: new Date("2026-10-03T00:00:00Z"),
     })
 
     const selected = filterAndRankBanners([older, newer], now)
@@ -239,36 +241,30 @@ describe("Public Banner Architecture: Zero-UA Responsive Switching", () => {
 })
 
 describe("Public Banner UX: Layout Stability & Touch Accessibility", () => {
+  const siteBannerSrc = fs.readFileSync(
+    path.resolve(process.cwd(), "components/site-banner.tsx"),
+    "utf-8"
+  )
+
   it("enforces WCAG 2.5.5 minimum 44×44px hit target for mobile dismiss button", () => {
-    // PRD §8.5.3:
-    // Dismiss button on mobile must have min-h-[44px] min-w-[44px] and touch-manipulation
-    const mobileDismissButtonClasses = [
-      "min-h-[44px]",
-      "min-w-[44px]",
-      "touch-manipulation",
-      "p-2",
-    ]
-    mobileDismissButtonClasses.forEach((cls) => {
-      expect(["min-h-[44px]", "min-w-[44px]", "touch-manipulation", "p-2"]).toContain(cls)
-    })
+    // PRD §8.5.3 & §9.4
+    expect(siteBannerSrc).toContain("min-h-[44px]")
+    expect(siteBannerSrc).toContain("min-w-[44px]")
+    expect(siteBannerSrc).toContain("touch-manipulation")
+    expect(siteBannerSrc).toContain('aria-label="Dismiss banner"')
   })
 
   it("enforces protected suffix flex layout (shrink-0 tabular-nums) preventing countdown clipping", () => {
-    // PRD §8.5.1:
-    // Suffix container must be: shrink-0 tabular-nums
-    // Headline container must be: truncate
-    const suffixClasses = "shrink-0 text-muted-foreground/70 tabular-nums"
-    const headlineClasses = "truncate font-medium underline underline-offset-4"
-
-    expect(suffixClasses).toContain("shrink-0")
-    expect(suffixClasses).toContain("tabular-nums")
-    expect(headlineClasses).toContain("truncate")
+    // PRD §8.5.1
+    expect(siteBannerSrc).toContain("shrink-0 text-muted-foreground/70 tabular-nums")
+    expect(siteBannerSrc).toContain("truncate font-medium underline underline-offset-4")
   })
 
   it("enforces fixed single-line height h-8 with safe right padding to prevent CLS", () => {
-    // PRD §8.5.4: Single-line height h-8 with pr-10 sm:pr-8
-    const containerClasses = "h-8 pr-10 sm:pr-8"
-    expect(containerClasses).toContain("h-8")
-    expect(containerClasses).toContain("pr-10 sm:pr-8")
+    // PRD §8.5.4 & §9.4
+    expect(siteBannerSrc).toContain("h-8")
+    expect(siteBannerSrc).toContain("pr-12 sm:pr-8")
+    expect(siteBannerSrc).toContain('role="region"')
+    expect(siteBannerSrc).toContain('aria-label="Site announcement"')
   })
 })

@@ -204,6 +204,14 @@ describe("lib/banner-helpers", () => {
         )
       })
 
+      it("formats next calendar day as 1 day even if more than 24 hours away", () => {
+        // Now is 2026-10-04T12:00:00Z. Target is 2026-10-05T22:00:00Z (34 hours away, but next calendar day)
+        const target = new Date("2026-10-05T22:00:00Z")
+        expect(computeCountdownSuffix("event", target, now, "UTC")).toBe(
+          " · Live in 1 day",
+        )
+      })
+
       it("formats same day event with formatted time", () => {
         // Same calendar day in UTC
         const target = new Date("2026-10-04T16:00:00Z")
@@ -440,6 +448,11 @@ describe("lib/banner-helpers", () => {
           "/admin",
           "/draft",
         ])
+      })
+
+      it("prepends leading slash if omitted", () => {
+        expect(normalizeHideOnPaths(["admin", "draft/scores"])).toEqual(["/admin", "/draft/scores"])
+        expect(normalizeHideOnPaths("admin, draft/scores")).toEqual(["/admin", "/draft/scores"])
       })
 
       it("falls back to default ['/admin'] when input is empty or invalid", () => {

@@ -201,8 +201,32 @@ export function computeCountdownSuffix(
       return ` · Live today @ ${timeStr}`
     }
 
-    const diffMs = targetDate.getTime() - currentDate.getTime()
-    const daysUntil = Math.max(1, Math.ceil(diffMs / 86400000))
+    let daysUntil: number
+    if (timeZone) {
+      try {
+        const dtfParts = new Intl.DateTimeFormat("en-US", {
+          timeZone,
+          year: "numeric",
+          month: "numeric",
+          day: "numeric",
+        })
+        const [cParts, tParts] = [dtfParts.formatToParts(currentDate), dtfParts.formatToParts(targetDate)]
+        const getPart = (parts: Intl.DateTimeFormatPart[], type: string) =>
+          Number(parts.find((p) => p.type === type)?.value)
+        const cDate = new Date(Date.UTC(getPart(cParts, "year"), getPart(cParts, "month") - 1, getPart(cParts, "day")))
+        const tDate = new Date(Date.UTC(getPart(tParts, "year"), getPart(tParts, "month") - 1, getPart(tParts, "day")))
+        daysUntil = Math.max(1, Math.round((tDate.getTime() - cDate.getTime()) / 86400000))
+      } catch {
+        const cDay = new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate())
+        const tDay = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate())
+        daysUntil = Math.max(1, Math.round((tDay.getTime() - cDay.getTime()) / 86400000))
+      }
+    } else {
+      const cDay = new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate())
+      const tDay = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate())
+      daysUntil = Math.max(1, Math.round((tDay.getTime() - cDay.getTime()) / 86400000))
+    }
+
     return ` · Live in ${daysUntil} day${daysUntil === 1 ? "" : "s"}`
   }
 
@@ -287,9 +311,12 @@ export function isBannerVisible(
   if (banner.hideOnPaths && Array.isArray(banner.hideOnPaths)) {
     if (
       pathname &&
-      banner.hideOnPaths.some(
-        (p) => typeof p === "string" && p.length > 0 && pathname.startsWith(p),
-      )
+      banner.hideOnPaths.some((p) => {
+        if (typeof p !== "string" || p.length === 0) return false
+        if (p === "/") return pathname === "/"
+        const prefix = p.endsWith("/") ? p.slice(0, -1) : p
+        return pathname === prefix || pathname.startsWith(`${prefix}/`)
+      })
     ) {
       return false
     }
@@ -330,16 +357,28 @@ export function normalizeMobileLabel(
  * Defaults to ["/admin"] if empty.
  */
 export function normalizeHideOnPaths(input: unknown): string[] {
+  const cleanPath = (p: string) => {
+    let trimmed = p.trim()
+    if (!trimmed) return ""
+    if (!trimmed.startsWith("/")) {
+      trimmed = `/${trimmed}`
+    }
+    if (trimmed.length > 1 && trimmed.endsWith("/")) {
+      trimmed = trimmed.replace(/\/+$/, "")
+    }
+    return trimmed
+  }
+
   if (Array.isArray(input)) {
     const cleaned = input
-      .map((p) => (typeof p === "string" ? p.trim() : ""))
+      .map((p) => (typeof p === "string" ? cleanPath(p) : ""))
       .filter((p) => p.length > 0)
     return cleaned.length > 0 ? cleaned : ["/admin"]
   }
   if (typeof input === "string") {
     const cleaned = input
       .split(",")
-      .map((p) => p.trim())
+      .map(cleanPath)
       .filter((p) => p.length > 0)
     return cleaned.length > 0 ? cleaned : ["/admin"]
   }

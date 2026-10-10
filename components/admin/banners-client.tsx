@@ -64,6 +64,7 @@ import {
   resolveEffectiveVariant,
   needsMobileLabelWarning,
   validateBannerInput,
+  normalizeHideOnPaths,
   type BannerStatus,
   type BannerVariant,
   type CountdownType,
@@ -213,6 +214,24 @@ export function BannersClient({ initial }: { initial: BannerRow[] }) {
     setDialogOpen(true)
   }
 
+  // Active switch handler: populates start date with current time when toggled ON (unless already scheduled for future)
+  const handleActiveToggle = (checked: boolean) => {
+    setForm((prev) => {
+      let nextStartDate = prev.startDate
+      if (checked) {
+        const currentStartMs = prev.startDate ? new Date(prev.startDate).getTime() : NaN
+        if (isNaN(currentStartMs) || currentStartMs <= Date.now()) {
+          nextStartDate = toLocalDatetimeInput(new Date().toISOString())
+        }
+      }
+      return {
+        ...prev,
+        isActive: checked,
+        startDate: nextStartDate,
+      }
+    })
+  }
+
   const openEdit = (row: BannerRow) => {
     setEditing(row)
     setForm({
@@ -226,7 +245,9 @@ export function BannersClient({ initial }: { initial: BannerRow[] }) {
       countdownType: row.countdownType,
       countdownTarget: toLocalDatetimeInput(row.countdownTarget),
       priority: row.priority,
-      hideOnPaths: (row.hideOnPaths || []).join(", "),
+      hideOnPaths: Array.isArray(row.hideOnPaths)
+        ? row.hideOnPaths.join(", ")
+        : normalizeHideOnPaths(row.hideOnPaths).join(", "),
       resetDismissals: false,
     })
     setPreviewMode("desktop")
@@ -763,27 +784,30 @@ export function BannersClient({ initial }: { initial: BannerRow[] }) {
               </div>
             </div>
 
-            {/* ─── Destination URL, Style Variant, Active Status ─────────── */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              <div className="space-y-1.5">
-                <Label htmlFor="banner-href" className="text-sm font-medium">
-                  Destination URL <span className="text-destructive">*</span>
-                </Label>
-                <Input
-                  id="banner-href"
-                  placeholder="/register or /draft/slug"
-                  value={form.href}
-                  onChange={(e) => setForm({ ...form, href: e.target.value })}
-                />
-              </div>
+            {/* ─── Destination URL ────────────────────────────────────────── */}
+            <div className="space-y-1.5">
+              <Label htmlFor="banner-href" className="text-sm font-medium block">
+                Destination URL <span className="text-destructive">*</span>
+              </Label>
+              <Input
+                id="banner-href"
+                placeholder="/register or /draft/slug"
+                value={form.href}
+                onChange={(e) => setForm({ ...form, href: e.target.value })}
+              />
+            </div>
 
+            {/* ─── Visual Variant & Active Status ─────────────────────────── */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label className="text-sm font-medium">Visual Variant</Label>
+                <Label htmlFor="banner-variant" className="text-sm font-medium block">
+                  Visual Variant
+                </Label>
                 <Select
                   value={form.variant}
                   onValueChange={(v) => setForm({ ...form, variant: v as BannerVariant })}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger id="banner-variant" className="w-full h-9">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -794,15 +818,18 @@ export function BannersClient({ initial }: { initial: BannerRow[] }) {
                 </Select>
               </div>
 
-              <div className="space-y-1.5 flex flex-col justify-end pb-1">
-                <div className="flex items-center justify-between rounded-md border p-2 bg-muted/30">
+              <div className="space-y-1.5">
+                <Label htmlFor="banner-is-active" className="text-sm font-medium block">
+                  Status
+                </Label>
+                <div className="flex h-9 items-center justify-between rounded-md border px-3 bg-muted/30">
                   <Label htmlFor="banner-is-active" className="text-xs font-medium cursor-pointer">
                     Active Immediately
                   </Label>
                   <Switch
                     id="banner-is-active"
                     checked={form.isActive}
-                    onCheckedChange={(checked) => setForm({ ...form, isActive: checked })}
+                    onCheckedChange={handleActiveToggle}
                   />
                 </div>
               </div>
@@ -810,14 +837,14 @@ export function BannersClient({ initial }: { initial: BannerRow[] }) {
 
             {/* ─── Countdown Configuration ───────────────────────────────── */}
             <div className="space-y-3 rounded-md border p-3 bg-muted/20">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <Label className="text-sm font-medium">Countdown Calculation</Label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className={`space-y-1.5 ${form.countdownType === "none" ? "sm:col-span-2" : ""}`}>
+                  <Label className="text-sm font-medium block">Countdown Calculation</Label>
                   <Select
                     value={form.countdownType}
                     onValueChange={(v) => setForm({ ...form, countdownType: v as CountdownType })}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className="w-full h-9">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -830,12 +857,13 @@ export function BannersClient({ initial }: { initial: BannerRow[] }) {
 
                 {form.countdownType !== "none" && (
                   <div className="space-y-1.5">
-                    <Label htmlFor="countdown-target" className="text-sm font-medium">
+                    <Label htmlFor="countdown-target" className="text-sm font-medium block">
                       Target Event Date & Time <span className="text-destructive">*</span>
                     </Label>
                     <Input
                       id="countdown-target"
                       type="datetime-local"
+                      className="h-9"
                       value={form.countdownTarget}
                       onChange={(e) => setForm({ ...form, countdownTarget: e.target.value })}
                     />
@@ -849,9 +877,9 @@ export function BannersClient({ initial }: { initial: BannerRow[] }) {
               <div className="text-xs font-medium text-foreground">
                 Scheduling Window (Optional — leave blank for unbounded activation)
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1.5">
-                  <Label htmlFor="start-date" className="text-xs text-muted-foreground">
+                  <Label htmlFor="start-date" className="text-xs text-muted-foreground block">
                     Start Showing At
                   </Label>
                   <Input
@@ -863,7 +891,7 @@ export function BannersClient({ initial }: { initial: BannerRow[] }) {
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label htmlFor="end-date" className="text-xs text-muted-foreground">
+                  <Label htmlFor="end-date" className="text-xs text-muted-foreground block">
                     Stop Showing At
                   </Label>
                   <Input
@@ -877,31 +905,39 @@ export function BannersClient({ initial }: { initial: BannerRow[] }) {
             </div>
 
             {/* ─── Advanced Settings: Priority, Paths, Reset Dismissals ──── */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label htmlFor="banner-priority" className="text-sm font-medium">
-                  Priority Score <span className="text-muted-foreground font-normal">(Higher wins)</span>
+                  Priority Score
                 </Label>
                 <Input
                   id="banner-priority"
                   type="number"
                   min="0"
                   step="1"
+                  className="h-9"
                   value={form.priority}
                   onChange={(e) => setForm({ ...form, priority: parseInt(e.target.value, 10) || 0 })}
                 />
+                <p className="text-[11px] text-muted-foreground">
+                  Higher numbers display first (default: 10)
+                </p>
               </div>
 
               <div className="space-y-1.5">
                 <Label htmlFor="banner-hide-paths" className="text-sm font-medium">
-                  Suppress On Routes <span className="text-muted-foreground font-normal">(Comma-separated)</span>
+                  Suppress On Routes
                 </Label>
                 <Input
                   id="banner-hide-paths"
                   placeholder="/admin, /draft"
+                  className="h-9"
                   value={form.hideOnPaths}
                   onChange={(e) => setForm({ ...form, hideOnPaths: e.target.value })}
                 />
+                <p className="text-[11px] text-muted-foreground">
+                  Comma-separated (e.g. /admin, /draft)
+                </p>
               </div>
             </div>
 

@@ -213,9 +213,11 @@ export function isBannerVisible(
 
   // 2. Route suppression check
   if (banner.hideOnPaths && Array.isArray(banner.hideOnPaths)) {
-    const isSuppressed = banner.hideOnPaths.some((prefix) => {
-      if (!prefix) return false
-      return pathname === prefix || pathname.startsWith(prefix + "/") || pathname.startsWith(prefix)
+    const isSuppressed = banner.hideOnPaths.some((p) => {
+      if (typeof p !== "string" || p.length === 0) return false
+      if (p === "/") return pathname === "/"
+      const prefix = p.endsWith("/") ? p.slice(0, -1) : p
+      return pathname === prefix || pathname.startsWith(`${prefix}/`)
     })
     if (isSuppressed) {
       return false
@@ -333,13 +335,17 @@ export function filterAndRankBanners(
 
   if (eligible.length === 0) return null
 
-  // Sort by priority DESC, then createdAt DESC
+  // Sort by priority DESC, then updatedAt DESC (fallback to createdAt)
   eligible.sort((a, b) => {
     if (b.priority !== a.priority) {
       return b.priority - a.priority
     }
-    const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0
-    const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0
+    const aTime = a.updatedAt
+      ? new Date(a.updatedAt).getTime()
+      : (a.createdAt ? new Date(a.createdAt).getTime() : 0)
+    const bTime = b.updatedAt
+      ? new Date(b.updatedAt).getTime()
+      : (b.createdAt ? new Date(b.createdAt).getTime() : 0)
     return bTime - aTime
   })
 

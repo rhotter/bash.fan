@@ -1,7 +1,7 @@
 import { db, schema } from "@/lib/db"
 import { desc } from "drizzle-orm"
 import { BannersClient, type BannerRow } from "@/components/admin/banners-client"
-import { BannerVariant, CountdownType } from "@/lib/banner-helpers"
+import { BannerVariant, CountdownType, normalizeHideOnPaths } from "@/lib/banner-helpers"
 
 export const metadata = {
   title: "Banners | Admin",
@@ -21,13 +21,13 @@ export default async function AdminBannersPage() {
     href: r.href,
     variant: r.variant as BannerVariant,
     isActive: r.isActive,
-    startDate: r.startDate ? r.startDate.toISOString() : null,
-    endDate: r.endDate ? r.endDate.toISOString() : null,
+    startDate: r.startDate && !isNaN(new Date(r.startDate).getTime()) ? new Date(r.startDate).toISOString() : null,
+    endDate: r.endDate && !isNaN(new Date(r.endDate).getTime()) ? new Date(r.endDate).toISOString() : null,
     countdownType: r.countdownType as CountdownType,
-    countdownTarget: r.countdownTarget ? r.countdownTarget.toISOString() : null,
+    countdownTarget: r.countdownTarget && !isNaN(new Date(r.countdownTarget).getTime()) ? new Date(r.countdownTarget).toISOString() : null,
     priority: r.priority,
     dismissVersion: r.dismissVersion,
-    hideOnPaths: r.hideOnPaths,
+    hideOnPaths: normalizeHideOnPaths(r.hideOnPaths),
     createdAt: r.createdAt ? new Date(r.createdAt).toISOString() : new Date().toISOString(),
     updatedAt: r.updatedAt ? new Date(r.updatedAt).toISOString() : new Date().toISOString(),
   }))

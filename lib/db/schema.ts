@@ -800,7 +800,7 @@ export const siteBanners = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (t) => [
-    index("idx_site_banners_active_priority").on(t.isActive, t.priority, t.createdAt),
+    index("idx_site_banners_active_priority").on(t.isActive, t.priority, t.updatedAt),
   ]
 )
 

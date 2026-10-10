@@ -65,8 +65,9 @@ async function main() {
 
   console.log("\n[3/4] Creating index 'idx_site_banners_active_priority'...")
   await rawSql(sql`
+    DROP INDEX IF EXISTS idx_site_banners_active_priority;
     CREATE INDEX IF NOT EXISTS idx_site_banners_active_priority
-      ON site_banners (is_active, priority DESC, created_at DESC)
+      ON site_banners (is_active, priority DESC, updated_at DESC)
   `)
   console.log("  ✓ Index 'idx_site_banners_active_priority' verified")
 
