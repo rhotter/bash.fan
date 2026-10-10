@@ -27,6 +27,7 @@ export function DraftPlayerBadge({
   const { letter, label, description } = playerBadges[kind]
   const [open, setOpen] = useState(false)
   const triggerRef = useRef<HTMLButtonElement>(null)
+  const openOnPointerDown = useRef<boolean | null>(null)
 
   return (
     <Tooltip open={open} onOpenChange={setOpen}>
@@ -36,14 +37,19 @@ export function DraftPlayerBadge({
           type="button"
           aria-expanded={open}
           onPointerDown={(event) => {
+            openOnPointerDown.current = open
             // Keep an open explanation in place until click can toggle it closed.
             // Radix otherwise closes on pointer-down, then our click reopens it.
             if (open) event.preventDefault()
           }}
+          onPointerCancel={() => { openOnPointerDown.current = null }}
           onClick={(event) => {
             event.preventDefault()
             event.stopPropagation()
-            setOpen((previous) => !previous)
+            // Mobile focus events can change open between pointer-down and click.
+            const wasOpen = event.detail > 0 ? openOnPointerDown.current : null
+            openOnPointerDown.current = null
+            setOpen((previous) => !(wasOpen ?? previous))
           }}
           className={cn(
             "relative pointer-events-auto shrink-0 inline-flex items-center justify-center h-4 min-w-4 px-1 rounded-sm border border-foreground/40 text-foreground text-[9px] font-bold uppercase tracking-wider leading-none cursor-help touch-manipulation [@media(pointer:coarse)]:min-h-6 [@media(pointer:coarse)]:min-w-6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground focus-visible:ring-offset-2",

@@ -99,6 +99,22 @@ describe("Draft player badge explanations", () => {
     expect(parentClick).not.toHaveBeenCalled()
   })
 
+  it("keeps the first touch open when focus arrives between pointer-up and click", async () => {
+    await render(<DraftPlayerBadge kind="rookie" />)
+    const trigger = badge("Rookie")
+    await flush(() => trigger.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, pointerType: "touch" })))
+    await flush(() => trigger.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, pointerType: "touch" })))
+    await flush(() => trigger.focus())
+    await flush(() => trigger.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, detail: 1 })))
+    expect(trigger.getAttribute("aria-expanded")).toBe("true")
+    expect(tooltip()).not.toBeNull()
+    await flush(() => trigger.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, cancelable: true, pointerType: "touch" })))
+    await flush(() => trigger.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, pointerType: "touch" })))
+    await flush(() => trigger.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, detail: 1 })))
+    expect(trigger.getAttribute("aria-expanded")).toBe("false")
+    expect(tooltip()).toBeNull()
+  })
+
   it("dismisses on an outside tap and allows reopening", async () => {
     await render(<><DraftPlayerBadge kind="rookie" /><button>Outside</button></>)
     await tap(badge("Rookie"))

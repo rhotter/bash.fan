@@ -688,7 +688,7 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
                   Complete
                 </Badge>
                 <span className="text-xs text-muted-foreground tabular-nums font-medium">
-                  {madePicks}/{totalPicks} picks ({progress}%)
+                  {madePicks}/{totalPicks} picks <span className="inline-block whitespace-nowrap">({progress}%)</span>
                 </span>
               </div>
             </div>
@@ -709,7 +709,7 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
                     )
                   )}
                   <span className="text-xs text-muted-foreground tabular-nums font-medium">
-                    {madePicks}/{totalPicks} picks ({progress}%)
+                    {madePicks}/{totalPicks} picks <span className="inline-block whitespace-nowrap">({progress}%)</span>
                   </span>
                   {isLive && (
                     <div className="flex gap-1.5">
@@ -1007,8 +1007,8 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
           ) : (
             <TabsList className="md:hidden w-full">
               <TabsTrigger value="board" className="flex-1 md:flex-none">Draft Board</TabsTrigger>
-              <TabsTrigger value="players" className="flex-1 md:flex-none">Available ({availablePlayers.length})</TabsTrigger>
-              <TabsTrigger value="recent" className="flex-1 md:hidden">Recent ({recentPicks.length})</TabsTrigger>
+              <TabsTrigger value="players" className="flex-1 md:flex-none">Available <span className="inline-block whitespace-nowrap">({availablePlayers.length})</span></TabsTrigger>
+              <TabsTrigger value="recent" className="flex-1 md:hidden">Recent <span className="inline-block whitespace-nowrap">({recentPicks.length})</span></TabsTrigger>
             </TabsList>
           )}
 
@@ -1091,12 +1091,12 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
                                     className="absolute inset-0 rounded-md cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/40"
                                   />
                                   <span className="pointer-events-none text-muted-foreground/40 tabular-nums text-[10px] shrink-0 w-7 text-right">#{pick.pickNumber}</span>
-                                  <span className="pointer-events-none flex-1 min-w-0 flex flex-col items-end gap-0.5 sm:flex-row sm:items-center sm:gap-1.5">
-                                    <span className="order-2 w-full truncate text-xs font-semibold group-hover:text-primary transition-colors sm:order-none sm:w-auto">
+                                  <span className="pointer-events-none flex-1 min-w-0 flex items-center gap-1.5">
+                                    <span className="truncate text-xs font-semibold group-hover:text-primary transition-colors">
                                       {pick.playerName}
                                     </span>
                                     {(isCaptain || pick.isKeeper || isRookie) && (
-                                      <span className="flex shrink-0 items-center gap-1.5">
+                                      <span className="relative -top-1.5 flex shrink-0 items-center gap-1.5 sm:top-0">
                                         {isCaptain && (
                                           <DraftPlayerBadge kind="captain" />
                                         )}
@@ -1198,9 +1198,9 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
                             return (
                               <td key={team.teamSlug} className="px-3 py-2 align-middle border-b border-border/20 border-l border-border/20">
                                 {pick.playerId ? (
-                                  <div className="flex flex-col items-end gap-0.5 min-w-0 sm:flex-row sm:items-center sm:gap-1.5">
+                                  <div className="flex items-center gap-1.5 min-w-0">
                                     <button
-                                      className="order-2 w-full truncate text-left text-xs text-foreground hover:text-primary transition-colors min-w-0 cursor-pointer sm:order-none sm:w-auto"
+                                      className="truncate text-left text-xs text-foreground hover:text-primary transition-colors min-w-0 cursor-pointer"
                                       onClick={() => pick.playerId && openPlayerCard(pick.playerId)}
                                       onMouseEnter={() => pick.playerId && prefetchPlayerStats(pick.playerId)}
                                       onFocus={() => pick.playerId && prefetchPlayerStats(pick.playerId)}
@@ -1209,7 +1209,7 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
                                       {(isCaptain || pick.isKeeper) ? formatPlayerNameCompact(pick.playerName) : formatPlayerName(pick.playerName)}
                                     </button>
                                     {(isCaptain || pick.isKeeper || isRookie || newOwner) && (
-                                      <span className="flex shrink-0 items-center gap-1.5">
+                                      <span className="relative -top-1.5 flex shrink-0 items-center gap-1.5 sm:top-0">
                                         {isCaptain && (
                                           <DraftPlayerBadge kind="captain" />
                                         )}
@@ -1294,9 +1294,9 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
                                   }`}
                                 >
                                   {pick.playerId ? (
-                                    <div className="flex flex-col items-end gap-0.5 min-w-0 sm:flex-row sm:flex-nowrap sm:items-center sm:gap-1">
+                                    <div className="flex flex-nowrap items-center gap-1 min-w-0">
                                       <button
-                                        className="order-2 w-full truncate min-w-0 sm:order-none sm:w-auto sm:flex-1 text-left text-xs hover:underline hover:text-primary transition-colors cursor-pointer"
+                                        className="truncate min-w-0 sm:flex-1 text-left text-xs hover:underline hover:text-primary transition-colors cursor-pointer"
                                         onClick={() => pick.playerId && openPlayerCard(pick.playerId)}
                                         onMouseEnter={() => pick.playerId && prefetchPlayerStats(pick.playerId)}
                                         onFocus={() => pick.playerId && prefetchPlayerStats(pick.playerId)}
@@ -1305,7 +1305,7 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
                                         {(isCaptain || pick.isKeeper) ? formatPlayerNameCompact(pick.playerName) : formatPlayerName(pick.playerName)}
                                       </button>
                                       {(isCaptain || isKeeper || isRookie || isGoalie) && (
-                                        <div className="flex items-center gap-0.5 shrink-0">
+                                        <div className="relative -top-1.5 flex items-center gap-0.5 shrink-0 sm:top-0">
                                           {isCaptain && (
                                             <DraftPlayerBadge kind="captain" className="h-3.5 min-w-3 px-0.5 rounded-[2px] text-[8.5px] tracking-normal" />
                                           )}
@@ -1608,7 +1608,7 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
                         : "text-muted-foreground hover:text-foreground"
                     }`}
                   >
-                    Recent ({recentPicks.length})
+                    Recent <span className="inline-block whitespace-nowrap">({recentPicks.length})</span>
                   </button>
                   <button
                     onClick={() => setSidebarTab("available")}
@@ -1618,7 +1618,7 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
                         : "text-muted-foreground hover:text-foreground"
                     }`}
                   >
-                    Available ({availablePlayers.length})
+                    Available <span className="inline-block whitespace-nowrap">({availablePlayers.length})</span>
                   </button>
                 </div>
               </CardHeader>
