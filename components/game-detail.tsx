@@ -614,7 +614,7 @@ function EventLog({ state, homeSlug, awaySlug, homeTeam, awayTeam, playerNames, 
                         <div className="text-[11px]">
                           <span className="font-semibold text-foreground inline-flex items-center">{renderName(g.scorerId)}</span>
                           {(g.assist1Id || g.assist2Id) ? (
-                            <span className="text-muted-foreground inline-flex items-center flex-wrap">
+                            <span className="text-muted-foreground">
                               {" "}(
                               <span className="inline-flex items-center">{renderName(g.assist1Id)}</span>
                               {g.assist2Id && (
