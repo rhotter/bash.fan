@@ -2,213 +2,178 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { useEffect, useMemo, useState, type MouseEvent } from "react"
+import { useEffect, useState, useMemo, type MouseEvent } from "react"
 import useSWR from "swr"
 import { X } from "lucide-react"
-
-// ─── Types ──────────────────────────────────────────────────────────────────
-
-/** Visual style for the banner dot indicator */
-type BannerVariant = "live" | "default"
-
-/**
- * Configuration for a single site-wide banner.
- *
- * To add a new banner type:
- *   1. Add a new entry to the `banners` array inside `SiteBanner` (order = priority)
- *   2. Set `isActive` to a boolean condition (date check, SWR data, etc.)
- *   3. Choose a unique `dismissKey` so users can dismiss it independently
- *   4. That's it — the component handles rendering, dismiss, and priority.
- */
-type BannerConfig = {
-  /** Unique identifier for this banner (used in aria-label) */
-  id: string
-  /** localStorage key for dismissal tracking — must be globally unique */
-  dismissKey: string
-  /** Display text shown in the banner */
-  label: string
-  /** Link destination when the banner is clicked */
-  href: string
-  /** "live" = green pulsing dot, "default" = subtle dot */
-  variant: BannerVariant
-  /** Whether this banner's activation conditions are met */
-  isActive: boolean
-  /** Pathname prefixes where this banner is suppressed */
-  hideOnPaths?: string[]
-  /** Optional trailing content (e.g., countdown, badge) */
-  suffix?: React.ReactNode
-}
-
-// ─── Shared ─────────────────────────────────────────────────────────────────
+import {
+  PublicBanner,
+  computeCountdownSuffix,
+  resolveEffectiveVariant,
+  isBannerVisible,
+  getDismissalKey,
+} from "@/lib/banner-helpers"
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
-
-// ─── Registration config ────────────────────────────────────────────────────
-// Registration closes September 25, 2026, in San Francisco (PDT).
-const REG_CLOSE_DATE = new Date("2026-09-25T23:59:59-07:00")
-const REG_SEASON_LABEL = "Fall 2026–27"
-
-// ─── Component ──────────────────────────────────────────────────────────────
 
 export function SiteBanner() {
   const pathname = usePathname()
   const [dismissedKeys, setDismissedKeys] = useState<Set<string>>(new Set())
-  const [hydrated, setHydrated] = useState(false)
+  const [checkedBannerKey, setCheckedBannerKey] = useState<string | null>(null)
 
-  const { data: draftStatus } = useSWR<{
-    status: string | null
-    seasonSlug?: string
-    draftDate?: string | null
-  }>("/api/bash/draft-status", fetcher, {
-    revalidateOnFocus: false,
-    dedupingInterval: 30000,
-  })
-
-  // ─── Derived state ──────────────────────────────────────────────────────
-  const draftActive =
-    draftStatus?.status === "live" || draftStatus?.status === "published"
-  const draftSeasonSlug = draftStatus?.seasonSlug ?? ""
-  const isLive = draftStatus?.status === "live"
-
-  const regExpired = Date.now() > REG_CLOSE_DATE.getTime()
-  const daysLeft = Math.max(
-    0,
-    Math.ceil((REG_CLOSE_DATE.getTime() - Date.now()) / 86400000),
-  )
-
-  // ─── Banner configs (ordered by priority — first match wins) ────────────
-  //
-  // To add a new banner, append an entry here. The first active +
-  // visible + non-dismissed banner is rendered; everything else is skipped.
-  //
-  const banners: BannerConfig[] = [
-    // Priority 1: Live or Published Draft
-    {
-      id: "draft",
-      dismissKey: `bash-draft-banner-dismissed-${draftSeasonSlug}-${draftStatus?.status ?? ""}`,
-      label: isLive
-        ? "BASH Draft is LIVE — Watch the picks unfold"
-        : "BASH Draft: Wed @ 7pm",
-      href: `/draft/${draftSeasonSlug}`,
-      variant: isLive ? "live" : "default",
-      isActive: draftActive && !!draftSeasonSlug,
-      hideOnPaths: ["/admin", "/draft"],
-      suffix: !isLive && draftStatus?.draftDate ? (() => {
-        const draftDate = new Date(draftStatus.draftDate)
-        const now = new Date()
-        const isSameDay = now.toDateString() === draftDate.toDateString()
-        const daysUntil = isSameDay ? 0 : Math.max(0, Math.ceil((draftDate.getTime() - now.getTime()) / 86400000))
-        if (daysUntil === 0) return null
-        return (
-          <span className="text-muted-foreground/70">
-            {" · "}Live in <span className="tabular-nums">{daysUntil}</span> day{daysUntil === 1 ? "" : "s"}
-          </span>
-        )
-      })() : undefined,
-    },
-
-    // Priority 2: Fall registration
-    {
-      id: "registration",
-      dismissKey: `bash-reg-banner-dismissed-fall-2026`,
-      label: `Register for ${REG_SEASON_LABEL}`,
-      href: "https://secure.sportability.com/spx/Registration/Choose_pr.asp?LgID=51054",
-      variant: "default",
-      isActive: !regExpired,
-      hideOnPaths: ["/admin"],
-      suffix: (
-        <span className="text-muted-foreground/70">
-          {" · "}
-          <span className="tabular-nums">{daysLeft}</span>{" "}
-          day{daysLeft === 1 ? "" : "s"} left
-        </span>
-      ),
-    },
-
-    // ─── Add future banners here ────────────────────────────────────────
-    // Example:
-    // {
-    //   id: "playoffs",
-    //   dismissKey: "bash-banner-playoffs-2026-summer",
-    //   label: "Playoff bracket is live — check the matchups",
-    //   href: "/standings?season=2026-summer",
-    //   variant: "default",
-    //   isActive: false,
-    //   hideOnPaths: ["/admin"],
-    // },
-  ]
-
-  // ─── Compute dismiss keys to check (stable memo for useEffect dep) ──────
-  const dismissKeyList = useMemo(
-    () => banners.filter((b) => b.isActive).map((b) => b.dismissKey),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [draftStatus?.status, draftSeasonSlug, regExpired],
-  )
-
-  // ─── Hydrate dismiss state from localStorage ───────────────────────────
+  // Periodic clock tick for live countdown updating
+  const [now, setNow] = useState(() => new Date())
   useEffect(() => {
-    const dismissed = new Set<string>()
-    dismissKeyList.forEach((key) => {
-      if (localStorage.getItem(key) === "1") dismissed.add(key)
-    })
-    setDismissedKeys(dismissed)
-    setHydrated(true)
-  }, [dismissKeyList])
+    const timer = setInterval(() => setNow(new Date()), 30000)
+    return () => clearInterval(timer)
+  }, [])
 
-  // ─── Resolve the highest-priority banner to show ────────────────────────
-  if (!hydrated) return null
+  // Fetch highest-priority active banner from database
+  const { data } = useSWR<{ banner: PublicBanner | null }>(
+    "/api/bash/banners",
+    fetcher,
+    {
+      revalidateOnFocus: false,
+      dedupingInterval: 30000,
+      refreshInterval: 30000,
+    },
+  )
 
-  const activeBanner = banners.find((b) => {
-    if (!b.isActive) return false
-    if (b.hideOnPaths?.some((p) => pathname.startsWith(p))) return false
-    if (dismissedKeys.has(b.dismissKey)) return false
-    return true
-  })
+  const banner = data?.banner ?? null
 
-  if (!activeBanner) return null
+  // Hydrate client-side localStorage dismissals before first render frame
+  useEffect(() => {
+    if (!banner) {
+      setCheckedBannerKey(null)
+      return
+    }
+    const key = getDismissalKey(banner.id, banner.dismissVersion)
+    try {
+      const val = localStorage.getItem(key)
+      if (val === "dismissed" || val === "1") {
+        setDismissedKeys((prev) => (prev.has(key) ? prev : new Set(prev).add(key)))
+      }
+    } catch {
+      // Ignore localStorage errors (e.g. private browsing mode)
+    }
+    setCheckedBannerKey(key)
+  }, [banner])
 
-  // ─── Dismiss handler ──────────────────────────────────────────────────
-  const dismiss = (e: MouseEvent<HTMLButtonElement>) => {
-    e.preventDefault()
-    e.stopPropagation()
-    localStorage.setItem(activeBanner.dismissKey, "1")
-    setDismissedKeys((prev) => new Set(prev).add(activeBanner.dismissKey))
+  // Dynamic suffix and effective variant calculation
+  const suffix = useMemo(() => {
+    if (!banner) return null
+    return computeCountdownSuffix(
+      banner.countdownType,
+      banner.countdownTarget,
+      now,
+      "America/Los_Angeles",
+    )
+  }, [banner, now])
+
+  const effectiveVariant = useMemo(() => {
+    if (!banner) return "default"
+    return resolveEffectiveVariant(banner.variant, banner.countdownType, suffix)
+  }, [banner, suffix])
+
+  // Evaluate full client visibility (active status, route suppression, date bounds, dismissals)
+  const currentBannerKey = banner ? getDismissalKey(banner.id, banner.dismissVersion) : null
+  const isDismissalChecked = banner && checkedBannerKey === currentBannerKey
+
+  const isVisible = useMemo(() => {
+    if (!banner || !isDismissalChecked) return false
+    return isBannerVisible(banner, pathname, dismissedKeys, now)
+  }, [banner, isDismissalChecked, pathname, dismissedKeys, now])
+
+  // Safely normalize external vs internal URLs (supports mailto:, tel:, #)
+  const resolvedHref = useMemo(() => {
+    if (!banner) return "/"
+    const trimmed = banner.href?.trim() || ""
+    if (!trimmed) return "/"
+    if (
+      trimmed.startsWith("http://") ||
+      trimmed.startsWith("https://") ||
+      (trimmed.startsWith("/") && !trimmed.startsWith("//")) ||
+      trimmed.startsWith("mailto:") ||
+      trimmed.startsWith("tel:") ||
+      trimmed.startsWith("#")
+    ) {
+      return trimmed
+    }
+    return `https://${trimmed}`
+  }, [banner])
+
+  if (!isVisible || !banner) {
+    return null
   }
 
-  // ─── Render ───────────────────────────────────────────────────────────
+  const handleDismiss = (e: MouseEvent<HTMLButtonElement>) => {
+    e.preventDefault()
+    e.stopPropagation()
+    const key = getDismissalKey(banner.id, banner.dismissVersion)
+    try {
+      localStorage.setItem(key, "dismissed")
+    } catch {
+      // Ignore localStorage errors (e.g. private browsing mode)
+    }
+    setDismissedKeys((prev) => new Set(prev).add(key))
+  }
+
+  const mobileLabel = banner.mobileLabel?.trim() || null
+
   return (
-    <div className="relative border-b border-border/60 bg-muted/40">
+    <div
+      role="region"
+      aria-label="Site announcement"
+      className="relative border-b border-border/60 bg-muted/40 h-8"
+    >
       <Link
-        href={activeBanner.href}
-        className="group flex items-center justify-start gap-x-2 py-1.5 pl-4 pr-8 text-left text-[12px] text-muted-foreground transition-colors hover:bg-muted/70 sm:justify-center sm:px-8 sm:text-[13px]"
+        href={resolvedHref}
+        className="group flex h-full items-center justify-start gap-x-2 py-1.5 pl-4 pr-12 sm:pr-8 text-left text-[12px] text-muted-foreground transition-colors hover:bg-muted/70 sm:justify-center sm:px-8 sm:text-[13px] min-w-0"
       >
-        {activeBanner.variant === "live" ? (
+        {/* Visual Indicator Dot */}
+        {effectiveVariant === "live" ? (
           <span className="relative flex h-2 w-2 shrink-0">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
           </span>
+        ) : effectiveVariant === "warning" ? (
+          <span className="inline-flex h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" />
         ) : (
           <span className="inline-flex h-1.5 w-1.5 shrink-0 rounded-full bg-foreground/40" />
         )}
-        <span className="truncate">
-          <span
-            className={
-              "font-medium underline underline-offset-4 group-hover:decoration-foreground " +
-              (activeBanner.variant === "live"
-                ? "text-green-600 dark:text-green-400 decoration-green-600/30 dark:decoration-green-400/30"
-                : "text-foreground decoration-foreground/30")
-            }
-          >
-            {activeBanner.label}
+
+        {/* Truncated Copy with Pure CSS Responsive Switching */}
+        <span
+          className={
+            "truncate font-medium underline underline-offset-4 group-hover:decoration-foreground " +
+            (effectiveVariant === "live"
+              ? "text-emerald-600 dark:text-emerald-400 decoration-emerald-600/30 dark:decoration-emerald-400/30"
+              : effectiveVariant === "warning"
+              ? "text-amber-600 dark:text-amber-400 decoration-amber-600/30 dark:decoration-amber-400/30"
+              : "text-foreground decoration-foreground/30")
+          }
+        >
+          <span className={mobileLabel ? "hidden sm:inline" : ""}>
+            {banner.label}
           </span>
-          {activeBanner.suffix}
+          {mobileLabel && (
+            <span className="inline sm:hidden">{mobileLabel}</span>
+          )}
         </span>
+
+        {/* Protected Countdown Suffix (Direct sibling with shrink-0 tabular-nums) */}
+        {suffix && (
+          <span className="shrink-0 text-muted-foreground/70 tabular-nums">
+            {suffix}
+          </span>
+        )}
       </Link>
+
+      {/* Dismiss Button with WCAG 2.5.5 Touch Target (min 44×44px on mobile, compact on desktop) */}
       <button
         type="button"
-        onClick={dismiss}
-        aria-label={`Dismiss ${activeBanner.id} banner`}
-        className="absolute right-1 top-1/2 -translate-y-1/2 rounded p-1 text-muted-foreground/60 hover:bg-foreground/10 hover:text-foreground sm:right-3"
+        onClick={handleDismiss}
+        aria-label="Dismiss banner"
+        className="absolute right-0 top-1/2 -translate-y-1/2 flex h-full min-h-[44px] min-w-[44px] items-center justify-center p-2 touch-manipulation text-muted-foreground/60 hover:text-foreground sm:right-2 sm:h-auto sm:min-h-0 sm:min-w-0 sm:p-1"
       >
         <X className="h-3.5 w-3.5" />
       </button>

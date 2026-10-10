@@ -3,6 +3,8 @@ import { db, schema } from "@/lib/db"
 import { eq } from "drizzle-orm"
 import { getSession } from "@/lib/admin-session"
 
+import { getDraftBannerIds, syncDraftBanner } from "@/lib/draft-banner-sync"
+
 interface RouteContext {
   params: Promise<{ id: string; draftId: string }>
 }
@@ -42,6 +44,16 @@ export async function POST(_request: NextRequest, context: RouteContext) {
     .set({ status: "archived", updatedAt: new Date() })
     .where(eq(schema.draftInstances.id, draftId))
 
+  try {
+    const { resultsId } = getDraftBannerIds(draftId)
+    await db
+      .update(schema.siteBanners)
+      .set({ isActive: false, updatedAt: new Date() })
+      .where(eq(schema.siteBanners.id, resultsId))
+  } catch (e) {
+    console.error("Failed to deactivate draft results banner on archive:", e)
+  }
+
   return NextResponse.json({ ok: true })
 }
 
@@ -55,7 +67,7 @@ export async function DELETE(_request: NextRequest, context: RouteContext) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
-  const { draftId } = await context.params
+  const { id: seasonId, draftId } = await context.params
 
   const [existing] = await db
     .select()
@@ -78,6 +90,16 @@ export async function DELETE(_request: NextRequest, context: RouteContext) {
     .update(schema.draftInstances)
     .set({ status: "completed", updatedAt: new Date() })
     .where(eq(schema.draftInstances.id, draftId))
+
+  try {
+    await syncDraftBanner({
+      draftId,
+      seasonId,
+      event: "complete",
+    })
+  } catch (e) {
+    console.error("Failed to restore draft results banner on unarchive:", e)
+  }
 
   return NextResponse.json({ ok: true })
 }

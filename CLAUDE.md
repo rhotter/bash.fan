@@ -35,6 +35,7 @@ Prefer neutral theme tokens (`text-foreground`, `text-muted-foreground`, `bg-mut
 2. **Server:** Pages are async Server Components that fetch data via functions in `lib/fetch-*.ts` (which call API routes or query DB directly)
 3. **Client:** Interactive components use SWR hooks from `lib/hockey-data.ts` with `fallbackData` from server-side prefetch. Hooks auto-refresh on intervals (60-120s)
 4. **Draft:** Admin creates/configures drafts via wizard → transitions to live → picks entered through admin board → public board polls `/api/bash/draft/[season]` via SWR (3s interval)
+5. **Banners:** Database-backed alert banner management (`/admin/banners`). Public `SiteBanner` fetches active banner via SWR (`/api/bash/banners`, 30s cache/poll) with responsive desktop/mobile label switching, automated draft lifecycle sync (`lib/draft-banner-sync.ts`), and versioned dismissal tracking.
 
 ### Page Pattern
 
@@ -43,17 +44,22 @@ Each page follows: async Server Component (data fetch + `generateMetadata`) → 
 ### Key Directories
 
 - `app/api/bash/` — REST API routes with Cache-Control headers
+- `app/api/bash/admin/banners/` — Admin banner management API (CRUD)
 - `app/api/bash/admin/seasons/[id]/draft/` — Draft management API (22 endpoints)
 - `lib/fetch-*.ts` — Server-side data fetching functions (raw SQL queries)
 - `lib/hockey-data.ts` — SWR hooks for client-side data
-- `lib/db/schema.ts` — Drizzle ORM schema (39 tables)
+- `lib/db/schema.ts` — Drizzle ORM schema (40 tables)
+- `lib/banner-helpers.ts` — Pure helper algorithms, countdown suffixes, and banner contract validators
+- `lib/draft-banner-sync.ts` — Automated banner sync engine across draft lifecycle state transitions
 - `lib/draft-helpers.ts` — Snake/linear pick slot generation
 - `lib/draft-trade-resolver.ts` — Chain trade resolution engine
 - `lib/csv-utils.ts` — Shared CSV parser for Sportability exports
 - `components/` — Page-level components (scores-tab, standings-tab, stats-tab, etc.)
+- `components/site-banner.tsx` — Responsive public site banner with protected countdown truncation
+- `components/admin/banners-client.tsx` — Admin banner management portal with dual desktop/mobile preview
 - `components/admin/draft-*.tsx` — Draft wizard, board, and pool import components
 - `components/public-draft-board.tsx` — Real-time public draft spectator view
-- `scripts/` — DB seeding, production DB sync (`export-prod-db.ts`), and data maintenance utilities
+- `scripts/` — DB seeding, schema migration (`deploy-banners-schema.ts`), production DB sync (`export-prod-db.ts`), and data maintenance utilities
 
 ### Standings Computation
 
@@ -65,6 +71,7 @@ Standings are computed from the games array (not stored): W=3pts, OTW=2pts, OTL=
 - `/standings`, `/stats` — List pages filtered by `?season=YYYY-YYYY`
 - `/player/[slug]`, `/team/[slug]`, `/game/[id]` — Detail pages
 - `/draft/[season]` — Public draft board (e.g., `/draft/2026-summer`)
+- `/admin/banners` — Site banner management and dynamic countdown broadcasts
 - `/admin/seasons/[id]/draft/[draftId]/board` — Admin live draft board
 - `/admin/scoresheet/[gameId]` — Printable game scoresheet (rosters, scoring/penalty tables, shot grids, officials, game stars)
 - `/admin/scoresheet/season/[id]` — Printable batch scoresheets for all remaining games in a season

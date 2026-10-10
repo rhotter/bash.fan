@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { db, schema } from "@/lib/db"
 import { eq } from "drizzle-orm"
 import { getSession } from "@/lib/admin-session"
+import { syncDraftBanner } from "@/lib/draft-banner-sync"
 
 interface RouteContext {
   params: Promise<{ id: string; draftId: string }>
@@ -14,7 +15,7 @@ export async function POST(_request: NextRequest, context: RouteContext) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
-  const { draftId } = await context.params
+  const { id, draftId } = await context.params
 
   const [draft] = await db
     .select()
@@ -46,6 +47,16 @@ export async function POST(_request: NextRequest, context: RouteContext) {
       })
       .where(eq(schema.draftInstances.id, draftId))
 
+    try {
+      await syncDraftBanner({
+        draftId,
+        seasonId: id,
+        event: "publish",
+      })
+    } catch (bannerErr) {
+      console.error("Failed to sync pre-draft banner on publish:", bannerErr)
+    }
+
     return NextResponse.json({ ok: true, status: "published" })
   } catch (err) {
     console.error("Failed to publish draft:", err)
@@ -60,7 +71,7 @@ export async function DELETE(_request: NextRequest, context: RouteContext) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
-  const { draftId } = await context.params
+  const { id, draftId } = await context.params
 
   const [draft] = await db
     .select()
@@ -87,6 +98,16 @@ export async function DELETE(_request: NextRequest, context: RouteContext) {
         updatedAt: new Date(),
       })
       .where(eq(schema.draftInstances.id, draftId))
+
+    try {
+      await syncDraftBanner({
+        draftId,
+        seasonId: id,
+        event: "unpublish",
+      })
+    } catch (bannerErr) {
+      console.error("Failed to deactivate pre-draft banner on unpublish:", bannerErr)
+    }
 
     return NextResponse.json({ ok: true, status: "draft" })
   } catch (err) {

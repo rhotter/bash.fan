@@ -115,6 +115,11 @@ Navigate to `http://localhost:3000` in your browser. The app should now be runni
   pnpm lint && npx tsc --noEmit && pnpm build
   ```
 
+- **Running Banner Tests**: To verify the full banner test suite (helper math, date/timezone parsing, SWR, admin & public APIs, responsive layout assertions, draft sync lifecycle):
+  ```bash
+  npx vitest run tests/banners
+  ```
+
 - **Running Scripts requiring DB access**: 
   If you write custom one-off scripts in the `scripts/` directory that need to talk to the DB, run them like this:
   ```bash
@@ -161,6 +166,7 @@ The admin dashboard (`/admin`) provides season management, schedule generation, 
    - **Draft Tab** (`/admin/seasons/[id]` → Draft tab): Create, configure, and manage draft instances. The 5-step wizard walks through settings, player pool (with Sportability CSV import), teams & captains, draft order & pre-draft trades, and review.
    - **Live Draft Board** (`/admin/seasons/[id]/draft/[draftId]/board`): Enter picks, manage timer, execute trades, and undo picks. This is the commissioner's control center during a live draft.
    - **Public Draft Board** (`/draft/[season]`): The read-only spectator view. Polls the server every 3 seconds for live updates. Test by opening this URL in a separate browser while making picks on the admin board.
+   - **Banner Management** (`/admin/banners`): Create, edit, toggle active status, and delete announcement banners. Test the **Dual Interactive Preview** (Desktop full-width vs Mobile 375px), length guidance warnings (>35 chars on mobile), countdown configurations (deadline vs event), route suppression (`hideOnPaths`), and dismissal resets. Also test the automated draft lifecycle banner hooks: publishing a draft creates a pre-draft countdown banner, starting a draft activates a live alert banner, completing a draft creates a results banner expiring at upcoming Friday midnight PT, and archiving deactivates it.
 4. Generated schedules call the API routes under `/api/bash/admin/seasons/[id]/schedule/`. The wizards run generation logic entirely client-side (`lib/schedule-utils.ts`) and only POST the final payload to the server.
 5. Draft API routes live under `/api/bash/admin/seasons/[id]/draft/`. All 22 endpoints require admin authentication via `getSession()`.
 

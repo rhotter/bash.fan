@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { db, schema } from "@/lib/db"
 import { eq } from "drizzle-orm"
 import { getSession } from "@/lib/admin-session"
+import { syncDraftBanner } from "@/lib/draft-banner-sync"
 
 interface RouteContext {
   params: Promise<{ id: string; draftId: string }>
@@ -14,7 +15,7 @@ export async function POST(_request: NextRequest, context: RouteContext) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
-  const { draftId } = await context.params
+  const { id, draftId } = await context.params
 
   const [draft] = await db
     .select()
@@ -51,6 +52,17 @@ export async function POST(_request: NextRequest, context: RouteContext) {
       action: "revert_to_live",
       detail: { previousStatus: "completed" },
     })
+
+    // Revert banner state: deactivate results banner and restore live banner
+    try {
+      await syncDraftBanner({
+        draftId,
+        seasonId: id,
+        event: "revert_to_live",
+      })
+    } catch (bannerErr) {
+      console.error("Failed to sync live draft banner on revert_to_live:", bannerErr)
+    }
 
     return NextResponse.json({ ok: true, status: "live" })
   } catch (err) {

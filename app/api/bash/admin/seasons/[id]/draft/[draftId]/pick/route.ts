@@ -3,6 +3,7 @@ import { draftPicks, draftInstances, draftPool, draftLog, players } from "@/lib/
 import { eq, and, isNull, notInArray, sql } from "drizzle-orm"
 import { NextResponse } from "next/server"
 import { getSession } from "@/lib/admin-session"
+import { syncDraftBanner } from "@/lib/draft-banner-sync"
 
 export async function POST(
   req: Request,
@@ -13,7 +14,7 @@ export async function POST(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
-  const { id: _seasonId, draftId } = await params
+  const { id: seasonId, draftId } = await params
   const { pickId, playerId } = await req.json()
 
   if (!pickId || !playerId) {
@@ -107,6 +108,17 @@ export async function POST(
       action: "complete",
       detail: { trigger: "auto", reason: "All pool players drafted" },
     })
+
+    // Activate 'View Draft Results' banner expiring next Friday midnight
+    try {
+      await syncDraftBanner({
+        draftId,
+        seasonId,
+        event: "complete",
+      })
+    } catch (err) {
+      console.error("Failed to sync draft completion banner:", err)
+    }
   } else {
     // Reset the timer for the next pick
     await db.update(draftInstances)

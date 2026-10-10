@@ -7,7 +7,7 @@ export default defineConfig({
     environment: "node",
     testTimeout: 30000,
     setupFiles: ["./tests/setup.ts"],
-    exclude: [...configDefaults.exclude, "**/.agents/**"],
+    exclude: [...configDefaults.exclude, "**/.agents/**", "**/.worktrees/**"],
   },
   resolve: {
     alias: {

@@ -43,7 +43,7 @@ next-env.d.ts
 test-*.js
 test-*.ts
 migrate.ts
-
 # agents / teamwork
 .agents/teamwork/
+TEST_*.md
 

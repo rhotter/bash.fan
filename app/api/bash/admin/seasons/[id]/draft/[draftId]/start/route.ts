@@ -4,6 +4,7 @@ import { eq, and } from "drizzle-orm"
 import { getSession } from "@/lib/admin-session"
 import { resolvePreDraftTrades, type PreDraftTradeInput } from "@/lib/draft-trade-resolver"
 import { generatePickSlots } from "@/lib/draft-helpers"
+import { syncDraftBanner } from "@/lib/draft-banner-sync"
 
 interface RouteContext {
   params: Promise<{ id: string; draftId: string }>
@@ -17,7 +18,7 @@ export async function POST(_request: NextRequest, context: RouteContext) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
-  const { draftId } = await context.params
+  const { id, draftId } = await context.params
 
   const [draft] = await db
     .select()
@@ -182,6 +183,17 @@ export async function POST(_request: NextRequest, context: RouteContext) {
         rounds: draft.rounds,
       },
     })
+
+    // 10. Activate live draft banner
+    try {
+      await syncDraftBanner({
+        draftId,
+        seasonId: id,
+        event: "start",
+      })
+    } catch (bannerErr) {
+      console.error("Failed to sync live draft banner on start:", bannerErr)
+    }
 
     return NextResponse.json({
       ok: true,
