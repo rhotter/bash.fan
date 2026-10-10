@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
 import { db, schema } from "@/lib/db"
-import { eq, and, sql } from "drizzle-orm"
+import { eq, and, sql, inArray } from "drizzle-orm"
 import { getSession } from "@/lib/admin-session"
+import { getDraftBannerIds, syncDraftBanner } from "@/lib/draft-banner-sync"
 
 interface RouteContext {
   params: Promise<{ id: string; draftId: string }>
@@ -69,7 +70,7 @@ export async function PUT(request: NextRequest, context: RouteContext) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
-  const { draftId } = await context.params
+  const { id: seasonId, draftId } = await context.params
 
   const [existing] = await db
     .select()
@@ -146,6 +147,19 @@ export async function PUT(request: NextRequest, context: RouteContext) {
       }
     }
 
+    // Re-sync pre-draft banner if draft is published and draftDate was updated
+    if (existing.status === "published" && draftDate !== undefined) {
+      try {
+        await syncDraftBanner({
+          draftId,
+          seasonId,
+          event: "publish",
+        })
+      } catch (e) {
+        console.error("Failed to re-sync draft banner on reschedule:", e)
+      }
+    }
+
     return NextResponse.json({ ok: true })
   } catch (err) {
     console.error("Failed to update draft:", err)
@@ -160,7 +174,7 @@ export async function DELETE(_request: NextRequest, context: RouteContext) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
-  const { draftId } = await context.params
+  const { id: seasonId, draftId } = await context.params
 
   const [existing] = await db
     .select()
@@ -188,9 +202,18 @@ export async function DELETE(_request: NextRequest, context: RouteContext) {
     // Now safe to delete the instance (remaining children cascade)
     await db.delete(schema.draftInstances).where(eq(schema.draftInstances.id, draftId))
 
+    // Clean up any banners created for this draft
+    try {
+      const { predraftId, liveId, resultsId } = getDraftBannerIds(draftId)
+      await db
+        .delete(schema.siteBanners)
+        .where(inArray(schema.siteBanners.id, [predraftId, liveId, resultsId]))
+    } catch (e) {
+      console.error("Failed to delete draft banners:", e)
+    }
+
     // Reset all player assignments for this season back to 'tbd'
     // This ensures deleting a draft correctly undoes the roster assignments.
-    const { id: seasonId } = await context.params
     await db
       .update(schema.playerSeasons)
       .set({ teamSlug: "tbd" })

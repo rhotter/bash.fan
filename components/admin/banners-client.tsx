@@ -144,11 +144,12 @@ function formatDateDisplay(iso: string | null | undefined): string {
   try {
     const d = new Date(iso)
     if (isNaN(d.getTime())) return "—"
-    return d.toLocaleDateString(undefined, {
+    return d.toLocaleDateString("en-US", {
       month: "short",
       day: "numeric",
       hour: "numeric",
       minute: "2-digit",
+      timeZone: "America/Los_Angeles",
     })
   } catch {
     return "—"
@@ -260,7 +261,8 @@ export function BannersClient({ initial }: { initial: BannerRow[] }) {
     return computeCountdownSuffix(
       form.countdownType,
       new Date(form.countdownTarget),
-      new Date()
+      new Date(),
+      "America/Los_Angeles",
     )
   }, [form.countdownType, form.countdownTarget])
 
@@ -283,7 +285,7 @@ export function BannersClient({ initial }: { initial: BannerRow[] }) {
     )
 
     try {
-      const res = await fetch(`/api/bash/admin/banners/${banner.id}`, {
+      const res = await fetch(`/api/bash/admin/banners/${encodeURIComponent(banner.id)}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ isActive: nextState }),
@@ -349,7 +351,7 @@ export function BannersClient({ initial }: { initial: BannerRow[] }) {
     setBusy(true)
     try {
       const url = editing
-        ? `/api/bash/admin/banners/${editing.id}`
+        ? `/api/bash/admin/banners/${encodeURIComponent(editing.id)}`
         : `/api/bash/admin/banners`
       const res = await fetch(url, {
         method: editing ? "PUT" : "POST",
@@ -402,7 +404,7 @@ export function BannersClient({ initial }: { initial: BannerRow[] }) {
     if (!pendingDelete) return
     setBusy(true)
     try {
-      const res = await fetch(`/api/bash/admin/banners/${pendingDelete.id}`, {
+      const res = await fetch(`/api/bash/admin/banners/${encodeURIComponent(pendingDelete.id)}`, {
         method: "DELETE",
       })
       const data = await res.json()

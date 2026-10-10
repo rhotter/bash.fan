@@ -61,7 +61,12 @@ export function SiteBanner() {
   // Dynamic suffix and effective variant calculation
   const suffix = useMemo(() => {
     if (!banner) return null
-    return computeCountdownSuffix(banner.countdownType, banner.countdownTarget, now)
+    return computeCountdownSuffix(
+      banner.countdownType,
+      banner.countdownTarget,
+      now,
+      "America/Los_Angeles",
+    )
   }, [banner, now])
 
   const effectiveVariant = useMemo(() => {

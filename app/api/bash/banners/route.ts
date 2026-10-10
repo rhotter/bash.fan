@@ -71,6 +71,16 @@ export async function GET() {
         const d = new Date(eligibleBanner.countdownTarget)
         return isNaN(d.getTime()) ? null : d.toISOString()
       })(),
+      startDate: (() => {
+        if (!eligibleBanner.startDate) return null
+        const d = new Date(eligibleBanner.startDate)
+        return isNaN(d.getTime()) ? null : d.toISOString()
+      })(),
+      endDate: (() => {
+        if (!eligibleBanner.endDate) return null
+        const d = new Date(eligibleBanner.endDate)
+        return isNaN(d.getTime()) ? null : d.toISOString()
+      })(),
       dismissVersion: eligibleBanner.dismissVersion,
       hideOnPaths: normalizeHideOnPaths(eligibleBanner.hideOnPaths),
     }

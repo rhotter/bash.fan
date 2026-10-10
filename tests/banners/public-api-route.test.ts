@@ -81,6 +81,8 @@ describe("Public Banner API Route: GET /api/bash/banners", () => {
     expect(data.banner.label).toBe("Playoffs are live!")
     expect(data.banner.mobileLabel).toBe("Playoffs")
     expect(data.banner.variant).toBe("live")
+    expect(data.banner.startDate).toBe("2026-10-01T00:00:00.000Z")
+    expect(data.banner.endDate).toBe("2026-10-15T00:00:00.000Z")
   })
 
   it("skips deadline-expired banner in query results", async () => {

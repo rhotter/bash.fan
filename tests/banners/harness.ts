@@ -67,6 +67,8 @@ export function getBannerStatus(
     isActive: boolean
     startDate?: string | Date | null
     endDate?: string | Date | null
+    countdownType?: CountdownType
+    countdownTarget?: string | Date | null
   },
   now: Date = new Date()
 ): BannerStatus {
@@ -86,6 +88,13 @@ export function getBannerStatus(
   if (banner.endDate) {
     const endMs = new Date(banner.endDate).getTime()
     if (!isNaN(endMs) && nowMs > endMs) {
+      return "expired"
+    }
+  }
+
+  if (banner.countdownType === "deadline" && banner.countdownTarget) {
+    const targetMs = new Date(banner.countdownTarget).getTime()
+    if (!isNaN(targetMs) && nowMs >= targetMs) {
       return "expired"
     }
   }

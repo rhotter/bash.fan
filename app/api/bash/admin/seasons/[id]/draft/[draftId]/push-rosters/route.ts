@@ -4,6 +4,7 @@ import { eq, and } from "drizzle-orm"
 import { NextResponse } from "next/server"
 import { getSession } from "@/lib/admin-session"
 import { isPlayerGoalie } from "@/lib/draft-helpers"
+import { syncDraftBanner } from "@/lib/draft-banner-sync"
 
 export async function POST(
   _req: Request,
@@ -136,6 +137,16 @@ export async function POST(
       .update(schema.draftInstances)
       .set({ status: "completed", updatedAt: new Date() })
       .where(eq(schema.draftInstances.id, draftId))
+
+    try {
+      await syncDraftBanner({
+        draftId,
+        seasonId,
+        event: "complete",
+      })
+    } catch (err) {
+      console.error("Failed to sync draft completion banner in push-rosters:", err)
+    }
   }
 
   return NextResponse.json({

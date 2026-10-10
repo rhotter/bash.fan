@@ -48,6 +48,8 @@ export interface PublicBanner {
   variant: BannerVariant
   countdownType: CountdownType
   countdownTarget?: string | Date | null
+  startDate?: string | Date | null
+  endDate?: string | Date | null
   dismissVersion: number
   hideOnPaths: string[]
 }
@@ -59,6 +61,8 @@ export interface BannerStatusInput {
   isActive: boolean
   startDate?: string | Date | null
   endDate?: string | Date | null
+  countdownType?: CountdownType
+  countdownTarget?: string | Date | null
 }
 
 // ─── Pure Helper Functions ───────────────────────────────────────────────────
@@ -86,6 +90,13 @@ export function getBannerStatus(
   if (banner.endDate) {
     const end = new Date(banner.endDate)
     if (!isNaN(end.getTime()) && currentDate.getTime() > end.getTime()) {
+      return "expired"
+    }
+  }
+
+  if (banner.countdownType === "deadline" && banner.countdownTarget) {
+    const target = new Date(banner.countdownTarget)
+    if (!isNaN(target.getTime()) && currentDate.getTime() >= target.getTime()) {
       return "expired"
     }
   }
@@ -143,7 +154,7 @@ export function computeCountdownSuffix(
   type: CountdownType,
   target: string | Date | number | null | undefined,
   now?: Date,
-  timeZone?: string,
+  timeZone: string = "America/Los_Angeles",
 ): string | null {
   if (type === "none" || !target) {
     return null

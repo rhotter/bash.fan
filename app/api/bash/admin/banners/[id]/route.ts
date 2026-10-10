@@ -19,8 +19,7 @@ export async function PUT(request: NextRequest, context: RouteContext) {
   }
 
   try {
-    const { id: rawId } = await context.params
-    const id = rawId ? decodeURIComponent(rawId) : ""
+    const { id = "" } = await context.params
 
     const body = await request.json()
 
@@ -114,8 +113,7 @@ export async function DELETE(_request: NextRequest, context: RouteContext) {
   }
 
   try {
-    const { id: rawId } = await context.params
-    const id = rawId ? decodeURIComponent(rawId) : ""
+    const { id = "" } = await context.params
 
     const [deleted] = await db
       .delete(schema.siteBanners)

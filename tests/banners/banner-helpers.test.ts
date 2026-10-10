@@ -58,6 +58,43 @@ describe("lib/banner-helpers", () => {
       ).toBe("expired")
     })
 
+    it("returns 'expired' when countdownType is 'deadline' and current time reaches or exceeds countdownTarget", () => {
+      expect(
+        getBannerStatus(
+          {
+            isActive: true,
+            countdownType: "deadline",
+            countdownTarget: "2026-10-04T11:00:00Z", // 1 hour in past relative to now (12:00:00Z)
+          },
+          now,
+        ),
+      ).toBe("expired")
+
+      expect(
+        getBannerStatus(
+          {
+            isActive: true,
+            countdownType: "deadline",
+            countdownTarget: now, // exactly at target
+          },
+          now,
+        ),
+      ).toBe("expired")
+    })
+
+    it("returns 'live' when countdownType is 'deadline' and countdownTarget is still in the future", () => {
+      expect(
+        getBannerStatus(
+          {
+            isActive: true,
+            countdownType: "deadline",
+            countdownTarget: "2026-10-04T13:00:00Z", // 1 hour in future relative to now
+          },
+          now,
+        ),
+      ).toBe("live")
+    })
+
     it("returns 'live' when current time is within window", () => {
       expect(
         getBannerStatus(
