@@ -1096,12 +1096,12 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
                                       {pick.playerName}
                                     </span>
                                     {(isCaptain || pick.isKeeper || isRookie) && (
-                                      <span className="relative -top-1.5 flex shrink-0 items-center gap-1.5 sm:top-0">
+                                      <span className="relative -top-1 flex shrink-0 items-center gap-1 sm:top-0">
                                         {isCaptain && (
                                           <DraftPlayerBadge kind="captain" />
                                         )}
                                         {pick.isKeeper && !isCaptain && (
-                                          <span className="shrink-0 inline-flex items-center justify-center h-4 min-w-4 px-1 rounded-sm border border-border text-[9px] font-bold uppercase tracking-wider text-muted-foreground leading-none">K</span>
+                                          <DraftPlayerBadge kind="keeper" />
                                         )}
                                         {isRookie && (
                                           <DraftPlayerBadge kind="rookie" />
@@ -1209,12 +1209,12 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
                                       {(isCaptain || pick.isKeeper) ? formatPlayerNameCompact(pick.playerName) : formatPlayerName(pick.playerName)}
                                     </button>
                                     {(isCaptain || pick.isKeeper || isRookie || newOwner) && (
-                                      <span className="relative -top-1.5 flex shrink-0 items-center gap-1.5 sm:top-0">
+                                      <span className="relative -top-1 flex shrink-0 items-center gap-1 sm:top-0">
                                         {isCaptain && (
                                           <DraftPlayerBadge kind="captain" />
                                         )}
                                         {pick.isKeeper && !isCaptain && (
-                                          <span className="shrink-0 inline-flex items-center justify-center h-4 min-w-4 px-1 rounded-sm border border-border text-[9px] font-bold uppercase tracking-wider text-muted-foreground leading-none">K</span>
+                                          <DraftPlayerBadge kind="keeper" />
                                         )}
                                         {isRookie && (
                                           <DraftPlayerBadge kind="rookie" />
@@ -1305,18 +1305,18 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
                                         {(isCaptain || pick.isKeeper) ? formatPlayerNameCompact(pick.playerName) : formatPlayerName(pick.playerName)}
                                       </button>
                                       {(isCaptain || isKeeper || isRookie || isGoalie) && (
-                                        <div className="relative -top-1.5 flex items-center gap-0.5 shrink-0 sm:top-0">
+                                        <div className="relative -top-1 flex items-center gap-1 shrink-0 sm:top-0">
                                           {isCaptain && (
-                                            <DraftPlayerBadge kind="captain" className="h-3.5 min-w-3 px-0.5 rounded-[2px] text-[8.5px] tracking-normal" />
+                                            <DraftPlayerBadge kind="captain" />
                                           )}
                                           {isKeeper && (
-                                            <span className="shrink-0 inline-flex items-center justify-center h-3.5 min-w-3 px-0.5 rounded-[2px] border border-amber-400/70 bg-amber-50/60 dark:bg-amber-950/40 text-[8.5px] font-bold text-amber-600 dark:text-amber-400 leading-none" title="Keeper">K</span>
+                                            <DraftPlayerBadge kind="keeper" />
                                           )}
                                           {isRookie && (
-                                            <DraftPlayerBadge kind="rookie" className="h-3.5 min-w-3 px-0.5 rounded-[2px] text-[8.5px] tracking-normal" />
+                                            <DraftPlayerBadge kind="rookie" />
                                           )}
                                           {isGoalie && (
-                                            <span className="shrink-0 inline-flex items-center justify-center h-3.5 min-w-3 px-0.5 rounded-[2px] border border-purple-400/70 bg-purple-50/60 dark:bg-purple-950/40 text-[8.5px] font-bold text-purple-600 dark:text-purple-400 leading-none" title="Goalie">G</span>
+                                            <DraftPlayerBadge kind="goalie" />
                                           )}
                                         </div>
                                       )}
@@ -1343,10 +1343,10 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
                       </tbody>
                     </table>
                     <div className="flex flex-wrap items-center justify-end gap-3 px-3 py-2 text-[10px] text-muted-foreground/70 border-t border-border/40 bg-muted/10">
-                      <span className="flex items-center gap-1"><span className="inline-flex items-center justify-center h-3.5 w-3.5 rounded-[3px] border border-foreground/40 text-[8.5px] font-bold text-foreground">C</span> Captain</span>
-                      <span className="flex items-center gap-1"><span className="inline-flex items-center justify-center h-3.5 w-3.5 rounded-[3px] border border-amber-400/70 bg-amber-50/60 dark:bg-amber-950/40 text-[8.5px] font-bold text-amber-600 dark:text-amber-400">K</span> Keeper</span>
-                      <span className="flex items-center gap-1"><span className="inline-flex items-center justify-center h-3.5 w-3.5 rounded-[3px] border border-foreground/40 text-[8.5px] font-bold text-foreground">R</span> Rookie</span>
-                      <span className="flex items-center gap-1"><span className="inline-flex items-center justify-center h-3.5 w-3.5 rounded-[3px] border border-purple-400/70 bg-purple-50/60 dark:bg-purple-950/40 text-[8.5px] font-bold text-purple-600 dark:text-purple-400">G</span> Goalie</span>
+                      <span className="flex items-center gap-1"><span className="inline-flex items-center justify-center h-3 w-3 rounded-[2px] border border-border text-[8px] font-medium text-muted-foreground">C</span> Captain</span>
+                      <span className="flex items-center gap-1"><span className="inline-flex items-center justify-center h-3 w-3 rounded-[2px] border border-border text-[8px] font-medium text-muted-foreground">K</span> Keeper</span>
+                      <span className="flex items-center gap-1"><span className="inline-flex items-center justify-center h-3 w-3 rounded-[2px] border border-border text-[8px] font-medium text-muted-foreground">R</span> Rookie</span>
+                      <span className="flex items-center gap-1"><span className="inline-flex items-center justify-center h-3 w-3 rounded-[2px] border border-border text-[8px] font-medium text-muted-foreground">G</span> Goalie</span>
                     </div>
                   </CardContent>
                 </Card>

@@ -77,13 +77,13 @@ afterEach(async () => {
 })
 
 describe("Draft player badge explanations", () => {
-  it.each(["rookie", "captain"] as const)("toggles the %s explanation on repeated taps without clicking the parent", async (kind) => {
+  it.each(["rookie", "captain", "keeper", "goalie"] as const)("toggles the %s explanation on repeated taps without clicking the parent", async (kind) => {
     const parentClick = vi.fn()
-    const label = kind === "rookie" ? "Rookie" : "Captain"
+    const label = { rookie: "Rookie", captain: "Captain", keeper: "Keeper", goalie: "Goalie" }[kind]
     await render(<div onClick={parentClick}><DraftPlayerBadge kind={kind} /></div>)
     const trigger = badge(label)
     expect(trigger.tagName).toBe("BUTTON")
-    expect(trigger.className).toContain("text-foreground")
+    expect(trigger.className).toContain("text-muted-foreground")
     expect(trigger.className).toContain("focus-visible:ring-foreground")
     expect(trigger.className).not.toContain("text-primary")
     expect(trigger.getAttribute("aria-expanded")).toBe("false")

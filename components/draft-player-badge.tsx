@@ -10,6 +10,16 @@ const playerBadges = {
     label: "Rookie",
     description: "Designated as a rookie for this season.",
   },
+  keeper: {
+    letter: "K",
+    label: "Keeper",
+    description: "Retained by the team for this season.",
+  },
+  goalie: {
+    letter: "G",
+    label: "Goalie",
+    description: "Registered to play goalie.",
+  },
   captain: {
     letter: "C",
     label: "Captain",
@@ -52,7 +62,7 @@ export function DraftPlayerBadge({
             setOpen((previous) => !(wasOpen ?? previous))
           }}
           className={cn(
-            "relative pointer-events-auto shrink-0 inline-flex items-center justify-center h-4 min-w-4 px-1 rounded-sm border border-foreground/40 text-foreground text-[9px] font-bold uppercase tracking-wider leading-none cursor-help touch-manipulation [@media(pointer:coarse)]:min-h-6 [@media(pointer:coarse)]:min-w-6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground focus-visible:ring-offset-2",
+            "relative pointer-events-auto shrink-0 inline-flex items-center justify-center h-3 min-w-3 px-0.5 rounded-[2px] border border-border text-muted-foreground text-[8px] font-medium uppercase tracking-normal leading-none cursor-help touch-manipulation after:absolute after:inset-x-0 after:-inset-y-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground focus-visible:ring-offset-2",
             className,
           )}
         >
