@@ -1,6 +1,6 @@
 # PRD: Admin Banner Management & Dynamic Site Banner
 
-> **Status**: Approved for Implementation  
+> **Status**: Completed / Shipped  
 > **Author**: Chris Torres & Antigravity  
 > **Created**: 2026-10-03  
 > **Target Release**: Fall 2026  
@@ -260,6 +260,39 @@ On mobile devices, the dismiss button must provide an accessible hit area of at 
 #### 4. Fixed Height & Header Stability
 The banner bar must maintain a stable single-line height (`h-8` or 32px–34px) on both mobile and desktop. Multi-line wrapping is prevented via `truncate` and safe right padding (`pr-10 sm:pr-8`) to prevent layout shifts with the sticky navigation header.
 
+### 8.6 Automated Draft Lifecycle Banner Synchronization (`lib/draft-banner-sync.ts`)
+
+To eliminate manual commissioner operations when scheduling and executing live drafts, the system integrates automated lifecycle triggers between the draft management engine (`/api/bash/admin/seasons/[id]/draft/`) and `site_banners`:
+
+1. **Pre-Draft Countdown on Draft Publication (`publish` / `reschedule`)**:
+   - **Trigger**: When a draft is published via `POST /api/bash/admin/seasons/[id]/draft/[draftId]/publish` or rescheduled via `PATCH /api/bash/admin/seasons/[id]/draft/[draftId]`.
+   - **Banner Record**: Upserts `draft-[id]-predraft` with `isActive: true`, `priority: 20`, `variant: "default"`.
+   - **Copy & Formatting**: Formats copy using `formatDraftEventCopy()` (e.g. headline `"BASH Draft: Wed @ 7pm"`, mobile label `"Draft: Wed @ 7pm"`, destination `/draft/[seasonId]`).
+   - **Countdown**: Configures `countdownType: "event"` targeting the draft's scheduled start time, dynamically displaying `"· Live in X days"` or `"· Live today @ 7:00 PM"`.
+2. **Draft Unpublication (`unpublish`)**:
+   - **Trigger**: When a published draft is unpublished back to draft state via `POST /api/bash/admin/seasons/[id]/draft/[draftId]/publish` (`action: "unpublish"`).
+   - **Banner Record**: Deactivates `draft-[id]-predraft` (`isActive: false`).
+3. **Live Draft Broadcast on Start (`start`)**:
+   - **Trigger**: When the draft transitions to live (`POST /api/bash/admin/seasons/[id]/draft/[draftId]/start`).
+   - **Banner Record**: Deactivates `draft-[id]-predraft` and upserts `draft-[id]-live` with `isActive: true`, `priority: 25`, `variant: "live"`.
+   - **Copy**: Headline `"BASH Draft is LIVE — Watch the picks unfold"`, mobile label `"Draft is LIVE"`, destination `/draft/[seasonId]`, `countdownType: "none"`.
+4. **Draft Results Banner on Completion (`complete`)**:
+   - **Trigger**: When the final pick of the draft is submitted (`POST .../pick`) or rosters are pushed (`POST .../push-rosters`).
+   - **Banner Record**: Deactivates `draft-[id]-live` and upserts `draft-[id]-results` with `isActive: true`, `priority: 15`, `variant: "default"`.
+   - **Copy**: Headline `"View Draft Results — [Season] Draft Board"`, mobile label `"Draft Results"`, destination `/draft/[seasonId]`, `countdownType: "none"`.
+   - **Expiration Window**: Sets `endDate` to the upcoming Friday at 11:59:59.999 PM Pacific Time (`computeNextFridayMidnightPacific()`). If completed on a Friday before midnight, expires that same night; if completed after Friday 23:59:59 PT, expires the following Friday.
+5. **Revert to Live (`revert_to_live`)**:
+   - **Trigger**: When an admin undos the final pick or resumes a completed draft via `POST /api/bash/admin/seasons/[id]/draft/[draftId]/revert-to-live`.
+   - **Banner Record**: Restores `draft-[id]-live` (`isActive: true`), and deactivates `draft-[id]-results`.
+6. **Archive / Unarchive (`archive`)**:
+   - **Trigger**: When an admin archives a completed draft (`POST .../archive`).
+   - **Banner Record**: Deactivates `draft-[id]-results`. When unarchived (`DELETE .../archive`), re-syncs the results banner via the `complete` event.
+7. **Draft Deletion (`delete`)**:
+   - **Trigger**: When a draft instance is permanently deleted (`DELETE /api/bash/admin/seasons/[id]/draft/[draftId]`).
+   - **Banner Record**: Deletes all banners starting with `draft-[id]-%` from `site_banners`.
+8. **Isolation & Resilience**:
+   - All `syncDraftBanner()` calls are executed sequentially outside transactions (honoring Neon HTTP constraints) and wrapped in defensive error handling with error logging, ensuring secondary banner broadcast glitches never block primary draft mutations.
+
 ---
 
 ## 9. Non-Functional Requirements & Architecture Compliance
@@ -284,10 +317,10 @@ The banner bar must maintain a stable single-line height (`h-8` or 32px–34px) 
 ### 9.3 Performance & Caching
 - **Public Endpoint (`/api/bash/banners`)**:
   - `Cache-Control: public, s-maxage=30, stale-while-revalidate=60`.
-  - Query selects only the top 1 active eligible banner (`limit(1)`).
+  - Query selects only active eligible banners (`limit(10)`), filtering out expired deadline banners at the database level.
   - Payload size $< 650$ bytes.
 - **Client Polling**:
-  - `SiteBanner` uses SWR with `dedupingInterval: 30000` (30 seconds) and `revalidateOnFocus: false`.
+  - `SiteBanner` uses SWR with `dedupingInterval: 30000`, `refreshInterval: 30000` (30 seconds), and `revalidateOnFocus: false`.
   - Zero Cumulative Layout Shift (CLS): Fixed banner height with smooth mount.
 
 ### 9.4 Accessibility (a11y)
@@ -312,15 +345,15 @@ The banner bar must maintain a stable single-line height (`h-8` or 32px–34px) 
 
 ## 11. Implementation Plan & Milestones
 
-1. **Phase 1 — Schema & Database Migration**:
+1. **Phase 1 — Schema & Database Migration (Completed)**:
    - Add `siteBanners` table with `mobileLabel` to `lib/db/schema.ts`.
    - Run Drizzle migration to create table in Neon Postgres.
-   - Seed initial banner (Fall registration) to verify data model.
-2. **Phase 2 — Admin API Routes**:
+   - Implement idempotent zero-downtime deployment script `scripts/deploy-banners-schema.ts`.
+2. **Phase 2 — Admin API Routes (Completed)**:
    - Create `app/api/bash/admin/banners/route.ts` (GET, POST).
    - Create `app/api/bash/admin/banners/[id]/route.ts` (PUT, DELETE).
    - Enforce `getSession()` authentication.
-3. **Phase 3 — Admin UI**:
+3. **Phase 3 — Admin UI (Completed)**:
    - Add "Banners" link to `NAV_ITEMS` in `components/admin/admin-sidebar.tsx`.
    - Implement `app/admin/banners/page.tsx` (Server Component).
    - Implement `components/admin/banners-client.tsx`:
@@ -328,7 +361,7 @@ The banner bar must maintain a stable single-line height (`h-8` or 32px–34px) 
      - Create/Edit dialog with `mobileLabel` input and character count warning.
      - Dual Interactive Preview widget (Desktop ↔ Mobile toggle).
      - Reset dismissals checkbox & delete confirmation.
-4. **Phase 4 — Public API & SiteBanner Refactor**:
+4. **Phase 4 — Public API & SiteBanner Refactor (Completed)**:
    - Create `app/api/bash/banners/route.ts`.
    - Refactor `components/site-banner.tsx`:
      - Consume dynamic API via SWR.
@@ -336,6 +369,11 @@ The banner bar must maintain a stable single-line height (`h-8` or 32px–34px) 
      - Add 44px mobile touch target for dismiss button.
      - Remove legacy draft SWR and hardcoded registration constants.
    - Verify on simulated iPhone and desktop viewports.
+5. **Phase 5 — Automated Draft Lifecycle Integration & Hardening (Completed)**:
+   - Implement `lib/draft-banner-sync.ts` with draft lifecycle hooks (`publish`, `unpublish`, `start`, `complete`, `revert_to_live`, `archive`, `reschedule`, `delete`).
+   - Implement next-Friday midnight PT calculation (`computeNextFridayMidnightPacific`).
+   - Connect draft API route endpoints (`publish/`, `start/`, `pick/`, `push-rosters/`, `revert-to-live/`, `archive/`, `[draftId]/route.ts`).
+   - Comprehensive automated test suite with 229 tests across 9 test suites in `tests/banners/`.
 
 ---
 

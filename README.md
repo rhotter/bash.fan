@@ -67,24 +67,26 @@ A stats website for the Bay Area Street Hockey (BASH) league. View live scores, 
 
 ## Database Schema
 
-The Drizzle schema (`lib/db/schema.ts`) has 22 tables:
+The Drizzle schema (`lib/db/schema.ts`) has 40 tables:
 
 - **seasons** / **teams** / **season_teams** / **franchises** — league structure and franchise identities
 - **games** / **game_live** — schedule, scores, overtime/playoff flags, live game state, and bracket management (`game_type`, `bracket_round`, `series_id`, `next_game_id` for playoff auto-advancement)
-- **players** / **player_seasons** / **player_season_stats** — player identities, per-season team membership (with `is_captain`, `is_rookie` flags), and aggregated stats
+- **players** / **player_seasons** / **adhoc_game_rosters** / **player_season_stats** — player identities, per-season team membership (with `is_captain`, `is_rookie` flags), ad-hoc rosters, and aggregated stats
 - **player_game_stats** — per-game skater stats (G, A, PTS, PPG, SHG, GWG, PIM, etc.)
 - **goalie_game_stats** — per-game goalie stats (GA, SA, saves, shutouts, result)
 - **game_officials** — referees and linesmen
 - **player_awards** / **hall_of_fame** — awards and hall of fame entries
 - **draft_instances** / **draft_team_order** / **draft_pool** / **draft_picks** / **draft_trades** / **draft_trade_items** / **draft_log** — complete draft management system
+- **users** / **accounts** / **sessions** / **verification_tokens** / **registration_*** — registration periods, custom questions, discounts, legal notices, and player registrations
+- **site_banners** — site announcement banners with priority scheduling, dynamic countdowns, route suppression, and draft lifecycle synchronization
 - **sync_metadata** — tracks last sync times
 
 ## Project Structure
 
 ```
 app/
-  api/bash/          API routes (games, players, sync, admin, scorekeeper, draft, etc.)
-  admin/             Admin dashboard (seasons, players, teams, awards, franchises, draft board)
+  api/bash/          API routes (games, players, sync, banners, admin, scorekeeper, draft, etc.)
+  admin/             Admin dashboard (seasons, players, teams, awards, franchises, banners, draft board)
   draft/[season]/    Public draft board (real-time spectator view)
   player/[slug]/     Player detail page
   team/[slug]/       Team detail page
@@ -94,15 +96,18 @@ app/
   scorekeeper/       Live game scorekeeper
 components/
   ui/                shadcn/ui primitives
-  admin/             Admin components (schedule tab, draft wizard, draft board, franchise manager)
+  admin/             Admin components (schedule tab, draft wizard, draft board, franchise manager, banners portal)
+  site-banner.tsx    Responsive public announcement banner with protected countdown truncation
   *.tsx              Page-level components (scores-tab, standings-tab, public-draft-board, etc.)
 lib/
   db/                Database connection and Drizzle schema
   fetch-*.ts         Server-side data fetching
   hockey-data.ts     SWR hooks for client-side data
+  banner-helpers.ts  Pure helper algorithms, countdown suffixes, and banner contract validators
+  draft-banner-sync.ts Automated banner sync engine across draft lifecycle state transitions
   schedule-utils.ts  Pure schedule generation (round-robin, playoff brackets)
   draft-helpers.ts   Snake/linear pick slot generation
   draft-trade-resolver.ts  Chain trade resolution engine
   csv-utils.ts       Shared CSV parser for Sportability exports
-scripts/             Database seeding and maintenance utilities
+scripts/             Database seeding, schema migration (deploy-banners-schema.ts), and maintenance utilities
 ```

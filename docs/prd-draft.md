@@ -108,11 +108,12 @@ A dedicated, interactive draft system for managing the BASH league draft process
 
   Valid transitions: `draft → published` (purge simulation), `published → live` (start draft), `live → paused`, `paused → live` (resume only — cannot transition directly to `completed` from `paused`), `live → completed`, `completed → archived`, `archived → completed`.
 
-- **Site-Wide Announcements via `SiteBanner`**: When a draft is `published` or `live`, the unified `SiteBanner` component (in `components/site-banner.tsx`) displays a dismissable announcement banner across all public pages (except `/admin` and `/draft`). The banner links to the draft's public URL and is prioritized over registration announcements:
-  - **Live**: Pulsing green dot + "BASH Draft is LIVE — Watch the picks unfold"
-  - **Published**: Subtle dot + "BASH Draft Board is now available"
-  - Each status is independently dismissable via `localStorage` (keyed by season slug + status), so dismissing the "published" banner doesn't suppress the "live" banner when the draft goes live.
-  - The `SiteBanner` replaces the previous approach of adding a dedicated draft link to the `SiteHeader` navigation bar. This centralizes all ephemeral site announcements (registration, draft) into a single, consistent dismiss-to-hide UX pattern.
+- **Site-Wide Announcements via `SiteBanner`**: When a draft transitions through lifecycle states (`published`, `live`, `completed`, `archived`), the draft API routes automatically invoke `syncDraftBanner()` (`lib/draft-banner-sync.ts`) to manage records in the centralized `site_banners` table. This drives the dynamic `SiteBanner` component (in `components/site-banner.tsx`) across all public pages (suppressed on `/admin`):
+  - **Published**: Scheduled pre-draft countdown banner (e.g. "BASH Draft: Wed @ 7pm") with event countdown suffix ("· Live in X days" / "· Live today @ 7:00 PM").
+  - **Live**: Pulsing green dot + "BASH Draft is LIVE — Watch the picks unfold" (`variant: "live"`).
+  - **Completed**: "View Draft Results — [Season] Draft Board" banner that remains active until midnight on the upcoming Friday Pacific Time (`countdown_type: "none"`).
+  - **Archived**: Deactivates the draft results banner from the public site header.
+  - Each announcement is independently dismissable via `localStorage` (keyed by `bash-banner-${id}-v${dismissVersion}`), so dismissing a pre-draft countdown doesn't suppress the live alert when the draft starts. All banner synchronizations are non-blocking and isolated from core draft mutations.
 
 - **Simulation / Preview Mode**: While in the `draft` state, the commissioner can open the admin presentation view and run a full simulated draft:
   - All admin controls are functional: pick entry, trades, timer, order editing, undo

@@ -125,6 +125,9 @@ The Drizzle schema (`lib/db/schema.ts`) defines the following table groups:
    - `discount_codes` / `registration_period_discounts`: Promo codes and per-period discount configuration.
    - `extras` / `registration_period_extras` / `registration_extras`: Optional add-ons (jerseys, etc.) purchasable during registration.
 
+8. **Site Banners & Announcements**
+   - `site_banners`: Dynamic announcement banners managed via `/admin/banners`. Schema fields: `id` (primary key), `label` (desktop headline), `mobile_label` (optional mobile override), `href` (destination route/URL), `variant` (`default`, `live`, `warning`), `is_active` (master toggle), `start_date` / `end_date` (schedule window), `countdown_type` (`none`, `deadline`, `event`), `countdown_target` (target timestamp), `priority` (integer score for ranking), `dismiss_version` (incremented on edit to reset client dismissals), `hide_on_paths` (text array of routes to suppress), `created_at`, `updated_at`. Indexed via `idx_site_banners_active_priority` on `(is_active, priority DESC, updated_at DESC)` for efficient retrieval of the top active public banner.
+
 ## Key Functions and Data Flow
 
 ### 1. Data Sync (`app/api/bash/sync/route.ts`)
@@ -198,9 +201,32 @@ The draft system manages the entire lifecycle of a league draft:
 4. **Public Board**: `/draft/[season]` polls the public API (`/api/bash/draft/[season]`) every 3 seconds via SWR. Features include pick animations, NHL draft chime audio, position filtering, and a player card modal with career stats.
 5. **Post-Draft**: CSV export, JSON backup/restore, and roster push (upserts drafted players into `player_seasons` for the season).
 
-> **Security**: All 22 admin draft API routes enforce `getSession()` authentication. Public routes only expose drafts in `published`/`live`/`completed` status.
+### 6. Banner Management & Live Announcement Engine (`lib/banner-helpers.ts`, `lib/draft-banner-sync.ts`, `app/api/bash/banners/`, `components/site-banner.tsx`, `/admin/banners`)
+The banner system provides dynamic, schedule-aware announcement bars across the site:
+- **Public Banner Delivery & Caching** (`GET /api/bash/banners`): Selects the single highest-priority active banner (`ORDER BY priority DESC, updated_at DESC LIMIT 10`), filtering out expired deadline banners at the database level. Edge cached with `Cache-Control: public, s-maxage=30, stale-while-revalidate=60` and 30-second client-side SWR background polling (`revalidateOnFocus: false`).
+- **Responsive Presentation & Protection** (`components/site-banner.tsx`):
+  - **Zero-UA Switching**: Both `label` and `mobileLabel` are sent to the client and toggled purely with Tailwind CSS responsive classes (`hidden sm:inline` vs `inline sm:hidden`), avoiding User-Agent header variations and preserving 100% CDN edge cacheability.
+  - **Protected Suffix Truncation**: Headlines truncate with ellipsis (`truncate`) while countdown badges stay visible without clipping (`shrink-0 tabular-nums`).
+  - **Touch Accessibility**: Mobile dismiss button provides a full 44×44px hit area satisfying WCAG 2.5.5.
+  - **Dismissal Persistence**: Tracked per banner version in `localStorage` (`bash-banner-${id}-v${dismissVersion}`). Updating copy and incrementing `dismissVersion` cleanly resets client suppression.
+- **Admin Management Portal** (`/admin/banners`, `components/admin/banners-client.tsx`):
+  - Interactive table with live status badges (`Live`, `Scheduled`, `Expired`, `Draft`), inline active toggles, and deletion safety checks.
+  - Modal with **Dual Interactive Preview** allowing real-time switching between Desktop (full width, centered) and Mobile (375px frame, left-aligned).
+  - Copy length guidance warning commissioners when headlines exceed 35 characters on mobile without a short-form `mobileLabel`.
+- **Automated Draft Lifecycle Synchronization** (`lib/draft-banner-sync.ts`):
+  Draft state transitions automatically synchronize corresponding alert banners:
+  1. `publish`: Creates/activates pre-draft countdown banner (`draft-[id]-predraft`, `countdown_type: "event"`).
+  2. `unpublish`: Deactivates pre-draft banner.
+  3. `start`: Deactivates pre-draft banner and creates/activates live alert banner (`draft-[id]-live`, `variant: "live"`, "BASH Draft is LIVE — Watch the picks unfold").
+  4. `complete` (via final pick or roster push): Deactivates live banner and creates/activates results banner (`draft-[id]-results`, "View Draft Results — [Season] Draft Board") expiring at upcoming Friday midnight Pacific Time.
+  5. `revert_to_live`: Restores live banner and deactivates results banner.
+  6. `archive`: Deactivates draft results banner.
+  7. `unarchive`: Restores draft results banner via `complete` event.
+  8. `reschedule`: Updates target date and copy on pre-draft banner.
+  9. `delete`: Cleans up all draft-associated banners from `site_banners`.
+  All draft banner synchronization operations are non-blocking, isolated calls that log errors without interrupting core draft operations.
 
-### 6. Routing Structure
+### 7. Routing Structure
 The App Router maps URLs directly to server components:
 - `/` -> Home page (Scoreboard)
 - `/standings`, `/stats` -> Leaderboards and league tables
@@ -209,6 +235,7 @@ The App Router maps URLs directly to server components:
 - `/draft/[season]` -> Public draft board (e.g., `/draft/2026-summer`)
 - `/scorekeeper` -> Game selection for live scoring
 - `/scorekeeper/[id]` -> Live game scorekeeper
+- `/admin/banners` -> Site banner management and dynamic countdown broadcasts
 - `/admin/seasons/[id]` -> Season management (Schedule, Standings, Teams, Draft tabs)
 - `/admin/seasons/[id]/draft/[draftId]/board` -> Admin live draft board
 - `/admin/registration` -> Registration period management (questions, discounts, notices, extras)
