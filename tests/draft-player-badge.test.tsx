@@ -91,6 +91,8 @@ describe("Draft player badge explanations", () => {
     expect(trigger.className).not.toContain("text-primary")
     expect(trigger.className).toContain("cursor-pointer")
     expect(trigger.className).not.toContain("cursor-help")
+    expect(trigger.className).toContain("max-sm:min-w-6")
+    expect(trigger.querySelector('[aria-hidden="true"]')?.className).toContain("max-sm:h-3")
     expect(trigger.getAttribute("aria-expanded")).toBe("false")
     for (let i = 0; i < 3; i++) {
       await tap(trigger)
@@ -191,6 +193,14 @@ describe("Draft player badge explanations", () => {
     expect(document.querySelector("button button")).toBeNull()
     const trigger = badge(label)
     expect(trigger.className).toContain("pointer-events-auto")
+    const badgeGroup = trigger.closest('[data-slot="draft-player-badges"]')!
+    expect(badgeGroup.className).toContain("absolute")
+    expect(badgeGroup.className).toContain("top-0")
+    expect(badgeGroup.className).toContain("sm:static")
+    const playerRow = layout === "team"
+      ? container.querySelector('button[aria-label="View Sample Player"]')!.parentElement!
+      : trigger.closest("td")!
+    expect(playerRow.className).toContain("max-sm:pt-6")
     await flush(() => trigger.dispatchEvent(new PointerEvent("pointermove", { bubbles: true, pointerType: "mouse" })))
     expect(tooltip()?.textContent).toContain(label)
     // The explanation is portalled beyond the board's horizontal scroll container.
@@ -319,5 +329,48 @@ describe("Playoff availability styling", () => {
     expect(status.textContent).toBe(playoffAvail === "Yes" ? "Y" : playoffAvail === "No" ? "N" : "?")
     expect(status.className).toContain("text-foreground")
     expect(status.className).not.toMatch(/text-(green|red)-/)
+  })
+})
+
+
+describe("Mobile status badge placement", () => {
+  it.each(
+    ["team", "completed board", "live board"].flatMap((layout) =>
+      ["captain", "keeper"].map((kind) => ({ layout, kind }))
+    )
+  )("reserves the corner for multiple $kind/rookie badges in $layout", async ({ layout, kind }) => {
+    const name = "Alexandria Montgomery-Smith"
+    await render(<PublicDraftBoard seasonSlug={`mobile-${layout}-${kind}`} initialData={{
+      draft: { id: "test", name: "Test", status: layout === "live board" ? "live" : "completed", rounds: 1, draftDate: null, location: null, timerSeconds: 60, timerCountdown: null, timerRunning: false, timerStartedAt: null, updatedAt: null },
+      season: { id: "test", name: "Test", slug: "mobile-test" },
+      teams: [
+        { teamSlug: "original", teamName: "Original Team", position: 1, color: null },
+        { teamSlug: "current", teamName: "Current Team", position: 2, color: null },
+      ],
+      picks: [{ id: "test", round: 1, pickNumber: 1, teamSlug: "current", originalTeamSlug: "original", playerId: 1, playerName: name, isKeeper: true, pickedAt: null }],
+      pool: [{ playerId: 1, playerName: name, registrationMeta: { isRookie: true, positions: "Goalie" } }],
+      trades: [],
+      captainPlayerIds: kind === "captain" ? [1] : [],
+    }} />)
+    if (layout === "completed board") {
+      await tap(Array.from(container.querySelectorAll<HTMLButtonElement>('button[role="tab"]')).find((button) => button.textContent?.includes("Full Board"))!)
+    }
+    const statusGroup = badge("Rookie").closest('[data-slot="draft-player-badges"]')!
+    expect(statusGroup.querySelectorAll("button")).toHaveLength(2)
+    expect(statusGroup.textContent).toContain(kind === "captain" ? "Captain" : "Keeper")
+    expect(statusGroup.textContent).not.toContain(name)
+    expect(statusGroup.textContent).not.toContain("Traded pick")
+    expect(statusGroup.className).toContain("top-0")
+    expect(statusGroup.className).toContain("sm:static")
+    if (layout === "live board") expect(statusGroup.querySelector('[title="Goalie"]')).not.toBeNull()
+    expect(badge("Traded pick").closest('[data-slot="draft-player-badges"]')).toBeNull()
+    for (const label of [kind === "captain" ? "Captain" : "Keeper", "Rookie", "Traded pick"]) {
+      await tap(badge(label))
+      expect(tooltip()).not.toBeNull()
+      expect(document.querySelector('[role="dialog"]')).toBeNull()
+      await tap(badge(label))
+      expect(tooltip()).toBeNull()
+    }
+    expect(document.querySelector("button button")).toBeNull()
   })
 })
