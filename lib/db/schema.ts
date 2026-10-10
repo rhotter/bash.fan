@@ -777,3 +777,35 @@ export const adhocGameRosters = pgTable(
     index("idx_adhoc_game_rosters_game").on(t.gameId),
   ]
 )
+
+// ─── Site Banners ───────────────────────────────────────────────────────────
+
+export const siteBanners = pgTable(
+  "site_banners",
+  {
+    id: text("id").primaryKey(),
+    label: text("label").notNull(),
+    mobileLabel: text("mobile_label"),
+    href: text("href").notNull(),
+    variant: text("variant").notNull().default("default"),
+    isActive: boolean("is_active").notNull().default(true),
+    startDate: timestamp("start_date", { withTimezone: true }),
+    endDate: timestamp("end_date", { withTimezone: true }),
+    countdownType: text("countdown_type").notNull().default("none"),
+    countdownTarget: timestamp("countdown_target", { withTimezone: true }),
+    priority: integer("priority").notNull().default(10),
+    dismissVersion: integer("dismiss_version").notNull().default(1),
+    hideOnPaths: text("hide_on_paths").array().notNull().default(["/admin"]),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [
+    index("idx_site_banners_active_priority").on(t.isActive, t.priority, t.createdAt),
+  ]
+)
+
+export type BannerVariant = "default" | "live" | "warning"
+export type CountdownType = "none" | "deadline" | "event"
+
+export type SiteBanner = typeof siteBanners.$inferSelect
+export type NewSiteBanner = typeof siteBanners.$inferInsert
