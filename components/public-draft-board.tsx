@@ -1074,7 +1074,8 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
                                   onFocus={() => pick.playerId && prefetchPlayerStats(pick.playerId)}
                                   className={cn(
                                     "relative group w-full text-left flex items-baseline gap-2 sm:gap-3 px-2 py-1.5 rounded-md hover:bg-muted/50 transition-colors",
-                                    i % 2 === 0 && "bg-card/15"
+                                    i % 2 === 0 && "bg-card/15",
+                                    (isCaptain || pick.isKeeper || isRookie) && "max-sm:pt-6"
                                   )}
                                 >
                                   <button
@@ -1088,14 +1089,18 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
                                       <span className="truncate text-xs font-semibold group-hover:text-primary transition-colors">
                                         {pick.playerName}
                                       </span>
-                                      {isCaptain && (
-                                        <DraftPlayerBadge kind="captain" />
-                                      )}
-                                      {pick.isKeeper && !isCaptain && (
-                                        <DraftPlayerBadge kind="keeper" />
-                                      )}
-                                      {isRookie && (
-                                        <DraftPlayerBadge kind="rookie" />
+                                      {(isCaptain || pick.isKeeper || isRookie) && (
+                                        <span data-slot="draft-player-badges" className="absolute right-2 top-0 flex min-h-6 items-center gap-0.5 sm:static sm:min-h-0 sm:gap-1.5">
+                                          {isCaptain && (
+                                            <DraftPlayerBadge kind="captain" />
+                                          )}
+                                          {pick.isKeeper && !isCaptain && (
+                                            <DraftPlayerBadge kind="keeper" />
+                                          )}
+                                          {isRookie && (
+                                            <DraftPlayerBadge kind="rookie" />
+                                          )}
+                                        </span>
                                       )}
                                     </span>
                                     {pick.teamSlug !== pick.originalTeamSlug && (
@@ -1191,7 +1196,10 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
                             const isRookie = meta?.isRookie === true
 
                             return (
-                              <td key={team.teamSlug} className="px-3 py-2 align-middle border-b border-border/20 border-l border-border/20">
+                              <td key={team.teamSlug} className={cn(
+                                "relative px-3 py-2 align-middle border-b border-border/20 border-l border-border/20",
+                                (isCaptain || pick.isKeeper || isRookie) && "max-sm:pt-6"
+                              )}>
                                 {pick.playerId ? (
                                   <div className="flex items-center gap-1.5 min-w-0">
                                     <button
@@ -1203,14 +1211,18 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
                                     >
                                       {formatPlayerName(pick.playerName)}
                                     </button>
-                                    {isCaptain && (
-                                      <DraftPlayerBadge kind="captain" />
-                                    )}
-                                    {pick.isKeeper && !isCaptain && (
-                                      <DraftPlayerBadge kind="keeper" />
-                                    )}
-                                    {isRookie && (
-                                      <DraftPlayerBadge kind="rookie" />
+                                    {(isCaptain || pick.isKeeper || isRookie) && (
+                                      <span data-slot="draft-player-badges" className="absolute right-1 top-0 flex min-h-6 items-center gap-0.5 sm:static sm:min-h-0 sm:gap-1.5">
+                                        {isCaptain && (
+                                          <DraftPlayerBadge kind="captain" />
+                                        )}
+                                        {pick.isKeeper && !isCaptain && (
+                                          <DraftPlayerBadge kind="keeper" />
+                                        )}
+                                        {isRookie && (
+                                          <DraftPlayerBadge kind="rookie" />
+                                        )}
+                                      </span>
                                     )}
                                   </div>
                                 ) : (
@@ -1280,7 +1292,7 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
                               return (
                                 <td
                                   key={team.teamSlug}
-                                  className={`px-2 py-1.5 transition-colors duration-1000 ${
+                                  className={`relative px-2 py-1.5 transition-colors duration-1000 ${(isCaptain || isKeeper || isRookie || isGoalie) ? "max-sm:pt-6" : ""} ${
                                     isHighlighted
                                       ? "bg-amber-100"
                                       : isOnTheClock
@@ -1299,7 +1311,7 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
                                       >
                                         {formatPlayerName(pick.playerName)}
                                       </button>
-                                      <div className="flex items-center gap-0.5 shrink-0">
+                                      <div data-slot="draft-player-badges" className="absolute right-1 top-0 flex min-h-6 items-center gap-0.5 shrink-0 sm:static sm:min-h-0">
                                         {isCaptain && (
                                           <DraftPlayerBadge kind="captain" className="h-3.5 min-w-3 px-0.5 rounded-[2px] text-[8.5px] tracking-normal" />
                                         )}
@@ -1310,7 +1322,7 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
                                           <DraftPlayerBadge kind="rookie" className="h-3.5 min-w-3 px-0.5 rounded-[2px] text-[8.5px] tracking-normal" />
                                         )}
                                         {isGoalie && (
-                                          <span className="shrink-0 inline-flex items-center justify-center h-3.5 min-w-3 px-0.5 rounded-[2px] border border-purple-400/70 bg-purple-50/60 dark:bg-purple-950/40 text-[8.5px] font-bold text-purple-600 dark:text-purple-400 leading-none" title="Goalie">G</span>
+                                          <span className="shrink-0 inline-flex items-center justify-center h-3.5 min-w-3 px-0.5 rounded-[2px] border border-purple-400/70 bg-purple-50/60 dark:bg-purple-950/40 text-[8.5px] font-bold text-purple-600 dark:text-purple-400 leading-none max-sm:h-3 max-sm:min-w-3 max-sm:text-[8px]" title="Goalie">G</span>
                                         )}
                                       </div>
                                     </div>
