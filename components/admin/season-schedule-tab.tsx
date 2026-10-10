@@ -33,6 +33,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
@@ -41,7 +42,7 @@ import { EditGameModal } from "./edit-game-modal"
 import { RoundRobinWizard } from "./round-robin-wizard"
 import { PlayoffWizard } from "./playoff-wizard"
 import { AdhocRosterModal } from "./adhoc-roster-modal"
-import { formatGameTime } from "@/lib/format-time"
+import { formatGameTime, compareGamesChronological } from "@/lib/format-time"
 
 interface SeasonScheduleTabProps {
   seasonId: string
@@ -198,20 +199,28 @@ export function SeasonScheduleTab({ seasonId, seasonStatus, initialTeams, defaul
     setRosterModalOpen(true)
   }
 
-  const filteredGames = games.filter(g => {
-    // Team filter
-    const matchesTeam = teamFilter === "all" || g.homeSlug === teamFilter || g.awaySlug === teamFilter
-    return matchesTeam
-  })
+  const filteredGames = useMemo(() => {
+    return games.filter(g => {
+      // Team filter
+      const matchesTeam = teamFilter === "all" || g.homeSlug === teamFilter || g.awaySlug === teamFilter
+      return matchesTeam
+    })
+  }, [games, teamFilter])
 
-  // Group by date
-  const groupedGames = filteredGames.reduce((acc: Record<string, ScheduleGame[]>, game) => {
-    if (!acc[game.date]) acc[game.date] = []
-    acc[game.date].push(game)
-    return acc
-  }, {})
+  const sortedFilteredGames = useMemo(() => {
+    return [...filteredGames].sort(compareGamesChronological)
+  }, [filteredGames])
 
-  const sortedDates = Object.keys(groupedGames).sort()
+  // Group by date (games within each date maintain chronological order)
+  const groupedGames = useMemo(() => {
+    return sortedFilteredGames.reduce((acc: Record<string, ScheduleGame[]>, game) => {
+      if (!acc[game.date]) acc[game.date] = []
+      acc[game.date].push(game)
+      return acc
+    }, {})
+  }, [sortedFilteredGames])
+
+  const sortedDates = useMemo(() => Object.keys(groupedGames).sort(), [groupedGames])
 
   // Identify core league teams (true fall/summer teams).
   // We exclude ad-hoc tryout/exhibition teams, which we identify
@@ -269,6 +278,7 @@ export function SeasonScheduleTab({ seasonId, seasonStatus, initialTeams, defaul
 
   const totalUpcoming = games.filter(g => g.status === "upcoming").length
   const totalToDelete = deleteScheduleMode === "all" ? games.length : totalUpcoming
+  const remainingGamesCount = useMemo(() => games.filter(g => g.status?.toLowerCase() !== "final").length, [games])
 
   const lastRegularSeasonGame = games
     .filter(g => g.gameType === "regular" && g.date)
@@ -312,7 +322,7 @@ export function SeasonScheduleTab({ seasonId, seasonStatus, initialTeams, defaul
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {isEditable && (
+          {isEditable ? (
             <>
               <Button variant="outline" onClick={() => setRrWizardOpen(true)}>
                 <Shuffle className="h-4 w-4 mr-2" />
@@ -322,11 +332,78 @@ export function SeasonScheduleTab({ seasonId, seasonStatus, initialTeams, defaul
                 <Trophy className="h-4 w-4 mr-2" />
                 Playoff Bracket
               </Button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="inline-flex">
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      disabled={isLoading || remainingGamesCount === 0}
+                      onClick={() => window.open(`/admin/scoresheet/season/${encodeURIComponent(seasonId)}`, "_blank")}
+                      aria-label="Print Remaining Scoresheets"
+                      title={
+                        games.length === 0
+                          ? "No games scheduled in this season"
+                          : remainingGamesCount === 0
+                            ? "All games in this season are final"
+                            : "Print scoresheets for all remaining games"
+                      }
+                    >
+                      <span className="text-base leading-none" role="img" aria-label="Print scoresheets">
+                        🖨️
+                      </span>
+                    </Button>
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>
+                    {games.length === 0
+                      ? "No games scheduled in this season"
+                      : remainingGamesCount === 0
+                        ? "All games in this season are final"
+                        : `Print scoresheets for ${remainingGamesCount} remaining game${remainingGamesCount === 1 ? "" : "s"}`}
+                  </p>
+                </TooltipContent>
+              </Tooltip>
               <Button onClick={openAddGame}>
                 <Plus className="h-4 w-4 mr-2" />
                 Add Game
               </Button>
             </>
+          ) : (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="inline-flex">
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    disabled={isLoading || remainingGamesCount === 0}
+                    onClick={() => window.open(`/admin/scoresheet/season/${encodeURIComponent(seasonId)}`, "_blank")}
+                    aria-label="Print Remaining Scoresheets"
+                    title={
+                      games.length === 0
+                        ? "No games scheduled in this season"
+                        : remainingGamesCount === 0
+                          ? "All games in this season are final"
+                          : "Print scoresheets for all remaining games"
+                    }
+                  >
+                    <span className="text-base leading-none" role="img" aria-label="Print scoresheets">
+                      🖨️
+                    </span>
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>
+                  {games.length === 0
+                    ? "No games scheduled in this season"
+                    : remainingGamesCount === 0
+                      ? "All games in this season are final"
+                      : `Print scoresheets for ${remainingGamesCount} remaining game${remainingGamesCount === 1 ? "" : "s"}`}
+                </p>
+              </TooltipContent>
+            </Tooltip>
           )}
         </div>
       </div>
@@ -462,9 +539,7 @@ export function SeasonScheduleTab({ seasonId, seasonStatus, initialTeams, defaul
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredGames
-                      .sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time))
-                      .map((g) => (
+                    {sortedFilteredGames.map((g) => (
                       <TableRow key={g.id} className="h-10">
                         <TableCell className="text-xs text-muted-foreground py-1.5">
                           {new Date(g.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })}

@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useRef, useEffect, useCallback, Fragment } from "react"
 import { type BashGame } from "@/lib/hockey-data"
+import { compareGamesChronological } from "@/lib/format-time"
 import { cn } from "@/lib/utils"
 import { DateSection } from "@/components/game-card"
 
@@ -60,7 +61,10 @@ function buildWeeks(games: BashGame[]): Week[] {
       label: formatWeekRange(key),
       dates: [...dateMap.entries()]
         .sort(([a], [b]) => a.localeCompare(b))
-        .map(([date, dGames]) => ({ date, games: dGames })),
+        .map(([date, dGames]) => ({
+          date,
+          games: [...dGames].sort(compareGamesChronological),
+        })),
       isCurrent: key === todayWeek,
     }
   })

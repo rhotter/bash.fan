@@ -60,8 +60,7 @@ There is no centralized place for commissioners to manage the league — seasons
 - Filterable list of games for the current season (by date, status, team)
 - Quick actions: mark as forfeit
 - Link to existing Admin Game Editor for full editing
-- Trigger a manual sync for a single game or all games
-- **Print Scoresheet** — Each game row has a `Printer` icon that opens `/admin/scoresheet/[gameId]` in a new tab. Renders a print-optimized US Letter scoresheet with team rosters, blank scoring/penalty/goalie tables, shot tracking grids, officials, and a "Game Stars" section. Auto-triggers `window.print()` on load.
+- **Print Scoresheet** — Each game row has a `Printer` icon that opens `/admin/scoresheet/[gameId]` in a new tab. Additionally, a top-level `🖨️` button on the schedule page downloads/prints all remaining unplayed scoresheets as a single multi-page PDF via `/admin/scoresheet/season/[id]` with 1-page-per-game pagination. Renders a print-optimized US Letter scoresheet with team rosters, blank scoring/penalty/goalie tables, evenly spaced shot tracking grids, officials, and a "Game Stars" section. Auto-triggers `window.print()` on load.
 
 #### 4.4 Manual Sync Controls
 - "Sync Now" button to trigger `/api/bash/sync` on demand

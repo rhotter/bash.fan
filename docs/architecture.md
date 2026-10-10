@@ -140,6 +140,8 @@ Admins import player rosters via **CSV** files exported from Sportability. The t
 ### 1b. Production Database Sync (`scripts/export-prod-db.ts`)
 In-house seasons (e.g., Summer seasons, tournament exhibition games, live scorekeeper games, and draft instances) originate within BASH rather than Sportability. The replication utility `scripts/export-prod-db.ts` copies selected seasons and their relational entities (teams, games, boxscores, game officials, awards, and complete draft state) from the production Neon Postgres database into a developer's target database, using dynamic name-to-ID alignment to prevent foreign key or historical stat collisions. Both `PROD_URL` and `DEV_URL` connection strings are passed at execution time (`PROD_URL='...' DEV_URL='...' npx tsx scripts/export-prod-db.ts`).
 
+During replication, the script performs automated dev orphan game pruning: any games present in the developer's target database for the synced season that no longer exist in production (e.g., from upstream schedule rebalancing or fixture deletions) are automatically pruned, cascading cleanly across dependent child rows in `game_officials`, `player_game_stats`, `goalie_game_stats`, `adhoc_game_rosters`, and `game_live`.
+
 ### 2. Server-Side Data Fetching (`lib/fetch-*.ts`)
 The application heavily uses Next.js async Server Components. When a page loads, it fetches data using functions located in `lib/fetch-*.ts`, which execute Drizzle ORM queries against Neon Postgres. 
 
@@ -157,10 +159,35 @@ Pure utility functions (no side effects, no DB calls) used by the admin wizards:
 - **`computeScheduleEquity()`**: Calculates comprehensive equity metrics (Home/Away distribution, intra-day slot counts, max streak) for admin review.
 - **`getDefaultTimeForSlot()`**: Provides league-size-aware default start times (e.g. 8:00, 10:00, 12:00, 2:00 for 4 games/day; 9:00, 11:00, 1:00 for 3 games/day; 10:00, 12:00 for 2 games/day).
 - **`mapRoundRobinToGames()`**: Maps generic slot pairings to real teams, dates, and `gameNumberInDay`.
+- **`rebalanceUpcomingGames()`**: Rebalances remaining unplayed fixtures in an active season while pinning completed matches, preserving head-to-head meeting distribution, and applying simulated annealing to optimize intra-day time slot fairness.
 - **`generateBracket()`**: Builds a linked playoff bracket for 4–8 teams using standard seeding (#1v#8, #4v#5, #2v#7, #3v#6) with byes and auto play-in for odd counts. Supports per-round series lengths (best-of-1 or best-of-3).
 - **`checkSeriesClinch()`**: Determines if a best-of-N series has been decided.
 
 > **Topological Generation & ID Constraints**: When playoff brackets are generated, child nodes (like Finals) are topologically sorted and inserted before parent nodes (like Semi-finals) to ensure correct `nextGameId` reference ordering. Note: `nextGameId` is a **soft reference** (application-enforced, not a DB-level FK) to simplify game deletion workflows. Generated games use `g`-prefixed sequential IDs (`g1`, `g2`, ...) backed by a Postgres sequence (`games_gen_seq`) that automatically synchronizes with the maximum existing numeric ID in the `games` table, preventing primary-key collisions. A sentinel `"tbd"` team slug is automatically upserted to safely support Placeholder Mode before real team seedings are resolved.
+
+### 4a. Calendar & Schedule Export (`lib/calendar-export.ts`)
+The application generates RFC 5545 compliant iCalendar (`.ics`) files client-side for schedule integration:
+- **Timezone**: All BASH game times are anchored to `America/Los_Angeles` using an embedded `VTIMEZONE` component with standard US Daylight Saving Time transition rules.
+- **Dynamic Event Duration**: Event length is calculated dynamically as $\text{season.game\_length} \times 2$ (in minutes) based on `schema.seasons.gameLength` (defaulting to 120 minutes / 2 hours). This accommodates pre-game warmups, the game itself, and post-game rink slot reservations.
+- **Rollover Precision**: Date and time calculations use UTC arithmetic (`Date.UTC(y, m - 1, d, h, min + durationMinutes)`), preventing timezone drift or truncation across midnight, month-end, and year-end rollovers.
+- **Location Hierarchy**: Prioritizes `seasonLocation` with fallback to `game.location`.
+- **TBD Handling**: Games with time `"TBD"` generate full-day date-type events (`DTSTART;VALUE=DATE:...`).
+- **Entry Points**: Available per-game on `/game/[id]` ([`components/game-detail.tsx`](file:///Users/christorres/Desktop/bash/components/game-detail.tsx)) and for entire team fixture lists on `/team/[slug]` ([`components/team-page-content.tsx`](file:///Users/christorres/Desktop/bash/components/team-page-content.tsx)).
+
+### 4b. Scoresheet Generation & Batch Printing (`app/admin/scoresheet/`, `components/admin/game-scoresheet.tsx`, `lib/fetch-scoresheets.ts`)
+Print-ready game scoresheets are generated server-side conforming strictly to US Letter specifications (`@page { size: letter; margin: 0.25in; }`):
+- **Single Game Scoresheet** (`/admin/scoresheet/[gameId]`): Renders home/away team rosters with captain/goalie badges, scoring table (11 blank rows), penalty table (11 blank rows), goalie table (3 blank rows), shot tracking grids (Per 1-3 + OT, numbers 01-24 evenly distributed), timeouts, official signatures box, scoring/shots summary grids, and a "Game Stars" selection table (Star #1/2/3).
+- **Batch Scoresheet Engine** (`/admin/scoresheet/season/[id]`): Fetches all remaining unplayed games (`status != 'final'`) in chronological order via `fetchRemainingScoresheetGames` in `lib/fetch-scoresheets.ts`. Seamlessly aggregates season rosters (`player_seasons`) and ad-hoc rosters (`adhoc_game_rosters`) without duplicates.
+- **Strict 1-Page CSS Pagination**: Uses CSS page-break constraints (`break-after: page; page-break-after: always; break-inside: avoid;`) so that in multi-game batches, every game occupies exactly one physical page when printed or exported as a PDF.
+- **Dynamic Layout & Typography**: Vertical space is maximized by omitting unnecessary notes boxes, allocating additional height to the header logo and dynamically scaling roster row heights and font sizes based on player count (adaptive scaling for 16+, 20+, and 24+ skaters) to prevent spillover onto second pages.
+- **Auto-Print & Manual Controls**: Auto-mounts browser print dialog via `AutoPrint` with non-printing on-screen controls for manual re-triggering and season navigation.
+- **Schedule Integration**: Accessible via a condensed print emoji button (`🖨️`) placed 3rd in the schedule tab action bar (left of "+ New Game"), which disables automatically when all season fixtures are final.
+
+### 4c. Chronological Date & Time Sorting (`lib/format-time.ts`)
+Ensures accurate, non-alphabetical chronological ordering across all schedule and scoresheet views:
+- **`toHHMM(time)`**: Parses 12-hour AM/PM formats (`9:00 AM`, `1:00 PM`, `11:30 PM`), seconds notation (`9:00:00 AM`), and 24-hour time strings into standardized 24-hour `HH:MM` representations (`09:00`, `13:00`, `23:30`), with fallback to `"99:99"` for `TBD`, unparseable, or missing times.
+- **`compareGameTimes(a, b)`**: Compares game times chronologically using `toHHMM`, correctly ordering morning games before afternoon and night matches (`9:00am -> 11:00am -> 1:00pm -> 11:00pm -> TBD`).
+- **`compareGamesChronological(a, b)`**: Normalizes dates (stripping ISO timestamps via `split("T")[0]`), compares dates lexicographically, and applies `compareGameTimes` for games on the same date. Eliminates naive alphabetical sorting bugs in both list and card schedule views.
 
 ### 5. Draft System (`app/api/bash/admin/seasons/[id]/draft/`)
 The draft system manages the entire lifecycle of a league draft:
@@ -186,3 +213,5 @@ The App Router maps URLs directly to server components:
 - `/admin/seasons/[id]/draft/[draftId]/board` -> Admin live draft board
 - `/admin/registration` -> Registration period management (questions, discounts, notices, extras)
 - `/admin/franchises` -> Franchise manager
+- `/admin/scoresheet/[gameId]` -> Printable single-game scoresheet
+- `/admin/scoresheet/season/[id]` -> Print-ready batch scoresheets for remaining games

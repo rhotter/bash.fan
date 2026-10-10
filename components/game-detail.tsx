@@ -108,6 +108,7 @@ export function GameDetail({ game, initialDetail, initialLiveData, homeRoster, a
             seasonLocation: detail?.seasonLocation || initialDetail?.seasonLocation || undefined,
             title: game.title,
             seasonName: detail?.seasonName || initialDetail?.seasonName || undefined,
+            gameLengthMinutes: detail?.gameLength ?? initialDetail?.gameLength ?? 60,
           }], `game-${game.id}`)}
           className="flex items-center gap-1 text-[10px] text-muted-foreground/60 hover:text-foreground border border-border/30 hover:bg-muted/40 px-2 py-0.5 -my-0.5 rounded transition-all cursor-pointer shrink-0"
         >

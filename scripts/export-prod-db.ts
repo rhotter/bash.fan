@@ -193,6 +193,7 @@ async function main() {
   const prodPS = await prod`
     SELECT * FROM player_seasons WHERE season_id = ANY(${seasons});
   `;
+  await dev`DELETE FROM player_seasons WHERE season_id = ANY(${seasons});`;
   for (const ps of prodPS) {
     const devPlayerId = devIdByProdId.get(ps.player_id);
     if (!devPlayerId) continue;
@@ -287,6 +288,25 @@ async function main() {
   const prodGames = await prod`
     SELECT * FROM games WHERE season_id = ANY(${seasons}) ORDER BY date, id;
   `;
+  const prodGameIds = prodGames.map((g) => g.id);
+
+  // Clean up any obsolete games in dev that no longer exist in prod (e.g. from schedule rebalances)
+  if (prodGameIds.length > 0) {
+    const orphanGames = await dev`
+      SELECT id FROM games WHERE season_id = ANY(${seasons}) AND NOT (id = ANY(${prodGameIds}));
+    `;
+    const orphanIds = orphanGames.map((g) => g.id);
+    if (orphanIds.length > 0) {
+      await dev`DELETE FROM game_officials WHERE game_id = ANY(${orphanIds});`;
+      await dev`DELETE FROM player_game_stats WHERE game_id = ANY(${orphanIds});`;
+      await dev`DELETE FROM goalie_game_stats WHERE game_id = ANY(${orphanIds});`;
+      await dev`DELETE FROM adhoc_game_rosters WHERE game_id = ANY(${orphanIds});`;
+      await dev`DELETE FROM game_live WHERE game_id = ANY(${orphanIds});`;
+      await dev`DELETE FROM games WHERE id = ANY(${orphanIds});`;
+      console.log(`   Cleaned up ${orphanIds.length} obsolete game(s) in dev.`);
+    }
+  }
+
   for (const g of prodGames) {
     await dev`
       INSERT INTO games (
