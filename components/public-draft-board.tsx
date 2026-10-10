@@ -92,12 +92,13 @@ function formatPlayerName(name: string | null) {
   return `${parts[0][0]}. ${parts.slice(1).join(" ")}`
 }
 
-/** Last name only — used when badges (C/K) eat into the column width */
-function formatPlayerNameCompact(name: string | null) {
-  if (!name) return "—"
-  const parts = name.split(" ")
-  if (parts.length < 2) return name
-  return parts.slice(1).join(" ")
+/** Use the same initial + surname format for every full-board player. */
+function formatBoardPlayerName(name: string | null) {
+  const trimmedName = name?.trim()
+  if (!trimmedName) return "—"
+  const parts = trimmedName.split(/\s+/)
+  if (parts.length < 2) return trimmedName
+  return `${parts[0][0]}. ${parts.slice(1).join(" ")}`
 }
 
 function PositionBadges({ raw }: { raw?: string | null }) {
@@ -1206,7 +1207,7 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
                                       onFocus={() => pick.playerId && prefetchPlayerStats(pick.playerId)}
                                       title={pick.playerName || undefined}
                                     >
-                                      {(isCaptain || pick.isKeeper) ? formatPlayerNameCompact(pick.playerName) : formatPlayerName(pick.playerName)}
+                                      {formatBoardPlayerName(pick.playerName)}
                                     </button>
                                     {(isCaptain || pick.isKeeper || isRookie || newOwner) && (
                                       <span className="relative -top-1 flex shrink-0 items-center gap-1 sm:top-0">
@@ -1302,7 +1303,7 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
                                         onFocus={() => pick.playerId && prefetchPlayerStats(pick.playerId)}
                                         title={pick.playerName || undefined}
                                       >
-                                        {(isCaptain || pick.isKeeper) ? formatPlayerNameCompact(pick.playerName) : formatPlayerName(pick.playerName)}
+                                        {formatBoardPlayerName(pick.playerName)}
                                       </button>
                                       {(isCaptain || isKeeper || isRookie || isGoalie) && (
                                         <div className="relative -top-1 flex items-center gap-1 shrink-0 sm:top-0">
