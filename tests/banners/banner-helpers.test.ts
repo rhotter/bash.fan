@@ -9,6 +9,7 @@ import {
   normalizeHideOnPaths,
   normalizeMobileLabel,
   resolveEffectiveVariant,
+  validateBannerInput,
   type BannerRecord,
   type PublicBanner,
 } from "@/lib/banner-helpers"
@@ -446,6 +447,79 @@ describe("lib/banner-helpers", () => {
         expect(normalizeHideOnPaths("")).toEqual(["/admin"])
         expect(normalizeHideOnPaths(null)).toEqual(["/admin"])
       })
+    })
+  })
+
+  // ─── Defensive Edge Cases & Robustness ─────────────────────────────────────
+  describe("defensive edge cases & robustness", () => {
+    it("formatEventTime gracefully handles invalid timezones by falling back", () => {
+      const date = new Date("2026-10-04T19:00:00Z")
+      expect(() => formatEventTime(date, "Invalid/TimeZone")).not.toThrow()
+      expect(formatEventTime(date, "Invalid/TimeZone")).toBeTruthy()
+    })
+
+    it("formatEventTime supports numeric epoch timestamps", () => {
+      const ms = new Date("2026-10-04T19:00:00Z").getTime()
+      expect(formatEventTime(ms, "UTC")).toBe("7:00 PM")
+    })
+
+    it("computeCountdownSuffix supports numeric epoch timestamps", () => {
+      const now = new Date("2026-10-04T12:00:00Z")
+      const targetMs = new Date("2026-10-09T12:00:00Z").getTime()
+      expect(computeCountdownSuffix("deadline", targetMs, now)).toBe(" · 5 days left")
+    })
+
+    it("computeCountdownSuffix returns null if now is an invalid Date", () => {
+      const target = new Date("2026-10-09T12:00:00Z")
+      const invalidNow = new Date("invalid-date")
+      expect(computeCountdownSuffix("deadline", target, invalidNow)).toBeNull()
+      expect(computeCountdownSuffix("event", target, invalidNow)).toBeNull()
+    })
+
+    it("isBannerVisible does not throw when pathname is null or undefined", () => {
+      const banner: PublicBanner = {
+        id: "test",
+        label: "Notice",
+        href: "/",
+        variant: "default",
+        countdownType: "none",
+        dismissVersion: 1,
+        hideOnPaths: ["/admin"],
+      }
+      expect(isBannerVisible(banner, null as unknown as string, new Set())).toBe(true)
+      expect(isBannerVisible(banner, undefined as unknown as string, new Set())).toBe(true)
+    })
+  })
+
+  // ─── validateBannerInput ──────────────────────────────────────────────────
+  describe("validateBannerInput", () => {
+    it("accepts empty string for date fields to allow form clearing", () => {
+      const result = validateBannerInput({
+        label: "Cleared Dates Banner",
+        href: "/scores",
+        startDate: "",
+        endDate: "",
+        countdownType: "none",
+        countdownTarget: "",
+      })
+      expect(result.valid).toBe(true)
+      expect(result.errors).toEqual([])
+    })
+
+    it("rejects empty href string if provided", () => {
+      const result1 = validateBannerInput({
+        label: "Empty Href",
+        href: "",
+      })
+      expect(result1.valid).toBe(false)
+      expect(result1.errors).toContain("href cannot be empty")
+
+      const result2 = validateBannerInput({
+        label: "Whitespace Href",
+        href: "   ",
+      })
+      expect(result2.valid).toBe(false)
+      expect(result2.errors).toContain("href cannot be empty")
     })
   })
 })

@@ -97,21 +97,40 @@ export function getBannerStatus(
  * Formats a target event time into a clean 12-hour time string (e.g., "7:00 PM").
  */
 export function formatEventTime(
-  target: Date | string,
+  target: Date | string | number,
   timeZone?: string,
 ): string {
-  const date = typeof target === "string" ? new Date(target) : target
+  const date = target instanceof Date ? target : new Date(target)
   if (isNaN(date.getTime())) {
     return ""
   }
 
-  return date
-    .toLocaleTimeString("en-US", {
-      hour: "numeric",
-      minute: "2-digit",
-      ...(timeZone ? { timeZone } : {}),
-    })
-    .replace(/\u202F/g, " ")
+  const options: Intl.DateTimeFormatOptions = {
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  }
+  if (timeZone) {
+    options.timeZone = timeZone
+  }
+
+  try {
+    return date
+      .toLocaleTimeString("en-US", options)
+      .replace(/\u202F/g, " ")
+  } catch {
+    try {
+      return date
+        .toLocaleTimeString("en-US", {
+          hour: "numeric",
+          minute: "2-digit",
+          hour12: true,
+        })
+        .replace(/\u202F/g, " ")
+    } catch {
+      return ""
+    }
+  }
 }
 
 /**
@@ -122,7 +141,7 @@ export function formatEventTime(
  */
 export function computeCountdownSuffix(
   type: CountdownType,
-  target: string | Date | null | undefined,
+  target: string | Date | number | null | undefined,
   now?: Date,
   timeZone?: string,
 ): string | null {
@@ -130,12 +149,15 @@ export function computeCountdownSuffix(
     return null
   }
 
-  const targetDate = typeof target === "string" ? new Date(target) : target
+  const targetDate = target instanceof Date ? target : new Date(target)
   if (isNaN(targetDate.getTime())) {
     return null
   }
 
-  const currentDate = now ? new Date(now) : new Date()
+  const currentDate = now ? (now instanceof Date ? now : new Date(now)) : new Date()
+  if (isNaN(currentDate.getTime())) {
+    return null
+  }
 
   if (type === "deadline") {
     const diffMs = targetDate.getTime() - currentDate.getTime()
@@ -215,7 +237,7 @@ export function resolveEffectiveVariant(
   countdownType: CountdownType,
   suffix: string | null,
 ): BannerVariant {
-  if (countdownType === "event" && suffix === " · LIVE NOW") {
+  if (countdownType === "event" && suffix?.trim() === "· LIVE NOW") {
     return "live"
   }
   return variant
@@ -256,7 +278,7 @@ export function isBannerVisible(
   // Deadline expiration check
   if (banner.countdownType === "deadline" && banner.countdownTarget) {
     const target = new Date(banner.countdownTarget)
-    if (!isNaN(target.getTime()) && currentDate.getTime() > target.getTime()) {
+    if (!isNaN(target.getTime()) && currentDate.getTime() >= target.getTime()) {
       return false
     }
   }
@@ -264,6 +286,7 @@ export function isBannerVisible(
   // Route suppression check
   if (banner.hideOnPaths && Array.isArray(banner.hideOnPaths)) {
     if (
+      pathname &&
       banner.hideOnPaths.some(
         (p) => typeof p === "string" && p.length > 0 && pathname.startsWith(p),
       )
@@ -295,9 +318,9 @@ export function isBannerVisible(
  * Empty or whitespace-only strings become null.
  */
 export function normalizeMobileLabel(
-  mobileLabel?: string | null,
+  mobileLabel?: unknown,
 ): string | null {
-  if (!mobileLabel) return null
+  if (typeof mobileLabel !== "string") return null
   const trimmed = mobileLabel.trim()
   return trimmed.length > 0 ? trimmed : null
 }
@@ -322,3 +345,104 @@ export function normalizeHideOnPaths(input: unknown): string[] {
   }
   return ["/admin"]
 }
+
+export interface ValidationResult {
+  valid: boolean
+  errors: string[]
+}
+
+/**
+ * Validates banner input payload for API POST/PUT requests and admin forms.
+ */
+export function validateBannerInput(input: unknown): ValidationResult {
+  const errors: string[] = []
+
+  if (!input || typeof input !== "object" || Array.isArray(input)) {
+    return { valid: false, errors: ["Invalid request body"] }
+  }
+
+  const record = input as Record<string, unknown>
+
+  // Label validation
+  if (!record.label || typeof record.label !== "string" || record.label.trim().length === 0) {
+    errors.push("label is required and cannot be empty")
+  }
+
+  // Href validation
+  if (record.href !== undefined) {
+    if (typeof record.href !== "string" || record.href.trim().length === 0) {
+      errors.push("href cannot be empty")
+    }
+  }
+
+  // Variant validation
+  if (record.variant !== undefined) {
+    if (typeof record.variant !== "string" || !["default", "live", "warning"].includes(record.variant)) {
+      errors.push(`invalid variant: ${String(record.variant)}. Must be 'default', 'live', or 'warning'`)
+    }
+  }
+
+  // Countdown type validation
+  if (record.countdownType !== undefined) {
+    if (typeof record.countdownType !== "string" || !["none", "deadline", "event"].includes(record.countdownType)) {
+      errors.push(`invalid countdownType: ${String(record.countdownType)}. Must be 'none', 'deadline', or 'event'`)
+    }
+    if (record.countdownType !== "none" && !record.countdownTarget) {
+      errors.push("countdownTarget is required when countdownType is not 'none'")
+    }
+  }
+
+  // Countdown target date validation
+  if (record.countdownTarget !== undefined && record.countdownTarget !== null && record.countdownTarget !== "") {
+    const targetMs = new Date(record.countdownTarget as string | number | Date).getTime()
+    if (isNaN(targetMs)) {
+      errors.push("countdownTarget must be a valid date")
+    }
+  }
+
+  // Priority validation
+  if (record.priority !== undefined) {
+    if (typeof record.priority !== "number" || !Number.isInteger(record.priority) || record.priority < 0) {
+      errors.push("priority must be a non-negative integer")
+    }
+  }
+
+  // Dismiss version validation
+  if (record.dismissVersion !== undefined) {
+    if (typeof record.dismissVersion !== "number" || !Number.isInteger(record.dismissVersion) || record.dismissVersion < 1) {
+      errors.push("dismissVersion must be an integer >= 1")
+    }
+  }
+
+  // Start date validation
+  if (record.startDate !== undefined && record.startDate !== null && record.startDate !== "") {
+    const startMs = new Date(record.startDate as string | number | Date).getTime()
+    if (isNaN(startMs)) {
+      errors.push("startDate must be a valid date")
+    }
+  }
+
+  // End date validation
+  if (record.endDate !== undefined && record.endDate !== null && record.endDate !== "") {
+    const endMs = new Date(record.endDate as string | number | Date).getTime()
+    if (isNaN(endMs)) {
+      errors.push("endDate must be a valid date")
+    }
+  }
+
+  // Date ordering validation
+  if (record.startDate && record.endDate && record.startDate !== "" && record.endDate !== "") {
+    const startMs = new Date(record.startDate as string | number | Date).getTime()
+    const endMs = new Date(record.endDate as string | number | Date).getTime()
+    if (!isNaN(startMs) && !isNaN(endMs) && startMs > endMs) {
+      errors.push("startDate must be before or equal to endDate")
+    }
+  }
+
+  return {
+    valid: errors.length === 0,
+    errors,
+  }
+}
+
+
