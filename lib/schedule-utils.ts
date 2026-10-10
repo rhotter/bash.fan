@@ -4,6 +4,8 @@
  * Pure functions — no side effects, no database calls.
  */
 
+import { compareGamesChronological } from "./format-time"
+
 // ─── Types ──────────────────────────────────────────────────────────────────
 
 export interface RoundRobinSlot {
@@ -635,11 +637,7 @@ export function computeScheduleEquity(
     }
 
     // Calculate streak
-    const sortedGames = [...teamGames].sort((a, b) => {
-      const dateCmp = (a.date || "").localeCompare(b.date || "")
-      if (dateCmp !== 0) return dateCmp
-      return (a.time || "").localeCompare(b.time || "")
-    })
+    const sortedGames = [...teamGames].sort(compareGamesChronological)
 
     let maxStreak = 0
     let currentStreak = 0

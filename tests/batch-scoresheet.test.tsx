@@ -740,5 +740,141 @@ describe("BatchScoresheetPage Route Component", () => {
     expect(btn?.disabled).toBe(true)
     expect(btn?.getAttribute("title")).toBe("No games scheduled in this season")
   })
+
+  it("renders games in chronological order (9am -> 11am -> 1pm -> 11pm) in list/table mode", async () => {
+    const unsortedGames: ScheduleGame[] = [
+      {
+        id: "g-1pm",
+        date: "2026-10-11",
+        time: "1:00pm",
+        homeScore: null,
+        awayScore: null,
+        status: "upcoming",
+        isOvertime: false,
+        isPlayoff: false,
+        isForfeit: false,
+        location: "The Lick",
+        notes: null,
+        gameType: "regular",
+        hasShootout: false,
+        awayNotes: null,
+        homeNotes: null,
+        homePlaceholder: null,
+        awayPlaceholder: null,
+        title: null,
+        homeTeam: "Team A",
+        homeSlug: "team-a",
+        awayTeam: "Team B",
+        awaySlug: "team-b",
+      },
+      {
+        id: "g-11pm",
+        date: "2026-10-11",
+        time: "11:00pm",
+        homeScore: null,
+        awayScore: null,
+        status: "upcoming",
+        isOvertime: false,
+        isPlayoff: false,
+        isForfeit: false,
+        location: "The Lick",
+        notes: null,
+        gameType: "regular",
+        hasShootout: false,
+        awayNotes: null,
+        homeNotes: null,
+        homePlaceholder: null,
+        awayPlaceholder: null,
+        title: null,
+        homeTeam: "Team C",
+        homeSlug: "team-c",
+        awayTeam: "Team D",
+        awaySlug: "team-d",
+      },
+      {
+        id: "g-9am",
+        date: "2026-10-11",
+        time: "9:00am",
+        homeScore: null,
+        awayScore: null,
+        status: "upcoming",
+        isOvertime: false,
+        isPlayoff: false,
+        isForfeit: false,
+        location: "The Lick",
+        notes: null,
+        gameType: "regular",
+        hasShootout: false,
+        awayNotes: null,
+        homeNotes: null,
+        homePlaceholder: null,
+        awayPlaceholder: null,
+        title: null,
+        homeTeam: "Team E",
+        homeSlug: "team-e",
+        awayTeam: "Team F",
+        awaySlug: "team-f",
+      },
+      {
+        id: "g-11am",
+        date: "2026-10-11",
+        time: "11:00am",
+        homeScore: null,
+        awayScore: null,
+        status: "upcoming",
+        isOvertime: false,
+        isPlayoff: false,
+        isForfeit: false,
+        location: "The Lick",
+        notes: null,
+        gameType: "regular",
+        hasShootout: false,
+        awayNotes: null,
+        homeNotes: null,
+        homePlaceholder: null,
+        awayPlaceholder: null,
+        title: null,
+        homeTeam: "Team G",
+        homeSlug: "team-g",
+        awayTeam: "Team H",
+        awaySlug: "team-h",
+      },
+    ]
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => unsortedGames,
+      })
+    )
+
+    await render(
+      <SeasonScheduleTab
+        seasonId="2026-fall"
+        seasonStatus="active"
+        initialTeams={[
+          { teamSlug: "team-a", teamName: "Team A" },
+          { teamSlug: "team-b", teamName: "Team B" },
+        ]}
+        defaultLocation="The Lick"
+      />
+    )
+
+    // Switch to Table view
+    const tableBtn = Array.from(container.querySelectorAll("button")).find(
+      (b) => b.getAttribute("title") === "Table view"
+    )
+    expect(tableBtn).toBeDefined()
+    await flush(() => {
+      tableBtn?.click()
+    })
+
+    // Find table rows and extract times
+    const rows = Array.from(container.querySelectorAll("tbody tr"))
+    expect(rows.length).toBe(4)
+    const times = rows.map((r) => r.querySelectorAll("td")[1]?.textContent?.trim())
+    expect(times).toEqual(["9:00am", "11:00am", "1:00pm", "11:00pm"])
+  })
 })
 

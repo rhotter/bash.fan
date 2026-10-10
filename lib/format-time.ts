@@ -114,3 +114,44 @@ export function toHHMM(time: string | null | undefined): string {
   return ""
 }
 
+/**
+ * Compares two game time strings chronologically.
+ * Uses 24-hour HH:MM conversion so that morning games (e.g., "9:00am")
+ * precede afternoon/evening games (e.g., "1:00pm", "11:00pm").
+ * Unset/TBD times sort to the end.
+ */
+export function compareGameTimes(timeA?: string | null, timeB?: string | null): number {
+  const normA = toHHMM(timeA)
+  const normB = toHHMM(timeB)
+
+  if (normA && normB) {
+    return normA.localeCompare(normB)
+  }
+  if (normA && !normB) {
+    return -1 // valid time comes before TBD / unknown
+  }
+  if (!normA && normB) {
+    return 1 // TBD / unknown comes after valid time
+  }
+  // Neither is valid HH:MM (e.g. both TBD, or both empty)
+  return (timeA || "").localeCompare(timeB || "")
+}
+
+/**
+ * Compares two games chronologically by date then time, with tiebreak on id.
+ */
+export function compareGamesChronological<
+  T extends { date?: string | null; time?: string | null; id?: string | number }
+>(a: T, b: T): number {
+  const dateA = a.date?.trim() || "9999-99-99"
+  const dateB = b.date?.trim() || "9999-99-99"
+  if (dateA !== dateB) {
+    return dateA.localeCompare(dateB)
+  }
+  const timeComp = compareGameTimes(a.time, b.time)
+  if (timeComp !== 0) {
+    return timeComp
+  }
+  return String(a.id ?? "").localeCompare(String(b.id ?? ""))
+}
+

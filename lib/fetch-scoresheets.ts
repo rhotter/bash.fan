@@ -1,7 +1,7 @@
 import { cache } from "react"
 import { db, schema, rawSql } from "@/lib/db"
 import { eq, inArray, sql } from "drizzle-orm"
-import { toHHMM } from "@/lib/format-time"
+import { compareGamesChronological } from "@/lib/format-time"
 import type { ScoresheetGameData, ScoresheetRosterPlayer, ScoresheetOfficial } from "@/components/admin/game-scoresheet"
 
 export interface BatchScoresheetGameItem {
@@ -78,16 +78,7 @@ async function fetchBatchScoresheetsInternal(seasonId: string): Promise<BatchSco
     ORDER BY g.date ASC, g.time ASC
   `)
 
-  const sortedGames = (gameRows as ScoresheetGameData[]).sort((a, b) => {
-    const dateA = a.date?.trim() || "9999-99-99"
-    const dateB = b.date?.trim() || "9999-99-99"
-    if (dateA !== dateB) {
-      return dateA.localeCompare(dateB)
-    }
-    const timeA = toHHMM(a.time) || "23:59"
-    const timeB = toHHMM(b.time) || "23:59"
-    return timeA.localeCompare(timeB) || a.id.localeCompare(b.id)
-  })
+  const sortedGames = (gameRows as ScoresheetGameData[]).sort(compareGamesChronological)
 
   if (sortedGames.length === 0) {
     return {

@@ -42,7 +42,7 @@ import { EditGameModal } from "./edit-game-modal"
 import { RoundRobinWizard } from "./round-robin-wizard"
 import { PlayoffWizard } from "./playoff-wizard"
 import { AdhocRosterModal } from "./adhoc-roster-modal"
-import { formatGameTime } from "@/lib/format-time"
+import { formatGameTime, compareGamesChronological } from "@/lib/format-time"
 
 interface SeasonScheduleTabProps {
   seasonId: string
@@ -199,20 +199,28 @@ export function SeasonScheduleTab({ seasonId, seasonStatus, initialTeams, defaul
     setRosterModalOpen(true)
   }
 
-  const filteredGames = games.filter(g => {
-    // Team filter
-    const matchesTeam = teamFilter === "all" || g.homeSlug === teamFilter || g.awaySlug === teamFilter
-    return matchesTeam
-  })
+  const filteredGames = useMemo(() => {
+    return games.filter(g => {
+      // Team filter
+      const matchesTeam = teamFilter === "all" || g.homeSlug === teamFilter || g.awaySlug === teamFilter
+      return matchesTeam
+    })
+  }, [games, teamFilter])
 
-  // Group by date
-  const groupedGames = filteredGames.reduce((acc: Record<string, ScheduleGame[]>, game) => {
-    if (!acc[game.date]) acc[game.date] = []
-    acc[game.date].push(game)
-    return acc
-  }, {})
+  const sortedFilteredGames = useMemo(() => {
+    return [...filteredGames].sort(compareGamesChronological)
+  }, [filteredGames])
 
-  const sortedDates = Object.keys(groupedGames).sort()
+  // Group by date (games within each date maintain chronological order)
+  const groupedGames = useMemo(() => {
+    return sortedFilteredGames.reduce((acc: Record<string, ScheduleGame[]>, game) => {
+      if (!acc[game.date]) acc[game.date] = []
+      acc[game.date].push(game)
+      return acc
+    }, {})
+  }, [sortedFilteredGames])
+
+  const sortedDates = useMemo(() => Object.keys(groupedGames).sort(), [groupedGames])
 
   // Identify core league teams (true fall/summer teams).
   // We exclude ad-hoc tryout/exhibition teams, which we identify
@@ -531,9 +539,7 @@ export function SeasonScheduleTab({ seasonId, seasonStatus, initialTeams, defaul
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredGames
-                      .sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time))
-                      .map((g) => (
+                    {sortedFilteredGames.map((g) => (
                       <TableRow key={g.id} className="h-10">
                         <TableCell className="text-xs text-muted-foreground py-1.5">
                           {new Date(g.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })}
