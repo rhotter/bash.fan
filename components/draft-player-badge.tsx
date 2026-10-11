@@ -8,22 +8,18 @@ const playerBadges = {
   rookie: {
     letter: "R",
     label: "Rookie",
-    description: "Designated as a rookie for this season.",
   },
   keeper: {
     letter: "K",
     label: "Keeper",
-    description: "Retained by the team for this season.",
   },
   goalie: {
     letter: "G",
     label: "Goalie",
-    description: "Registered to play goalie.",
   },
   captain: {
     letter: "C",
     label: "Captain",
-    description: "Designated team captain for this season.",
   },
 }
 
@@ -34,7 +30,7 @@ export function DraftPlayerBadge({
   kind: keyof typeof playerBadges
   className?: string
 }) {
-  const { letter, label, description } = playerBadges[kind]
+  const { letter, label } = playerBadges[kind]
   const [open, setOpen] = useState(false)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const openOnPointerDown = useRef<boolean | null>(null)
@@ -80,7 +76,7 @@ export function DraftPlayerBadge({
         }}
         onEscapeKeyDown={(event) => event.stopPropagation()}
       >
-        {label} — {description}
+        {label}
       </TooltipContent>
     </Tooltip>
   )
