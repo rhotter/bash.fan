@@ -1,3 +1,4 @@
+import { formatSeasonName } from "@/lib/season-name"
 import { db } from "@/lib/db"
 import * as schema from "@/lib/db/schema"
 import { eq, and, inArray } from "drizzle-orm"
@@ -147,7 +148,7 @@ export async function GET(
       },
       season: {
         id: seasonRow.id,
-        name: seasonRow.name,
+        name: formatSeasonName(seasonRow.name),
         slug: seasonRow.id,
       },
       teams: teamOrder.map((t) => ({

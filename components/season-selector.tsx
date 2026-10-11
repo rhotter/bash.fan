@@ -1,5 +1,6 @@
 "use client"
 
+import { formatSeasonName } from "@/lib/season-name"
 import { useSeasons } from "@/lib/hockey-data"
 import { useRouter, useSearchParams, usePathname } from "next/navigation"
 import { useCallback } from "react"
@@ -30,13 +31,13 @@ export function SeasonSelector() {
       onChange={(e) => onChange(e.target.value)}
       className="text-[10px] font-semibold bg-transparent border border-border/40 rounded-md px-1.5 py-1 text-muted-foreground hover:text-foreground hover:border-border transition-colors cursor-pointer focus:outline-none focus:ring-1 focus:ring-primary/30 max-w-[120px] sm:max-w-none"
     >
-      <option value="">{seasons.find((s) => s.isCurrent)?.name ?? "2025-2026"}</option>
+      <option value="">{formatSeasonName(seasons.find((s) => s.isCurrent)?.name ?? "Current season")}</option>
       <option value="all">All Time</option>
       {seasons
         .filter((s) => !s.isCurrent && (s.hasGames || s.hasStats) && s.status !== "draft")
         .map((s) => (
           <option key={s.id} value={s.id}>
-            {s.name}
+            {formatSeasonName(s.name)}
           </option>
         ))}
       {/* Seasons without games or stats, grouped at end */}
@@ -46,7 +47,7 @@ export function SeasonSelector() {
             .filter((s) => !s.isCurrent && !s.hasGames && !s.hasStats && s.status !== "draft")
             .map((s) => (
               <option key={s.id} value={s.id}>
-                {s.name}
+                {formatSeasonName(s.name)}
               </option>
             ))}
         </optgroup>

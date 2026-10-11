@@ -1,3 +1,4 @@
+import { formatSeasonName } from "@/lib/season-name"
 import { NextResponse } from "next/server"
 import { db, schema } from "@/lib/db"
 import { sql, inArray } from "drizzle-orm"
@@ -26,5 +27,5 @@ export async function GET() {
     .where(inArray(schema.seasons.status, ["active", "draft"]))
     .orderBy(sql`${schema.seasons.isCurrent} DESC, ${schema.seasons.id} DESC`)
 
-  return NextResponse.json({ seasons })
+  return NextResponse.json({ seasons: seasons.map(season => ({ ...season, name: formatSeasonName(season.name) })) })
 }

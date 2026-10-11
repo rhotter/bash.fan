@@ -1,3 +1,4 @@
+import { formatSeasonName } from "@/lib/season-name"
 import { notFound, redirect } from "next/navigation"
 import { db, schema } from "@/lib/db"
 import { eq, and } from "drizzle-orm"
@@ -377,7 +378,7 @@ export default async function DraftBoardPage({ params }: BoardPageProps) {
     <DraftBoardView
       seasonId={seasonId}
       seasonSlug={season?.id || seasonId}
-      seasonName={season?.name || ""}
+      seasonName={formatSeasonName(season?.name || "")}
       draft={serializedDraft}
       teams={teamOrder.map((t) => ({
         ...t,

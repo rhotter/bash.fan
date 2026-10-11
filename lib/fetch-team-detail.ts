@@ -1,3 +1,4 @@
+import { formatSeasonName } from "@/lib/season-name"
 import { db, schema, rawSql } from "@/lib/db"
 import { sql, eq } from "drizzle-orm"
 import { getCurrentSeason } from "@/lib/seasons"
@@ -82,7 +83,7 @@ export async function fetchTeamDetail(slug: string, seasonParam?: string | null)
     defaultLocation: schema.seasons.defaultLocation,
     gameLength: schema.seasons.gameLength,
   }).from(schema.seasons).where(eq(schema.seasons.id, seasonId))
-  const seasonName = seasonRows.length > 0 ? seasonRows[0].name : seasonId
+  const seasonName = formatSeasonName(seasonRows.length > 0 ? seasonRows[0].name : seasonId)
   const seasonLocation = seasonRows.length > 0 ? seasonRows[0].defaultLocation : null
   const gameLength = seasonRows.length > 0 ? seasonRows[0].gameLength : 60
 

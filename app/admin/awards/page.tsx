@@ -1,3 +1,4 @@
+import { formatSeasonName } from "@/lib/season-name"
 import { AwardsClient } from "./awards-client"
 import { db, schema } from "@/lib/db"
 import { desc } from "drizzle-orm"
@@ -25,7 +26,7 @@ export default async function AwardsPage() {
           <p className="text-muted-foreground mt-1">Manage seasonal awards and inductees to the BASH Hall of Fame.</p>
         </div>
       </div>
-      <AwardsClient seasons={allSeasons} allPlayers={players} />
+      <AwardsClient seasons={allSeasons.map(season => ({ ...season, name: formatSeasonName(season.name) }))} allPlayers={players} />
     </div>
   )
 }

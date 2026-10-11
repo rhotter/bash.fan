@@ -1,3 +1,4 @@
+import { formatSeasonName } from "@/lib/season-name"
 import Link from "next/link"
 import { Plus } from "lucide-react"
 import { rawSql } from "@/lib/db"
@@ -32,7 +33,7 @@ async function getSeasons(statusFilter?: string, typeFilter?: string) {
     ORDER BY s.id DESC
   `)
 
-  return rows as SeasonRow[]
+  return (rows as SeasonRow[]).map(season => ({ ...season, name: formatSeasonName(season.name) }))
 }
 
 export default async function SeasonsListPage({ searchParams }: SeasonListPageProps) {

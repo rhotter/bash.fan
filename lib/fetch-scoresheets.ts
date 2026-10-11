@@ -1,3 +1,4 @@
+import { formatSeasonName } from "@/lib/season-name"
 import { cache } from "react"
 import { db, schema, rawSql } from "@/lib/db"
 import { eq, inArray, sql } from "drizzle-orm"
@@ -60,6 +61,7 @@ async function fetchBatchScoresheetsInternal(seasonId: string): Promise<BatchSco
   `)
   const season = seasonRows[0] as { id: string; name: string } | undefined
   if (!season) return null
+  season.name = formatSeasonName(season.name)
 
   const gameRows = await rawSql(sql`
     SELECT

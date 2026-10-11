@@ -1,3 +1,4 @@
+import { formatSeasonName } from "@/lib/season-name"
 import { db } from "@/lib/db"
 import * as schema from "@/lib/db/schema"
 import { eq, and, sql, ne, inArray } from "drizzle-orm"
@@ -191,7 +192,7 @@ export async function GET(
       if (stats !== null || playoffStats !== null) {
         filteredSeasons.push({
           seasonId: entry.seasonId,
-          seasonName: entry.seasonName,
+          seasonName: formatSeasonName(entry.seasonName),
           teamName: entry.teamName,
           teamSlug: entry.teamSlug,
           isGoalie: actualIsGoalie,

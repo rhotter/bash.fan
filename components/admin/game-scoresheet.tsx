@@ -1,3 +1,4 @@
+import { formatSeasonName } from "@/lib/season-name"
 import React from "react"
 import { formatGameTime } from "@/lib/format-time"
 import { BackButton } from "@/app/admin/scoresheet/[gameId]/back-button"
@@ -307,7 +308,7 @@ export function GameScoresheet({
 
   const homeName = game.home_name || "TBD"
   const awayName = game.away_name || "TBD"
-  const seasonName = game.season_name || "Season"
+  const seasonName = formatSeasonName(game.season_name || "Season")
 
   let dateStr = game.date || ""
   if (game.date) {

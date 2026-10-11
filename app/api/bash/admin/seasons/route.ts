@@ -1,3 +1,4 @@
+import { formatSeasonName, seasonIdFromName } from "@/lib/season-name"
 import { NextRequest, NextResponse } from "next/server"
 import { db, schema } from "@/lib/db"
 import { sql, eq } from "drizzle-orm"
@@ -35,7 +36,7 @@ export async function GET(request: NextRequest) {
 
   const seasons = await query
 
-  return NextResponse.json({ seasons })
+  return NextResponse.json({ seasons: seasons.map(season => ({ ...season, name: formatSeasonName(season.name) })) })
 }
 
 export async function POST(request: NextRequest) {
@@ -53,7 +54,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Generate ID from name (e.g. "2026-2027" or "2026-summer")
-    const id = name.toLowerCase().replace(/\s+/g, "-")
+    const id = seasonIdFromName(name)
 
     // Check if season already exists
     const existing = await db

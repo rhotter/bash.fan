@@ -1,5 +1,6 @@
 "use client"
 
+import { formatSeasonName } from "@/lib/season-name"
 import { useState, useEffect, useRef, useMemo, useCallback } from "react"
 import Image from "next/image"
 import Link from "next/link"
@@ -500,9 +501,9 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
       const end = endDate.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "")
       const params = new URLSearchParams({
         action: "TEMPLATE",
-        text: `BASH ${draft.name}`,
+        text: `${formatSeasonName(season.name)} Draft`,
         dates: `${start}/${end}`,
-        details: `BASH ${draft.name}.${teams.length > 0 ? ` ${draft.rounds} rounds, ${teams.length} teams.` : ""}`,
+        details: `${formatSeasonName(season.name)} Draft.${teams.length > 0 ? ` ${draft.rounds} rounds, ${teams.length} teams.` : ""}`,
         location: "",
       })
       return `https://calendar.google.com/calendar/render?${params.toString()}`
@@ -535,7 +536,7 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
               priority
             />
             <Badge variant="outline" className="text-xs uppercase tracking-widest bg-background/80 backdrop-blur-sm">Upcoming Draft</Badge>
-            <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">{draft.name}</h1>
+            <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">{formatSeasonName(season.name)} Draft</h1>
           </div>
 
           {/* Countdown */}
@@ -682,7 +683,7 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
         <div className="space-y-2">
           {isCompleted ? (
             <div className="flex items-center justify-between gap-3 flex-wrap">
-              <h1 className="text-2xl font-black tracking-tight">{season.name} Draft Results</h1>
+              <h1 className="text-2xl font-black tracking-tight">{formatSeasonName(season.name)} Draft Results</h1>
               <div className="flex items-center gap-2">
                 <Badge variant="secondary" className="text-[10px] px-2 py-0.5 gap-1 font-semibold">
                   <Trophy className="h-3 w-3" />
@@ -752,7 +753,7 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
               </div>
               {/* Orange accent separator */}
               <div className="w-full h-1 bg-primary rounded-full" />
-              <h1 className="text-xl font-bold tracking-tight">{season.name} Draft</h1>
+              <h1 className="text-xl font-bold tracking-tight">{formatSeasonName(season.name)} Draft</h1>
             </>
           )}
         </div>

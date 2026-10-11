@@ -1,3 +1,4 @@
+import { formatSeasonName } from "@/lib/season-name"
 import { notFound } from "next/navigation"
 import { db, schema } from "@/lib/db"
 import { eq, ne, and, sql } from "drizzle-orm"
@@ -18,6 +19,7 @@ async function getSeason(id: string) {
     .limit(1)
 
   if (!season) return null
+  season.name = formatSeasonName(season.name)
 
   const allTeams = await db
     .select({

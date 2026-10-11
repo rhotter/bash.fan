@@ -1,5 +1,7 @@
 "use client"
 
+import { formatSeasonName } from "@/lib/season-name"
+
 import { LoadingState } from "@/components/loading-state"
 import { Spinner } from "@/components/ui/spinner"
 import { useState, useEffect, useCallback } from "react"
@@ -255,7 +257,7 @@ export function FranchiseManager() {
   const searchLower = unlinkedSearch.toLowerCase()
   const filteredUnlinked = effectiveUnlinked.filter(e =>
     e.teamName.toLowerCase().includes(searchLower) ||
-    e.seasonName.toLowerCase().includes(searchLower)
+    formatSeasonName(e.seasonName).toLowerCase().includes(searchLower)
   )
 
   if (isLoading) {
@@ -426,7 +428,7 @@ export function FranchiseManager() {
                                 <TeamLogo slug={entry.teamSlug} name={entry.teamName} size={24} className="shrink-0" />
                                 <div className="flex flex-col min-w-0">
                                   <span className="font-medium text-sm truncate">{entry.teamName}</span>
-                                  <span className="text-[10px] text-muted-foreground">{entry.seasonName}</span>
+                                  <span className="text-[10px] text-muted-foreground">{formatSeasonName(entry.seasonName)}</span>
                                 </div>
                               </div>
                               <Button
@@ -446,7 +448,7 @@ export function FranchiseManager() {
                                 <TeamLogo slug={entry.teamSlug} name={entry.teamName} size={24} className="shrink-0" />
                                 <div className="flex flex-col min-w-0">
                                   <span className="font-medium text-sm truncate">{entry.teamName}</span>
-                                  <span className="text-[10px] text-muted-foreground">{entry.seasonName}</span>
+                                  <span className="text-[10px] text-muted-foreground">{formatSeasonName(entry.seasonName)}</span>
                                 </div>
                               </div>
                               <Button
@@ -466,7 +468,7 @@ export function FranchiseManager() {
                                 <TeamLogo slug={entry.teamSlug} name={entry.teamName} size={24} className="shrink-0" />
                                 <div className="flex flex-col min-w-0">
                                   <span className="font-medium text-sm truncate line-through">{entry.teamName}</span>
-                                  <span className="text-[10px] text-muted-foreground">{entry.seasonName}</span>
+                                  <span className="text-[10px] text-muted-foreground">{formatSeasonName(entry.seasonName)}</span>
                                 </div>
                               </div>
                               <Button
@@ -516,7 +518,7 @@ export function FranchiseManager() {
                                 <TeamLogo slug={entry.teamSlug} name={entry.teamName} size={20} className="shrink-0 opacity-70" />
                                 <div className="flex flex-col min-w-0">
                                   <span className="font-medium text-sm truncate">{entry.teamName}</span>
-                                  <span className="text-[10px] text-muted-foreground">{entry.seasonName}</span>
+                                  <span className="text-[10px] text-muted-foreground">{formatSeasonName(entry.seasonName)}</span>
                                 </div>
                               </div>
                               <Plus className="h-3.5 w-3.5 text-muted-foreground" />

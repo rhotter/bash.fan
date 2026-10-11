@@ -1,3 +1,4 @@
+import { formatSeasonName } from "@/lib/season-name"
 import { db, schema } from "@/lib/db"
 import { eq, desc, sql } from "drizzle-orm"
 import { unstable_cache } from "next/cache"
@@ -20,7 +21,7 @@ export interface Season {
 function mapRow(s: typeof schema.seasons.$inferSelect): Season {
   return {
     id: s.id,
-    name: s.name,
+    name: formatSeasonName(s.name),
     leagueId: s.leagueId ?? "",
     seasonType: s.seasonType as SeasonType,
     status: s.status,
@@ -65,7 +66,7 @@ export const getCurrentSeason = unstable_cache(
     }
     throw new Error("No seasons configured in the database.")
   },
-  ['current-season'],
+  ['current-season', 'canonical-names-v1'],
   { tags: ['seasons'], revalidate: 3600 }
 )
 
@@ -76,7 +77,7 @@ export const getAllSeasons = unstable_cache(
     })
     return rows.map(mapRow).sort(compareSeasonsDesc)
   },
-  ['all-seasons'],
+  ['all-seasons', 'canonical-names-v1'],
   { tags: ['seasons'], revalidate: 3600 }
 )
 

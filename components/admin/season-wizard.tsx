@@ -1,5 +1,7 @@
 "use client"
 
+import { formatSeasonName } from "@/lib/season-name"
+
 import { Spinner } from "@/components/ui/spinner"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
@@ -17,8 +19,8 @@ function suggestSeasonName(): string {
   const now = new Date()
   const year = now.getFullYear()
   const month = now.getMonth()
-  if (month >= 3 && month <= 8) return `${year} Summer`
-  return `${year}-${year + 1}`
+  if (month >= 3 && month <= 8) return formatSeasonName(`${year} Summer`)
+  return formatSeasonName(`${year}-${year + 1}`)
 }
 
 function suggestSeasonType(): "fall" | "summer" {

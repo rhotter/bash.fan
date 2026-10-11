@@ -1,3 +1,4 @@
+import { formatSeasonName } from "@/lib/season-name"
 import { db } from "@/lib/db"
 import * as schema from "@/lib/db/schema"
 import { eq, inArray } from "drizzle-orm"
@@ -25,7 +26,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   // Build description with date/time/location
   let description = "Bay Area Street Hockey draft board."
   if (draft) {
-    const parts: string[] = [`BASH ${draft.name}`]
+    const parts: string[] = [`${formatSeasonName(seasonRow?.name ?? draft.name)} Draft`]
     if (draft.draftDate) {
       const d = new Date(draft.draftDate)
       parts.push(d.toLocaleDateString('en-US', {
@@ -45,11 +46,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     description = parts.join(' · ')
   }
 
-  const title = draft
-    ? `BASH ${draft.name}`
-    : seasonRow
-      ? `${seasonRow.name} Draft — BASH`
-      : "Draft — BASH"
+  const title = seasonRow
+    ? `${formatSeasonName(seasonRow.name)} Draft — BASH`
+    : "Draft — BASH"
 
   return {
     title,
@@ -182,7 +181,7 @@ export default async function PublicDraftPage({ params }: Props) {
     },
     season: {
       id: seasonRow.id,
-      name: seasonRow.name,
+      name: formatSeasonName(seasonRow.name),
       slug: seasonRow.id,
     },
     teams: teamOrder.map((t) => ({
