@@ -1,8 +1,9 @@
 "use client"
 
+import { Spinner } from "@/components/ui/spinner"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { Loader2, Check, AlertTriangle, HelpCircle, Trash2, Globe } from "lucide-react"
+import { Check, AlertTriangle, HelpCircle, Trash2, Globe } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -443,7 +444,7 @@ export function SeasonForm({ season }: SeasonFormProps) {
             className="font-semibold cursor-pointer"
           >
             {saving ? (
-              <Loader2 className="h-4 w-4 animate-spin mr-1.5" />
+              <Spinner className="h-4 w-4 mr-1.5" />
             ) : (
               <Check className="h-4 w-4 mr-1.5" />
             )}
@@ -477,7 +478,7 @@ export function SeasonForm({ season }: SeasonFormProps) {
               }}
               disabled={saving}
             >
-              {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {saving && <Spinner className="mr-2 h-4 w-4" />}
               Continue
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -534,7 +535,7 @@ export function SeasonForm({ season }: SeasonFormProps) {
               disabled={deleting || deleteConfirmText !== season.name}
               className="cursor-pointer"
             >
-              {deleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {deleting && <Spinner className="mr-2 h-4 w-4" />}
               Permanently Delete
             </Button>
           </AlertDialogFooter>

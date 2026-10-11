@@ -1,12 +1,12 @@
 "use client"
 
+import { Spinner } from "@/components/ui/spinner"
 import { useState, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import {
   Plus,
   Pencil,
   Trash2,
-  Loader2,
   Megaphone,
   Smartphone,
   Monitor,
@@ -971,7 +971,7 @@ export function BannersClient({ initial }: { initial: BannerRow[] }) {
               Cancel
             </Button>
             <Button onClick={handleSubmit} disabled={busy} className="gap-1.5">
-              {busy && <Loader2 className="h-4 w-4 animate-spin" />}
+              {busy && <Spinner className="h-4 w-4" />}
               {editing ? "Save changes" : "Create banner"}
             </Button>
           </DialogFooter>

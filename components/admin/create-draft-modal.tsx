@@ -1,7 +1,7 @@
 "use client"
 
+import { Spinner } from "@/components/ui/spinner"
 import { useState } from "react"
-import { Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -233,7 +233,7 @@ export function CreateDraftModal({
             Cancel
           </Button>
           <Button size="sm" onClick={handleSubmit} disabled={saving || !canSubmit}>
-            {saving && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
+            {saving && <Spinner className="h-4 w-4 mr-1" />}
             Create Draft
           </Button>
         </div>

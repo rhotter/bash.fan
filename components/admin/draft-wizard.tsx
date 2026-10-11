@@ -1,9 +1,10 @@
 "use client"
 
+import { Spinner } from "@/components/ui/spinner"
 import { useState, useRef, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import {
-  ArrowLeft, ArrowRight, Check, Loader2, Shuffle, GripVertical,
+  ArrowLeft, ArrowRight, Check, Shuffle, GripVertical,
   Upload, X, FileCheck, Search, Crown, ArrowLeftRight, Plus, Trash2,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -478,7 +479,7 @@ export function DraftWizard({ open, onOpenChange, seasonId, seasonType, teams, r
             </Button>
           ) : (
             <Button size="sm" onClick={handleSubmit} disabled={creating}>
-              {creating && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
+              {creating && <Spinner className="h-4 w-4 mr-1" />}
               {isConfigureMode ? "Save & Set Keepers" : "Create Draft"}
             </Button>
           )}
@@ -847,7 +848,7 @@ function StepTeamsCaptains({
               {/* Loading placeholder */}
               {teamCaptains.length === 0 && rosterPlayers.length === 0 && rosterLoading && (
                 <div className="flex items-center gap-2 text-xs text-muted-foreground py-1">
-                  <Loader2 className="h-3 w-3 animate-spin" />
+                  <Spinner className="h-3 w-3" />
                   Loading roster players…
                 </div>
               )}

@@ -1,5 +1,6 @@
 "use client"
 
+import { Spinner } from "@/components/ui/spinner"
 import { useState, useCallback, useMemo, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
@@ -12,7 +13,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { RotateCcw, Play, Pause, Loader2, Crown, Search, X, Check, Download, Upload, MoreVertical, LogOut, ExternalLink, Timer, Info } from "lucide-react"
+import { RotateCcw, Play, Pause, Crown, Search, X, Check, Download, Upload, MoreVertical, LogOut, ExternalLink, Timer, Info } from "lucide-react"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip"
@@ -1101,7 +1102,7 @@ export function DraftBoardView({
           <DialogFooter>
             <Button variant="outline" onClick={() => setTradeDialogOpen(false)}>Cancel</Button>
             <Button onClick={handleTrade} disabled={isTrading || !tradePick1 || !tradePick2 || tradePick1 === tradePick2}>
-              {isTrading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+              {isTrading ? <Spinner className="w-4 h-4 mr-2" /> : null}
               Execute Trade
             </Button>
           </DialogFooter>
@@ -1154,7 +1155,7 @@ export function DraftBoardView({
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditOrderDialogOpen(false)}>Cancel</Button>
             <Button onClick={handleEditOrder} disabled={isEditingOrder || !editOrderPickId || !editOrderTeamSlug}>
-              {isEditingOrder ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+              {isEditingOrder ? <Spinner className="w-4 h-4 mr-2" /> : null}
               Save Changes
             </Button>
           </DialogFooter>
@@ -1173,7 +1174,7 @@ export function DraftBoardView({
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handlePushRosters} disabled={isPushingRosters}>
-              {isPushingRosters ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+              {isPushingRosters ? <Spinner className="w-4 h-4 mr-2" /> : null}
               Push Rosters
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -1192,7 +1193,7 @@ export function DraftBoardView({
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handleRevertToLive} disabled={isReverting} className="bg-orange-600 hover:bg-orange-700">
-              {isReverting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RotateCcw className="w-4 h-4 mr-2" />}
+              {isReverting ? <Spinner className="w-4 h-4 mr-2" /> : <RotateCcw className="w-4 h-4 mr-2" />}
               Revert to Live
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -1224,7 +1225,7 @@ export function DraftBoardView({
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowDurationDialog(false)}>Cancel</Button>
             <Button onClick={handleSetDuration} disabled={isSavingDuration}>
-              {isSavingDuration && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {isSavingDuration && <Spinner className="mr-2 h-4 w-4" />}
               Save
             </Button>
           </DialogFooter>
@@ -2156,7 +2157,7 @@ export function DraftBoardView({
             >
               {isClearingKeepers ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <Spinner className="mr-2 h-4 w-4" />
                   Clearing...
                 </>
               ) : (
@@ -2196,7 +2197,7 @@ export function DraftBoardView({
           <AlertDialogFooter>
             <AlertDialogCancel disabled={isStarting}>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handleStartDraft} disabled={isStarting}>
-              {isStarting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {isStarting && <Spinner className="mr-2 h-4 w-4" />}
               Start Draft
             </AlertDialogAction>
           </AlertDialogFooter>

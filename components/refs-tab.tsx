@@ -1,13 +1,13 @@
 "use client"
 
+import { LoadingState } from "@/components/loading-state"
 import { useRefStats } from "@/lib/hockey-data"
-import { Loader2 } from "lucide-react"
 import { useSort, SortableTh, statsRowClass } from "@/components/stats-table"
 
 type SortKey = "games" | "totalPen" | "totalPim" | "avgPimPerGame"
 
 export function RefsTab() {
-  const { refs, isLoading, isError } = useRefStats()
+  const { refs, isLoading } = useRefStats()
   const { sortKey, sortDir, toggleSort } = useSort<SortKey>("games")
 
   const sorted = [...refs].sort((a, b) => {
@@ -16,15 +16,11 @@ export function RefsTab() {
     return sortDir === "desc" ? bv - av : av - bv
   })
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center py-16">
-        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-      </div>
-    )
+  if (isLoading && refs.length === 0) {
+    return <LoadingState variant="table" label="Loading referees…" />
   }
 
-  if (isError || refs.length === 0) {
+  if (refs.length === 0) {
     return (
       <div className="flex items-center justify-center py-16">
         <p className="text-xs text-muted-foreground">No referee data available yet. Data will appear after game boxscores are synced.</p>

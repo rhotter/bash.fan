@@ -1,8 +1,8 @@
 "use client"
 
+import { Spinner } from "@/components/ui/spinner"
 import { useState, useEffect } from "react"
 import { toast } from "sonner"
-import { Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -195,7 +195,7 @@ export function EditDraftModal({ draft, seasonId, isOpen, onOpenChange, onUpdate
             Cancel
           </Button>
           <Button onClick={handleSave} disabled={isSaving}>
-            {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            {isSaving && <Spinner className="mr-2 h-4 w-4" />}
             Save Changes
           </Button>
         </DialogFooter>

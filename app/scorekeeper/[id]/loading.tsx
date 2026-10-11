@@ -1,7 +1,5 @@
-export default function ScorekeeperLoading() {
-  return (
-    <div className="flex flex-1 items-center justify-center bg-background">
-      <div className="animate-pulse text-sm text-muted-foreground">Loading...</div>
-    </div>
-  )
+import { LoadingState } from "@/components/loading-state"
+
+export default function Loading() {
+  return <LoadingState variant="detail" label="Loading scorekeeper…" className="mx-auto max-w-6xl p-4" />
 }

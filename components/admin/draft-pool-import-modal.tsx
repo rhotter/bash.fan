@@ -1,5 +1,6 @@
 "use client"
 
+import { Spinner } from "@/components/ui/spinner"
 import { useState, useCallback } from "react"
 import {
   Dialog,
@@ -13,7 +14,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Label } from "@/components/ui/label"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
-import { Upload, FileCheck, AlertTriangle, Loader2 } from "lucide-react"
+import { Upload, FileCheck, AlertTriangle } from "lucide-react"
 import { SkillBadge } from "./draft-player-card"
 
 interface ImportStats {
@@ -306,7 +307,7 @@ export function DraftPoolImportModal({
         {/* Step 3: Importing */}
         {step === "importing" && (
           <div className="flex flex-col items-center gap-3 py-8">
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            <Spinner className="h-8 w-8 text-muted-foreground" />
             <p className="text-sm text-muted-foreground">Importing players...</p>
           </div>
         )}

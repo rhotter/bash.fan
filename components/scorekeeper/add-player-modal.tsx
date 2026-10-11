@@ -1,12 +1,13 @@
 "use client"
 
+import { Spinner } from "@/components/ui/spinner"
 import { useState, useEffect, useRef } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Loader2, Search, UserPlus, Plus } from "lucide-react"
+import { Search, UserPlus, Plus } from "lucide-react"
 import { toast } from "sonner"
 
 interface AddPlayerModalProps {
@@ -195,7 +196,7 @@ export function AddPlayerModal({
             <div className="border rounded-lg overflow-hidden">
               {isSearching ? (
                 <div className="flex items-center justify-center py-4 gap-2 text-sm text-muted-foreground">
-                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <Spinner className="h-4 w-4" />
                   Searching…
                 </div>
               ) : searchResults.length > 0 ? (
@@ -266,7 +267,7 @@ export function AddPlayerModal({
               >
                 {isAdding ? (
                   <>
-                    <Loader2 className="h-4 w-4 animate-spin mr-1.5" />
+                    <Spinner className="h-4 w-4 mr-1.5" />
                     Adding…
                   </>
                 ) : (

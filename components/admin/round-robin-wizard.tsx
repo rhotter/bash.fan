@@ -1,5 +1,6 @@
 "use client"
 
+import { Spinner } from "@/components/ui/spinner"
 import { useState, useMemo, useCallback, useEffect } from "react"
 import {
   Dialog,
@@ -24,7 +25,7 @@ import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { toast } from "sonner"
-import { ChevronLeft, ChevronRight, Calendar, Loader2, Info, CheckCircle2, Scale, Clock, AlertTriangle } from "lucide-react"
+import { ChevronLeft, ChevronRight, Calendar, Info, CheckCircle2, Scale, Clock, AlertTriangle } from "lucide-react"
 import {
   generateRoundRobin,
   computeByeTeams,
@@ -1016,7 +1017,7 @@ export function RoundRobinWizard({
                 <Button onClick={handleSave} disabled={isSaving}>
                   {isSaving ? (
                     <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      <Spinner className="h-4 w-4 mr-2" />
                       Generating...
                     </>
                   ) : (

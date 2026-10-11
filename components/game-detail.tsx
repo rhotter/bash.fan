@@ -1,11 +1,12 @@
 "use client"
 
+import { LoadingState } from "@/components/loading-state"
 import { useState, useMemo, useEffect } from "react"
 import { useSearchParams, useRouter } from "next/navigation"
 import { useGameDetail, useLiveGame, type BashGame, type BashGameDetail } from "@/lib/hockey-data"
 import { formatGameDate, formatGameTime } from "@/lib/format-time"
 import { cn } from "@/lib/utils"
-import { Loader2, Star, Calendar } from "lucide-react"
+import { Star, Calendar } from "lucide-react"
 import Link from "next/link"
 import { playerSlug } from "@/lib/player-slug"
 import { formatGoalieTime } from "@/lib/format-goalie-time"
@@ -278,14 +279,11 @@ export function GameDetail({ game, initialDetail, initialLiveData, homeRoster, a
 
       {/* Content */}
       {!editMode && <div className="pt-6">
-        {isLoading && !isLive && (
-          <div className="flex items-center justify-center py-12">
-            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-            <span className="ml-2 text-xs text-muted-foreground">Loading box score&hellip;</span>
-          </div>
+        {isLoading && !detail && !isLive && (
+          <LoadingState variant="table" label="Loading box score…" />
         )}
 
-        {isError && !isLive && (
+        {isError && !detail && !isLive && (
           <div className="text-center py-8">
             <p className="text-xs text-muted-foreground">Unable to load game details.</p>
           </div>

@@ -1,7 +1,8 @@
 "use client"
 
+import { Spinner } from "@/components/ui/spinner"
 import { useState, useEffect, useCallback, useMemo } from "react"
-import { Loader2, Plus, Calendar, Trash2, Edit, Shuffle, Trophy, ArrowRightLeft, AlertCircle, LayoutGrid, List, Users, Printer } from "lucide-react"
+import { Plus, Calendar, Trash2, Edit, Shuffle, Trophy, ArrowRightLeft, AlertCircle, LayoutGrid, List, Users, Printer } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { TeamLogo } from "@/components/team-logo"
@@ -496,7 +497,7 @@ export function SeasonScheduleTab({ seasonId, seasonStatus, initialTeams, defaul
                       }
                     }}
                   >
-                    {isReplacing && <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />}
+                    {isReplacing && <Spinner className="h-3.5 w-3.5 mr-1.5" />}
                     Replace All Placeholders
                   </Button>
                 </div>
@@ -510,7 +511,7 @@ export function SeasonScheduleTab({ seasonId, seasonStatus, initialTeams, defaul
         <CardContent>
           {isLoading ? (
             <div className="flex justify-center p-8">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              <Spinner className="h-8 w-8 text-muted-foreground" />
             </div>
           ) : games.length === 0 ? (
             <div className="text-center p-8 text-muted-foreground border border-dashed rounded-lg">

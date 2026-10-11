@@ -1,10 +1,11 @@
 "use client"
 
+import { LoadingState } from "@/components/loading-state"
 import { useState, useEffect } from "react"
 import useSWR from "swr"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Loader2, User, BarChart3, Trophy, ExternalLink } from "lucide-react"
+import { User, BarChart3, Trophy, ExternalLink } from "lucide-react"
 import Link from "next/link"
 import { playerSlug } from "@/lib/player-slug"
 import { SectionHeader } from "@/components/stats-table"
@@ -327,11 +328,8 @@ export function PlayerCardModal({
 
             {/* Past Stats Tab */}
             <TabsContent value="stats" className="mt-0 px-6 pb-6 pt-4">
-              {statsLoading ? (
-                <div className="flex items-center justify-center py-12">
-                  <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-                  <span className="ml-2 text-sm text-muted-foreground">Loading stats…</span>
-                </div>
+              {statsLoading && !statsData ? (
+                <LoadingState variant="table" label="Loading player stats…" />
               ) : seasons.length === 0 ? (
                 <div className="text-center py-12 space-y-2">
                   <Trophy className="h-8 w-8 mx-auto text-muted-foreground/40" />

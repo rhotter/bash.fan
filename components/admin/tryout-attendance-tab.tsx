@@ -1,10 +1,11 @@
 "use client"
 
+import { LoadingState } from "@/components/loading-state"
 import { useState, useEffect, useCallback } from "react"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Loader2, Search, Filter, Users } from "lucide-react"
+import { Search, Filter, Users } from "lucide-react"
 import { toast } from "sonner"
 import Link from "next/link"
 import { playerSlug } from "@/lib/player-slug"
@@ -80,10 +81,7 @@ export function TryoutAttendanceTab({ seasonId }: TryoutAttendanceTabProps) {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center py-16">
-        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-        <span className="ml-2 text-sm text-muted-foreground">Loading tryout attendance…</span>
-      </div>
+      <LoadingState variant="list" label="Loading tryout attendance…" />
     )
   }
 

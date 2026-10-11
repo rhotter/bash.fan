@@ -1,9 +1,11 @@
 "use client"
 
+import { LoadingState } from "@/components/loading-state"
+import { Spinner } from "@/components/ui/spinner"
 import { useState, useEffect, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import {
-  Loader2, Plus, Users, ListOrdered, Trash2, Send, Clock,
+  Plus, Users, ListOrdered, Trash2, Send, Clock,
   MapPin, CalendarDays, Layers, ShieldCheck, MoreVertical,
   ExternalLink, ArchiveRestore, Play, Monitor, Settings,
   EyeOff, Eye, ArrowRightLeft, Check, AlertCircle, RotateCcw,
@@ -338,9 +340,7 @@ export function DraftTab({ seasonId, seasonStatus, seasonType, teams, rosterCoun
 
   if (isLoading) {
     return (
-      <div className="flex justify-center py-12">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-      </div>
+      <LoadingState variant="list" label="Loading drafts…" />
     )
   }
 
@@ -501,7 +501,7 @@ export function DraftTab({ seasonId, seasonStatus, seasonType, teams, rosterCoun
                       title="Confirm this draft (roster & team assignment) for the season."
                     >
                       {pushingDraftId === draft.id ? (
-                        <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                        <Spinner className="h-3.5 w-3.5 mr-1.5" />
                       ) : (
                         <Send className="h-3.5 w-3.5 mr-1.5" />
                       )}
@@ -829,7 +829,7 @@ export function DraftTab({ seasonId, seasonStatus, seasonType, teams, rosterCoun
                             disabled={isSavingTrade}
                             className="text-xs h-7"
                           >
-                            {isSavingTrade && <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />}
+                            {isSavingTrade && <Spinner className="mr-1.5 h-3 w-3" />}
                             Save Trade
                           </Button>
                           <Button
@@ -900,7 +900,7 @@ export function DraftTab({ seasonId, seasonStatus, seasonType, teams, rosterCoun
               onClick={handleDelete}
               disabled={isDeleting}
             >
-              {isDeleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {isDeleting && <Spinner className="mr-2 h-4 w-4" />}
               {deleteTarget && deleteTarget.status !== "draft"
                 ? "Delete Draft & Results"
                 : "Delete Draft"}
@@ -921,7 +921,7 @@ export function DraftTab({ seasonId, seasonStatus, seasonType, teams, rosterCoun
           <AlertDialogFooter>
             <AlertDialogCancel disabled={isPublishing}>Not Yet</AlertDialogCancel>
             <AlertDialogAction onClick={handlePublish} disabled={isPublishing}>
-              {isPublishing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {isPublishing && <Spinner className="mr-2 h-4 w-4" />}
               Publish Announcement
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -940,7 +940,7 @@ export function DraftTab({ seasonId, seasonStatus, seasonType, teams, rosterCoun
           <AlertDialogFooter>
             <AlertDialogCancel disabled={isUnpublishing}>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handleUnpublish} disabled={isUnpublishing}>
-              {isUnpublishing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {isUnpublishing && <Spinner className="mr-2 h-4 w-4" />}
               Unpublish
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -959,7 +959,7 @@ export function DraftTab({ seasonId, seasonStatus, seasonType, teams, rosterCoun
           <AlertDialogFooter>
             <AlertDialogCancel disabled={isPushingRosters}>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={confirmPushRosters} disabled={isPushingRosters}>
-              {isPushingRosters && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {isPushingRosters && <Spinner className="mr-2 h-4 w-4" />}
               Push Rosters
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -978,7 +978,7 @@ export function DraftTab({ seasonId, seasonStatus, seasonType, teams, rosterCoun
           <AlertDialogFooter>
             <AlertDialogCancel disabled={isReverting}>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={confirmRevertToLive} disabled={isReverting}>
-              {isReverting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {isReverting && <Spinner className="mr-2 h-4 w-4" />}
               Revert to Live
             </AlertDialogAction>
           </AlertDialogFooter>

@@ -1,7 +1,8 @@
 "use client"
 
+import { Spinner } from "@/components/ui/spinner"
 import { useEffect, useState } from "react"
-import { ArrowUpRight, Check, ChevronsUpDown, Loader2, Medal, Star, Trash2, Trophy, X } from "lucide-react"
+import { ArrowUpRight, Check, ChevronsUpDown, Medal, Star, Trash2, Trophy, X } from "lucide-react"
 import { toast } from "sonner"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -333,7 +334,7 @@ export function AwardsClient({ seasons, allPlayers }: { seasons: Season[]; allPl
                   {isAwardsLoading ? (
                     <TableRow>
                       <TableCell colSpan={3} className="h-32 text-center text-muted-foreground">
-                        <Loader2 className="mx-auto h-5 w-5 animate-spin" />
+                        <Spinner className="mx-auto h-5 w-5" />
                       </TableCell>
                     </TableRow>
                   ) : awards.length === 0 ? (
@@ -411,7 +412,7 @@ export function AwardsClient({ seasons, allPlayers }: { seasons: Season[]; allPl
                 className="mt-2 w-full"
               >
                 {isAwardsSaving ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <Spinner className="mr-2 h-4 w-4" />
                 ) : (
                   <Star className="mr-2 h-4 w-4" />
                 )}
@@ -443,7 +444,7 @@ export function AwardsClient({ seasons, allPlayers }: { seasons: Season[]; allPl
                   {isHofLoading ? (
                     <TableRow>
                       <TableCell colSpan={4} className="h-32 text-center text-muted-foreground">
-                        <Loader2 className="mx-auto h-5 w-5 animate-spin" />
+                        <Spinner className="mx-auto h-5 w-5" />
                       </TableCell>
                     </TableRow>
                   ) : hof.length === 0 ? (
@@ -552,7 +553,7 @@ export function AwardsClient({ seasons, allPlayers }: { seasons: Season[]; allPl
                 className="mt-2 w-full"
               >
                 {isHofSaving ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <Spinner className="mr-2 h-4 w-4" />
                 ) : (
                   <ArrowUpRight className="mr-2 h-4 w-4" />
                 )}

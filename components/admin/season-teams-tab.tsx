@@ -1,7 +1,9 @@
 "use client"
 
+import { LoadingState } from "@/components/loading-state"
+import { Spinner } from "@/components/ui/spinner"
 import { useState, useEffect, useCallback } from "react"
-import { Search, Loader2, Plus, X, ShieldAlert, Pencil, Check, PanelRightOpen, PanelRightClose, Leaf } from "lucide-react"
+import { Search, Plus, X, ShieldAlert, Pencil, Check, PanelRightOpen, PanelRightClose, Leaf } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -339,7 +341,7 @@ export function SeasonTeamsTab({ seasonId, seasonStatus, initialTeams, onTeamsCh
                     onClick={saveFranchiseAssignments}
                     disabled={isSavingFranchises}
                   >
-                    {isSavingFranchises ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : null}
+                    {isSavingFranchises ? <Spinner className="h-3 w-3 mr-1" /> : null}
                     Save Team Changes
                   </Button>
                 )}
@@ -468,7 +470,7 @@ export function SeasonTeamsTab({ seasonId, seasonStatus, initialTeams, onTeamsCh
                               onClick={() => removeTeam(team.teamSlug, team.teamName)}
                               disabled={isProcessing === team.teamSlug}
                             >
-                              {isProcessing === team.teamSlug ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <X className="h-3.5 w-3.5" />}
+                              {isProcessing === team.teamSlug ? <Spinner className="h-3.5 w-3.5" /> : <X className="h-3.5 w-3.5" />}
                             </Button>
                           )}
                         </div>
@@ -547,9 +549,7 @@ export function SeasonTeamsTab({ seasonId, seasonStatus, initialTeams, onTeamsCh
               </CardHeader>
               <CardContent className="pt-4 h-[400px] overflow-y-auto pr-2">
                 {isLoading ? (
-                  <div className="flex justify-center py-8 text-muted-foreground">
-                    <Loader2 className="h-6 w-6 animate-spin" />
-                  </div>
+                  <LoadingState variant="list" label="Loading teams…" />
                 ) : filteredUnassigned.length === 0 ? (
                   <div className="text-center py-8 text-sm text-muted-foreground">
                     {search ? "No matches found." : "All teams have been assigned!"}
@@ -572,7 +572,7 @@ export function SeasonTeamsTab({ seasonId, seasonStatus, initialTeams, onTeamsCh
                           onClick={() => addTeam(team)}
                           disabled={isProcessing === team.slug}
                         >
-                          {isProcessing === team.slug ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3 mr-1" />}
+                          {isProcessing === team.slug ? <Spinner className="h-3 w-3" /> : <Plus className="h-3 w-3 mr-1" />}
                           Assign
                         </Button>
                       </div>
@@ -627,7 +627,7 @@ export function SeasonTeamsTab({ seasonId, seasonStatus, initialTeams, onTeamsCh
           <DialogFooter>
             <Button variant="outline" onClick={() => setCreateModalOpen(false)}>Cancel</Button>
             <Button onClick={handleCreateTeam} disabled={isCreatingTeam || !createTeamForm.name || !createTeamForm.slug}>
-              {isCreatingTeam ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              {isCreatingTeam ? <Spinner className="mr-2 h-4 w-4" /> : null}
               Create & Assign
             </Button>
           </DialogFooter>

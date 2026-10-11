@@ -1,5 +1,6 @@
 "use client"
 
+import { Spinner } from "@/components/ui/spinner"
 import { useState, useMemo } from "react"
 import {
   Dialog,
@@ -32,7 +33,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import { toast } from "sonner"
-import { ChevronLeft, ChevronRight, Trophy, Loader2, ArrowRight } from "lucide-react"
+import { ChevronLeft, ChevronRight, Trophy, ArrowRight } from "lucide-react"
 import { generateBracket, type BracketGame } from "@/lib/schedule-utils"
 import type { ScheduleGame } from "./season-schedule-tab"
 
@@ -728,7 +729,7 @@ export function PlayoffWizard({
                 <Button onClick={() => setShowConfirm(true)} disabled={isSaving}>
                   {isSaving ? (
                     <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      <Spinner className="h-4 w-4 mr-2" />
                       Generating...
                     </>
                   ) : (

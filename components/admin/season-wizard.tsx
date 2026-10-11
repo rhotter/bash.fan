@@ -1,8 +1,9 @@
 "use client"
 
+import { Spinner } from "@/components/ui/spinner"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, ArrowRight, Check, Loader2 } from "lucide-react"
+import { ArrowLeft, ArrowRight, Check } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -269,7 +270,7 @@ export function SeasonWizard() {
               className="font-semibold cursor-pointer"
             >
               {creating ? (
-                <Loader2 className="h-4 w-4 animate-spin mr-1.5" />
+                <Spinner className="h-4 w-4 mr-1.5" />
               ) : (
                 <Check className="h-4 w-4 mr-1.5" />
               )}

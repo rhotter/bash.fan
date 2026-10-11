@@ -1,7 +1,9 @@
 "use client"
 
+import { LoadingState } from "@/components/loading-state"
+import { Spinner } from "@/components/ui/spinner"
 import { useState, useEffect, useCallback } from "react"
-import { Loader2, Plus, Pencil, Trash2, Palette, ChevronRight, X, Search } from "lucide-react"
+import { Plus, Pencil, Trash2, Palette, ChevronRight, X, Search } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -258,9 +260,7 @@ export function FranchiseManager() {
 
   if (isLoading) {
     return (
-      <div className="flex justify-center py-12">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-      </div>
+      <LoadingState variant="list" label="Loading franchises…" />
     )
   }
 
@@ -332,7 +332,7 @@ export function FranchiseManager() {
                                 disabled={deletingSlug === f.slug}
                                 onClick={(e) => e.stopPropagation()}
                               >
-                                {deletingSlug === f.slug ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
+                                {deletingSlug === f.slug ? <Spinner className="h-3 w-3" /> : <Trash2 className="h-3 w-3" />}
                               </Button>
                             </AlertDialogTrigger>
                             <AlertDialogContent>
@@ -393,7 +393,7 @@ export function FranchiseManager() {
                   <div className="flex items-center gap-2">
                     {hasPendingChanges && (
                       <Button size="sm" className="h-8 text-xs" onClick={saveAssignments} disabled={isSaving}>
-                        {isSaving ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : null}
+                        {isSaving ? <Spinner className="h-3 w-3 mr-1" /> : null}
                         Save Changes
                       </Button>
                     )}
@@ -405,9 +405,7 @@ export function FranchiseManager() {
               </CardHeader>
               <CardContent className="pt-4 space-y-4">
                 {isLoadingDetail ? (
-                  <div className="flex justify-center py-8">
-                    <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-                  </div>
+                  <LoadingState variant="list" label="Loading franchises…" />
                 ) : (
                   <>
                     {/* Linked Teams */}
@@ -592,7 +590,7 @@ export function FranchiseManager() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setCreateOpen(false)}>Cancel</Button>
             <Button onClick={handleCreate} disabled={isCreating || !createForm.name || !createForm.slug}>
-              {isCreating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {isCreating && <Spinner className="mr-2 h-4 w-4" />}
               Create Franchise
             </Button>
           </DialogFooter>
@@ -635,7 +633,7 @@ export function FranchiseManager() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditOpen(false)}>Cancel</Button>
             <Button onClick={handleEdit} disabled={isEditing || !editForm.name}>
-              {isEditing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {isEditing && <Spinner className="mr-2 h-4 w-4" />}
               Save Changes
             </Button>
           </DialogFooter>

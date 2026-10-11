@@ -1,8 +1,8 @@
 "use client"
 
+import { Spinner } from "@/components/ui/spinner"
 import { useState, useCallback, useRef } from "react"
 import { Button } from "@/components/ui/button"
-import { Loader2 } from "lucide-react"
 import type { LiveGameState, RosterPlayer } from "@/lib/scorekeeper-types"
 import { GoalsEditor } from "./goals-editor"
 import { PenaltiesEditor } from "./penalties-editor"
@@ -123,7 +123,7 @@ export function AdminGameEditor({
           <Button onClick={handleSave} disabled={saving} className="text-xs h-8">
             {saving ? (
               <>
-                <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                <Spinner className="h-3 w-3 mr-1" />
                 Saving...
               </>
             ) : (

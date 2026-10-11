@@ -1,8 +1,9 @@
 "use client"
 
+import { Spinner } from "@/components/ui/spinner"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { Check, Loader2, Circle, AlertCircle, ArrowRight, Flag } from "lucide-react"
+import { Check, Circle, AlertCircle, ArrowRight, Flag } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
@@ -131,7 +132,7 @@ export function SeasonActivationChecklist({ season }: SeasonActivationChecklistP
               size="sm"
               className="h-7 text-xs px-3 bg-green-600 hover:bg-green-700 text-white"
             >
-              {saving ? <Loader2 className="h-3 w-3 mr-1.5 animate-spin" /> : null}
+              {saving ? <Spinner className="h-3 w-3 mr-1.5" /> : null}
               Activate Season
               <ArrowRight className="h-3 w-3 ml-1.5" />
             </Button>

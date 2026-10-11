@@ -1,8 +1,8 @@
 "use client"
 
+import { LoadingState } from "@/components/loading-state"
 import { useMemo } from "react"
 import { type BashGame } from "@/lib/hockey-data"
-import { Loader2 } from "lucide-react"
 import { WeekNavigator } from "@/components/week-navigator"
 import { splitRegularAndPlayoff } from "@/lib/split-games"
 
@@ -12,12 +12,8 @@ export function ScoresTab({ games, isLoading }: { games: BashGame[]; isLoading: 
     [games]
   )
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center py-16">
-        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-      </div>
-    )
+  if (isLoading && games.length === 0) {
+    return <LoadingState variant="scores" label="Loading scores…" />
   }
 
   return (

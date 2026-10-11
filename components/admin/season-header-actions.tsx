@@ -1,8 +1,9 @@
 "use client"
 
+import { Spinner } from "@/components/ui/spinner"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { Globe, Loader2 } from "lucide-react"
+import { Globe } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -77,7 +78,7 @@ export function SeasonHeaderActions({
         disabled={isSettingCurrent}
       >
         {isSettingCurrent ? (
-          <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+          <Spinner className="h-3.5 w-3.5 mr-1.5" />
         ) : (
           <Globe className="h-3.5 w-3.5 mr-1.5" />
         )}
@@ -108,7 +109,7 @@ export function SeasonHeaderActions({
               className="cursor-pointer"
             >
               {isSettingCurrent && (
-                <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                <Spinner className="h-3.5 w-3.5 mr-1.5" />
               )}
               Set as Current Season
             </AlertDialogAction>

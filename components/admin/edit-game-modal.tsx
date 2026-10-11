@@ -1,5 +1,6 @@
 "use client"
 
+import { Spinner } from "@/components/ui/spinner"
 import { useState, useEffect, useRef } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
@@ -16,7 +17,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { toast } from "sonner"
-import { Plus, Loader2, X, Search, Database } from "lucide-react"
+import { Plus, X, Search, Database } from "lucide-react"
 import { toHHMM } from "@/lib/format-time"
 
 export interface GameFormData {
@@ -397,7 +398,7 @@ export function EditGameModal({
               onClick={() => handleCreateTeam(side)}
             >
               {isCreatingTeam ? (
-                <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                <Spinner className="h-3 w-3 mr-1" />
               ) : (
                 <Plus className="h-3 w-3 mr-1" />
               )}
@@ -434,7 +435,7 @@ export function EditGameModal({
             <div className="max-h-[160px] overflow-y-auto space-y-1">
               {isLoadingGlobal ? (
                 <div className="flex justify-center py-4">
-                  <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                  <Spinner className="h-4 w-4 text-muted-foreground" />
                 </div>
               ) : filteredGlobalTeams.length === 0 ? (
                 <div className="text-center py-3 text-xs text-muted-foreground">

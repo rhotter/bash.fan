@@ -1,5 +1,6 @@
 "use client"
 
+import { Spinner } from "@/components/ui/spinner"
 import { useState, useEffect, useCallback } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
@@ -7,7 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Label } from "@/components/ui/label"
 import { toast } from "sonner"
-import { Loader2, Search, X, UserPlus } from "lucide-react"
+import { Search, X, UserPlus } from "lucide-react"
 import type { ScheduleGame } from "./season-schedule-tab"
 
 interface AdhocRosterModalProps {
@@ -184,7 +185,7 @@ export function AdhocRosterModal({
         <div className="flex-1 overflow-y-auto py-2">
           {isLoading ? (
             <div className="flex justify-center p-8">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              <Spinner className="h-8 w-8 text-muted-foreground" />
             </div>
           ) : (
             <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "home" | "away")} className="w-full">
@@ -213,7 +214,7 @@ export function AdhocRosterModal({
                     <div className="absolute z-10 w-[calc(100%-24px)] mt-1 bg-popover border shadow-md rounded-md max-h-[200px] overflow-y-auto">
                       {isSearching ? (
                         <div className="p-3 text-center text-sm text-muted-foreground flex items-center justify-center">
-                          <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                          <Spinner className="h-4 w-4 mr-2" />
                           Searching...
                         </div>
                       ) : searchResults.length > 0 ? (

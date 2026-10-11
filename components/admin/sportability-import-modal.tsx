@@ -1,6 +1,7 @@
 import { useState, useRef } from "react"
+import { Spinner } from "@/components/ui/spinner"
 import { useRouter } from "next/navigation"
-import { Upload, FileUp, Loader2, AlertCircle } from "lucide-react"
+import { Upload, FileUp, AlertCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -168,7 +169,7 @@ export function SportabilityImportModal({ seasonId, seasonStatus, onImportComple
                 onClick={() => fileInputRef.current?.click()}
                 disabled={isProcessing}
               >
-                {isProcessing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+                {isProcessing ? <Spinner className="h-4 w-4 mr-2" /> : null}
                 Select File
               </Button>
             </div>
@@ -299,7 +300,7 @@ export function SportabilityImportModal({ seasonId, seasonStatus, onImportComple
                   onClick={executeImport}
                   disabled={isProcessing}
                 >
-                  {isProcessing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+                  {isProcessing ? <Spinner className="h-4 w-4 mr-2" /> : null}
                   Confirm Import
                 </Button>
               </div>

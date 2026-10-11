@@ -1,6 +1,7 @@
 import { useState, useCallback } from "react"
+import { Spinner } from "@/components/ui/spinner"
 import { useRouter } from "next/navigation"
-import { Plus, Search, Loader2, ArrowUpDown, AlertTriangle } from "lucide-react"
+import { Plus, Search, ArrowUpDown, AlertTriangle } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import {
@@ -356,7 +357,7 @@ export function SeasonRosterTab({ seasonId, seasonStatus, roster, teams, onRoste
                     Cancel
                   </Button>
                   <Button onClick={handleAddPlayer} disabled={isAdding || !newPlayerName || !newPlayerTeam}>
-                    {isAdding ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+                    {isAdding ? <Spinner className="h-4 w-4 mr-2" /> : null}
                     Add Player
                   </Button>
                 </DialogFooter>
@@ -428,7 +429,7 @@ export function SeasonRosterTab({ seasonId, seasonStatus, roster, teams, onRoste
                     Cancel
                   </Button>
                   <Button onClick={handleSaveEdit} disabled={isEditing || !editPlayerName || !editPlayerTeam}>
-                    {isEditing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+                    {isEditing ? <Spinner className="h-4 w-4 mr-2" /> : null}
                     Save Changes
                   </Button>
                 </div>
@@ -451,7 +452,7 @@ export function SeasonRosterTab({ seasonId, seasonStatus, roster, teams, onRoste
                   e.preventDefault()
                   handleDeletePlayer()
                 }} disabled={isEditing} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                  {isEditing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+                  {isEditing ? <Spinner className="h-4 w-4 mr-2" /> : null}
                   Remove Player
                 </AlertDialogAction>
               </AlertDialogFooter>

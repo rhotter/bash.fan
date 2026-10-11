@@ -1,9 +1,9 @@
 "use client"
 
+import { LoadingState } from "@/components/loading-state"
 import { useMemo } from "react"
 import { type Standing } from "@/lib/hockey-data"
 import { cn } from "@/lib/utils"
-import { Loader2 } from "lucide-react"
 import Link from "next/link"
 import { useSort, SortableTh, statsRowClass } from "@/components/stats-table"
 import { TeamLogo } from "@/components/team-logo"
@@ -27,12 +27,8 @@ export function StandingsTab({
     })
   }, [standings, sortKey, sortDir])
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center py-16">
-        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-      </div>
-    )
+  if (isLoading && standings.length === 0) {
+    return <LoadingState variant="table" label="Loading standings…" />
   }
 
   if (standings.length === 0) {

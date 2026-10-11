@@ -1,10 +1,11 @@
 "use client"
 
+import { LoadingState } from "@/components/loading-state"
 import { useState, useMemo, useCallback } from "react"
 import { useSearchParams, useRouter } from "next/navigation"
 import { usePlayerStats, type PlayerStatsData } from "@/lib/hockey-data"
 import { cn } from "@/lib/utils"
-import { Loader2, SearchIcon } from "lucide-react"
+import { SearchIcon } from "lucide-react"
 import Link from "next/link"
 import { playerSlug } from "@/lib/player-slug"
 import { useSort, SortableTh } from "@/components/stats-table"
@@ -24,7 +25,7 @@ export function StatsTab({ initialData }: { initialData?: PlayerStatsData }) {
   const gameType = searchParams.get("gameType") || "regular"
   const router = useRouter()
   const [playoff, setPlayoff] = useState(false)
-  const { skaters, goalies, teams, hasPlayoffs, isLoading, isError } = usePlayerStats(season, !playoff ? initialData : undefined, playoff, seasonType, gameType)
+  const { skaters, goalies, teams, hasPlayoffs, isLoading } = usePlayerStats(season, !playoff ? initialData : undefined, playoff, seasonType, gameType)
   const rawView = searchParams.get("view")
   const tab = rawView === "goalies" ? "goalies" : "skaters" as const
 
@@ -96,15 +97,11 @@ export function StatsTab({ initialData }: { initialData?: PlayerStatsData }) {
   const paginatedSkaters = filteredSkaters.slice((skaterPage - 1) * PER_PAGE, skaterPage * PER_PAGE)
   const paginatedGoalies = filteredGoalies.slice((goaliePage - 1) * PER_PAGE, goaliePage * PER_PAGE)
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center py-16">
-        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-      </div>
-    )
+  if (isLoading && skaters.length === 0 && goalies.length === 0) {
+    return <LoadingState variant="stats" label="Loading player stats…" />
   }
 
-  if (isError || skaters.length === 0) {
+  if (skaters.length === 0 && goalies.length === 0) {
     return (
       <div className="flex items-center justify-center py-16">
         <p className="text-xs text-muted-foreground">No player stats available yet. Stats will appear after games are synced.</p>

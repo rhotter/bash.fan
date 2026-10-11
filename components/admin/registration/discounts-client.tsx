@@ -1,8 +1,9 @@
 "use client"
 
+import { Spinner } from "@/components/ui/spinner"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { Plus, Pencil, Trash2, Loader2 } from "lucide-react"
+import { Plus, Pencil, Trash2 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   Table,
@@ -315,7 +316,7 @@ export function DiscountsClient({ initial }: { initial: DiscountRow[] }) {
                 Cancel
               </Button>
               <Button onClick={handleSubmit} disabled={busy}>
-                {busy && <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />}
+                {busy && <Spinner className="h-4 w-4 mr-1.5" />}
                 {editing ? "Save" : "Create"}
               </Button>
             </DialogFooter>
@@ -416,7 +417,7 @@ export function DiscountsClient({ initial }: { initial: DiscountRow[] }) {
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               disabled={busy}
             >
-              {busy && <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />}
+              {busy && <Spinner className="h-4 w-4 mr-1.5" />}
               Delete
             </AlertDialogAction>
           </AlertDialogFooter>
