@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { cn } from "@/lib/utils"
-import { useRouter } from "next/navigation"
+import { IntentLink } from "@/components/intent-link"
 import { TeamLogo } from "@/components/team-logo"
 import { periodLabel, formatClock } from "@/lib/scorekeeper-types"
 import { formatGameDate, formatGameTime } from "@/lib/format-time"
@@ -29,7 +29,6 @@ export function useLiveClock(game: BashGame) {
 }
 
 export function GameCard({ game, href, seriesText }: { game: BashGame; href?: string; seriesText?: string | null }) {
-  const router = useRouter()
   const isFinal = game.status === "final"
   const isLive = game.status === "live"
   const awayWon = isFinal && game.awayScore != null && game.homeScore != null && game.awayScore > game.homeScore
@@ -41,9 +40,9 @@ export function GameCard({ game, href, seriesText }: { game: BashGame; href?: st
   return (
     <div className="rounded-lg border border-border/40 bg-card select-none overflow-hidden">
       {/* Card body — clickable */}
-      <div
-        className="cursor-pointer hover:bg-muted/50 transition-colors"
-        onClick={() => router.push(target)}
+      <IntentLink
+        href={target}
+        className="block hover:bg-muted/50 transition-colors"
       >
         {/* Status bar */}
         <div className="px-3 pt-2 pb-1 border-b border-border/20 flex items-center justify-between">
@@ -119,7 +118,7 @@ export function GameCard({ game, href, seriesText }: { game: BashGame; href?: st
             {seriesText}
           </div>
         )}
-      </div>
+      </IntentLink>
     </div>
   )
 }
