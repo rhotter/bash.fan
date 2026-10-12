@@ -103,6 +103,7 @@ export default function AboutPage() {
                                     alt="National Ball Hockey League"
                                     width={180}
                                     height={180}
+                                    sizes="(min-width: 768px) 144px, 128px"
                                     className="h-auto w-32 object-contain md:w-36"
                                 />
                             </div>
