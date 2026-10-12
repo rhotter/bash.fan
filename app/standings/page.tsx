@@ -2,7 +2,6 @@ import { LoadingState } from "@/components/loading-state"
 import type { Metadata } from "next"
 import { Suspense } from "react"
 import { redirect } from "next/navigation"
-import { SiteHeader } from "@/components/site-header"
 import { StandingsContent } from "@/components/standings-content"
 import { fetchBashData } from "@/lib/fetch-bash-data"
 
@@ -20,7 +19,6 @@ export default async function StandingsPage({ searchParams }: { searchParams: Pr
 
   return (
     <div className="flex flex-1 flex-col bg-background">
-      <SiteHeader activeTab="standings" />
       <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-5 md:py-8">
         <Suspense fallback={<LoadingState variant="table" label="Loading standings…" />}>
           <StandingsContent initialData={data} />

@@ -1,3 +1,4 @@
+import { cache } from "react"
 import { formatSeasonName } from "@/lib/season-name"
 import { db, schema, rawSql } from "@/lib/db"
 import { sql, eq, asc } from "drizzle-orm"
@@ -59,7 +60,7 @@ export interface BashGameDetail {
   gameLength?: number | null
 }
 
-export async function fetchGameDetail(id: string): Promise<BashGameDetail | null> {
+async function fetchGameDetailInternal(id: string): Promise<BashGameDetail | null> {
   const gameResult = await rawSql(sql`
     SELECT g.*,
       COALESCE(ht.name, g.home_team) as home_team_name,
@@ -172,19 +173,18 @@ export async function fetchGameDetail(id: string): Promise<BashGameDetail | null
     .where(eq(schema.gameOfficials.gameId, id))
     .orderBy(asc(schema.gameOfficials.role), asc(schema.gameOfficials.name))
 
-  const [homePlayers, awayPlayers, homeGoalies, awayGoalies, officialRows] = await Promise.all([
+  const [homePlayers, awayPlayers, homeGoalies, awayGoalies, officialRows, seasonRows] = await Promise.all([
     getPlayerStats(id, game.home_team, game.season_id, 'home'),
     getPlayerStats(id, game.away_team, game.season_id, 'away'),
     getGoalieStats(id, game.home_team, game.season_id, 'home'),
     getGoalieStats(id, game.away_team, game.season_id, 'away'),
     officialsPromise,
+    db.select({
+      name: schema.seasons.name,
+      defaultLocation: schema.seasons.defaultLocation,
+      gameLength: schema.seasons.gameLength,
+    }).from(schema.seasons).where(eq(schema.seasons.id, game.season_id)),
   ])
-
-  const seasonRows = await db.select({
-    name: schema.seasons.name,
-    defaultLocation: schema.seasons.defaultLocation,
-    gameLength: schema.seasons.gameLength,
-  }).from(schema.seasons).where(eq(schema.seasons.id, game.season_id))
   const seasonName = formatSeasonName(seasonRows.length > 0 ? seasonRows[0].name : game.season_id)
   const seasonLocation = seasonRows.length > 0 ? seasonRows[0].defaultLocation : null
   const gameLength = seasonRows.length > 0 ? seasonRows[0].gameLength : 60
@@ -216,3 +216,6 @@ export async function fetchGameDetail(id: string): Promise<BashGameDetail | null
     gameLength,
   }
 }
+
+// Share metadata and page reads within a render; do not cache across requests.
+export const fetchGameDetail = cache(fetchGameDetailInternal)

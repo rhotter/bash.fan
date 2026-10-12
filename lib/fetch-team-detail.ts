@@ -1,3 +1,4 @@
+import { cache } from "react"
 import { formatSeasonName } from "@/lib/season-name"
 import { db, schema, rawSql } from "@/lib/db"
 import { sql, eq } from "drizzle-orm"
@@ -76,7 +77,7 @@ export interface TeamDetail {
   }[]
 }
 
-export async function fetchTeamDetail(slug: string, seasonParam?: string | null): Promise<TeamDetail | null> {
+async function fetchTeamDetailInternal(slug: string, seasonParam?: string | null): Promise<TeamDetail | null> {
   const seasonId = seasonParam && seasonParam !== "all" ? seasonParam : (await getCurrentSeason()).id
   const seasonRows = await db.select({
     name: schema.seasons.name,
@@ -276,3 +277,6 @@ export async function fetchTeamDetail(slug: string, seasonParam?: string | null)
 
   return { slug: team.slug, name: team.name, seasonName, seasonLocation, gameLength, record, skaters, goalies, games }
 }
+
+// Share metadata and page reads within a render; do not cache across requests.
+export const fetchTeamDetail = cache(fetchTeamDetailInternal)

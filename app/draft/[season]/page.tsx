@@ -4,7 +4,6 @@ import * as schema from "@/lib/db/schema"
 import { eq, inArray } from "drizzle-orm"
 import { notFound } from "next/navigation"
 import type { Metadata } from "next"
-import { SiteHeader } from "@/components/site-header"
 import { PublicDraftBoard } from "@/components/public-draft-board"
 
 interface Props {
@@ -209,7 +208,6 @@ export default async function PublicDraftPage({ params }: Props) {
 
   return (
     <div className="flex flex-1 flex-col bg-background">
-      <SiteHeader activeTab="draft" />
       <PublicDraftBoard seasonSlug={seasonSlug} initialData={initialData} />
     </div>
   )

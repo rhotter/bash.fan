@@ -2,7 +2,6 @@
 
 import { useState } from "react"
 import Image from "next/image"
-import { SiteHeader } from "@/components/site-header"
 import { AlertTriangle, ArrowUpRight } from "lucide-react"
 
 const TABS = [
@@ -17,7 +16,6 @@ export default function HowToPage() {
 
     return (
         <div className="flex min-h-svh flex-col bg-background">
-            <SiteHeader activeTab="about" />
             <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-10 md:py-16">
                 {/* Hero */}
                 <section className="mb-12 text-center">

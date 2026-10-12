@@ -1,5 +1,4 @@
 import type { Metadata } from "next"
-import { SiteHeader } from "@/components/site-header"
 import { TeamPageContent } from "@/components/team-page-content"
 import { fetchTeamDetail } from "@/lib/fetch-team-detail"
 import { notFound } from "next/navigation"
@@ -41,7 +40,6 @@ export default async function TeamPage({
 
   return (
     <div className="flex flex-1 flex-col bg-background">
-      <SiteHeader />
       <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-5 md:py-8">
         <TeamPageContent team={team} />
       </main>

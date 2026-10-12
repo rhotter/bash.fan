@@ -4,7 +4,6 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { MapPin, Calendar, DollarSign, Mail, Info, ExternalLink } from "lucide-react"
 import { useEffect, useState } from "react"
-import { SiteHeader } from "@/components/site-header"
 
 export default function RegisterPage() {
   const [mounted, setMounted] = useState(false)
@@ -20,7 +19,6 @@ export default function RegisterPage() {
   if (isClosed) {
     return (
       <div className="flex min-h-screen flex-col bg-background">
-        <SiteHeader />
         <div className="flex-1 flex items-center justify-center">
           <div className="max-w-lg mx-auto px-4 py-16 text-center space-y-8">
             <div className="space-y-4">
@@ -67,7 +65,6 @@ export default function RegisterPage() {
   // ─── Registration Open State ────────────────────────────────────────────────
   return (
     <div className="flex min-h-screen flex-col bg-background">
-      <SiteHeader />
       <div className="flex-1">
         <div className="max-w-3xl mx-auto px-4 py-12 sm:py-16 text-center space-y-12">
 
