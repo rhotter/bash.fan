@@ -89,8 +89,7 @@ function mapBashGameRow(r: any): BashGame {
 }
 
 export async function fetchBashData(seasonParam?: string | null): Promise<BashApiData> {
-  const currentSeason = await getCurrentSeason()
-  const seasonId = seasonParam && seasonParam !== "all" ? seasonParam : currentSeason.id
+  const seasonId = seasonParam && seasonParam !== "all" ? seasonParam : (await getCurrentSeason()).id
 
   const rows = await rawSql(sql`
     SELECT

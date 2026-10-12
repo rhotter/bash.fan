@@ -1,10 +1,8 @@
 import Link from "next/link"
-import { SiteHeader } from "@/components/site-header"
 
 export default function NotFound() {
   return (
     <div className="flex flex-1 flex-col bg-background">
-      <SiteHeader />
       <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col items-center justify-center px-4 py-16">
         <p className="text-8xl font-black tracking-tighter text-foreground/10 sm:text-9xl">
           404

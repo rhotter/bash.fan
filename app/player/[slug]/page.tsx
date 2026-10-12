@@ -1,5 +1,4 @@
 import type { Metadata } from "next"
-import { SiteHeader } from "@/components/site-header"
 import { PlayerPageContent } from "@/components/player-page-content"
 import { fetchPlayerDetail } from "@/lib/fetch-player-detail"
 import { notFound } from "next/navigation"
@@ -26,7 +25,6 @@ export default async function PlayerPage({ params }: { params: Promise<{ slug: s
 
   return (
     <div className="flex flex-1 flex-col bg-background">
-      <SiteHeader />
       <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-5 md:py-8">
         <PlayerPageContent player={player} />
       </main>

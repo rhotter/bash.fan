@@ -1,5 +1,5 @@
 import { PageLoading } from "@/components/page-loading"
 
 export default function Loading() {
-  return <PageLoading variant="table" label="Loading standings…" activeTab="standings" />
+  return <PageLoading variant="table" label="Loading standings…" />
 }

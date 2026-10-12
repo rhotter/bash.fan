@@ -1,7 +1,6 @@
 // ⚠️ SYNC: This page mirrors app/admin/games/[id]/edit/page.tsx
 // When updating roster fetching or data passing logic here, update the admin page too.
 import type { Metadata } from "next"
-import { SiteHeader } from "@/components/site-header"
 import { GamePageContent } from "@/components/game-page-content"
 import { fetchGameDetail } from "@/lib/fetch-game-detail"
 import { fetchLiveGameData } from "@/lib/fetch-live-game"
@@ -100,7 +99,6 @@ export default async function GamePage({ params }: { params: Promise<{ id: strin
 
   return (
     <div className="flex flex-1 flex-col bg-background">
-      <SiteHeader />
       <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-5 md:py-8">
         {!detail && (
           <div className="flex flex-col items-center justify-center py-20 gap-4">

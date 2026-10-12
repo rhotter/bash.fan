@@ -1,6 +1,5 @@
 import { rawSql } from "@/lib/db"
 import { sql } from "drizzle-orm"
-import { SiteHeader } from "@/components/site-header"
 import { ScorekeeperApp } from "@/components/scorekeeper/scorekeeper-app"
 import type { RosterPlayer } from "@/lib/scorekeeper-types"
 import { getSession } from "@/lib/admin-session"
@@ -79,7 +78,6 @@ export default async function ScorekeeperPage({ params }: { params: Promise<{ id
 
   return (
     <>
-    <SiteHeader />
     <ScorekeeperApp
       gameId={id}
       date={game.date}

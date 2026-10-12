@@ -1,7 +1,6 @@
 import { rawSql } from "@/lib/db"
 import { sql } from "drizzle-orm"
 import { getCurrentSeason, getSeasonById } from "@/lib/seasons"
-import { SiteHeader } from "@/components/site-header"
 import { ScorekeeperGameList } from "./scorekeeper-game-list"
 import type { BashGame } from "@/lib/hockey-data"
 
@@ -85,7 +84,6 @@ export default async function ScorekeeperIndexPage({
 
   return (
     <div className="flex flex-1 flex-col bg-background">
-      <SiteHeader />
       <div className="mx-auto w-full max-w-6xl px-4 py-5 md:py-8">
         <h1 className="text-lg font-semibold mb-1">Scorekeeper</h1>
         <p className="text-sm text-muted-foreground mb-6">

@@ -4,6 +4,7 @@ import { Analytics } from '@vercel/analytics/next'
 import { SpeedInsights } from '@vercel/speed-insights/next'
 import { AdminProvider } from '@/lib/admin-context'
 import { ConditionalFooter } from '@/components/conditional-footer'
+import { SiteHeader } from '@/components/site-header'
 import { SiteBanner } from '@/components/site-banner'
 import { Toaster } from '@/components/ui/sonner'
 import './globals.css'
@@ -49,6 +50,7 @@ export default function RootLayout({
       <body className="font-sans antialiased min-h-screen flex flex-col">
         <AdminProvider>
           <SiteBanner />
+          <SiteHeader />
           {children}
           <ConditionalFooter />
           <Toaster />

@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import Image from "next/image"
-import { useSearchParams } from "next/navigation"
+import { usePathname, useSearchParams } from "next/navigation"
 import { Suspense } from "react"
 import { PlayerSearch } from "@/components/player-search"
 
@@ -13,9 +13,7 @@ const NAV_ITEMS = [
   { label: "About", href: "/about" },
 ]
 
-function SiteHeaderInner({ activeTab }: { activeTab?: string }) {
-  const searchParams = useSearchParams()
-  const season = searchParams.get("season")
+function HeaderContent({ activeTab, season }: { activeTab?: string; season?: string | null }) {
   const seasonQuery = season ? `?season=${season}` : ""
 
   return (
@@ -28,8 +26,8 @@ function SiteHeaderInner({ activeTab }: { activeTab?: string }) {
               alt="BASH logo"
               width={28}
               height={28}
+              loading="eager"
               className="shrink-0 sm:w-8 sm:h-8 md:w-9 md:h-9"
-
             />
             <div className="hidden sm:flex flex-col">
               <span className="text-[13px] font-bold leading-tight tracking-tight text-foreground md:text-sm">
@@ -51,6 +49,7 @@ function SiteHeaderInner({ activeTab }: { activeTab?: string }) {
               return (
                 <Link
                   key={item.label}
+                  prefetch={true}
                   href={`${item.href}${itemQuery}`}
                   className={
                     "text-[11px] sm:text-xs font-semibold px-2 sm:px-3 py-1.5 rounded-md transition-colors " +
@@ -70,14 +69,26 @@ function SiteHeaderInner({ activeTab }: { activeTab?: string }) {
   )
 }
 
-export function SiteHeader({ activeTab }: { activeTab?: string }) {
+function SeasonHeader({ activeTab }: { activeTab?: string }) {
+  const searchParams = useSearchParams()
+  return <HeaderContent activeTab={activeTab} season={searchParams.get("season")} />
+}
+
+// Keep the public header outside page/loading boundaries so navigation preserves
+// the logo DOM node (and the decoded image) instead of mounting it again.
+export function SiteHeader() {
+  const pathname = usePathname()
+  if (pathname === "/admin" || pathname.startsWith("/admin/")) return null
+
+  const activeTab = pathname === "/" ? "scores"
+    : ["/about", "/how-to", "/rulebook"].includes(pathname) ? "about"
+    : pathname === "/standings" ? "standings"
+    : pathname === "/stats" ? "stats"
+    : undefined
+
   return (
-    <Suspense fallback={
-      <header className="sticky top-0 z-50 border-b border-border/60 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="mx-auto flex h-12 max-w-6xl items-center gap-1.5 px-2 sm:gap-3 sm:px-4 md:h-14" />
-      </header>
-    }>
-      <SiteHeaderInner activeTab={activeTab} />
+    <Suspense fallback={<HeaderContent activeTab={activeTab} />}>
+      <SeasonHeader activeTab={activeTab} />
     </Suspense>
   )
 }

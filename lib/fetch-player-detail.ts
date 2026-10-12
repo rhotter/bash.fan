@@ -1,3 +1,4 @@
+import { cache } from "react"
 import { db, schema, rawSql } from "@/lib/db"
 import { sql, eq, desc } from "drizzle-orm"
 import { getCurrentSeason, getAllSeasons } from "@/lib/seasons"
@@ -126,13 +127,16 @@ export interface PlayerDetail {
   hallOfFame: HallOfFameEntry | null
 }
 
-export async function fetchPlayerDetail(slug: string): Promise<PlayerDetail | null> {
-  const currentSeasonId = (await getCurrentSeason()).id
-  const allSeasons = await getAllSeasons()
+async function fetchPlayerDetailInternal(slug: string): Promise<PlayerDetail | null> {
+  const [currentSeason, allSeasons, allMatches] = await Promise.all([
+    getCurrentSeason(),
+    getAllSeasons(),
+    db.select({ id: schema.players.id, name: schema.players.name }).from(schema.players),
+  ])
+  const currentSeasonId = currentSeason.id
   const seasonMap = new Map(allSeasons.map(s => [s.id, s.name]))
 
   // Look up player by slug (derived from name) — find all players whose slug matches
-  const allMatches = await db.select({ id: schema.players.id, name: schema.players.name }).from(schema.players)
   const matchedPlayer = allMatches.find(
     (p) => playerSlug(p.name) === slug
   )
@@ -890,3 +894,6 @@ export async function fetchPlayerDetail(slug: string): Promise<PlayerDetail | nu
     hallOfFame,
   }
 }
+
+// Share metadata and page reads within a render; do not cache across requests.
+export const fetchPlayerDetail = cache(fetchPlayerDetailInternal)
