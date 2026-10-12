@@ -1,13 +1,13 @@
 import type { Metadata } from "next"
 import { PlayerPageContent } from "@/components/player-page-content"
-import { fetchPlayerDetail } from "@/lib/fetch-player-detail"
+import { fetchPlayerPageData } from "@/lib/cached-page-data"
 import { notFound } from "next/navigation"
 
 export const revalidate = 60
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params
-  const player = await fetchPlayerDetail(slug)
+  const player = await fetchPlayerPageData(slug)
   if (!player) return { title: "Player Not Found" }
 
   const description = player.seasonStats
@@ -19,7 +19,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 
 export default async function PlayerPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params
-  const player = await fetchPlayerDetail(slug)
+  const player = await fetchPlayerPageData(slug)
 
   if (!player) notFound()
 

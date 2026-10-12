@@ -37,8 +37,8 @@ export function StatsTab({ initialData }: { initialData?: PlayerStatsData }) {
       params.set("view", t)
     }
     const qs = params.toString()
-    router.replace(qs ? `?${qs}` : "/stats", { scroll: false })
-  }, [searchParams, router])
+    window.history.replaceState(null, "", qs ? `/stats?${qs}` : "/stats")
+  }, [searchParams])
 
   const setSeasonType = useCallback((type: string) => {
     const params = new URLSearchParams(searchParams.toString())

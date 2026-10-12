@@ -54,6 +54,8 @@ export function usePlayerStats(season?: string, fallbackData?: PlayerStatsData, 
 
   const { data, error, isLoading } = useSWR<PlayerStatsData>(url, fetcher, {
     refreshInterval: REFRESH.PLAYER_STATS,
+    // The server supplied this snapshot; polling and focus still refresh it.
+    revalidateOnMount: fallbackData ? false : undefined,
     revalidateOnFocus: true,
     dedupingInterval: DEDUPE.PLAYER_STATS,
     fallbackData,
