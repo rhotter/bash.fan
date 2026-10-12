@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import Image from "next/image"
-import Link from "next/link"
+import { IntentLink as Link } from "@/components/intent-link"
 import { getTeamLogoUrl } from "@/lib/team-logos"
 
 const FallbackLogo = ({ size, className }: { size: number; className?: string }) => (

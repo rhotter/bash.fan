@@ -4,7 +4,7 @@ import { LoadingState } from "@/components/loading-state"
 import { useMemo } from "react"
 import { type Standing } from "@/lib/hockey-data"
 import { cn } from "@/lib/utils"
-import Link from "next/link"
+import { IntentLink as Link } from "@/components/intent-link"
 import { useSort, SortableTh, statsRowClass } from "@/components/stats-table"
 import { TeamLogo } from "@/components/team-logo"
 

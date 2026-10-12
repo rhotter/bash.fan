@@ -79,20 +79,13 @@ export interface TeamDetail {
 
 async function fetchTeamDetailInternal(slug: string, seasonParam?: string | null): Promise<TeamDetail | null> {
   const seasonId = seasonParam && seasonParam !== "all" ? seasonParam : (await getCurrentSeason()).id
-  const seasonRows = await db.select({
-    name: schema.seasons.name,
-    defaultLocation: schema.seasons.defaultLocation,
-    gameLength: schema.seasons.gameLength,
-  }).from(schema.seasons).where(eq(schema.seasons.id, seasonId))
-  const seasonName = formatSeasonName(seasonRows.length > 0 ? seasonRows[0].name : seasonId)
-  const seasonLocation = seasonRows.length > 0 ? seasonRows[0].defaultLocation : null
-  const gameLength = seasonRows.length > 0 ? seasonRows[0].gameLength : 60
-
-  const teamRows = await db.select().from(schema.teams).where(eq(schema.teams.slug, slug))
-  if (teamRows.length === 0) return null
-  const team = teamRows[0]
-
-  const [skaterRows, goalieRows, gameRows] = await Promise.all([
+  const [seasonRows, teamRows, skaterRows, goalieRows, gameRows, allTeamResults, totalTeams] = await Promise.all([
+    db.select({
+      name: schema.seasons.name,
+      defaultLocation: schema.seasons.defaultLocation,
+      gameLength: schema.seasons.gameLength,
+    }).from(schema.seasons).where(eq(schema.seasons.id, seasonId)),
+    db.select().from(schema.teams).where(eq(schema.teams.slug, slug)),
     rawSql(sql`
       SELECT
         p.id, p.name,
@@ -162,7 +155,38 @@ async function fetchTeamDetailInternal(slug: string, seasonParam?: string | null
             g.time::time
         END ASC
     `),
+    rawSql(sql`
+      SELECT
+        t.team_slug,
+        SUM(CASE
+          WHEN g.home_team = t.team_slug AND g.home_score > g.away_score AND NOT g.is_overtime THEN 3
+          WHEN g.away_team = t.team_slug AND g.away_score > g.home_score AND NOT g.is_overtime THEN 3
+          WHEN g.home_team = t.team_slug AND g.home_score > g.away_score AND g.is_overtime THEN 2
+          WHEN g.away_team = t.team_slug AND g.away_score > g.home_score AND g.is_overtime THEN 2
+          WHEN g.home_team = t.team_slug AND g.home_score < g.away_score AND g.is_overtime THEN 1
+          WHEN g.away_team = t.team_slug AND g.away_score < g.home_score AND g.is_overtime THEN 1
+          ELSE 0
+        END)::int as pts,
+        SUM(CASE WHEN g.home_team = t.team_slug THEN g.home_score ELSE g.away_score END)::int as gf,
+        SUM(CASE WHEN g.home_team = t.team_slug THEN g.away_score ELSE g.home_score END)::int as ga
+      FROM season_teams t
+      CROSS JOIN LATERAL (
+        SELECT * FROM games g2
+        WHERE g2.season_id = ${seasonId} AND g2.status = 'final' AND NOT g2.is_playoff AND g2.game_type = 'regular'
+          AND (g2.home_team = t.team_slug OR g2.away_team = t.team_slug)
+      ) g
+      WHERE t.season_id = ${seasonId}
+      GROUP BY t.team_slug
+      ORDER BY pts DESC, (SUM(CASE WHEN g.home_team = t.team_slug THEN g.home_score ELSE g.away_score END) - SUM(CASE WHEN g.home_team = t.team_slug THEN g.away_score ELSE g.home_score END)) DESC
+    `),
+    rawSql(sql`SELECT COUNT(*)::int as count FROM season_teams WHERE season_id = ${seasonId}`),
   ])
+
+  if (teamRows.length === 0) return null
+  const team = teamRows[0]
+  const seasonName = formatSeasonName(seasonRows.length > 0 ? seasonRows[0].name : seasonId)
+  const seasonLocation = seasonRows.length > 0 ? seasonRows[0].defaultLocation : null
+  const gameLength = seasonRows.length > 0 ? seasonRows[0].gameLength : 60
 
   const skaters: SkaterRoster[] = skaterRows.map((r) => ({
     id: r.id,
@@ -242,34 +266,6 @@ async function fetchTeamDetailInternal(slug: string, seasonParam?: string | null
       else if (g.result === "L") { record.l++ }
     }
   }
-
-  const [allTeamResults, totalTeams] = await Promise.all([
-    rawSql(sql`
-      SELECT
-        t.team_slug,
-        SUM(CASE
-          WHEN g.home_team = t.team_slug AND g.home_score > g.away_score AND NOT g.is_overtime THEN 3
-          WHEN g.away_team = t.team_slug AND g.away_score > g.home_score AND NOT g.is_overtime THEN 3
-          WHEN g.home_team = t.team_slug AND g.home_score > g.away_score AND g.is_overtime THEN 2
-          WHEN g.away_team = t.team_slug AND g.away_score > g.home_score AND g.is_overtime THEN 2
-          WHEN g.home_team = t.team_slug AND g.home_score < g.away_score AND g.is_overtime THEN 1
-          WHEN g.away_team = t.team_slug AND g.away_score < g.home_score AND g.is_overtime THEN 1
-          ELSE 0
-        END)::int as pts,
-        SUM(CASE WHEN g.home_team = t.team_slug THEN g.home_score ELSE g.away_score END)::int as gf,
-        SUM(CASE WHEN g.home_team = t.team_slug THEN g.away_score ELSE g.home_score END)::int as ga
-      FROM season_teams t
-      CROSS JOIN LATERAL (
-        SELECT * FROM games g2
-        WHERE g2.season_id = ${seasonId} AND g2.status = 'final' AND NOT g2.is_playoff AND g2.game_type = 'regular'
-          AND (g2.home_team = t.team_slug OR g2.away_team = t.team_slug)
-      ) g
-      WHERE t.season_id = ${seasonId}
-      GROUP BY t.team_slug
-      ORDER BY pts DESC, (SUM(CASE WHEN g.home_team = t.team_slug THEN g.home_score ELSE g.away_score END) - SUM(CASE WHEN g.home_team = t.team_slug THEN g.away_score ELSE g.home_score END)) DESC
-    `),
-    rawSql(sql`SELECT COUNT(*)::int as count FROM season_teams WHERE season_id = ${seasonId}`),
-  ])
 
   record.totalTeams = totalTeams[0].count
   const rankIdx = allTeamResults.findIndex((r) => r.team_slug === slug)

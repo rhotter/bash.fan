@@ -3,7 +3,7 @@
 import { useMemo } from "react"
 import { formatGameDate, formatGameDateNoYear, formatGameTime } from "@/lib/format-time"
 import { cn } from "@/lib/utils"
-import Link from "next/link"
+import { IntentLink as Link } from "@/components/intent-link"
 import { playerSlug } from "@/lib/player-slug"
 import { useRouter } from "next/navigation"
 import type { TeamDetail } from "@/app/api/bash/team/[slug]/route"

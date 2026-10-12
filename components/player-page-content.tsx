@@ -2,7 +2,7 @@
 
 import { formatGameDateShort } from "@/lib/format-time"
 import { cn } from "@/lib/utils"
-import Link from "next/link"
+import { IntentLink as Link } from "@/components/intent-link"
 import type { PlayerDetail, SkaterStats, GoalieStats, SeasonSkaterStats, SeasonGoalieStats, SkaterGameLog, GoalieGameLog } from "@/app/api/bash/player/[slug]/route"
 import { SectionHeader } from "@/components/stats-table"
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip"

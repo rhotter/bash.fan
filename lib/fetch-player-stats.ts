@@ -88,15 +88,16 @@ export async function fetchPlayerStats(
   let goalieRows: any[]
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let teamRows: any[]
-  let hasPlayoffs = false
-
-  // Check if the selected season has playoff games (only for season-specific, non-playoff views)
-  if (!isAllTime && !isPlayoff && seasonId) {
-    const playoffCheck = await rawSql(sql`
-      SELECT EXISTS(SELECT 1 FROM games WHERE season_id = ${seasonId} AND is_playoff AND status = 'final') as has_playoffs
-    `)
-    hasPlayoffs = playoffCheck[0]?.has_playoffs ?? false
-  }
+  // Season metadata and playoff availability are independent database reads.
+  const [statsOnly, playoffCheck] = !isAllTime && seasonId
+    ? await Promise.all([
+        isStatsOnlySeason(seasonId),
+        !isPlayoff ? rawSql(sql`
+          SELECT EXISTS(SELECT 1 FROM games WHERE season_id = ${seasonId} AND is_playoff AND status = 'final') as has_playoffs
+        `) : Promise.resolve([]),
+      ])
+    : [false, []]
+  const hasPlayoffs = playoffCheck[0]?.has_playoffs ?? false
 
   if (isAllTime) {
     ;[skaterRows, goalieRows, teamRows] = await Promise.all([
@@ -193,7 +194,7 @@ export async function fetchPlayerStats(
       `),
       rawSql(sql`SELECT DISTINCT t.slug, t.name FROM teams t ORDER BY t.name`),
     ])
-  } else if (seasonId && (await isStatsOnlySeason(seasonId))) {
+  } else if (seasonId && statsOnly) {
     const playoffFragment = isPlayoff ? sql`pss.is_playoff` : sql`NOT pss.is_playoff`
     ;[skaterRows, goalieRows, teamRows] = await Promise.all([
       rawSql(sql`
