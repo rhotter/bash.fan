@@ -1,6 +1,6 @@
 import type { Metadata } from "next"
 import { TeamPageContent } from "@/components/team-page-content"
-import { fetchTeamDetail } from "@/lib/fetch-team-detail"
+import { fetchTeamPageData } from "@/lib/cached-page-data"
 import { notFound } from "next/navigation"
 
 export const revalidate = 60
@@ -14,7 +14,7 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { slug } = await params
   const { season } = await searchParams
-  const team = await fetchTeamDetail(slug, season)
+  const team = await fetchTeamPageData(slug, season)
   if (!team) return { title: "Team Not Found" }
 
   const r = team.record
@@ -34,7 +34,7 @@ export default async function TeamPage({
 }) {
   const { slug } = await params
   const { season } = await searchParams
-  const team = await fetchTeamDetail(slug, season)
+  const team = await fetchTeamPageData(slug, season)
 
   if (!team) notFound()
 
