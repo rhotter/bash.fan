@@ -3,9 +3,6 @@ const nextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
-  images: {
-    unoptimized: true,
-  },
   // OG renderers read these dynamically from disk. Public assets are served by
   // the CDN, but must also be traced into the serverless image functions.
   outputFileTracingIncludes: {

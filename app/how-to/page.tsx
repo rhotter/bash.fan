@@ -79,6 +79,7 @@ function BoardsTab() {
                     alt="How to Assemble the Boards"
                     width={1000}
                     height={500}
+                    sizes="(min-width: 1024px) 992px, calc(100vw - 32px)"
                     className="mx-auto h-auto w-full object-contain"
                 />
             </div>
@@ -239,6 +240,7 @@ function ShedTab() {
                                         alt={step.title}
                                         width={400}
                                         height={300}
+                                        sizes="(min-width: 1024px) 490px, (min-width: 640px) calc((100vw - 44px) / 2), calc(100vw - 32px)"
                                         className="h-auto w-full object-cover"
                                     />
                                 </div>
