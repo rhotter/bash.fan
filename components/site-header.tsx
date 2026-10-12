@@ -27,6 +27,7 @@ function HeaderContent({ activeTab, season }: { activeTab?: string; season?: str
               width={28}
               height={28}
               loading="eager"
+              sizes="(min-width: 768px) 36px, (min-width: 640px) 32px, 28px"
               className="shrink-0 sm:w-8 sm:h-8 md:w-9 md:h-9"
             />
             <div className="hidden sm:flex flex-col">
