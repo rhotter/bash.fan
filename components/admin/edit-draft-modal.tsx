@@ -1,5 +1,7 @@
 "use client"
 
+import { fetchApi as fetch, readApiJson, errorMessage } from "@/lib/api-errors"
+
 import { Spinner } from "@/components/ui/spinner"
 import { useState, useEffect } from "react"
 import { toast } from "sonner"
@@ -83,15 +85,15 @@ export function EditDraftModal({ draft, seasonId, isOpen, onOpenChange, onUpdate
       })
 
       if (!res.ok) {
-        const data = await res.json()
+        const data = await readApiJson(res)
         toast.error(data.error || "Failed to update draft settings")
       } else {
         toast.success("Draft settings updated")
         onUpdate()
         onOpenChange(false)
       }
-    } catch {
-      toast.error("Failed to update draft settings")
+    } catch (error) {
+      toast.error(errorMessage(error, "Failed to update draft settings"))
     } finally {
       setIsSaving(false)
     }

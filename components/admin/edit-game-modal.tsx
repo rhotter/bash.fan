@@ -1,5 +1,7 @@
 "use client"
 
+import { fetchApi as fetch, readApiJson, errorMessage } from "@/lib/api-errors"
+
 import { Spinner } from "@/components/ui/spinner"
 import { useState, useEffect, useRef } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
@@ -163,11 +165,11 @@ export function EditGameModal({
     try {
       const res = await fetch("/api/bash/admin/teams")
       if (res.ok) {
-        const data = await res.json()
+        const data = await readApiJson(res)
         setGlobalTeams(data.teams || [])
       }
-    } catch {
-      toast.error("Failed to load teams")
+    } catch (error) {
+      toast.error(errorMessage(error, "Failed to load teams"))
     } finally {
       setIsLoadingGlobal(false)
     }
@@ -193,7 +195,7 @@ export function EditGameModal({
       })
 
       if (!res.ok) {
-        const data = await res.json()
+        const data = await readApiJson(res)
         throw new Error(data.error || "Failed to save game")
       }
 
@@ -201,7 +203,7 @@ export function EditGameModal({
       onSaved()
       onOpenChange(false)
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "An error occurred")
+      toast.error(errorMessage(err, "An error occurred"))
     } finally {
       setIsSubmitting(false)
     }
@@ -230,12 +232,12 @@ export function EditGameModal({
       })
 
       if (!createRes.ok) {
-        const err = await createRes.json()
+        const err = await readApiJson(createRes)
         toast.error(err.error || "Failed to create team")
         return
       }
 
-      const { team } = await createRes.json()
+      const { team } = await readApiJson(createRes)
 
       // 2. Assign to this season with the chosen color
       const assignRes = await fetch(`/api/bash/admin/seasons/${seasonId}/teams`, {
@@ -245,7 +247,7 @@ export function EditGameModal({
       })
 
       if (!assignRes.ok) {
-        const err = await assignRes.json()
+        const err = await readApiJson(assignRes)
         toast.error(err.error || "Failed to assign team to season")
         return
       }
@@ -266,8 +268,8 @@ export function EditGameModal({
       onTeamCreated?.()
 
       toast.success(`Created "${team.name}" and assigned to season`)
-    } catch {
-      toast.error("Connection error")
+    } catch (error) {
+      toast.error(errorMessage(error, "Connection error"))
     } finally {
       setIsCreatingTeam(false)
     }
@@ -284,7 +286,7 @@ export function EditGameModal({
       })
 
       if (!res.ok) {
-        const err = await res.json()
+        const err = await readApiJson(res)
         toast.error(err.error || "Failed to assign team")
         return
       }
@@ -302,8 +304,8 @@ export function EditGameModal({
       onTeamCreated?.()
 
       toast.success(`Added "${team.name}" to season`)
-    } catch {
-      toast.error("Connection error")
+    } catch (error) {
+      toast.error(errorMessage(error, "Connection error"))
     } finally {
       setIsAssigningTeam(false)
     }

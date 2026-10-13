@@ -1,5 +1,7 @@
 "use client"
 
+import { fetchApi as fetch, readApiJson, errorMessage } from "@/lib/api-errors"
+
 import { Spinner } from "@/components/ui/spinner"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
@@ -143,7 +145,7 @@ export function ExtrasClient({ initial }: { initial: ExtraRow[] }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       })
-      const data = await res.json()
+      const data = await readApiJson(res)
       if (!res.ok) throw new Error(data.error || "Save failed")
 
       const saved: ExtraRow = {
@@ -163,7 +165,7 @@ export function ExtrasClient({ initial }: { initial: ExtraRow[] }) {
       toast.success(editing ? "Extra updated" : "Extra created")
       router.refresh()
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Save failed")
+      toast.error(errorMessage(err, "Save failed"))
     } finally {
       setBusy(false)
     }
@@ -176,14 +178,14 @@ export function ExtrasClient({ initial }: { initial: ExtraRow[] }) {
       const res = await fetch(`/api/bash/admin/registration/extras/${pendingDelete.id}`, {
         method: "DELETE",
       })
-      const data = await res.json()
+      const data = await readApiJson(res)
       if (!res.ok) throw new Error(data.error || "Delete failed")
       setExtras((prev) => prev.filter((c) => c.id !== pendingDelete.id))
       setPendingDelete(null)
       toast.success("Extra deleted")
       router.refresh()
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Delete failed")
+      toast.error(errorMessage(err, "Delete failed"))
     } finally {
       setBusy(false)
     }

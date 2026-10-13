@@ -1,5 +1,7 @@
 "use client"
 
+import { fetchApi as fetch, readApiJson, errorMessage } from "@/lib/api-errors"
+
 import { Spinner } from "@/components/ui/spinner"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
@@ -41,7 +43,7 @@ export function SeasonHeaderActions({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ isCurrent: true }),
       })
-      const data = await res.json().catch(() => ({}))
+      const data = await readApiJson(res)
       if (res.ok) {
         toast.success("Season set as current")
         setConfirmOpen(false)
@@ -49,8 +51,8 @@ export function SeasonHeaderActions({
       } else {
         toast.error(data.error || "Failed to set current season")
       }
-    } catch {
-      toast.error("Failed to set current season")
+    } catch (error) {
+      toast.error(errorMessage(error, "Failed to set current season"))
     } finally {
       setIsSettingCurrent(false)
     }

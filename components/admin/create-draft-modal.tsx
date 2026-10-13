@@ -1,5 +1,7 @@
 "use client"
 
+import { fetchApi as fetch, readApiJson, errorMessage } from "@/lib/api-errors"
+
 import { Spinner } from "@/components/ui/spinner"
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
@@ -90,11 +92,11 @@ export function CreateDraftModal({
           location: "",
         })
       } else {
-        const data = await res.json()
+        const data = await readApiJson(res)
         setError(data.error || "Failed to create draft")
       }
-    } catch {
-      setError("Network error — please try again")
+    } catch (error) {
+      setError(errorMessage(error, "Network error — please try again"))
     } finally {
       setSaving(false)
     }

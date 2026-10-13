@@ -1,5 +1,7 @@
 "use client"
 
+import { fetchApi as fetch, readApiJson, errorMessage } from "@/lib/api-errors"
+
 import { LoadingState } from "@/components/loading-state"
 import { Spinner } from "@/components/ui/spinner"
 import { useState, useEffect, useCallback } from "react"
@@ -125,17 +127,17 @@ export function DraftTab({ seasonId, seasonStatus, seasonType, teams, rosterCoun
         method: "POST",
       })
       if (!res.ok) {
-        const err = await res.json()
+        const err = await readApiJson(res)
         throw new Error(err.error || "Failed to push rosters")
       }
-      const result = await res.json()
+      const result = await readApiJson(res)
       toast.success(
         `Rosters pushed: ${result.summary.inserted} added, ${result.summary.updated} updated, ${result.summary.skipped} skipped`
       )
       setPushTarget(null)
       router.push(`/admin/seasons/${seasonId}?tab=Roster`)
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : "An error occurred"
+      const msg = errorMessage(e, "An error occurred")
       toast.error(msg)
     } finally {
       setIsPushingRosters(false)
@@ -152,14 +154,14 @@ export function DraftTab({ seasonId, seasonStatus, seasonType, teams, rosterCoun
         method: "POST",
       })
       if (!res.ok) {
-        const err = await res.json()
+        const err = await readApiJson(res)
         throw new Error(err.error || "Failed to revert")
       }
       toast.success("Draft reverted to live")
       setRevertTarget(null)
       fetchDrafts()
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : "An error occurred"
+      const msg = errorMessage(e, "An error occurred")
       toast.error(msg)
     } finally {
       setIsReverting(false)
@@ -170,11 +172,11 @@ export function DraftTab({ seasonId, seasonStatus, seasonType, teams, rosterCoun
     try {
       const res = await fetch(`/api/bash/admin/seasons/${seasonId}/draft`)
       if (res.ok) {
-        const data = await res.json()
+        const data = await readApiJson(res)
         setDrafts(data.drafts || [])
       }
-    } catch {
-      toast.error("Failed to load drafts")
+    } catch (error) {
+      toast.error(errorMessage(error, "Failed to load drafts"))
     } finally {
       setIsLoading(false)
     }
@@ -194,11 +196,11 @@ export function DraftTab({ seasonId, seasonStatus, seasonType, teams, rosterCoun
         setDrafts(prev => prev.filter(d => d.id !== deleteTarget.id))
         toast.success("Draft deleted")
       } else {
-        const err = await res.json()
+        const err = await readApiJson(res)
         toast.error(err.error || "Failed to delete")
       }
-    } catch {
-      toast.error("Connection error")
+    } catch (error) {
+      toast.error(errorMessage(error, "Connection error"))
     } finally {
       setIsDeleting(false)
       setDeleteTarget(null)
@@ -217,11 +219,11 @@ export function DraftTab({ seasonId, seasonStatus, seasonType, teams, rosterCoun
         toast.success("Draft published!")
         fetchDrafts()
       } else {
-        const err = await res.json()
+        const err = await readApiJson(res)
         toast.error(err.error || "Failed to publish")
       }
-    } catch {
-      toast.error("Connection error")
+    } catch (error) {
+      toast.error(errorMessage(error, "Connection error"))
     } finally {
       setIsPublishing(false)
       setPublishTarget(null)
@@ -246,11 +248,11 @@ export function DraftTab({ seasonId, seasonStatus, seasonType, teams, rosterCoun
         toast.success("Draft unpublished — moved back to draft status")
         fetchDrafts()
       } else {
-        const err = await res.json()
+        const err = await readApiJson(res)
         toast.error(err.error || "Failed to unpublish")
       }
-    } catch {
-      toast.error("Connection error")
+    } catch (error) {
+      toast.error(errorMessage(error, "Connection error"))
     } finally {
       setIsUnpublishing(false)
       setUnpublishTarget(null)
@@ -261,11 +263,11 @@ export function DraftTab({ seasonId, seasonStatus, seasonType, teams, rosterCoun
     try {
       const res = await fetch(`/api/bash/admin/seasons/${seasonId}/draft/${draftId}/pool`)
       if (res.ok) {
-        const data = await res.json()
+        const data = await readApiJson(res)
         setPoolData(prev => ({ ...prev, [draftId]: data.pool || [] }))
       }
-    } catch {
-      toast.error("Failed to load player pool")
+    } catch (error) {
+      toast.error(errorMessage(error, "Failed to load player pool"))
     }
   }, [seasonId])
 
@@ -293,11 +295,11 @@ export function DraftTab({ seasonId, seasonStatus, seasonType, teams, rosterCoun
         toast.success("Trade deleted")
         fetchDrafts()
       } else {
-        const err = await res.json()
+        const err = await readApiJson(res)
         toast.error(err.error || "Failed to delete trade")
       }
-    } catch {
-      toast.error("Connection error")
+    } catch (error) {
+      toast.error(errorMessage(error, "Connection error"))
     }
   }
 
@@ -328,11 +330,11 @@ export function DraftTab({ seasonId, seasonStatus, seasonType, teams, rosterCoun
         setAddingTrade(null)
         fetchDrafts()
       } else {
-        const err = await res.json()
+        const err = await readApiJson(res)
         toast.error(err.error || "Failed to add trade")
       }
-    } catch {
-      toast.error("Connection error")
+    } catch (error) {
+      toast.error(errorMessage(error, "Connection error"))
     } finally {
       setIsSavingTrade(false)
     }
@@ -470,11 +472,11 @@ export function DraftTab({ seasonId, seasonStatus, seasonType, teams, rosterCoun
                               toast.success(`Draft results ${draft.status === "completed" ? "hidden from" : "restored to"} public navigation`)
                               fetchDrafts()
                             } else {
-                              const err = await res.json()
+                              const err = await readApiJson(res)
                               toast.error(err.error || `Failed to ${action}`)
                             }
-                          } catch {
-                            toast.error("Connection error")
+                          } catch (error) {
+                            toast.error(errorMessage(error, "Connection error"))
                           }
                         }}
                       >

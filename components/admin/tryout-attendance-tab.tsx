@@ -1,5 +1,7 @@
 "use client"
 
+import { fetchApi as fetch, readApiJson, errorMessage } from "@/lib/api-errors"
+
 import { LoadingState } from "@/components/loading-state"
 import { useState, useEffect, useCallback } from "react"
 import { Input } from "@/components/ui/input"
@@ -51,14 +53,14 @@ export function TryoutAttendanceTab({ seasonId }: TryoutAttendanceTabProps) {
     try {
       const res = await fetch(`/api/bash/admin/seasons/${seasonId}/tryout-attendance`)
       if (!res.ok) {
-        const data = await res.json()
+        const data = await readApiJson(res)
         throw new Error(data.error || "Failed to fetch attendance")
       }
-      const data = await res.json()
+      const data = await readApiJson(res)
       setPlayers(data.players || [])
       setTotalTryoutGames(data.totalTryoutGames || 0)
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Failed to load tryout attendance")
+      toast.error(errorMessage(err, "Failed to load tryout attendance"))
     } finally {
       setIsLoading(false)
     }

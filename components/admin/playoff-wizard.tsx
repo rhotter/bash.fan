@@ -1,5 +1,7 @@
 "use client"
 
+import { fetchApi as fetch, readApiJson, errorMessage } from "@/lib/api-errors"
+
 import { Spinner } from "@/components/ui/spinner"
 import { useState, useMemo } from "react"
 import {
@@ -220,7 +222,7 @@ export function PlayoffWizard({
           body: JSON.stringify({ mappings: resolveMappings }),
         })
         if (!res.ok) {
-          const data = await res.json()
+          const data = await readApiJson(res)
           throw new Error(data.error || "Failed to resolve seeds")
         }
         toast.success("Playoff seeds resolved successfully!")
@@ -243,7 +245,7 @@ export function PlayoffWizard({
         })
 
         if (!res.ok) {
-          const data = await res.json()
+          const data = await readApiJson(res)
           throw new Error(data.error || "Failed to generate playoffs")
         }
 
@@ -254,7 +256,7 @@ export function PlayoffWizard({
       handleReset()
       onOpenChange(false)
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "An error occurred")
+      toast.error(errorMessage(err, "An error occurred"))
     } finally {
       setIsSaving(false)
     }

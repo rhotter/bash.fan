@@ -234,7 +234,7 @@ describe("AdminGameEditor saving", () => {
     await click("Save")
     expect(fetchMock).toHaveBeenCalledTimes(1)
     expect(onSaved).not.toHaveBeenCalled()
-    expect(container.textContent).toContain("Finalization temporarily unavailable")
+    expect(container.textContent).toContain("The game was saved, but its statistics could not finish updating")
 
     vi.mocked(Date.now).mockReturnValue(NOW + 10000)
     await click("Save")
@@ -297,7 +297,7 @@ describe("AdminGameEditor saving", () => {
     await click("Save")
     expect(fetchMock).toHaveBeenCalledTimes(1)
     expect(onSaved).not.toHaveBeenCalled()
-    expect(container.textContent).toContain("Network unavailable")
+    expect(container.textContent).toContain("Could not confirm whether the request completed")
     expect(button("Save").disabled).toBe(false)
     await click("Save")
     expect(requestBody(1).expectedState).toEqual(state)

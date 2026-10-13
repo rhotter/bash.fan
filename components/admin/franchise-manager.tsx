@@ -1,5 +1,7 @@
 "use client"
 
+import { fetchApi as fetch, readApiJson, errorMessage } from "@/lib/api-errors"
+
 import { formatSeasonName } from "@/lib/season-name"
 
 import { LoadingState } from "@/components/loading-state"
@@ -62,11 +64,11 @@ export function FranchiseManager() {
     try {
       const res = await fetch("/api/bash/admin/franchises")
       if (res.ok) {
-        const data = await res.json()
+        const data = await readApiJson(res)
         setFranchises(data.franchises || [])
       }
-    } catch {
-      toast.error("Failed to load franchises")
+    } catch (error) {
+      toast.error(errorMessage(error, "Failed to load franchises"))
     } finally {
       setIsLoading(false)
     }
@@ -79,14 +81,14 @@ export function FranchiseManager() {
     try {
       const res = await fetch(`/api/bash/admin/franchises/${slug}/teams`)
       if (res.ok) {
-        const data = await res.json()
+        const data = await readApiJson(res)
         setLinkedTeams(data.linkedTeams || [])
         setUnlinkedTeams(data.unlinkedTeams || [])
       } else {
         toast.error("Failed to load franchise detail")
       }
-    } catch {
-      toast.error("Connection error")
+    } catch (error) {
+      toast.error(errorMessage(error, "Connection error"))
     } finally {
       setIsLoadingDetail(false)
     }
@@ -147,7 +149,7 @@ export function FranchiseManager() {
         body: JSON.stringify({ assign, unassign }),
       })
       if (res.ok) {
-        const data = await res.json()
+        const data = await readApiJson(res)
         toast.success(`Updated ${data.updated} team assignment(s)`)
         setPendingAssign(new Set())
         setPendingUnassign(new Set())
@@ -155,11 +157,11 @@ export function FranchiseManager() {
         fetchFranchiseDetail(selectedSlug)
         fetchFranchises()
       } else {
-        const err = await res.json()
+        const err = await readApiJson(res)
         toast.error(err.error || "Failed to save")
       }
-    } catch {
-      toast.error("Connection error")
+    } catch (error) {
+      toast.error(errorMessage(error, "Connection error"))
     } finally {
       setIsSaving(false)
     }
@@ -179,17 +181,17 @@ export function FranchiseManager() {
         body: JSON.stringify(createForm),
       })
       if (res.ok) {
-        const data = await res.json()
+        const data = await readApiJson(res)
         setFranchises(prev => [...prev, data.franchise].sort((a, b) => a.name.localeCompare(b.name)))
         toast.success(`Created ${data.franchise.name}`)
         setCreateOpen(false)
         setCreateForm({ name: "", slug: "", color: "#3b82f6" })
       } else {
-        const err = await res.json()
+        const err = await readApiJson(res)
         setCreateError(err.error || "Failed to create franchise")
       }
-    } catch {
-      setCreateError("Connection error")
+    } catch (error) {
+      setCreateError(errorMessage(error, "Connection error"))
     } finally {
       setIsCreating(false)
     }
@@ -211,11 +213,11 @@ export function FranchiseManager() {
         toast.success(`Updated ${editForm.name}`)
         setEditOpen(false)
       } else {
-        const err = await res.json()
+        const err = await readApiJson(res)
         toast.error(err.error || "Failed to update")
       }
-    } catch {
-      toast.error("Connection error")
+    } catch (error) {
+      toast.error(errorMessage(error, "Connection error"))
     } finally {
       setIsEditing(false)
     }
@@ -230,11 +232,11 @@ export function FranchiseManager() {
         if (selectedSlug === slug) setSelectedSlug(null)
         toast.success("Franchise deleted")
       } else {
-        const err = await res.json()
+        const err = await readApiJson(res)
         toast.error(err.error || "Failed to delete")
       }
-    } catch {
-      toast.error("Connection error")
+    } catch (error) {
+      toast.error(errorMessage(error, "Connection error"))
     } finally {
       setDeletingSlug(null)
     }

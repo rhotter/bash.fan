@@ -1,13 +1,20 @@
 "use client"
 
+import { fetchApi as fetch, readApiJson, errorMessage } from "@/lib/api-errors"
+import { toast } from "sonner"
+
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { LogOut } from "lucide-react"
 
 export function AdminTopbar() {
-  function handleLogout() {
-    fetch("/api/bash/admin/logout", { method: "POST" }).then(() => {
+  async function handleLogout() {
+    try {
+      const response = await fetch("/api/bash/admin/logout", { method: "POST" })
+      if (!response.ok) throw new Error((await readApiJson(response)).error)
       window.location.href = "/"
-    })
+    } catch (error) {
+      toast.error(errorMessage(error, "Could not sign out. Please try again."))
+    }
   }
 
   return (

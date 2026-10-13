@@ -1,5 +1,6 @@
 "use client"
 
+import { ErrorNotice } from "@/components/error-notice"
 import { LoadingState } from "@/components/loading-state"
 import { useState, useMemo, useCallback } from "react"
 import { useSearchParams, useRouter } from "next/navigation"
@@ -25,7 +26,7 @@ export function StatsTab({ initialData }: { initialData?: PlayerStatsData }) {
   const gameType = searchParams.get("gameType") || "regular"
   const router = useRouter()
   const [playoff, setPlayoff] = useState(false)
-  const { skaters, goalies, teams, hasPlayoffs, isLoading } = usePlayerStats(season, !playoff ? initialData : undefined, playoff, seasonType, gameType)
+  const { skaters, goalies, teams, hasPlayoffs, isLoading, isError, errorMessage } = usePlayerStats(season, !playoff ? initialData : undefined, playoff, seasonType, gameType)
   const rawView = searchParams.get("view")
   const tab = rawView === "goalies" ? "goalies" : "skaters" as const
 
@@ -99,6 +100,8 @@ export function StatsTab({ initialData }: { initialData?: PlayerStatsData }) {
   const paginatedSkaters = filteredSkaters.slice((skaterPage - 1) * PER_PAGE, skaterPage * PER_PAGE)
   const paginatedGoalies = filteredGoalies.slice((goaliePage - 1) * PER_PAGE, goaliePage * PER_PAGE)
 
+  if (isError && skaters.length === 0 && goalies.length === 0) return <ErrorNotice message={errorMessage ?? "Could not load player stats. Try again."} />
+
   if (isLoading && skaters.length === 0 && goalies.length === 0) {
     return <LoadingState variant="stats" label="Loading player stats…" />
   }
@@ -113,6 +116,7 @@ export function StatsTab({ initialData }: { initialData?: PlayerStatsData }) {
 
   return (
     <div className="flex flex-col gap-5">
+      {isError && <ErrorNotice message={`Stats could not refresh; showing the last loaded results. ${errorMessage ?? ""}`} />}
       {/* Skaters / Goalies toggle + Regular Season / Playoffs toggle */}
       <div className="flex items-center gap-1">
         <button

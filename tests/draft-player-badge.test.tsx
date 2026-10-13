@@ -6,6 +6,8 @@ import { DraftPlayerBadge } from "@/components/draft-player-badge"
 import { PublicDraftBoard } from "@/components/public-draft-board"
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog"
 
+vi.mock("next/navigation", () => ({ useRouter: () => ({ prefetch: vi.fn() }) }))
+
 let container: HTMLDivElement
 let root: Root
 

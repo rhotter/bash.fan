@@ -1,5 +1,7 @@
 "use client"
 
+import { fetchApi as fetch, readApiJson, errorMessage } from "@/lib/api-errors"
+
 import { useState } from "react"
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription
@@ -7,7 +9,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 
-export function PinDialog({ open, onOpenChange, gameId, currentState, onSuccess }: {
+export function PinDialog({ open, onOpenChange, onSuccess }: {
   open: boolean
   onOpenChange: (open: boolean) => void
   gameId?: string
@@ -23,30 +25,17 @@ export function PinDialog({ open, onOpenChange, gameId, currentState, onSuccess 
     setLoading(true)
     setError("")
     try {
-      let res: Response
-      if (gameId && currentState !== undefined && currentState !== null) {
-        // Game-specific: validate PIN by PUTing the current state back (no-op save)
-        res = await fetch(`/api/bash/scorekeeper/${gameId}/state`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json", "x-pin": pin },
-          body: JSON.stringify(currentState),
-        })
-      } else {
-        // Generic PIN validation
-        res = await fetch("/api/bash/admin/validate-pin", {
-          method: "POST",
-          headers: { "x-pin": pin },
-        })
+      const res = await fetch("/api/bash/admin/validate-pin", {
+        method: "POST", headers: { "x-pin": pin.trim() },
+      })
+      if (!res.ok) {
+        const data = await readApiJson(res)
+        throw new Error(res.status === 401 ? "Invalid PIN. Please try again." : data.error)
       }
-      if (res.status === 401) {
-        setError("Invalid PIN")
-        setLoading(false)
-        return
-      }
-      onSuccess(pin)
+      onSuccess(pin.trim())
       setPin("")
-    } catch {
-      setError("Connection error")
+    } catch (error) {
+      setError(errorMessage(error, "Connection error"))
     } finally {
       setLoading(false)
     }

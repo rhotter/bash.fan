@@ -1,5 +1,7 @@
 "use client"
 
+import { fetchApi as fetch, readApiJson, errorMessage } from "@/lib/api-errors"
+
 import { Spinner } from "@/components/ui/spinner"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
@@ -98,13 +100,13 @@ export function SeasonActivationChecklist({ season }: SeasonActivationChecklistP
         toast.success("Season activated successfully")
         router.refresh()
       } else {
-        const data = await res.json()
+        const data = await readApiJson(res)
         const errMsg = data.error || "Failed to activate season"
         setError(errMsg)
         toast.error(errMsg)
       }
-    } catch {
-      setError("Connection error")
+    } catch (error) {
+      setError(errorMessage(error, "Connection error"))
       toast.error("Connection error")
     } finally {
       setSaving(false)

@@ -1,5 +1,6 @@
 "use client"
 
+import { ErrorNotice } from "@/components/error-notice"
 import { LoadingState } from "@/components/loading-state"
 import { useState, useMemo, useEffect } from "react"
 import { useSearchParams, useRouter } from "next/navigation"
@@ -33,7 +34,7 @@ interface GameDetailProps {
 }
 
 export function GameDetail({ game, initialDetail, initialLiveData, homeRoster, awayRoster, forceEdit }: GameDetailProps) {
-  const { detail, isLoading, isError } = useGameDetail(game.id, initialDetail)
+  const { detail, isLoading, isError, errorMessage } = useGameDetail(game.id, initialDetail)
   const isLive = game.status === "live"
   const isFinal = game.status === "final"
   // Fetch live data for both live and final games (to get goal/penalty event details)
@@ -284,9 +285,7 @@ export function GameDetail({ game, initialDetail, initialLiveData, homeRoster, a
         )}
 
         {isError && !detail && !isLive && (
-          <div className="text-center py-8">
-            <p className="text-xs text-muted-foreground">Unable to load game details.</p>
-          </div>
+          <ErrorNotice message={errorMessage ?? "Could not load game details. Please try again."} />
         )}
 
         {game.status === "upcoming" && !isLoading && (

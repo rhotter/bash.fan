@@ -1,5 +1,6 @@
 "use client"
 
+import { ErrorNotice } from "@/components/error-notice"
 import { LoadingState } from "@/components/loading-state"
 import { useRefStats } from "@/lib/hockey-data"
 import { useSort, SortableTh, statsRowClass } from "@/components/stats-table"
@@ -7,7 +8,7 @@ import { useSort, SortableTh, statsRowClass } from "@/components/stats-table"
 type SortKey = "games" | "totalPen" | "totalPim" | "avgPimPerGame"
 
 export function RefsTab() {
-  const { refs, isLoading } = useRefStats()
+  const { refs, isLoading, isError, errorMessage } = useRefStats()
   const { sortKey, sortDir, toggleSort } = useSort<SortKey>("games")
 
   const sorted = [...refs].sort((a, b) => {
@@ -15,6 +16,8 @@ export function RefsTab() {
     const bv = b[sortKey] ?? 0
     return sortDir === "desc" ? bv - av : av - bv
   })
+
+  if (isError && refs.length === 0) return <ErrorNotice message={errorMessage ?? "Could not load referee stats. Try again."} />
 
   if (isLoading && refs.length === 0) {
     return <LoadingState variant="table" label="Loading referees…" />
@@ -30,6 +33,7 @@ export function RefsTab() {
 
   return (
     <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
+      {isError && <ErrorNotice message={`Referee stats could not refresh; showing the last loaded results. ${errorMessage ?? ""}`} />}
       <table className="w-full text-[11px] table-fixed">
         <thead>
           <tr className="text-muted-foreground/50 text-[9px] uppercase tracking-wider">

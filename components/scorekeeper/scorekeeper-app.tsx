@@ -1,5 +1,7 @@
 "use client"
 
+import { fetchApi as fetch, readApiJson, errorMessage } from "@/lib/api-errors"
+
 import { useState, useCallback, useEffect, useRef, useMemo } from "react"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -138,6 +140,8 @@ export function ScorekeeperApp({
 
   // ─── Sync ────────────────────────────────────────────────────────────────
   const [syncStatus, setSyncStatus] = useState<SyncStatus>("synced")
+  const [syncError, setSyncError] = useState<string | null>(null)
+  const [localSaveFailed, setLocalSaveFailed] = useState(false)
   const syncRef = useRef<ReturnType<typeof createSyncManager> | null>(null)
 
   // ─── Goalie helpers ─────────────────────────────────────────────────────
@@ -266,7 +270,10 @@ export function ScorekeeperApp({
   useEffect(() => {
     if (!authenticated) return
     const mgr = createSyncManager(gameId, pin)
-    mgr.setStatusListener(setSyncStatus)
+    mgr.setStatusListener((status, message) => {
+      setSyncStatus(status)
+      setSyncError(message ?? null)
+    })
     syncRef.current = mgr
     return () => mgr.destroy()
   }, [authenticated, gameId, pin])
@@ -274,7 +281,7 @@ export function ScorekeeperApp({
   // ─── Save to localStorage on change ──────────────────────────────────────
   useEffect(() => {
     if (authenticated && !finalized) {
-      saveToLocalStorage(gameId, state)
+      setLocalSaveFailed(!saveToLocalStorage(gameId, state))
       if (!state.finalizationPending) syncRef.current?.scheduleSync(state)
     }
   }, [state, authenticated, finalized, gameId])
@@ -310,6 +317,7 @@ export function ScorekeeperApp({
       if (cancelled) return
       try {
         const retryingSavedState = latestState.current.finalizationPending?.phase === "failed"
+        if (!retryingSavedState && syncRef.current?.canAutoRetry() === false) return
         const synced = retryingSavedState || await syncRef.current?.flush()
         if (!synced) return
         const syncedAt = retryingSavedState ? latestState.current.updatedAt : syncRef.current?.getLastSyncedUpdatedAt()
@@ -319,14 +327,14 @@ export function ScorekeeperApp({
           headers: { "x-pin": pin, "x-state-updated-at": String(syncedAt) },
         })
         if (res.ok && !cancelled) {
-          const data = await res.json().catch(() => ({}))
+          const data = await readApiJson(res)
           setState((prev) => { const { finalizationPending: _pending, ...clean } = prev; return data.state ?? clean })
           setFinalized(true)
           clearLocalStorage(gameId)
           setPendingFinalize(false)
           localStorage.removeItem(`bash-finalize-${gameId}`)
         } else if (!res.ok && !cancelled) {
-          const data = await res.json().catch(() => ({}))
+          const data = await readApiJson(res)
           if (data.stateSaved && data.state) setState(data.state)
           setFinalizeError(data.details || data.error || `Server error (${res.status})`)
           setFinalizeOpen(true)
@@ -389,7 +397,7 @@ export function ScorekeeperApp({
       setPin(validatedPin)
       setAuthenticated(true)
     } catch (error) {
-      setPinError(error instanceof Error ? error.message : "Could not sign in. Please try again.")
+      setPinError(errorMessage(error, "Could not sign in. Please try again."))
     } finally {
       setStarting(false)
     }
@@ -883,7 +891,7 @@ export function ScorekeeperApp({
       if (state.finalizationPending?.phase !== "failed") {
         syncRef.current?.scheduleSync(state)
         const synced = await syncRef.current?.flush()
-        if (!synced) throw new Error("The latest changes have not synced yet")
+        if (!synced) throw new Error(syncRef.current?.getLastError() ?? "The latest changes have not synced yet. Try again once saving finishes.")
       }
 
       const res = await fetch(`/api/bash/scorekeeper/${gameId}/finalize`, {
@@ -891,7 +899,7 @@ export function ScorekeeperApp({
         headers: { "x-pin": pin, "x-state-updated-at": String(state.updatedAt) },
       })
       if (res.ok) {
-        const data = await res.json().catch(() => ({}))
+        const data = await readApiJson(res)
         setState((prev) => { const { finalizationPending: _pending, ...clean } = prev; return data.state ?? clean })
         setFinalized(true)
         clearLocalStorage(gameId)
@@ -899,7 +907,7 @@ export function ScorekeeperApp({
         setPendingFinalize(false)
         localStorage.removeItem(`bash-finalize-${gameId}`)
       } else {
-        const data = await res.json().catch(() => ({}))
+        const data = await readApiJson(res)
         if (data.stateSaved && data.state) setState(data.state)
         const msg = data.details || data.error || `Server error (${res.status})`
         setFinalizeError(msg)
@@ -1027,19 +1035,21 @@ export function ScorekeeperApp({
         <div className="flex items-center justify-end px-4 py-2 max-w-2xl mx-auto">
           <div className="flex items-center gap-1.5">
             <span className={cn("h-1.5 w-1.5 rounded-full shrink-0", syncDotColor)} />
-            <span className={cn("text-[9px] capitalize", syncStatus === "offline" ? "text-red-500" : "text-muted-foreground")}>{syncStatus}</span>
+            <span className={cn("text-[9px] capitalize", syncStatus === "offline" || syncStatus === "error" ? "text-red-500" : "text-muted-foreground")}>{syncStatus}</span>
           </div>
         </div>
       </div>
 
       <div className="max-w-2xl mx-auto px-4">
+        {syncError && <p role="alert" className="my-2 text-xs text-destructive">{syncError}</p>}
+        {localSaveFailed && <p role="alert" className="my-2 text-xs text-destructive">This device couldn't save a backup. Keep this page open until your changes sync.</p>}
         {/* ─── Offline Finalize Banner ──────────────────────────────── */}
         {pendingFinalize && (
           <div className="pt-1 pb-2">
             <div className="rounded-lg border border-yellow-500/20 bg-yellow-500/[0.04] px-4 py-3 text-center">
-              <p className="text-xs">Game data is saved on this device.</p>
+              <p className="text-xs">{localSaveFailed ? "This device couldn't save a backup. Keep this page open." : "Game data is saved on this device."}</p>
               <p className="text-[10px] text-muted-foreground mt-1">
-                It will automatically finalize when you&apos;re back online.
+                {syncStatus === "error" ? "Saving was rejected. Resolve the error above before finalizing." : "It will automatically finalize when you're back online."}
               </p>
             </div>
           </div>

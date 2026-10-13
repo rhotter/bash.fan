@@ -1,5 +1,7 @@
 "use client"
 
+import { fetchApi as fetch, readApiJson } from "@/lib/api-errors"
+
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useEffect, useState, useMemo, type MouseEvent } from "react"
@@ -13,7 +15,7 @@ import {
   getDismissalKey,
 } from "@/lib/banner-helpers"
 
-const fetcher = (url: string) => fetch(url).then((r) => r.json())
+const fetcher = (url: string) => fetch(url).then((r) => readApiJson(r))
 
 export function SiteBanner() {
   const pathname = usePathname()

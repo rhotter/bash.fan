@@ -1,5 +1,7 @@
 "use client"
 
+import { fetchApi as fetch, readApiJson, errorMessage } from "@/lib/api-errors"
+
 import { Spinner } from "@/components/ui/spinner"
 import { useState, useEffect, useCallback, useMemo } from "react"
 import { Plus, Calendar, Trash2, Edit, Shuffle, Trophy, ArrowRightLeft, AlertCircle, LayoutGrid, List, Users, Printer } from "lucide-react"
@@ -115,7 +117,7 @@ export function SeasonScheduleTab({ seasonId, seasonStatus, initialTeams, defaul
     try {
       const res = await fetch(`/api/bash/admin/seasons/${seasonId}/schedule?_t=${Date.now()}`)
       if (res.ok) {
-        const data = await res.json()
+        const data = await readApiJson(res)
         setGames(data || [])
       }
     } catch (err) {
@@ -145,7 +147,7 @@ export function SeasonScheduleTab({ seasonId, seasonStatus, initialTeams, defaul
       })
       
       if (!res.ok) {
-        const data = await res.json()
+        const data = await readApiJson(res)
         if (data.error && data.error.includes("force")) {
           // If the API refuses because it's final with boxscore, we could prompt again with force
           // But for now just show the error. A real implementation would show a \"force delete\" dialog.
@@ -159,7 +161,7 @@ export function SeasonScheduleTab({ seasonId, seasonStatus, initialTeams, defaul
       toast.success("Game deleted")
       setDeleteId(null)
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "An error occurred")
+      toast.error(errorMessage(err, "An error occurred"))
     } finally {
       setIsDeleting(false)
     }
@@ -174,12 +176,12 @@ export function SeasonScheduleTab({ seasonId, seasonStatus, initialTeams, defaul
       if (!res.ok) {
         throw new Error("Failed to delete schedule")
       }
-      const data = await res.json()
+      const data = await readApiJson(res)
       toast.success(`Deleted ${data.deletedCount} game${data.deletedCount !== 1 ? 's' : ''}`)
       setDeleteScheduleModalOpen(false)
       handleGamesChanged()
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "An error occurred")
+      toast.error(errorMessage(err, "An error occurred"))
     } finally {
       setIsBulkDeleting(false)
     }
@@ -481,17 +483,17 @@ export function SeasonScheduleTab({ seasonId, seasonStatus, initialTeams, defaul
                           body: JSON.stringify({ mappings }),
                         })
                         if (res.ok) {
-                          const data = await res.json()
+                          const data = await readApiJson(res)
                           toast.success(`${data.updated} game(s) updated with real teams`)
                           setPlaceholderMappings({})
                           handleGamesChanged()
                           toast.success("Placeholders replaced successfully")
                         } else {
-                          const err = await res.json()
+                          const err = await readApiJson(res)
                           toast.error(err.error || "Failed to replace placeholders")
                         }
-                      } catch {
-                        toast.error("Connection error")
+                      } catch (error) {
+                        toast.error(errorMessage(error, "Connection error"))
                       } finally {
                         setIsReplacing(false)
                       }

@@ -1,3 +1,4 @@
+import { fetchApi as fetch, readApiJson, errorMessage } from "@/lib/api-errors"
 import { useState, useCallback } from "react"
 import { Spinner } from "@/components/ui/spinner"
 import { useRouter } from "next/navigation"
@@ -74,11 +75,11 @@ export function SeasonRosterTab({ seasonId, seasonStatus, roster, teams, onRoste
     try {
       const res = await fetch(`/api/bash/admin/seasons/${seasonId}/roster`)
       if (res.ok) {
-        const data = await res.json()
+        const data = await readApiJson(res)
         onRosterChange?.(data.roster)
       }
-    } catch {
-      // Silently fail — the user can still hard-refresh
+    } catch (error) {
+      toast.warning(`Could not refresh the roster; showing the previous list. ${errorMessage(error)}`)
     }
   }, [seasonId, onRosterChange])
 
@@ -107,7 +108,7 @@ export function SeasonRosterTab({ seasonId, seasonStatus, roster, teams, onRoste
         }),
       })
 
-      const data = await res.json()
+      const data = await readApiJson(res)
 
       if (!res.ok) {
         throw new Error(data.error || "Failed to add player")
@@ -166,7 +167,7 @@ export function SeasonRosterTab({ seasonId, seasonStatus, roster, teams, onRoste
         }),
       })
 
-      const data = await res.json()
+      const data = await readApiJson(res)
 
       if (!res.ok) {
         throw new Error(data.error || "Failed to update player")
@@ -193,7 +194,7 @@ export function SeasonRosterTab({ seasonId, seasonStatus, roster, teams, onRoste
         method: "DELETE",
       })
 
-      const data = await res.json()
+      const data = await readApiJson(res)
 
       if (!res.ok) {
         throw new Error(data.error || "Failed to remove player")

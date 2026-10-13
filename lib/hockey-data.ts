@@ -1,3 +1,4 @@
+import { fetchApi as fetch, readApiJson, errorMessage } from "@/lib/api-errors"
 import useSWR from "swr"
 import type { BashApiData, BashGame, Standing } from "@/app/api/bash/route"
 import type { PlayerStatsData, SkaterStat, GoalieStat } from "@/app/api/bash/players/route"
@@ -8,7 +9,7 @@ import { REFRESH, DEDUPE } from "@/lib/sync-config"
 
 export type { BashApiData, BashGame, Standing, PlayerStatsData, SkaterStat, GoalieStat, RefStatsData, RefStat, BashGameDetail, SeasonsData }
 
-const fetcher = (url: string) => fetch(url).then((res) => res.json())
+const fetcher = (url: string) => fetch(url).then((res) => readApiJson(res))
 
 // Fire-and-forget sync trigger — at most once per page load
 let syncTriggered = false
@@ -36,6 +37,7 @@ export function useBashData(season?: string, fallbackData?: BashApiData) {
     lastUpdated: data?.lastUpdated ?? null,
     isLoading: fallbackData ? false : isLoading,
     isError: !!error,
+    errorMessage: error ? errorMessage(error) : undefined,
     refresh: mutate,
   }
 }
@@ -69,6 +71,7 @@ export function usePlayerStats(season?: string, fallbackData?: PlayerStatsData, 
     lastUpdated: data?.lastUpdated ?? null,
     isLoading: fallbackData ? false : isLoading,
     isError: !!error,
+    errorMessage: error ? errorMessage(error) : undefined,
   }
 }
 
@@ -84,6 +87,7 @@ export function useRefStats() {
     lastUpdated: data?.lastUpdated ?? null,
     isLoading,
     isError: !!error,
+    errorMessage: error ? errorMessage(error) : undefined,
   }
 }
 
@@ -98,6 +102,7 @@ export function useGameDetail(gameId: string | null, fallbackData?: BashGameDeta
     detail: data ?? null,
     isLoading: fallbackData ? false : isLoading,
     isError: !!error,
+    errorMessage: error ? errorMessage(error) : undefined,
   }
 }
 
@@ -111,6 +116,7 @@ export function useSeasons() {
     seasons: data?.seasons ?? [],
     isLoading,
     isError: !!error,
+    errorMessage: error ? errorMessage(error) : undefined,
   }
 }
 
@@ -125,6 +131,7 @@ export function useLiveGame(gameId: string | null, fallbackData?: unknown) {
     liveData: data ?? null,
     isLoading,
     isError: !!error,
+    errorMessage: error ? errorMessage(error) : undefined,
   }
 }
 

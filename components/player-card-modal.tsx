@@ -1,5 +1,8 @@
 "use client"
 
+import { fetchApi as fetch, readApiJson, errorMessage } from "@/lib/api-errors"
+
+import { ErrorNotice } from "@/components/error-notice"
 import { LoadingState } from "@/components/loading-state"
 import { useState, useEffect } from "react"
 import useSWR from "swr"
@@ -57,7 +60,7 @@ interface PlayerCardModalProps {
   pickInfo?: { round: number; pickNumber: number; isKeeper: boolean } | null
 }
 
-const fetcher = (url: string) => fetch(url).then((r) => r.json())
+const fetcher = (url: string) => fetch(url).then((r) => readApiJson(r))
 
 // ─── Atoms ──────────────────────────────────────────────────────────────────
 
@@ -163,7 +166,7 @@ export function PlayerCardModal({
   }, [player?.playerId])
 
   // Fetch previous season stats as soon as modal is open to eliminate tab-switch delay
-  const { data: statsData, isLoading: statsLoading } = useSWR(
+  const { data: statsData, isLoading: statsLoading, error: statsError } = useSWR(
     player && open
       ? `/api/bash/draft/player-stats/${player.playerId}?currentSeason=${seasonSlug}`
       : null,
@@ -328,7 +331,7 @@ export function PlayerCardModal({
 
             {/* Past Stats Tab */}
             <TabsContent value="stats" className="mt-0 px-6 pb-6 pt-4">
-              {statsLoading && !statsData ? (
+              {statsError ? <ErrorNotice message={errorMessage(statsError, "Could not load player stats. Please try again.")} /> : statsLoading && !statsData ? (
                 <LoadingState variant="table" label="Loading player stats…" />
               ) : seasons.length === 0 ? (
                 <div className="text-center py-12 space-y-2">

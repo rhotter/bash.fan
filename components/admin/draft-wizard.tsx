@@ -1,5 +1,7 @@
 "use client"
 
+import { fetchApi as fetch, readApiJson, errorMessage } from "@/lib/api-errors"
+
 import { Spinner } from "@/components/ui/spinner"
 import { useState, useRef, useEffect } from "react"
 import { useRouter } from "next/navigation"
@@ -110,6 +112,8 @@ export function DraftWizard({ open, onOpenChange, seasonId, seasonType, teams, r
   const [step, setStep] = useState(0)
   const [creating, setCreating] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [rosterLoadError, setRosterLoadError] = useState<string | null>(null)
+  const [rosterLoaded, setRosterLoaded] = useState(false)
   const [csvFile, setCsvFile] = useState<File | null>(null)
 
   // Suggested rounds: ceil(rosterCount / teamCount), minimum 1
@@ -169,10 +173,10 @@ export function DraftWizard({ open, onOpenChange, seasonId, seasonType, teams, r
   // Fetch roster players when entering the Teams & Captains step
   const teamsCaptainsStepIndex = STEPS.indexOf("Teams & Captains")
   useEffect(() => {
-    if (step === teamsCaptainsStepIndex && rosterPlayers.length === 0 && !rosterLoading) {
+    if (step === teamsCaptainsStepIndex && rosterPlayers.length === 0 && !rosterLoading && !rosterLoadError && !rosterLoaded) {
       setRosterLoading(true)
       fetch(`/api/bash/admin/seasons/${seasonId}/draft/roster-players`)
-        .then(res => res.ok ? res.json() : { players: [] })
+        .then(res => res.ok ? readApiJson(res) : { players: [] })
         .then(data => {
           const players = data.players || []
           setRosterPlayers(players)
@@ -198,10 +202,14 @@ export function DraftWizard({ open, onOpenChange, seasonId, seasonType, teams, r
             }
           }
         })
-        .catch(() => {})
-        .finally(() => setRosterLoading(false))
+        .catch((error) => {
+          const message = errorMessage(error, "Could not load the roster. Please try again.")
+          setRosterLoadError(message)
+          setError(message)
+        })
+        .finally(() => { setRosterLoading(false); setRosterLoaded(true) })
     }
-  }, [step, teamsCaptainsStepIndex, seasonId, rosterPlayers.length, rosterLoading, form.captains.length])
+  }, [step, teamsCaptainsStepIndex, seasonId, rosterPlayers.length, rosterLoading, rosterLoadError, rosterLoaded, form.captains.length])
 
   const canNext = () => {
     if (step === 0) return !!form.name && form.timerSeconds > 0
@@ -258,7 +266,7 @@ export function DraftWizard({ open, onOpenChange, seasonId, seasonType, teams, r
           { method: "POST" }
         )
         if (!syncRes.ok) {
-          const err = await syncRes.json()
+          const err = await readApiJson(syncRes)
           throw new Error(err.error || "Failed to sync teams & roster from season")
         }
 
@@ -286,7 +294,7 @@ export function DraftWizard({ open, onOpenChange, seasonId, seasonType, teams, r
           }
         )
         if (!putRes.ok) {
-          const err = await putRes.json()
+          const err = await readApiJson(putRes)
           throw new Error(err.error || "Failed to update draft settings")
         }
 
@@ -300,7 +308,7 @@ export function DraftWizard({ open, onOpenChange, seasonId, seasonType, teams, r
           }
         )
         if (!capRes.ok) {
-          const err = await capRes.json()
+          const err = await readApiJson(capRes)
           throw new Error(err.error || "Failed to save captain assignments")
         }
 
@@ -324,7 +332,7 @@ export function DraftWizard({ open, onOpenChange, seasonId, seasonType, teams, r
               }
             )
             if (!tradeRes.ok) {
-              console.error("Failed to save pre-draft trade:", await tradeRes.text())
+              throw new Error(`Draft settings were saved, but a pre-draft trade failed. Review existing trades before retrying. ${(await readApiJson(tradeRes)).error}`)
             }
           }
         }
@@ -355,7 +363,7 @@ export function DraftWizard({ open, onOpenChange, seasonId, seasonType, teams, r
         })
 
         if (res.ok) {
-          const draftData = await res.json()
+          const draftData = await readApiJson(res)
           const newDraftId = draftData.draft?.id
           if (csvFile && newDraftId) {
             try {
@@ -366,7 +374,7 @@ export function DraftWizard({ open, onOpenChange, seasonId, seasonType, teams, r
                 { method: "POST", body: previewForm }
               )
               if (previewRes.ok) {
-                const previewData = await previewRes.json()
+                const previewData = await readApiJson(previewRes)
                 const confirmRes = await fetch(
                   `/api/bash/admin/seasons/${seasonId}/draft/${newDraftId}/pool/import-csv?action=confirm`,
                   {
@@ -376,16 +384,16 @@ export function DraftWizard({ open, onOpenChange, seasonId, seasonType, teams, r
                   }
                 )
                 if (confirmRes.ok) {
-                  const importResult = await confirmRes.json()
+                  const importResult = await readApiJson(confirmRes)
                   toast.success(`Draft created! CSV imported: ${importResult.added} added, ${importResult.skipped} enriched.`)
                 } else {
-                  toast.success("Draft created! CSV import had an issue \u2014 you can retry from the draft card.")
+                  toast.warning(`Draft was created, but CSV import could not finish. Check the draft pool before retrying. ${(await readApiJson(confirmRes)).error}`)
                 }
               } else {
-                toast.success("Draft created! CSV parsing failed \u2014 you can retry from the draft card.")
+                toast.warning(`Draft was created, but the CSV could not be parsed. Correct the file and retry from the draft card. ${(await readApiJson(previewRes)).error}`)
               }
-            } catch {
-              toast.success("Draft created! CSV import failed \u2014 you can retry from the draft card.")
+            } catch (error) {
+              toast.warning(`Draft was created, but CSV import could not finish. Check the draft pool before retrying. ${errorMessage(error)}`)
             }
           } else {
             toast.success("Draft created!")
@@ -395,12 +403,12 @@ export function DraftWizard({ open, onOpenChange, seasonId, seasonType, teams, r
           setCsvFile(null)
           setForm(defaultForm())
         } else {
-          const data = await res.json()
+          const data = await readApiJson(res)
           setError(data.error || "Failed to create draft")
         }
       }
     } catch (err) {
-      const message = err instanceof Error ? err.message : "An unexpected error occurred."
+      const message = errorMessage(err, "An unexpected error occurred.")
       setError(message)
     } finally {
       setCreating(false)
@@ -448,6 +456,7 @@ export function DraftWizard({ open, onOpenChange, seasonId, seasonType, teams, r
               captains={form.captains}
               rosterPlayers={rosterPlayers}
               rosterLoading={rosterLoading}
+              rosterLoadFailed={!!rosterLoadError}
               onCaptainsChange={(c) => setForm(f => ({ ...f, captains: c }))}
             />
           )}
@@ -465,7 +474,9 @@ export function DraftWizard({ open, onOpenChange, seasonId, seasonType, teams, r
         </div>
 
         {error && (
-          <div className="text-sm text-destructive bg-destructive/10 p-3 rounded-md">{error}</div>
+          <div className="text-sm text-destructive bg-destructive/10 p-3 rounded-md">{error}
+            {rosterLoadError && <button type="button" className="ml-2 underline" onClick={() => { setRosterLoaded(false); setRosterLoadError(null); setError(null) }}>Retry loading roster</button>}
+          </div>
         )}
 
         {/* Navigation */}
@@ -688,12 +699,14 @@ function StepTeamsCaptains({
   captains,
   rosterPlayers,
   rosterLoading,
+  rosterLoadFailed,
   onCaptainsChange,
 }: {
   teams: { teamSlug: string; teamName: string; color?: string | null }[]
   captains: CaptainAssignment[]
   rosterPlayers: RosterPlayer[]
   rosterLoading: boolean
+  rosterLoadFailed: boolean
   onCaptainsChange: (captains: CaptainAssignment[]) => void
 }) {
   const [searchTerms, setSearchTerms] = useState<Record<string, string>>({})
@@ -853,7 +866,7 @@ function StepTeamsCaptains({
                 </div>
               )}
               {/* Empty roster — no player_seasons exist yet (new season) */}
-              {teamCaptains.length === 0 && rosterPlayers.length === 0 && !rosterLoading && (
+              {teamCaptains.length === 0 && rosterPlayers.length === 0 && !rosterLoading && !rosterLoadFailed && (
                 <p className="text-[11px] text-muted-foreground/70 italic py-0.5">
                   No roster players yet — captains can be assigned after draft creation.
                 </p>

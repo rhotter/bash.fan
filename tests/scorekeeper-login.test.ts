@@ -38,6 +38,6 @@ describe("Scorekeeper PIN login", () => {
 
   it("does not label a server failure as an invalid PIN", async () => {
     vi.stubGlobal("fetch", vi.fn<typeof globalThis.fetch>(async () => new Response("Server error", { status: 500 })))
-    await expect(authenticateScorekeeper("g55", "live", "test-pin")).rejects.toThrow("Could not validate PIN")
+    await expect(authenticateScorekeeper("g55", "live", "test-pin")).rejects.toThrow("Reload to check")
   })
 })

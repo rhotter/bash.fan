@@ -1,3 +1,4 @@
+import { fetchApi as fetch, readApiJson, errorMessage } from "@/lib/api-errors"
 import type { LiveGameState } from "./scorekeeper-types"
 
 const STORAGE_PREFIX = "bash-live-"
@@ -9,8 +10,9 @@ export function getStorageKey(gameId: string) {
 export function saveToLocalStorage(gameId: string, state: LiveGameState) {
   try {
     localStorage.setItem(getStorageKey(gameId), JSON.stringify(state))
+    return true
   } catch {
-    // localStorage full or unavailable
+    return false
   }
 }
 
@@ -32,7 +34,7 @@ export function clearLocalStorage(gameId: string) {
   }
 }
 
-export type SyncStatus = "synced" | "syncing" | "pending" | "offline"
+export type SyncStatus = "synced" | "syncing" | "pending" | "offline" | "error"
 
 export function createSyncManager(gameId: string, pin: string) {
   let timer: ReturnType<typeof setTimeout> | null = null
@@ -41,7 +43,10 @@ export function createSyncManager(gameId: string, pin: string) {
   let syncing: Promise<boolean> | null = null
   let lastSyncedUpdatedAt: number | null = null
   let destroyed = false
-  let onStatusChange: ((status: SyncStatus) => void) | null = null
+  let onStatusChange: ((status: SyncStatus, message?: string) => void) | null = null
+  let lastError: string | null = null
+  let networkFailure = false
+  let shouldRetry = true
 
   async function doSync(state: LiveGameState): Promise<boolean> {
     try {
@@ -50,13 +55,21 @@ export function createSyncManager(gameId: string, pin: string) {
         headers: { "Content-Type": "application/json", "x-pin": pin },
         body: JSON.stringify(state),
       })
+      networkFailure = false
+      shouldRetry = res.status == null || res.status >= 500 || res.status === 429
+      lastError = res.ok ? null : (await readApiJson(res)).error
       return res.ok
-    } catch {
+    } catch (error) {
+      networkFailure = true
+      shouldRetry = true
+      lastError = errorMessage(error, "Could not save the latest changes. Please try again.")
       return false
     }
   }
 
   async function flush(): Promise<boolean> {
+    if (timer) { clearTimeout(timer); timer = null }
+    if (retryTimer) { clearTimeout(retryTimer); retryTimer = null }
     if (syncing) {
       const ok = await syncing
       return ok && pendingState ? flush() : ok
@@ -71,8 +84,8 @@ export function createSyncManager(gameId: string, pin: string) {
         if (!ok) {
           // Keep a newer edit made while this request was in flight.
           pendingState ??= state
-          onStatusChange?.("offline")
-          if (!destroyed) retryTimer = setTimeout(() => { void flush() }, 5000)
+          onStatusChange?.(networkFailure ? "offline" : "error", lastError ?? undefined)
+          if (!destroyed && shouldRetry) retryTimer = setTimeout(() => { void flush() }, 5000)
           return false
         }
         lastSyncedUpdatedAt = state.updatedAt
@@ -103,7 +116,7 @@ export function createSyncManager(gameId: string, pin: string) {
     }
   }
 
-  function setStatusListener(listener: (status: SyncStatus) => void) {
+  function setStatusListener(listener: (status: SyncStatus, message?: string) => void) {
     onStatusChange = listener
   }
 
@@ -113,5 +126,5 @@ export function createSyncManager(gameId: string, pin: string) {
     if (retryTimer) clearTimeout(retryTimer)
   }
 
-  return { scheduleSync, sendBeacon, setStatusListener, destroy, flush, getLastSyncedUpdatedAt: () => lastSyncedUpdatedAt }
+  return { scheduleSync, sendBeacon, setStatusListener, destroy, flush, getLastSyncedUpdatedAt: () => lastSyncedUpdatedAt, getLastError: () => lastError, canAutoRetry: () => lastError == null || shouldRetry }
 }

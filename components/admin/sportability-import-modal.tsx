@@ -1,3 +1,4 @@
+import { fetchApi as fetch, readApiJson } from "@/lib/api-errors"
 import { useState, useRef } from "react"
 import { Spinner } from "@/components/ui/spinner"
 import { useRouter } from "next/navigation"
@@ -67,7 +68,7 @@ export function SportabilityImportModal({ seasonId, seasonStatus, onImportComple
         body: formData,
       })
 
-      const data = await res.json()
+      const data = await readApiJson(res)
 
       if (!res.ok) {
         throw new Error(data.error || "Failed to parse file")
@@ -99,7 +100,7 @@ export function SportabilityImportModal({ seasonId, seasonStatus, onImportComple
         }),
       })
 
-      const data = await res.json()
+      const data = await readApiJson(res)
 
       if (!res.ok) {
         throw new Error(data.error || "Failed to import roster")
