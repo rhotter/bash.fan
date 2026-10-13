@@ -5,6 +5,7 @@ import Image from "next/image"
 import { usePathname, useSearchParams } from "next/navigation"
 import { Suspense } from "react"
 import { PlayerSearch } from "@/components/player-search"
+import { getOptimizedLogoUrl } from "@/lib/optimized-logo"
 
 const NAV_ITEMS = [
   { label: "Scores", href: "/" },
@@ -22,11 +23,13 @@ function HeaderContent({ activeTab, season }: { activeTab?: string; season?: str
         <div className="mx-auto flex h-12 max-w-6xl items-center gap-1.5 px-2 sm:gap-3 sm:px-4 md:h-14">
           <Link href={`/${seasonQuery}`} className="flex items-center gap-1.5 sm:gap-2 group shrink-0 min-w-0">
             <Image
-              src="/logo.png"
+              src={getOptimizedLogoUrl("/logo.png", 36)}
+              unoptimized
               alt="BASH logo"
               width={28}
               height={28}
               loading="eager"
+              fetchPriority="high"
               sizes="(min-width: 768px) 36px, (min-width: 640px) 32px, 28px"
               className="shrink-0 sm:w-8 sm:h-8 md:w-9 md:h-9"
             />

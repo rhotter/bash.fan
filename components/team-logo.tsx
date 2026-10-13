@@ -4,6 +4,7 @@ import { useState } from "react"
 import Image from "next/image"
 import { IntentLink as Link } from "@/components/intent-link"
 import { getTeamLogoUrl } from "@/lib/team-logos"
+import { getOptimizedLogoUrl } from "@/lib/optimized-logo"
 
 const FallbackLogo = ({ size, className }: { size: number; className?: string }) => (
   <svg
@@ -53,12 +54,15 @@ export function TeamLogo({
     return fallback
   }
 
+  const optimizedUrl = getOptimizedLogoUrl(logoUrl, size)
   const img = (
     <Image
-      src={logoUrl}
+      src={optimizedUrl}
+      unoptimized={optimizedUrl !== logoUrl}
       alt={name}
       width={size}
       height={size}
+      loading="eager"
       className={className}
       onError={() => setError(true)}
     />
