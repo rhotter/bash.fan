@@ -3,7 +3,7 @@
 import { formatSeasonName } from "@/lib/season-name"
 import { useState, useEffect, useRef, useMemo, useCallback } from "react"
 import Image from "next/image"
-import Link from "next/link"
+import { IntentLink as Link } from "@/components/intent-link"
 import useSWR, { preload } from "swr"
 import { cn } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
