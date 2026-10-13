@@ -45,6 +45,9 @@ beforeEach(() => {
   vi.clearAllMocks()
   mocks.statsOnly.mockResolvedValue(false)
   mocks.rawSql.mockImplementation(async ({ sql }: Query) => {
+    if (sql.includes("WITH player_stats AS MATERIALIZED")) {
+      return [Object.fromEntries(Array.from({ length: 23 }, (_, index) => [`section_${index}`, []]))]
+    }
     if (/SELECT p\.id, p\.name, ps\.team_slug/.test(sql)) return [player]
     if (/SELECT COUNT\(\*\)::int as count FROM season_teams/.test(sql)) return [{ count: 1 }]
     if (/SELECT EXISTS/.test(sql)) return [{ has_playoffs: true }]
@@ -136,9 +139,16 @@ describe("forfeit exclusion from player detail reads", () => {
   it("covers server season/all-time/per-season totals and regular/playoff/exhibition/tryout logs", async () => {
     expect(await fetchPlayerDetail("alex-player")).not.toBeNull()
     const queries = statQueries()
-    expectEligibleGameJoins(queries, 20)
-    expect(queries.filter(({ sql }) => sql.includes("g.game_type IN ('exhibition', 'tryout')"))).toHaveLength(2)
-    expect(queries.filter(({ sql }) => sql.includes("FROM player_season_stats"))).toHaveLength(6)
+    expect(queries).toHaveLength(1)
+    const query = queries[0].sql
+    const gameJoins = [...query.matchAll(/JOIN games g ON (?:pgs|ggs)\.game_id = g\.id[^\n]*/g)]
+    expect(gameJoins).toHaveLength(20)
+    for (const [join] of gameJoins) expect(join).toContain("AND NOT g.is_forfeit")
+    expect(query).toContain("FROM player_game_stats WHERE player_id =")
+    expect(query).toContain("FROM goalie_game_stats WHERE player_id =")
+    expect(query.match(/AND NOT is_sub/g)).toHaveLength(2)
+    expect(query.match(/g.game_type IN \('exhibition', 'tryout'\)/g)).toHaveLength(2)
+    expect(query.match(/FROM historical_stats/g)).toHaveLength(6)
   })
 
   it.each([seasonId, "all"])("covers the public player API with season=%s", async (season) => {

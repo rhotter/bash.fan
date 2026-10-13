@@ -1,8 +1,9 @@
 import { cache } from "react"
-import { db, schema, rawSql } from "@/lib/db"
-import { sql, eq, desc } from "drizzle-orm"
+import { fetchPlayerQueryGroup } from "@/lib/fetch-player-query-group"
+import { rawSql } from "@/lib/db"
+import { sql } from "drizzle-orm"
 import { getCurrentSeason, getAllSeasons, compareSeasonsDesc } from "@/lib/seasons"
-import { playerSlug } from "@/lib/player-slug"
+import { playerSlugSql } from "@/lib/player-slug-sql"
 import { computeGaa, DEFAULT_GAME_LENGTH_MIN } from "@/lib/game-rules"
 
 export type SkaterStats = {
@@ -131,41 +132,29 @@ async function fetchPlayerDetailInternal(slug: string): Promise<PlayerDetail | n
   const [currentSeason, allSeasons, allMatches] = await Promise.all([
     getCurrentSeason(),
     getAllSeasons(),
-    db.select({ id: schema.players.id, name: schema.players.name }).from(schema.players),
+    rawSql(sql`
+      SELECT p.id, p.name, ps.team_slug, ps.is_goalie, t.name as team_name, ps.season_id
+      FROM players p
+      LEFT JOIN player_seasons ps ON p.id = ps.player_id
+      LEFT JOIN teams t ON ps.team_slug = t.slug
+      WHERE ${playerSlugSql(sql`p.name`)} = ${slug}
+      ORDER BY p.id
+    `),
   ])
   const currentSeasonId = currentSeason.id
   const seasonMap = new Map(allSeasons.map(s => [s.id, s.name]))
-  const seasonOrder = sql`array_position(ARRAY[${sql.join(allSeasons.map((s) => sql`${s.id}`), sql`, `)}]::text[], ps.season_id) ASC NULLS LAST`
-
-  // Look up player by slug (derived from name) — find all players whose slug matches
-  const matchedPlayer = allMatches.find(
-    (p) => playerSlug(p.name) === slug
-  )
+  const seasonRanks = new Map(allSeasons.map((season, index) => [season.id, index]))
+  const matchedPlayer = allMatches[0]
   if (!matchedPlayer) return null
-  const playerId = matchedPlayer.id
-
-  // Try current season first, then fall back to most recent season
-  let playerRows = await rawSql(sql`
-    SELECT p.id, p.name, ps.team_slug, ps.is_goalie, t.name as team_name, ps.season_id
-    FROM players p
-    JOIN player_seasons ps ON p.id = ps.player_id AND ps.season_id = ${currentSeasonId}
-    JOIN teams t ON ps.team_slug = t.slug
-    WHERE p.id = ${playerId}
-    ORDER BY ${seasonOrder}
-    LIMIT 1
-  `)
-
-  if (playerRows.length === 0) {
-    playerRows = await rawSql(sql`
-      SELECT p.id, p.name, ps.team_slug, ps.is_goalie, t.name as team_name, ps.season_id
-      FROM players p
-      JOIN player_seasons ps ON p.id = ps.player_id
-      JOIN teams t ON ps.team_slug = t.slug
-      WHERE p.id = ${playerId}
-      ORDER BY ${seasonOrder}
-      LIMIT 1
-    `)
-  }
+  // Prefer the featured season; otherwise use the newest membership. The
+  // memberships arrived with the identity read, avoiding a serial DB request.
+  let playerRows = allMatches
+    .filter((row) => row.id === matchedPlayer.id && row.team_name != null)
+    .sort((a, b) => {
+      if (a.season_id === currentSeasonId && b.season_id !== currentSeasonId) return -1
+      if (b.season_id === currentSeasonId && a.season_id !== currentSeasonId) return 1
+      return (seasonRanks.get(a.season_id) ?? Infinity) - (seasonRanks.get(b.season_id) ?? Infinity)
+    })
 
   // Tryout-only player fallback — no player_seasons record exists
   if (playerRows.length === 0) {
@@ -230,21 +219,21 @@ async function fetchPlayerDetailInternal(slug: string): Promise<PlayerDetail | n
     skaterAllSeasonsRows, goalieAllSeasonsRows,
     poSkaterAllSeasonsRows, poGoalieAllSeasonsRows,
     exhSkaterGameRows, exhGoalieGameRows,
-  ] = await Promise.all([
+  ] = await fetchPlayerQueryGroup(pid, [
     // Skater season stats (regular season)
-    rawSql(sql`
+    sql`
       SELECT
         COUNT(*)::int as gp,
         SUM(goals)::int as goals, SUM(assists)::int as assists, SUM(points)::int as points,
         SUM(gwg)::int as gwg, SUM(ppg)::int as ppg, SUM(shg)::int as shg,
         SUM(eng)::int as eng, SUM(hat_tricks)::int as hat_tricks,
         SUM(pen)::int as pen, SUM(pim)::int as pim
-      FROM player_game_stats pgs
+      FROM player_stats pgs
       JOIN games g ON pgs.game_id = g.id AND NOT g.is_forfeit AND g.season_id = ${playerSeasonId} AND NOT g.is_playoff AND g.game_type = 'regular'
       WHERE pgs.player_id = ${pid} AND NOT pgs.is_sub
-    `),
+    `,
     // Skater all-time stats (regular season, fall only — includes historical)
-    rawSql(sql`
+    sql`
       WITH game_totals AS (
         SELECT
           COUNT(*)::int as gp,
@@ -252,7 +241,7 @@ async function fetchPlayerDetailInternal(slug: string): Promise<PlayerDetail | n
           SUM(gwg)::int as gwg, SUM(ppg)::int as ppg, SUM(shg)::int as shg,
           SUM(eng)::int as eng, SUM(hat_tricks)::int as hat_tricks,
           SUM(pen)::int as pen, SUM(pim)::int as pim
-        FROM player_game_stats pgs
+        FROM player_stats pgs
         JOIN games g ON pgs.game_id = g.id AND NOT g.is_forfeit AND NOT g.is_playoff AND g.game_type = 'regular'
         JOIN seasons s ON g.season_id = s.id AND s.season_type = 'fall'
         WHERE pgs.player_id = ${pid} AND NOT pgs.is_sub
@@ -263,7 +252,7 @@ async function fetchPlayerDetailInternal(slug: string): Promise<PlayerDetail | n
           SUM(gwg)::int as gwg, SUM(ppg)::int as ppg, SUM(shg)::int as shg,
           SUM(eng)::int as eng, SUM(hat_tricks)::int as hat_tricks,
           SUM(pen)::int as pen, SUM(pim)::int as pim
-        FROM player_season_stats
+        FROM historical_stats
         WHERE player_id = ${pid} AND NOT is_playoff
       )
       SELECT
@@ -279,9 +268,9 @@ async function fetchPlayerDetailInternal(slug: string): Promise<PlayerDetail | n
         COALESCE(g.pen, 0) + COALESCE(h.pen, 0) as pen,
         COALESCE(g.pim, 0) + COALESCE(h.pim, 0) as pim
       FROM game_totals g, hist_totals h
-    `),
+    `,
     // Skater per-season stats (regular season — includes historical)
-    rawSql(sql`
+    sql`
       SELECT season_id, team_slug, team_name, gp, goals, assists, points,
              gwg, ppg, shg, eng, hat_tricks, pen, pim
       FROM (
@@ -292,7 +281,7 @@ async function fetchPlayerDetailInternal(slug: string): Promise<PlayerDetail | n
           SUM(pgs.gwg)::int as gwg, SUM(pgs.ppg)::int as ppg, SUM(pgs.shg)::int as shg,
           SUM(pgs.eng)::int as eng, SUM(pgs.hat_tricks)::int as hat_tricks,
           SUM(pgs.pen)::int as pen, SUM(pgs.pim)::int as pim
-        FROM player_game_stats pgs
+        FROM player_stats pgs
         JOIN games g ON pgs.game_id = g.id AND NOT g.is_forfeit AND NOT g.is_playoff AND g.game_type = 'regular'
         LEFT JOIN player_seasons ps ON ps.player_id = pgs.player_id AND ps.season_id = g.season_id
         LEFT JOIN teams t ON ps.team_slug = t.slug
@@ -303,28 +292,28 @@ async function fetchPlayerDetailInternal(slug: string): Promise<PlayerDetail | n
           pss.season_id, pss.team_slug, t.name as team_name,
           pss.gp, pss.goals, pss.assists, pss.points,
           pss.gwg, pss.ppg, pss.shg, pss.eng, pss.hat_tricks, pss.pen, pss.pim
-        FROM player_season_stats pss
+        FROM historical_stats pss
         JOIN teams t ON pss.team_slug = t.slug
         WHERE pss.player_id = ${pid} AND NOT pss.is_playoff
       ) combined
       ORDER BY season_id DESC
-    `),
+    `,
     // Skater game log (regular season)
-    rawSql(sql`
+    sql`
       SELECT
         pgs.game_id, g.date, g.home_team, g.away_team, g.home_score, g.away_score, g.is_overtime,
         COALESCE(ht.name, g.home_team) as home_name, COALESCE(awt.name, g.away_team) as away_name,
         pgs.goals, pgs.assists, pgs.points, pgs.gwg, pgs.ppg, pgs.shg,
         pgs.eng, pgs.hat_tricks, pgs.pen, pgs.pim
-      FROM player_game_stats pgs
+      FROM player_stats pgs
       JOIN games g ON pgs.game_id = g.id AND NOT g.is_forfeit AND g.season_id = ${playerSeasonId} AND NOT g.is_playoff AND g.game_type = 'regular'
       LEFT JOIN teams ht ON g.home_team = ht.slug
       LEFT JOIN teams awt ON g.away_team = awt.slug
       WHERE pgs.player_id = ${pid} AND NOT pgs.is_sub
       ORDER BY g.date DESC
-    `),
+    `,
     // Goalie season stats (regular season)
-    rawSql(sql`
+    sql`
       SELECT
         COUNT(*)::int as gp,
         SUM(goals_against)::int as ga, SUM(saves)::int as saves,
@@ -333,13 +322,13 @@ async function fetchPlayerDetailInternal(slug: string): Promise<PlayerDetail | n
         COUNT(*) FILTER (WHERE result = 'W')::int as wins,
         COUNT(*) FILTER (WHERE result = 'L')::int as losses,
         COALESCE(MAX(s.game_length), ${DEFAULT_GAME_LENGTH_MIN})::int as game_length
-      FROM goalie_game_stats ggs
+      FROM goalie_stats ggs
       JOIN games g ON ggs.game_id = g.id AND NOT g.is_forfeit AND g.season_id = ${playerSeasonId} AND NOT g.is_playoff AND g.game_type = 'regular'
       LEFT JOIN seasons s ON g.season_id = s.id
       WHERE ggs.player_id = ${pid} AND NOT ggs.is_sub
-    `),
+    `,
     // Goalie all-time stats (regular season, fall only)
-    rawSql(sql`
+    sql`
       SELECT
         COUNT(*)::int as gp,
         SUM(goals_against)::int as ga, SUM(saves)::int as saves,
@@ -347,13 +336,13 @@ async function fetchPlayerDetailInternal(slug: string): Promise<PlayerDetail | n
         SUM(shutouts)::int as shutouts, SUM(goalie_assists)::int as goalie_assists,
         COUNT(*) FILTER (WHERE result = 'W')::int as wins,
         COUNT(*) FILTER (WHERE result = 'L')::int as losses
-      FROM goalie_game_stats ggs
+      FROM goalie_stats ggs
       JOIN games g ON ggs.game_id = g.id AND NOT g.is_forfeit AND NOT g.is_playoff AND g.game_type = 'regular'
       JOIN seasons s ON g.season_id = s.id AND s.season_type = 'fall'
       WHERE ggs.player_id = ${pid} AND NOT ggs.is_sub
-    `),
+    `,
     // Goalie per-season stats (regular season)
-    rawSql(sql`
+    sql`
       SELECT
         g.season_id, ps.team_slug, t.name as team_name,
         COUNT(*)::int as gp,
@@ -363,7 +352,7 @@ async function fetchPlayerDetailInternal(slug: string): Promise<PlayerDetail | n
         COUNT(*) FILTER (WHERE result = 'W')::int as wins,
         COUNT(*) FILTER (WHERE result = 'L')::int as losses,
         COALESCE(MAX(s.game_length), ${DEFAULT_GAME_LENGTH_MIN})::int as game_length
-      FROM goalie_game_stats ggs
+      FROM goalie_stats ggs
       JOIN games g ON ggs.game_id = g.id AND NOT g.is_forfeit AND NOT g.is_playoff AND g.game_type = 'regular'
       LEFT JOIN player_seasons ps ON ps.player_id = ggs.player_id AND ps.season_id = g.season_id
       LEFT JOIN teams t ON ps.team_slug = t.slug
@@ -371,23 +360,23 @@ async function fetchPlayerDetailInternal(slug: string): Promise<PlayerDetail | n
       WHERE ggs.player_id = ${pid} AND NOT ggs.is_sub
       GROUP BY g.season_id, ps.team_slug, t.name
       ORDER BY g.season_id DESC
-    `),
+    `,
     // Goalie game log (regular season)
-    rawSql(sql`
+    sql`
       SELECT
         ggs.game_id, g.date, g.home_team, g.away_team, g.home_score, g.away_score,
         COALESCE(ht.name, g.home_team) as home_name, COALESCE(awt.name, g.away_team) as away_name,
         ggs.seconds, ggs.goals_against, ggs.shots_against, ggs.saves,
         ggs.shutouts, ggs.goalie_assists, ggs.result
-      FROM goalie_game_stats ggs
+      FROM goalie_stats ggs
       JOIN games g ON ggs.game_id = g.id AND NOT g.is_forfeit AND g.season_id = ${playerSeasonId} AND NOT g.is_playoff AND g.game_type = 'regular'
       LEFT JOIN teams ht ON g.home_team = ht.slug
       LEFT JOIN teams awt ON g.away_team = awt.slug
       WHERE ggs.player_id = ${pid} AND NOT ggs.is_sub
       ORDER BY g.date DESC
-    `),
+    `,
     // Playoff skater all-time stats (fall only — includes historical)
-    rawSql(sql`
+    sql`
       WITH game_totals AS (
         SELECT
           COUNT(*)::int as gp,
@@ -395,7 +384,7 @@ async function fetchPlayerDetailInternal(slug: string): Promise<PlayerDetail | n
           SUM(gwg)::int as gwg, SUM(ppg)::int as ppg, SUM(shg)::int as shg,
           SUM(eng)::int as eng, SUM(hat_tricks)::int as hat_tricks,
           SUM(pen)::int as pen, SUM(pim)::int as pim
-        FROM player_game_stats pgs
+        FROM player_stats pgs
         JOIN games g ON pgs.game_id = g.id AND NOT g.is_forfeit AND g.is_playoff AND g.game_type IN ('playoff', 'championship', 'regular')
         JOIN seasons s ON g.season_id = s.id AND s.season_type = 'fall'
         WHERE pgs.player_id = ${pid} AND NOT pgs.is_sub
@@ -406,7 +395,7 @@ async function fetchPlayerDetailInternal(slug: string): Promise<PlayerDetail | n
           SUM(gwg)::int as gwg, SUM(ppg)::int as ppg, SUM(shg)::int as shg,
           SUM(eng)::int as eng, SUM(hat_tricks)::int as hat_tricks,
           SUM(pen)::int as pen, SUM(pim)::int as pim
-        FROM player_season_stats
+        FROM historical_stats
         WHERE player_id = ${pid} AND is_playoff
       )
       SELECT
@@ -422,9 +411,9 @@ async function fetchPlayerDetailInternal(slug: string): Promise<PlayerDetail | n
         COALESCE(g.pen, 0) + COALESCE(h.pen, 0) as pen,
         COALESCE(g.pim, 0) + COALESCE(h.pim, 0) as pim
       FROM game_totals g, hist_totals h
-    `),
+    `,
     // Playoff skater per-season stats (includes historical)
-    rawSql(sql`
+    sql`
       SELECT season_id, team_slug, team_name, gp, goals, assists, points,
              gwg, ppg, shg, eng, hat_tricks, pen, pim
       FROM (
@@ -435,7 +424,7 @@ async function fetchPlayerDetailInternal(slug: string): Promise<PlayerDetail | n
           SUM(pgs.gwg)::int as gwg, SUM(pgs.ppg)::int as ppg, SUM(pgs.shg)::int as shg,
           SUM(pgs.eng)::int as eng, SUM(pgs.hat_tricks)::int as hat_tricks,
           SUM(pgs.pen)::int as pen, SUM(pgs.pim)::int as pim
-        FROM player_game_stats pgs
+        FROM player_stats pgs
         JOIN games g ON pgs.game_id = g.id AND NOT g.is_forfeit AND g.is_playoff AND g.game_type IN ('playoff', 'championship', 'regular')
         LEFT JOIN player_seasons ps ON ps.player_id = pgs.player_id AND ps.season_id = g.season_id
         LEFT JOIN teams t ON ps.team_slug = t.slug
@@ -446,28 +435,28 @@ async function fetchPlayerDetailInternal(slug: string): Promise<PlayerDetail | n
           pss.season_id, pss.team_slug, t.name as team_name,
           pss.gp, pss.goals, pss.assists, pss.points,
           pss.gwg, pss.ppg, pss.shg, pss.eng, pss.hat_tricks, pss.pen, pss.pim
-        FROM player_season_stats pss
+        FROM historical_stats pss
         JOIN teams t ON pss.team_slug = t.slug
         WHERE pss.player_id = ${pid} AND pss.is_playoff
       ) combined
       ORDER BY season_id DESC
-    `),
+    `,
     // Playoff skater game log
-    rawSql(sql`
+    sql`
       SELECT
         pgs.game_id, g.date, g.home_team, g.away_team, g.home_score, g.away_score, g.is_overtime,
         COALESCE(ht.name, g.home_team) as home_name, COALESCE(awt.name, g.away_team) as away_name,
         pgs.goals, pgs.assists, pgs.points, pgs.gwg, pgs.ppg, pgs.shg,
         pgs.eng, pgs.hat_tricks, pgs.pen, pgs.pim
-      FROM player_game_stats pgs
+      FROM player_stats pgs
       JOIN games g ON pgs.game_id = g.id AND NOT g.is_forfeit AND g.season_id = ${playerSeasonId} AND g.is_playoff AND g.game_type IN ('playoff', 'championship', 'regular')
       LEFT JOIN teams ht ON g.home_team = ht.slug
       LEFT JOIN teams awt ON g.away_team = awt.slug
       WHERE pgs.player_id = ${pid} AND NOT pgs.is_sub
       ORDER BY g.date DESC
-    `),
+    `,
     // Playoff goalie all-time stats (fall only)
-    rawSql(sql`
+    sql`
       SELECT
         COUNT(*)::int as gp,
         SUM(goals_against)::int as ga, SUM(saves)::int as saves,
@@ -475,13 +464,13 @@ async function fetchPlayerDetailInternal(slug: string): Promise<PlayerDetail | n
         SUM(shutouts)::int as shutouts, SUM(goalie_assists)::int as goalie_assists,
         COUNT(*) FILTER (WHERE result = 'W')::int as wins,
         COUNT(*) FILTER (WHERE result = 'L')::int as losses
-      FROM goalie_game_stats ggs
+      FROM goalie_stats ggs
       JOIN games g ON ggs.game_id = g.id AND NOT g.is_forfeit AND g.is_playoff AND g.game_type IN ('playoff', 'championship', 'regular')
       JOIN seasons s ON g.season_id = s.id AND s.season_type = 'fall'
       WHERE ggs.player_id = ${pid} AND NOT ggs.is_sub
-    `),
+    `,
     // Playoff goalie per-season stats
-    rawSql(sql`
+    sql`
       SELECT
         g.season_id, ps.team_slug, t.name as team_name,
         COUNT(*)::int as gp,
@@ -491,7 +480,7 @@ async function fetchPlayerDetailInternal(slug: string): Promise<PlayerDetail | n
         COUNT(*) FILTER (WHERE result = 'W')::int as wins,
         COUNT(*) FILTER (WHERE result = 'L')::int as losses,
         COALESCE(MAX(s.game_length), ${DEFAULT_GAME_LENGTH_MIN})::int as game_length
-      FROM goalie_game_stats ggs
+      FROM goalie_stats ggs
       JOIN games g ON ggs.game_id = g.id AND NOT g.is_forfeit AND g.is_playoff AND g.game_type IN ('playoff', 'championship', 'regular')
       LEFT JOIN player_seasons ps ON ps.player_id = ggs.player_id AND ps.season_id = g.season_id
       LEFT JOIN teams t ON ps.team_slug = t.slug
@@ -499,23 +488,23 @@ async function fetchPlayerDetailInternal(slug: string): Promise<PlayerDetail | n
       WHERE ggs.player_id = ${pid} AND NOT ggs.is_sub
       GROUP BY g.season_id, ps.team_slug, t.name
       ORDER BY g.season_id DESC
-    `),
+    `,
     // Playoff goalie game log
-    rawSql(sql`
+    sql`
       SELECT
         ggs.game_id, g.date, g.home_team, g.away_team, g.home_score, g.away_score,
         COALESCE(ht.name, g.home_team) as home_name, COALESCE(awt.name, g.away_team) as away_name,
         ggs.seconds, ggs.goals_against, ggs.shots_against, ggs.saves,
         ggs.shutouts, ggs.goalie_assists, ggs.result
-      FROM goalie_game_stats ggs
+      FROM goalie_stats ggs
       JOIN games g ON ggs.game_id = g.id AND NOT g.is_forfeit AND g.season_id = ${playerSeasonId} AND g.is_playoff AND g.game_type IN ('playoff', 'championship', 'regular')
       LEFT JOIN teams ht ON g.home_team = ht.slug
       LEFT JOIN teams awt ON g.away_team = awt.slug
       WHERE ggs.player_id = ${pid} AND NOT ggs.is_sub
       ORDER BY g.date DESC
-    `),
+    `,
     // Championships
-    rawSql(sql`
+    sql`
       SELECT DISTINCT g.season_id
       FROM games g
       JOIN player_seasons ps ON ps.player_id = ${pid} AND ps.season_id = g.season_id
@@ -529,20 +518,18 @@ async function fetchPlayerDetailInternal(slug: string): Promise<PlayerDetail | n
           WHERE g2.season_id = g.season_id AND g2.is_playoff AND g2.status = 'final'
           ORDER BY g2.date DESC, g2.id DESC LIMIT 1
         )
-    `),
+    `,
     // Player awards
-    db.select({ awardType: schema.playerAwards.awardType, seasonId: schema.playerAwards.seasonId })
-      .from(schema.playerAwards)
-      .where(eq(schema.playerAwards.playerId, pid))
-      .orderBy(desc(schema.playerAwards.seasonId)),
+    sql`SELECT award_type AS "awardType", season_id AS "seasonId"
+      FROM player_awards WHERE player_id = ${pid} ORDER BY season_id DESC`,
     // Hall of Fame
-    rawSql(sql`
+    sql`
       SELECT class_year, wing, years_active, achievements FROM hall_of_fame
       WHERE player_id = ${pid}
       LIMIT 1
-    `),
+    `,
     // Skater all-time stats (regular season, ALL seasons — includes historical)
-    rawSql(sql`
+    sql`
       WITH game_totals AS (
         SELECT
           COUNT(*)::int as gp,
@@ -550,7 +537,7 @@ async function fetchPlayerDetailInternal(slug: string): Promise<PlayerDetail | n
           SUM(gwg)::int as gwg, SUM(ppg)::int as ppg, SUM(shg)::int as shg,
           SUM(eng)::int as eng, SUM(hat_tricks)::int as hat_tricks,
           SUM(pen)::int as pen, SUM(pim)::int as pim
-        FROM player_game_stats pgs
+        FROM player_stats pgs
         JOIN games g ON pgs.game_id = g.id AND NOT g.is_forfeit AND NOT g.is_playoff AND g.game_type = 'regular'
         WHERE pgs.player_id = ${pid} AND NOT pgs.is_sub
       ), hist_totals AS (
@@ -560,7 +547,7 @@ async function fetchPlayerDetailInternal(slug: string): Promise<PlayerDetail | n
           SUM(gwg)::int as gwg, SUM(ppg)::int as ppg, SUM(shg)::int as shg,
           SUM(eng)::int as eng, SUM(hat_tricks)::int as hat_tricks,
           SUM(pen)::int as pen, SUM(pim)::int as pim
-        FROM player_season_stats
+        FROM historical_stats
         WHERE player_id = ${pid} AND NOT is_playoff
       )
       SELECT
@@ -576,9 +563,9 @@ async function fetchPlayerDetailInternal(slug: string): Promise<PlayerDetail | n
         COALESCE(g.pen, 0) + COALESCE(h.pen, 0) as pen,
         COALESCE(g.pim, 0) + COALESCE(h.pim, 0) as pim
       FROM game_totals g, hist_totals h
-    `),
+    `,
     // Goalie all-time stats (regular season, ALL seasons)
-    rawSql(sql`
+    sql`
       SELECT
         COUNT(*)::int as gp,
         SUM(goals_against)::int as ga, SUM(saves)::int as saves,
@@ -586,12 +573,12 @@ async function fetchPlayerDetailInternal(slug: string): Promise<PlayerDetail | n
         SUM(shutouts)::int as shutouts, SUM(goalie_assists)::int as goalie_assists,
         COUNT(*) FILTER (WHERE result = 'W')::int as wins,
         COUNT(*) FILTER (WHERE result = 'L')::int as losses
-      FROM goalie_game_stats ggs
+      FROM goalie_stats ggs
       JOIN games g ON ggs.game_id = g.id AND NOT g.is_forfeit AND NOT g.is_playoff AND g.game_type = 'regular'
       WHERE ggs.player_id = ${pid} AND NOT ggs.is_sub
-    `),
+    `,
     // Playoff skater all-time stats (ALL seasons — includes historical)
-    rawSql(sql`
+    sql`
       WITH game_totals AS (
         SELECT
           COUNT(*)::int as gp,
@@ -599,7 +586,7 @@ async function fetchPlayerDetailInternal(slug: string): Promise<PlayerDetail | n
           SUM(gwg)::int as gwg, SUM(ppg)::int as ppg, SUM(shg)::int as shg,
           SUM(eng)::int as eng, SUM(hat_tricks)::int as hat_tricks,
           SUM(pen)::int as pen, SUM(pim)::int as pim
-        FROM player_game_stats pgs
+        FROM player_stats pgs
         JOIN games g ON pgs.game_id = g.id AND NOT g.is_forfeit AND g.is_playoff AND g.game_type IN ('playoff', 'championship', 'regular')
         WHERE pgs.player_id = ${pid} AND NOT pgs.is_sub
       ), hist_totals AS (
@@ -609,7 +596,7 @@ async function fetchPlayerDetailInternal(slug: string): Promise<PlayerDetail | n
           SUM(gwg)::int as gwg, SUM(ppg)::int as ppg, SUM(shg)::int as shg,
           SUM(eng)::int as eng, SUM(hat_tricks)::int as hat_tricks,
           SUM(pen)::int as pen, SUM(pim)::int as pim
-        FROM player_season_stats
+        FROM historical_stats
         WHERE player_id = ${pid} AND is_playoff
       )
       SELECT
@@ -625,9 +612,9 @@ async function fetchPlayerDetailInternal(slug: string): Promise<PlayerDetail | n
         COALESCE(g.pen, 0) + COALESCE(h.pen, 0) as pen,
         COALESCE(g.pim, 0) + COALESCE(h.pim, 0) as pim
       FROM game_totals g, hist_totals h
-    `),
+    `,
     // Playoff goalie all-time stats (ALL seasons)
-    rawSql(sql`
+    sql`
       SELECT
         COUNT(*)::int as gp,
         SUM(goals_against)::int as ga, SUM(saves)::int as saves,
@@ -635,40 +622,40 @@ async function fetchPlayerDetailInternal(slug: string): Promise<PlayerDetail | n
         SUM(shutouts)::int as shutouts, SUM(goalie_assists)::int as goalie_assists,
         COUNT(*) FILTER (WHERE result = 'W')::int as wins,
         COUNT(*) FILTER (WHERE result = 'L')::int as losses
-      FROM goalie_game_stats ggs
+      FROM goalie_stats ggs
       JOIN games g ON ggs.game_id = g.id AND NOT g.is_forfeit AND g.is_playoff AND g.game_type IN ('playoff', 'championship', 'regular')
       WHERE ggs.player_id = ${pid} AND NOT ggs.is_sub
-    `),
+    `,
     // Exhibition/tryout skater game log
-    rawSql(sql`
+    sql`
       SELECT
         pgs.game_id, g.date, g.home_team, g.away_team, g.home_score, g.away_score, g.is_overtime,
         COALESCE(ht.name, g.home_team) as home_name, COALESCE(awt.name, g.away_team) as away_name,
         pgs.goals, pgs.assists, pgs.points, pgs.gwg, pgs.ppg, pgs.shg,
         pgs.eng, pgs.hat_tricks, pgs.pen, pgs.pim,
         g.game_type
-      FROM player_game_stats pgs
+      FROM player_stats pgs
       JOIN games g ON pgs.game_id = g.id AND NOT g.is_forfeit AND g.game_type IN ('exhibition', 'tryout')
       LEFT JOIN teams ht ON g.home_team = ht.slug
       LEFT JOIN teams awt ON g.away_team = awt.slug
       WHERE pgs.player_id = ${pid} AND NOT pgs.is_sub
       ORDER BY g.date DESC
-    `),
+    `,
     // Exhibition/tryout goalie game log
-    rawSql(sql`
+    sql`
       SELECT
         ggs.game_id, g.date, g.home_team, g.away_team, g.home_score, g.away_score,
         COALESCE(ht.name, g.home_team) as home_name, COALESCE(awt.name, g.away_team) as away_name,
         ggs.seconds, ggs.goals_against, ggs.shots_against, ggs.saves,
         ggs.shutouts, ggs.goalie_assists, ggs.result,
         g.game_type
-      FROM goalie_game_stats ggs
+      FROM goalie_stats ggs
       JOIN games g ON ggs.game_id = g.id AND NOT g.is_forfeit AND g.game_type IN ('exhibition', 'tryout')
       LEFT JOIN teams ht ON g.home_team = ht.slug
       LEFT JOIN teams awt ON g.away_team = awt.slug
       WHERE ggs.player_id = ${pid} AND NOT ggs.is_sub
       ORDER BY g.date DESC
-    `),
+    `,
   ])
 
   const teamSlug = player.team_slug
