@@ -53,6 +53,36 @@ describe("offline finalization after reload", () => {
     expect(container.textContent).not.toContain("Invalid PIN")
   })
 
+  it.each([false, true])("signs into a live game without autosaving or sending a beacon, then saves a real edit (local snapshot: %s)", async (newerLocal) => {
+    const state = { ...createInitialState(), period: 1, updatedAt: 1234 }
+    if (newerLocal) localStorage.setItem("bash-live-g55", JSON.stringify({ ...state, updatedAt: 9999, notes: "Unsynced local history" }))
+    const fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ok: true }) })
+    const beacon = vi.fn()
+    Object.defineProperty(navigator, "sendBeacon", { configurable: true, value: beacon })
+    vi.stubGlobal("fetch", fetch)
+    await act(async () => root.render(<ScorekeeperApp gameId="g55" date="2026-07-18" time="10:00" status="live"
+      isPlayoff={false} homeSlug="home" awaySlug="away" homeTeam="Home" awayTeam="Away"
+      homeRoster={[]} awayRoster={[]} existingState={state} />))
+    const input = container.querySelector<HTMLInputElement>('input[placeholder="Enter PIN"]')!
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, "test-pin")
+      input.dispatchEvent(new Event("input", { bubbles: true }))
+    })
+    await act(async () => input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })))
+    await act(async () => { await vi.advanceTimersByTimeAsync(6000); window.dispatchEvent(new Event("beforeunload")) })
+    expect(fetch.mock.calls.map(([url]) => url)).toEqual(["/api/bash/admin/validate-pin"])
+    expect(beacon).not.toHaveBeenCalled()
+    const notes = container.querySelector<HTMLTextAreaElement>("textarea")!
+    expect(notes.value).toBe(newerLocal ? "Unsynced local history" : "")
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!.call(notes, "Intentional edit")
+      notes.dispatchEvent(new Event("input", { bubbles: true }))
+    })
+    await act(async () => { await vi.advanceTimersByTimeAsync(600) })
+    expect(fetch.mock.calls.map(([url]) => url)).toEqual(["/api/bash/admin/validate-pin", "/api/bash/scorekeeper/g55/state"])
+    expect(JSON.parse(fetch.mock.calls[1][1].body).notes).toBe("Intentional edit")
+  })
+
   it.each([false, true])("saves the current state before retrying finalization (newer local state: %s)", async (newerLocal) => {
     const state = { ...createInitialState(), period: 3, clockSeconds: 0, updatedAt: 1234,
       homeGoalieId: 1, awayGoalieId: 2, homeAttendance: [1], awayAttendance: [2], homeShots: [3, 3, 3], awayShots: [4, 4, 4] }

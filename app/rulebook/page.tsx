@@ -29,7 +29,7 @@ export default async function RulebookPage() {
     const [markdown, changelog] = await Promise.all([getRulebookMarkdown(), getChangelog()])
 
     return (
-        <div className="flex min-h-svh flex-col bg-background">
+        <div className="flex flex-1 flex-col bg-background">
             <main className="mx-auto w-full max-w-7xl flex-1 px-4 sm:px-6 py-10 md:py-16">
                 {/* Hero */}
                 <section className="mb-12 text-center">
