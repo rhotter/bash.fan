@@ -29,10 +29,28 @@ describe("Detail navigation preloading", () => {
       expect(link.getAttribute("href")).toBe("/player/alex-muhn")
       expect(prefetch).not.toHaveBeenCalled()
       await act(async () => link.dispatchEvent(new MouseEvent("mouseover", { bubbles: true })))
-      expect(prefetch).toHaveBeenCalledWith("/player/alex-muhn")
+      expect(prefetch).toHaveBeenCalledWith("/player/alex-muhn", { kind: "full" })
       prefetch.mockClear()
       await act(async () => link.dispatchEvent(new FocusEvent("focusin", { bubbles: true })))
-      expect(prefetch).toHaveBeenCalledWith("/player/alex-muhn")
+      expect(prefetch).toHaveBeenCalledWith("/player/alex-muhn", { kind: "full" })
+    })
+  })
+
+  it("fetches complete player data when a touch begins", async () => {
+    await withLink({}, async (link) => {
+      await act(async () => link.dispatchEvent(new Event("touchstart", { bubbles: true })))
+      expect(prefetch).toHaveBeenCalledWith("/player/alex-muhn", { kind: "full" })
+    })
+  })
+
+  it("respects an explicit prefetch opt-out", async () => {
+    await withLink({ prefetch: false }, async (link) => {
+      await act(async () => {
+        link.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }))
+        link.dispatchEvent(new FocusEvent("focusin", { bubbles: true }))
+        link.dispatchEvent(new Event("touchstart", { bubbles: true }))
+      })
+      expect(prefetch).not.toHaveBeenCalled()
     })
   })
 
