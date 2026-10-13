@@ -3,6 +3,8 @@
 // To add a logo:
 //  1. Drop the image file in /public/team-logos/
 //  2. Add the team slug → filename mapping below
+//  3. Run `pnpm logos:optimize` to refresh the small cached web assets.
+//     The production build also regenerates them automatically.
 //
 // For season-specific overrides (e.g., a team gets a new logo for 2026-2027):
 //  Add an entry to seasonLogoOverrides with key "seasonId::teamSlug"

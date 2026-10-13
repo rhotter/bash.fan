@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev --webpack",
-    "build": "next build --webpack",
+    "build": "node scripts/optimize-logos.mjs && next build --webpack",
+    "logos:optimize": "node scripts/optimize-logos.mjs",
     "start": "next start",
     "lint": "eslint .",
     "seed": "npx tsx scripts/seed.ts",

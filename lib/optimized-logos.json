@@ -1,0 +1,137 @@
+{
+  "/logo.png": {
+    "64": "/optimized-logos/logo-64-687c4b10cd22.webp",
+    "128": "/optimized-logos/logo-128-a90c138605bd.webp",
+    "256": "/optimized-logos/logo-256-ac37f5272295.webp"
+  },
+  "/team-logos/bash_orange_filled_1024.png": {
+    "64": "/optimized-logos/bash_orange_filled_1024-64-50b9116c80db.webp",
+    "128": "/optimized-logos/bash_orange_filled_1024-128-300a334ea730.webp",
+    "256": "/optimized-logos/bash_orange_filled_1024-256-fa6ddf119d2e.webp"
+  },
+  "/team-logos/bash_orange_transparent_1024.png": {
+    "64": "/optimized-logos/bash_orange_transparent_1024-64-3204774665e8.webp",
+    "128": "/optimized-logos/bash_orange_transparent_1024-128-cc08ef1e8a34.webp",
+    "256": "/optimized-logos/bash_orange_transparent_1024-256-e3f9ee4f8635.webp"
+  },
+  "/team-logos/bash_transparent_1024.png": {
+    "64": "/optimized-logos/bash_transparent_1024-64-76ef50075389.webp",
+    "128": "/optimized-logos/bash_transparent_1024-128-84d373397b28.webp",
+    "256": "/optimized-logos/bash_transparent_1024-256-38cdecd0b247.webp"
+  },
+  "/team-logos/bashers_filled_1024.png": {
+    "64": "/optimized-logos/bashers_filled_1024-64-cbf500f097bc.webp",
+    "128": "/optimized-logos/bashers_filled_1024-128-d2ee3577a2a6.webp",
+    "256": "/optimized-logos/bashers_filled_1024-256-35adc89f55e0.webp"
+  },
+  "/team-logos/bashers_transparent_1024.png": {
+    "64": "/optimized-logos/bashers_transparent_1024-64-80adba873dda.webp",
+    "128": "/optimized-logos/bashers_transparent_1024-128-221530478155.webp",
+    "256": "/optimized-logos/bashers_transparent_1024-256-bf3e53da7c96.webp"
+  },
+  "/team-logos/coxswain_bawls_1024.png": {
+    "64": "/optimized-logos/coxswain_bawls_1024-64-74f7e01f2622.webp",
+    "128": "/optimized-logos/coxswain_bawls_1024-128-db9b84e740f3.webp",
+    "256": "/optimized-logos/coxswain_bawls_1024-256-168598c0403b.webp"
+  },
+  "/team-logos/dangleberries_1024.png": {
+    "64": "/optimized-logos/dangleberries_1024-64-56bc648038a6.webp",
+    "128": "/optimized-logos/dangleberries_1024-128-19086a9de966.webp",
+    "256": "/optimized-logos/dangleberries_1024-256-17834a46b305.webp"
+  },
+  "/team-logos/dolo_minions_1024.png": {
+    "64": "/optimized-logos/dolo_minions_1024-64-95fee0f393cb.webp",
+    "128": "/optimized-logos/dolo_minions_1024-128-a9de0cc964b0.webp",
+    "256": "/optimized-logos/dolo_minions_1024-256-c5b5ac256e9d.webp"
+  },
+  "/team-logos/dolo_minions_logo_only_1024.png": {
+    "64": "/optimized-logos/dolo_minions_logo_only_1024-64-17c61ec8cf79.webp",
+    "128": "/optimized-logos/dolo_minions_logo_only_1024-128-d5352ccd5e55.webp",
+    "256": "/optimized-logos/dolo_minions_logo_only_1024-256-a524fc1b125f.webp"
+  },
+  "/team-logos/landsharks_1024.png": {
+    "64": "/optimized-logos/landsharks_1024-64-cbed1ed64e4d.webp",
+    "128": "/optimized-logos/landsharks_1024-128-4a36955fdcb3.webp",
+    "256": "/optimized-logos/landsharks_1024-256-312e548adcdf.webp"
+  },
+  "/team-logos/landsharks_black_1024.png": {
+    "64": "/optimized-logos/landsharks_black_1024-64-437080f3f2ed.webp",
+    "128": "/optimized-logos/landsharks_black_1024-128-ef8a62ada04e.webp",
+    "256": "/optimized-logos/landsharks_black_1024-256-79171e461980.webp"
+  },
+  "/team-logos/landsharks_black_with_name_1024.png": {
+    "64": "/optimized-logos/landsharks_black_with_name_1024-64-af32f81351d1.webp",
+    "128": "/optimized-logos/landsharks_black_with_name_1024-128-93ea4ad0cbd2.webp",
+    "256": "/optimized-logos/landsharks_black_with_name_1024-256-e770b0d0a508.webp"
+  },
+  "/team-logos/last_licks_blue_1024.png": {
+    "64": "/optimized-logos/last_licks_blue_1024-64-06a7051340e7.webp",
+    "128": "/optimized-logos/last_licks_blue_1024-128-f68819765972.webp",
+    "256": "/optimized-logos/last_licks_blue_1024-256-cfddf9932429.webp"
+  },
+  "/team-logos/last_licks_pink_1024.png": {
+    "64": "/optimized-logos/last_licks_pink_1024-64-42bec0c29fc3.webp",
+    "128": "/optimized-logos/last_licks_pink_1024-128-6becdc29059d.webp",
+    "256": "/optimized-logos/last_licks_pink_1024-256-a7fff4f0f26a.webp"
+  },
+  "/team-logos/last_licks_white_1024.png": {
+    "64": "/optimized-logos/last_licks_white_1024-64-e16040664318.webp",
+    "128": "/optimized-logos/last_licks_white_1024-128-018e0636cb17.webp",
+    "256": "/optimized-logos/last_licks_white_1024-256-190c05fc8826.webp"
+  },
+  "/team-logos/lazy_skater_dangle_1024.png": {
+    "64": "/optimized-logos/lazy_skater_dangle_1024-64-3777a91e6eec.webp",
+    "128": "/optimized-logos/lazy_skater_dangle_1024-128-9b516103106d.webp",
+    "256": "/optimized-logos/lazy_skater_dangle_1024-256-16dec7c33c8b.webp"
+  },
+  "/team-logos/loons_1024.png": {
+    "64": "/optimized-logos/loons_1024-64-867c3ed1d05d.webp",
+    "128": "/optimized-logos/loons_1024-128-d3b9a62cc4ef.webp",
+    "256": "/optimized-logos/loons_1024-256-c0337273e8c8.webp"
+  },
+  "/team-logos/mitch_a_palooza_1024.png": {
+    "64": "/optimized-logos/mitch_a_palooza_1024-64-a84f14ee95d2.webp",
+    "128": "/optimized-logos/mitch_a_palooza_1024-128-410cd1c65f53.webp",
+    "256": "/optimized-logos/mitch_a_palooza_1024-256-4643a1e5b1a5.webp"
+  },
+  "/team-logos/money_shots_1024.png": {
+    "64": "/optimized-logos/money_shots_1024-64-3d752cd2f9a6.webp",
+    "128": "/optimized-logos/money_shots_1024-128-358771f3a374.webp",
+    "256": "/optimized-logos/money_shots_1024-256-5cf2cda1d9f6.webp"
+  },
+  "/team-logos/no_regretzkys_1024.png": {
+    "64": "/optimized-logos/no_regretzkys_1024-64-3c1d249031ca.webp",
+    "128": "/optimized-logos/no_regretzkys_1024-128-8fe294df2afb.webp",
+    "256": "/optimized-logos/no_regretzkys_1024-256-b45d995c17c3.webp"
+  },
+  "/team-logos/reign_1024.png": {
+    "64": "/optimized-logos/reign_1024-64-cabb2b160730.webp",
+    "128": "/optimized-logos/reign_1024-128-9ec2ea283c64.webp",
+    "256": "/optimized-logos/reign_1024-256-91b8ba74f4a4.webp"
+  },
+  "/team-logos/rinkrats_1024.png": {
+    "64": "/optimized-logos/rinkrats_1024-64-5ccbdbedf009.webp",
+    "128": "/optimized-logos/rinkrats_1024-128-e52723755a05.webp",
+    "256": "/optimized-logos/rinkrats_1024-256-a06e68e8938f.webp"
+  },
+  "/team-logos/seals_1024.png": {
+    "64": "/optimized-logos/seals_1024-64-a047603c683e.webp",
+    "128": "/optimized-logos/seals_1024-128-f8f06f801e5d.webp",
+    "256": "/optimized-logos/seals_1024-256-ce42ef104d33.webp"
+  },
+  "/team-logos/team-canada_1024.png": {
+    "64": "/optimized-logos/team-canada_1024-64-ed2a6ab46190.webp",
+    "128": "/optimized-logos/team-canada_1024-128-473f6ba49d23.webp",
+    "256": "/optimized-logos/team-canada_1024-256-686240e88f73.webp"
+  },
+  "/team-logos/team-usa_1024.png": {
+    "64": "/optimized-logos/team-usa_1024-64-7976485ac5d3.webp",
+    "128": "/optimized-logos/team-usa_1024-128-1d48733ef26c.webp",
+    "256": "/optimized-logos/team-usa_1024-256-d3930e61946a.webp"
+  },
+  "/team-logos/yetis_1024.png": {
+    "64": "/optimized-logos/yetis_1024-64-1f961ec10d59.webp",
+    "128": "/optimized-logos/yetis_1024-128-1bc5ed8d2c36.webp",
+    "256": "/optimized-logos/yetis_1024-256-ab858d8f2d09.webp"
+  }
+}
