@@ -1,5 +1,7 @@
 "use client"
 
+import { fetchApi as fetch, readApiJson, errorMessage } from "@/lib/api-errors"
+
 import { Spinner } from "@/components/ui/spinner"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
@@ -107,13 +109,13 @@ export function SeasonForm({ season }: SeasonFormProps) {
         setTimeout(() => setSaved(false), 3000)
         router.refresh()
       } else {
-        const data = await res.json()
+        const data = await readApiJson(res)
         const errMsg = data.error || "Failed to save"
         setError(errMsg)
         toast.error(errMsg)
       }
-    } catch {
-      setError("Connection error")
+    } catch (error) {
+      setError(errorMessage(error, "Connection error"))
       toast.error("Connection error")
     } finally {
       setSaving(false)
@@ -164,7 +166,7 @@ export function SeasonForm({ season }: SeasonFormProps) {
         toast.success(`Season status changed to ${newStatus}`)
         router.refresh()
       } else {
-        const data = await res.json().catch(() => ({}))
+        const data = await readApiJson(res)
         const errMsg = data.error || "Failed to transition"
         setError(errMsg)
         toast.error(errMsg)
@@ -172,8 +174,8 @@ export function SeasonForm({ season }: SeasonFormProps) {
         setForm((f) => ({ ...f, status: season.status }))
         setConfirmDialog((d) => ({ ...d, open: false }))
       }
-    } catch {
-      const errMsg = "Failed to transition season status"
+    } catch (error) {
+      const errMsg = errorMessage(error, "Could not change the season status. Please try again.")
       setError(errMsg)
       toast.error(errMsg)
       setForm((f) => ({ ...f, status: season.status }))
@@ -195,12 +197,12 @@ export function SeasonForm({ season }: SeasonFormProps) {
         router.push("/admin/seasons")
         router.refresh()
       } else {
-        const data = await res.json()
+        const data = await readApiJson(res)
         setError(data.error || "Failed to delete season")
         setDeleteDialog(false)
       }
-    } catch {
-      setError("Connection error")
+    } catch (error) {
+      setError(errorMessage(error, "Connection error"))
       setDeleteDialog(false)
     } finally {
       setDeleting(false)

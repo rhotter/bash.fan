@@ -1,5 +1,7 @@
 "use client"
 
+import { fetchApi as fetch, readApiJson, errorMessage } from "@/lib/api-errors"
+
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { Badge } from "@/components/ui/badge"
@@ -84,13 +86,13 @@ export function SeasonsListTable({ seasons }: { seasons: SeasonRow[] }) {
         body: JSON.stringify({ isCurrent: true }),
       })
       if (!res.ok) {
-        const data = await res.json()
+        const data = await readApiJson(res)
         alert(data.error || "Failed to set current season")
         return
       }
       router.refresh()
-    } catch {
-      alert("Failed to set current season")
+    } catch (error) {
+      alert(errorMessage(error, "Could not set the current season. Please try again."))
     } finally {
       setIsSettingCurrent(false)
       setConfirmSeason(null)

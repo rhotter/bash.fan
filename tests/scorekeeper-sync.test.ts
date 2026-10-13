@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import { createSyncManager } from "@/lib/scorekeeper-sync"
+import { createSyncManager, saveToLocalStorage } from "@/lib/scorekeeper-sync"
 import { createInitialState } from "@/lib/scorekeeper-types"
 
 const pending = () => {
@@ -13,6 +13,25 @@ beforeEach(() => { vi.useFakeTimers() })
 afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals() })
 
 describe("scorekeeper save/finalize synchronization", () => {
+  it("does not claim a device backup succeeded if browser storage rejects it", () => {
+    vi.stubGlobal("localStorage", { setItem: () => { throw new Error("Storage full") } })
+    expect(saveToLocalStorage("g1", state(1))).toBe(false)
+  })
+  it.each([401, 409, 422])("reports HTTP %i as a save error, not offline, and stops automatic retries", async (status) => {
+    const fetch = vi.fn(async () => new Response(JSON.stringify({ error: "A newer state was saved. Reload this game." }), { status }))
+    vi.stubGlobal("fetch", fetch)
+    const listener = vi.fn()
+    const sync = createSyncManager("g1", "pin")
+    sync.setStatusListener(listener)
+    sync.scheduleSync(state(1))
+    expect(await sync.flush()).toBe(false)
+    expect(listener).toHaveBeenLastCalledWith("error", expect.any(String))
+    expect(sync.getLastError()).toBeTruthy()
+    expect(sync.canAutoRetry()).toBe(false)
+    await vi.advanceTimersByTimeAsync(11000)
+    expect(fetch).toHaveBeenCalledTimes(1)
+    sync.destroy()
+  })
   it("waits for an in-flight save and drains newer state before allowing finalization", async () => {
     const first = pending()
     const second = pending()

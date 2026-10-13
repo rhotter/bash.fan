@@ -1,5 +1,7 @@
 "use client"
 
+import { fetchApi as fetch, readApiJson, errorMessage } from "@/lib/api-errors"
+
 import { formatSeasonName } from "@/lib/season-name"
 
 import { Spinner } from "@/components/ui/spinner"
@@ -74,11 +76,11 @@ export function SeasonWizard() {
         router.push("/admin/seasons")
         router.refresh()
       } else {
-        const data = await res.json()
+        const data = await readApiJson(res)
         setError(data.error || "Failed to create season")
       }
-    } catch {
-      setError("An unexpected error occurred. Please try again.")
+    } catch (error) {
+      setError(errorMessage(error, "An unexpected error occurred. Please try again."))
     } finally {
       setCreating(false)
     }

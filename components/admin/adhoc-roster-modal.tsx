@@ -1,5 +1,7 @@
 "use client"
 
+import { fetchApi as fetch, readApiJson, errorMessage } from "@/lib/api-errors"
+
 import { Spinner } from "@/components/ui/spinner"
 import { useState, useEffect, useCallback } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog"
@@ -51,15 +53,15 @@ export function AdhocRosterModal({
     try {
       const res = await fetch(`/api/bash/admin/seasons/${seasonId}/adhoc/${game.id}/roster`)
       if (res.ok) {
-        const data = await res.json()
+        const data = await readApiJson(res)
         setRoster(data.roster.map((r: { playerId: number; name: string; teamSide: "home" | "away" }) => ({
           id: r.playerId,
           name: r.name,
           teamSide: r.teamSide,
         })))
       }
-    } catch {
-      toast.error("Failed to load ad-hoc roster")
+    } catch (error) {
+      toast.error(errorMessage(error, "Failed to load ad-hoc roster"))
     } finally {
       setIsLoading(false)
     }
@@ -85,7 +87,7 @@ export function AdhocRosterModal({
       try {
         const res = await fetch(`/api/bash/admin/players?q=${encodeURIComponent(searchQuery)}`)
         if (res.ok) {
-          const data = await res.json()
+          const data = await readApiJson(res)
           setSearchResults(data.players || [])
         }
       } catch (err) {
@@ -116,7 +118,7 @@ export function AdhocRosterModal({
       })
 
       if (!res.ok) {
-        const data = await res.json()
+        const data = await readApiJson(res)
         throw new Error(data.error || "Failed to save roster")
       }
 
@@ -124,7 +126,7 @@ export function AdhocRosterModal({
       onSaved?.()
       onOpenChange(false)
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "An error occurred")
+      toast.error(errorMessage(err, "An error occurred"))
     } finally {
       setIsSaving(false)
     }

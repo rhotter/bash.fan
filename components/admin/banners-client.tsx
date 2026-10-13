@@ -1,5 +1,7 @@
 "use client"
 
+import { fetchApi as fetch, readApiJson, errorMessage } from "@/lib/api-errors"
+
 import { Spinner } from "@/components/ui/spinner"
 import { useState, useMemo } from "react"
 import { useRouter } from "next/navigation"
@@ -290,7 +292,7 @@ export function BannersClient({ initial }: { initial: BannerRow[] }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ isActive: nextState }),
       })
-      const data = await res.json()
+      const data = await readApiJson(res)
       if (!res.ok) throw new Error(data.error || "Failed to update banner status")
 
       toast.success(nextState ? "Banner activated" : "Banner deactivated")
@@ -300,7 +302,7 @@ export function BannersClient({ initial }: { initial: BannerRow[] }) {
       setBanners((prev) =>
         prev.map((b) => (b.id === banner.id ? { ...b, isActive: banner.isActive } : b))
       )
-      toast.error(err instanceof Error ? err.message : "Failed to toggle status")
+      toast.error(errorMessage(err, "Failed to toggle status"))
     } finally {
       setTogglingId(null)
     }
@@ -358,7 +360,7 @@ export function BannersClient({ initial }: { initial: BannerRow[] }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       })
-      const data = await res.json()
+      const data = await readApiJson(res)
       if (!res.ok) throw new Error(data.error || "Failed to save banner")
 
       const savedRow: BannerRow = {
@@ -393,7 +395,7 @@ export function BannersClient({ initial }: { initial: BannerRow[] }) {
       toast.success(editing ? "Banner updated successfully" : "Banner created successfully")
       router.refresh()
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Save failed")
+      toast.error(errorMessage(err, "Save failed"))
     } finally {
       setBusy(false)
     }
@@ -407,7 +409,7 @@ export function BannersClient({ initial }: { initial: BannerRow[] }) {
       const res = await fetch(`/api/bash/admin/banners/${encodeURIComponent(pendingDelete.id)}`, {
         method: "DELETE",
       })
-      const data = await res.json()
+      const data = await readApiJson(res)
       if (!res.ok) throw new Error(data.error || "Failed to delete banner")
 
       setBanners((prev) => prev.filter((b) => b.id !== pendingDelete.id))
@@ -415,7 +417,7 @@ export function BannersClient({ initial }: { initial: BannerRow[] }) {
       toast.success("Banner deleted")
       router.refresh()
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Delete failed")
+      toast.error(errorMessage(err, "Delete failed"))
     } finally {
       setBusy(false)
     }

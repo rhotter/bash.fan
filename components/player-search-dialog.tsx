@@ -1,7 +1,10 @@
 "use client"
 
+import { fetchApi as fetch, readApiJson, errorMessage } from "@/lib/api-errors"
+
 import useSWR from "swr"
 import { useState } from "react"
+import { ErrorNotice } from "@/components/error-notice"
 import { useRouter } from "next/navigation"
 import { PrefetchKind } from "next/dist/client/components/router-reducer/router-reducer-types"
 import { useIsMobile } from "@/components/ui/use-mobile"
@@ -29,7 +32,7 @@ import {
 } from "@/components/ui/drawer"
 import type { PlayerSearchResult } from "@/app/api/bash/players/search/route"
 
-const fetcher = (url: string) => fetch(url).then((res) => res.json())
+const fetcher = (url: string) => fetch(url).then((res) => readApiJson(res))
 
 export function PlayerSearchDialog({ open, onOpenChange, onSelect }: {
   open: boolean
@@ -43,7 +46,7 @@ export function PlayerSearchDialog({ open, onOpenChange, onSelect }: {
     if (slug) router.prefetch(`/player/${slug}`, { kind: PrefetchKind.FULL })
   }
   // Only fetch when opened
-  const { data } = useSWR<{ players: PlayerSearchResult[] }>(
+  const { data, error, mutate } = useSWR<{ players: PlayerSearchResult[] }>(
     open ? "/api/bash/players/search" : null,
     fetcher,
     { revalidateOnFocus: false, dedupingInterval: 300_000 }
@@ -56,8 +59,10 @@ export function PlayerSearchDialog({ open, onOpenChange, onSelect }: {
       prefetchPlayer(slug)
     }}>
       <CommandInput placeholder="Search players..." />
+      {error && <ErrorNotice message={errorMessage(error, "Could not search players. Please try again.")}
+        onRetry={() => { void mutate().catch(() => {}) }} />}
       <CommandList className="max-h-[60vh]">
-        <CommandEmpty>No players found.</CommandEmpty>
+        <CommandEmpty>{error ? null : "No players found."}</CommandEmpty>
         <CommandGroup>
           {players.map((p) => (
             <CommandItem

@@ -1,5 +1,7 @@
 "use client"
 
+import { fetchApi as fetch, readApiJson, errorMessage } from "@/lib/api-errors"
+
 import { Spinner } from "@/components/ui/spinner"
 import { useState, useCallback } from "react"
 import {
@@ -89,17 +91,17 @@ export function DraftPoolImportModal({
       )
 
       if (!res.ok) {
-        const data = await res.json()
+        const data = await readApiJson(res)
         setError(data.error || "Failed to parse CSV")
         return
       }
 
-      const data = await res.json()
+      const data = await readApiJson(res)
       setStats(data.stats)
       setPlayers(data.mappedPlayers)
       setStep("preview")
-    } catch {
-      setError("Failed to upload file. Please try again.")
+    } catch (error) {
+      setError(errorMessage(error, "Failed to upload file. Please try again."))
     }
   }
 
@@ -118,18 +120,18 @@ export function DraftPoolImportModal({
       )
 
       if (!res.ok) {
-        const data = await res.json()
+        const data = await readApiJson(res)
         setError(data.error || "Import failed")
         setStep("preview")
         return
       }
 
-      const data = await res.json()
+      const data = await readApiJson(res)
       setResult(data)
       setStep("done")
       onImportComplete?.()
-    } catch {
-      setError("Import failed. Please try again.")
+    } catch (error) {
+      setError(errorMessage(error, "Import failed. Please try again."))
       setStep("preview")
     }
   }

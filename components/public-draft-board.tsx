@@ -1,5 +1,8 @@
 "use client"
 
+import { fetchApi as fetch, readApiJson, errorMessage } from "@/lib/api-errors"
+
+import { ErrorNotice } from "@/components/error-notice"
 import { formatSeasonName } from "@/lib/season-name"
 import { useState, useEffect, useRef, useMemo, useCallback } from "react"
 import Image from "next/image"
@@ -137,7 +140,7 @@ function PositionBadges({ raw }: { raw?: string | null }) {
   )
 }
 
-const fetcher = (url: string) => fetch(url).then((r) => r.json())
+const fetcher = (url: string) => fetch(url).then((r) => readApiJson(r))
 
 // "The Pick Is In" banner data
 interface PickAnnouncement {
@@ -248,7 +251,7 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
   }, [])
 
   // SWR polling — 5s for live, 30s otherwise
-  const { data } = useSWR<DraftData>(
+  const { data, error: refreshError } = useSWR<DraftData>(
     `/api/bash/draft/${seasonSlug}`,
     fetcher,
     {
@@ -397,7 +400,9 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
   }, [picks])
 
   const prefetchPlayerStats = useCallback((playerId: number) => {
-    preload(`/api/bash/draft/player-stats/${playerId}?currentSeason=${seasonSlug}`, fetcher)
+    // A speculative hover request must not become an unhandled rejection.
+    // The player card displays the error if the user actually opens it.
+    void preload(`/api/bash/draft/player-stats/${playerId}?currentSeason=${seasonSlug}`, fetcher).catch(() => {})
   }, [seasonSlug])
 
   // ─── "The Pick Is In" Detection ──────────────────────────────────────────
@@ -511,6 +516,7 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
 
     return (
       <div className="min-h-screen bg-background relative overflow-hidden">
+        {refreshError && <ErrorNotice message={`The draft could not refresh; showing the last loaded board. ${errorMessage(refreshError)}`} />}
         {/* Background watermark — BASH logo */}
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
           <Image
@@ -678,6 +684,7 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
   return (
     <div className="min-h-screen bg-background">
       <div className="mx-auto max-w-6xl px-4 py-6 space-y-4">
+        {refreshError && <ErrorNotice message={`The draft could not refresh; showing the last loaded board. ${errorMessage(refreshError)}`} />}
 
         {/* Branded Header */}
         <div className="space-y-2">

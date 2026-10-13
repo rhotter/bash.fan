@@ -1,5 +1,7 @@
 "use client"
 
+import { fetchApi as fetch, readApiJson, errorMessage } from "@/lib/api-errors"
+
 import { LoadingState } from "@/components/loading-state"
 import { Spinner } from "@/components/ui/spinner"
 import { useState, useEffect, useCallback } from "react"
@@ -88,15 +90,15 @@ export function SeasonTeamsTab({ seasonId, seasonStatus, initialTeams, onTeamsCh
         fetch("/api/bash/admin/franchises"),
       ])
       if (teamsRes.ok) {
-        const data = await teamsRes.json()
+        const data = await readApiJson(teamsRes)
         setAllTeams(data.teams || [])
       }
       if (franchisesRes.ok) {
-        const data = await franchisesRes.json()
+        const data = await readApiJson(franchisesRes)
         setFranchises(data.franchises || [])
       }
-    } catch {
-      toast.error("Failed to fetch data")
+    } catch (error) {
+      toast.error(errorMessage(error, "Failed to fetch data"))
     } finally {
       setIsLoading(false)
     }
@@ -119,11 +121,11 @@ export function SeasonTeamsTab({ seasonId, seasonStatus, initialTeams, onTeamsCh
         onTeamsChange?.(updated)
         toast.success(`Added ${team.name}`)
       } else {
-        const err = await res.json()
+        const err = await readApiJson(res)
         toast.error(err.error || "Failed to add team")
       }
-    } catch {
-      toast.error("Failed to add team")
+    } catch (error) {
+      toast.error(errorMessage(error, "Failed to add team"))
     } finally {
       setIsProcessing(null)
     }
@@ -154,11 +156,11 @@ export function SeasonTeamsTab({ seasonId, seasonStatus, initialTeams, onTeamsCh
         onTeamsChange?.(updated)
         toast.success(`Removed ${name}`)
       } else {
-        const err = await res.json()
+        const err = await readApiJson(res)
         toast.error(err.error || "Failed to remove team")
       }
-    } catch {
-      toast.error("Failed to remove team")
+    } catch (error) {
+      toast.error(errorMessage(error, "Failed to remove team"))
     } finally {
       setIsProcessing(null)
     }
@@ -200,7 +202,7 @@ export function SeasonTeamsTab({ seasonId, seasonStatus, initialTeams, onTeamsCh
       })
 
       if (res.ok) {
-        const data = await res.json()
+        const data = await readApiJson(res)
         // Update parent state with new franchise assignments
         const updated = assignedTeams.map(t => ({
           ...t,
@@ -212,11 +214,11 @@ export function SeasonTeamsTab({ seasonId, seasonStatus, initialTeams, onTeamsCh
         setHasUnsavedChanges(false)
         toast.success(`Updated ${data.updated} franchise assignments`)
       } else {
-        const err = await res.json()
+        const err = await readApiJson(res)
         toast.error(err.error || "Failed to save")
       }
-    } catch {
-      toast.error("Connection error")
+    } catch (error) {
+      toast.error(errorMessage(error, "Connection error"))
     } finally {
       setIsSavingFranchises(false)
     }
@@ -249,11 +251,11 @@ export function SeasonTeamsTab({ seasonId, seasonStatus, initialTeams, onTeamsCh
         setAllTeams(prev => prev.map(t => t.slug === slug ? { ...t, name: trimmed } : t))
         toast.success(`Renamed to ${trimmed}`)
       } else {
-        const err = await res.json()
+        const err = await readApiJson(res)
         toast.error(err.error || "Failed to rename team")
       }
-    } catch {
-      toast.error("Connection error")
+    } catch (error) {
+      toast.error(errorMessage(error, "Connection error"))
     } finally {
       setEditingTeamSlug(null)
     }
@@ -274,7 +276,7 @@ export function SeasonTeamsTab({ seasonId, seasonStatus, initialTeams, onTeamsCh
         body: JSON.stringify({ slug: createTeamForm.slug, name: createTeamForm.name }),
       })
       if (res.ok) {
-        const data = await res.json()
+        const data = await readApiJson(res)
         const newTeam = data.team
         setAllTeams((prev) => [...prev, newTeam].sort((a, b) => a.name.localeCompare(b.name)))
         toast.success(`Created team ${newTeam.name}`)
@@ -284,11 +286,11 @@ export function SeasonTeamsTab({ seasonId, seasonStatus, initialTeams, onTeamsCh
         // Auto-assign to season
         addTeam(newTeam)
       } else {
-        const err = await res.json()
+        const err = await readApiJson(res)
         setCreateTeamError(err.error || "Failed to create team")
       }
-    } catch {
-      setCreateTeamError("Connection error")
+    } catch (error) {
+      setCreateTeamError(errorMessage(error, "Connection error"))
     } finally {
       setIsCreatingTeam(false)
     }

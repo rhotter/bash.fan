@@ -1,5 +1,7 @@
 "use client"
 
+import { fetchApi as fetch, readApiJson, errorMessage } from "@/lib/api-errors"
+
 import { Spinner } from "@/components/ui/spinner"
 import { useState, useCallback, useMemo, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
@@ -188,13 +190,13 @@ export function DraftBoardView({
         body: JSON.stringify({ action }),
       })
       if (!res.ok) {
-        const err = await res.json()
+        const err = await readApiJson(res)
         throw new Error(err.error || "Timer action failed")
       }
-      const result = await res.json()
+      const result = await readApiJson(res)
       setDraft(result.draft)
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : "An error occurred"
+      const msg = errorMessage(e, "An error occurred")
       toast.error(msg)
     }
   }
@@ -213,10 +215,10 @@ export function DraftBoardView({
         body: JSON.stringify({ action: "setDuration", duration }),
       })
       if (!res.ok) {
-        const err = await res.json()
+        const err = await readApiJson(res)
         throw new Error(err.error || "Failed to update duration")
       }
-      const result = await res.json()
+      const result = await readApiJson(res)
       setDraft(result.draft)
       setShowDurationDialog(false)
       setSystemLog(prev => [...prev, {
@@ -225,7 +227,7 @@ export function DraftBoardView({
       }])
       toast.success(`Pick timer updated to ${duration}s`)
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : "An error occurred"
+      const msg = errorMessage(e, "An error occurred")
       toast.error(msg)
     } finally {
       setIsSavingDuration(false)
@@ -442,11 +444,11 @@ export function DraftBoardView({
       })
       
       if (!res.ok) {
-        const err = await res.json()
+        const err = await readApiJson(res)
         throw new Error(err.error || "Failed to submit pick")
       }
       
-      const result = await res.json()
+      const result = await readApiJson(res)
       setPicks(result.picks)
       setDraft(result.draft)
       setSelectedPlayerId(null)
@@ -457,7 +459,7 @@ export function DraftBoardView({
         setDraftCompleteModalOpen(true)
       }
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : "An error occurred"
+      const msg = errorMessage(e, "An error occurred")
       toast.error(msg)
     } finally {
       setIsSubmittingPick(false)
@@ -472,17 +474,17 @@ export function DraftBoardView({
       })
       
       if (!res.ok) {
-        const err = await res.json()
+        const err = await readApiJson(res)
         throw new Error(err.error || "Failed to undo pick")
       }
       
-      const result = await res.json()
+      const result = await readApiJson(res)
       setPicks(result.picks)
       setDraft(result.draft)
       setSelectedPlayerId(null)
       toast.success("Pick undone")
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : "An error occurred"
+      const msg = errorMessage(e, "An error occurred")
       toast.error(msg)
     } finally {
       setIsUndoing(false)
@@ -503,10 +505,10 @@ export function DraftBoardView({
         body: JSON.stringify({ type: "pick_swap", pickIds: [tradePick1, tradePick2] })
       })
       if (!res.ok) {
-        const err = await res.json()
+        const err = await readApiJson(res)
         throw new Error(err.error || "Failed to execute trade")
       }
-      const result = await res.json()
+      const result = await readApiJson(res)
       setPicks(result.picks)
       setTradeDialogOpen(false)
       setTradeTeam1("")
@@ -515,7 +517,7 @@ export function DraftBoardView({
       setTradePick2("")
       toast.success("Trade executed successfully")
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : "An error occurred"
+      const msg = errorMessage(e, "An error occurred")
       toast.error(msg)
     } finally {
       setIsTrading(false)
@@ -532,17 +534,17 @@ export function DraftBoardView({
         body: JSON.stringify({ teamSlug: editOrderTeamSlug })
       })
       if (!res.ok) {
-        const err = await res.json()
+        const err = await readApiJson(res)
         throw new Error(err.error || "Failed to edit order")
       }
-      const result = await res.json()
+      const result = await readApiJson(res)
       setPicks(result.picks)
       setEditOrderDialogOpen(false)
       setEditOrderPickId("")
       setEditOrderTeamSlug("")
       toast.success("Pick order updated")
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : "An error occurred"
+      const msg = errorMessage(e, "An error occurred")
       toast.error(msg)
     } finally {
       setIsEditingOrder(false)
@@ -560,10 +562,10 @@ export function DraftBoardView({
         method: "POST",
       })
       if (!res.ok) {
-        const err = await res.json()
+        const err = await readApiJson(res)
         throw new Error(err.error || "Failed to push rosters")
       }
-      const result = await res.json()
+      const result = await readApiJson(res)
       toast.success(
         `Rosters pushed: ${result.summary.inserted} added, ${result.summary.updated} updated, ${result.summary.skipped} skipped`
       )
@@ -571,7 +573,7 @@ export function DraftBoardView({
       setDraft((prev) => ({ ...prev, status: "completed" }))
       router.push(`/admin/seasons/${seasonId}?tab=Roster`)
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : "An error occurred"
+      const msg = errorMessage(e, "An error occurred")
       toast.error(msg)
     } finally {
       setIsPushingRosters(false)
@@ -585,14 +587,14 @@ export function DraftBoardView({
         method: "POST",
       })
       if (!res.ok) {
-        const err = await res.json()
+        const err = await readApiJson(res)
         throw new Error(err.error || "Failed to revert draft")
       }
       setDraft((prev) => ({ ...prev, status: "live", timerRunning: false }))
       setShowRevertConfirm(false)
       toast.success("Draft reverted to live — you can continue drafting")
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : "An error occurred"
+      const msg = errorMessage(e, "An error occurred")
       toast.error(msg)
     } finally {
       setIsReverting(false)
@@ -654,7 +656,7 @@ export function DraftBoardView({
           { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ keepers: allKeepers }) }
         )
         if (!res.ok) {
-          const err = await res.json()
+          const err = await readApiJson(res)
           toast.error(err.error || "Failed to save keeper")
           // Revert
           setPool((prev) =>
@@ -665,8 +667,8 @@ export function DraftBoardView({
             )
           )
         }
-      } catch {
-        toast.error("Failed to save keeper")
+      } catch (error) {
+        toast.error(errorMessage(error, "Failed to save keeper"))
       }
     },
     [currentKeepers, keepersForTeam, draft.id, draft.maxKeepers, seasonId, captains, captainSlotLast, lastPickRoundByTeam, draft.rounds]
@@ -707,8 +709,8 @@ export function DraftBoardView({
             )
           )
         }
-      } catch {
-        toast.error("Failed to remove keeper")
+      } catch (error) {
+        toast.error(errorMessage(error, "Failed to remove keeper"))
       }
     },
     [currentKeepers, pool, draft.id, seasonId]
@@ -747,8 +749,8 @@ export function DraftBoardView({
             )
           )
         }
-      } catch {
-        toast.error("Failed to update keeper round")
+      } catch (error) {
+        toast.error(errorMessage(error, "Failed to update keeper round"))
       }
     },
     [currentKeepers, pool, draft.id, seasonId]
@@ -767,8 +769,8 @@ export function DraftBoardView({
       } else {
         toast.error("Failed to clear keepers")
       }
-    } catch {
-      toast.error("Failed to clear keepers")
+    } catch (error) {
+      toast.error(errorMessage(error, "Failed to clear keepers"))
     } finally {
       setIsClearingKeepers(false)
       setShowClearKeepersConfirm(false)
@@ -817,16 +819,16 @@ export function DraftBoardView({
         { method: "POST" }
       )
       if (res.ok) {
-        const data = await res.json()
+        const data = await readApiJson(res)
         toast.success(`Draft started! ${data.totalPicks} picks generated, ${data.keeperPicks} keepers pre-filled.`)
         setDraft((prev) => ({ ...prev, status: "live" }))
         router.refresh()
       } else {
-        const err = await res.json()
+        const err = await readApiJson(res)
         toast.error(err.error || "Failed to start draft")
       }
-    } catch {
-      toast.error("Failed to start draft")
+    } catch (error) {
+      toast.error(errorMessage(error, "Failed to start draft"))
     } finally {
       setIsStarting(false)
       setShowStartConfirm(false)
@@ -1358,8 +1360,8 @@ export function DraftBoardView({
                         } else {
                           toast.error("Failed to update keeper rounds")
                         }
-                      } catch {
-                        toast.error("Failed to update keeper rounds")
+                      } catch (error) {
+                        toast.error(errorMessage(error, "Failed to update keeper rounds"))
                       }
                     }}
                   />

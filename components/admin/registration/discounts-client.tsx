@@ -1,5 +1,7 @@
 "use client"
 
+import { fetchApi as fetch, readApiJson, errorMessage } from "@/lib/api-errors"
+
 import { Spinner } from "@/components/ui/spinner"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
@@ -159,7 +161,7 @@ export function DiscountsClient({ initial }: { initial: DiscountRow[] }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       })
-      const data = await res.json()
+      const data = await readApiJson(res)
       if (!res.ok) throw new Error(data.error || "Save failed")
 
       const saved: DiscountRow = {
@@ -181,7 +183,7 @@ export function DiscountsClient({ initial }: { initial: DiscountRow[] }) {
       toast.success(editing ? "Code updated" : "Code created")
       router.refresh()
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Save failed")
+      toast.error(errorMessage(err, "Save failed"))
     } finally {
       setBusy(false)
     }
@@ -194,14 +196,14 @@ export function DiscountsClient({ initial }: { initial: DiscountRow[] }) {
       const res = await fetch(`/api/bash/admin/registration/discounts/${pendingDelete.id}`, {
         method: "DELETE",
       })
-      const data = await res.json()
+      const data = await readApiJson(res)
       if (!res.ok) throw new Error(data.error || "Delete failed")
       setCodes((prev) => prev.filter((c) => c.id !== pendingDelete.id))
       setPendingDelete(null)
       toast.success("Code deleted")
       router.refresh()
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Delete failed")
+      toast.error(errorMessage(err, "Delete failed"))
     } finally {
       setBusy(false)
     }

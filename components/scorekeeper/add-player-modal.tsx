@@ -1,5 +1,7 @@
 "use client"
 
+import { fetchApi as fetch, readApiJson, errorMessage } from "@/lib/api-errors"
+
 import { Spinner } from "@/components/ui/spinner"
 import { useState, useEffect, useRef } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
@@ -40,6 +42,8 @@ export function AddPlayerModal({
 }: AddPlayerModalProps) {
   const [searchQuery, setSearchQuery] = useState("")
   const [searchResults, setSearchResults] = useState<SearchResult[]>([])
+  const [searchError, setSearchError] = useState("")
+  const [searchAttempt, setSearchAttempt] = useState(0)
   const [isSearching, setIsSearching] = useState(false)
   const [isAdding, setIsAdding] = useState(false)
   const [showCreateForm, setShowCreateForm] = useState(false)
@@ -66,28 +70,34 @@ export function AddPlayerModal({
   useEffect(() => {
     if (!searchQuery.trim() || searchQuery.length < 2) {
       setSearchResults([])
+      setIsSearching(false)
       return
     }
 
+    let cancelled = false
     const timer = setTimeout(async () => {
       setIsSearching(true)
+      setSearchError("")
       try {
         const headers: HeadersInit = {}
         if (pin) headers["x-pin"] = pin
         const res = await fetch(`/api/bash/scorekeeper/${gameId}/search-players?q=${encodeURIComponent(searchQuery)}`, { headers })
         if (res.ok) {
-          const data = await res.json()
-          setSearchResults(data.players || [])
+          const data = await readApiJson(res)
+          if (!cancelled) setSearchResults(data.players || [])
         }
-      } catch {
-        // Silently fail search
+      } catch (error) {
+        if (!cancelled) {
+          setSearchResults([])
+          setSearchError(errorMessage(error, "Could not search players. Please try again."))
+        }
       } finally {
-        setIsSearching(false)
+        if (!cancelled) setIsSearching(false)
       }
     }, 250)
 
-    return () => clearTimeout(timer)
-  }, [searchQuery, gameId, pin])
+    return () => { cancelled = true; clearTimeout(timer) }
+  }, [searchQuery, gameId, pin, searchAttempt])
 
   const handleAddExisting = async (player: SearchResult) => {
     setIsAdding(true)
@@ -100,10 +110,10 @@ export function AddPlayerModal({
         body: JSON.stringify({ name: player.name, teamSide, isSub }),
       })
       if (!res.ok) {
-        const data = await res.json()
+        const data = await readApiJson(res)
         throw new Error(data.error || "Failed to add player")
       }
-      const data = await res.json()
+      const data = await readApiJson(res)
       onPlayerAdded(data.player, data.isNew, !!data.isSub)
       toast.success(
         data.isSub
@@ -112,7 +122,7 @@ export function AddPlayerModal({
       )
       onOpenChange(false)
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Failed to add player")
+      toast.error(errorMessage(err, "Failed to add player"))
     } finally {
       setIsAdding(false)
     }
@@ -130,10 +140,10 @@ export function AddPlayerModal({
         body: JSON.stringify({ name: newPlayerName.trim(), teamSide, isSub }),
       })
       if (!res.ok) {
-        const data = await res.json()
+        const data = await readApiJson(res)
         throw new Error(data.error || "Failed to create player")
       }
-      const data = await res.json()
+      const data = await readApiJson(res)
       onPlayerAdded(data.player, data.isNew, !!data.isSub)
       toast.success(
         data.isNew
@@ -142,7 +152,7 @@ export function AddPlayerModal({
       )
       onOpenChange(false)
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Failed to create player")
+      toast.error(errorMessage(err, "Failed to create player"))
     } finally {
       setIsAdding(false)
     }
@@ -185,6 +195,9 @@ export function AddPlayerModal({
               onChange={(e) => {
                 setSearchQuery(e.target.value)
                 setShowCreateForm(false)
+                setSearchError("")
+                setSearchResults([])
+                setIsSearching(e.target.value.trim().length >= 2)
               }}
               className="pl-9 h-9 text-sm"
               disabled={isAdding}
@@ -198,6 +211,10 @@ export function AddPlayerModal({
                 <div className="flex items-center justify-center py-4 gap-2 text-sm text-muted-foreground">
                   <Spinner className="h-4 w-4" />
                   Searching…
+                </div>
+              ) : searchError ? (
+                <div role="alert" className="p-3 text-sm text-destructive">{searchError}
+                  <button type="button" className="ml-2 underline" onClick={() => setSearchAttempt((attempt) => attempt + 1)}>Try again</button>
                 </div>
               ) : searchResults.length > 0 ? (
                 <div className="divide-y max-h-[200px] overflow-y-auto">

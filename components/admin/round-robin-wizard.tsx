@@ -1,5 +1,7 @@
 "use client"
 
+import { fetchApi as fetch, readApiJson, errorMessage } from "@/lib/api-errors"
+
 import { Spinner } from "@/components/ui/spinner"
 import { useState, useMemo, useCallback, useEffect } from "react"
 import {
@@ -338,7 +340,7 @@ export function RoundRobinWizard({
       })
 
       if (!res.ok) {
-        const data = await res.json()
+        const data = await readApiJson(res)
         throw new Error(data.error || "Failed to generate schedule")
       }
 
@@ -347,7 +349,7 @@ export function RoundRobinWizard({
       handleReset()
       onOpenChange(false)
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "An error occurred")
+      toast.error(errorMessage(err, "An error occurred"))
     } finally {
       setIsSaving(false)
     }

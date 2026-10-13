@@ -1,11 +1,13 @@
 "use client"
 
+import { fetchApi as fetch, readApiJson } from "@/lib/api-errors"
+
 import { Suspense } from "react"
 import Link from "next/link"
 import useSWR from "swr"
 import { SeasonSelector } from "@/components/season-selector"
 
-const fetcher = (url: string) => fetch(url).then((r) => r.json())
+const fetcher = (url: string) => fetch(url).then((r) => readApiJson(r))
 
 export function SiteFooter() {
   const { data: draftStatus } = useSWR<{ status: string | null; seasonSlug?: string }>(

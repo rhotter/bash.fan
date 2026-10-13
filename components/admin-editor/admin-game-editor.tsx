@@ -1,5 +1,7 @@
 "use client"
 
+import { fetchApi as fetch, readApiJson, errorMessage } from "@/lib/api-errors"
+
 import { Spinner } from "@/components/ui/spinner"
 import { useState, useCallback, useRef } from "react"
 import { Button } from "@/components/ui/button"
@@ -89,7 +91,7 @@ export function AdminGameEditor({
           goalieShotsAgainst: state.goalieShotsAgainst,
         } : { expectedState: savedState.current, state: { ...state, updatedAt: Date.now() } }),
       })
-      const result = await response.json().catch(() => ({}))
+      const result = await readApiJson(response)
       // A runtime failure after validated state persistence can be retried
       // against that accepted snapshot without losing the user's corrections.
       if (result.stateSaved && result.state) {
@@ -102,7 +104,7 @@ export function AdminGameEditor({
       needsFinalization.current = false
       onSaved()
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unknown error")
+      setError(errorMessage(err, "Unknown error"))
     } finally {
       setSaving(false)
     }

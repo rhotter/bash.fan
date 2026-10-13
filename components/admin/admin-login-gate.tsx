@@ -1,5 +1,7 @@
 "use client"
 
+import { fetchApi as fetch, readApiJson, errorMessage } from "@/lib/api-errors"
+
 import { Spinner } from "@/components/ui/spinner"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
@@ -24,17 +26,18 @@ export function AdminLoginGate() {
       const res = await fetch("/api/bash/admin/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pin }),
+        body: JSON.stringify({ pin: pin.trim() }),
       })
 
       if (res.ok) {
         router.refresh()
       } else {
-        setError("Invalid PIN. Please try again.")
-        setPin("")
+        const data = await readApiJson(res)
+        setError(res.status === 401 ? "Invalid PIN. Please try again." : data.error)
+        if (res.status === 401) setPin("")
       }
-    } catch {
-      setError("Connection error. Please try again.")
+    } catch (error) {
+      setError(errorMessage(error, "Connection error. Please try again."))
     } finally {
       setLoading(false)
     }

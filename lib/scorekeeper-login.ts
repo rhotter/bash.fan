@@ -1,3 +1,4 @@
+import { fetchApi as fetch, readApiJson } from "@/lib/api-errors"
 /** Authenticate without autosaving: finished games reject live-state writes,
  * and a stale open tab must not overwrite newer scores merely to sign in. */
 export async function authenticateScorekeeper(gameId: string, status: string, pin: string): Promise<string> {
@@ -10,7 +11,7 @@ export async function authenticateScorekeeper(gameId: string, status: string, pi
       throw new Error("Network error — try again")
     }
     if (!response.ok) {
-      const body = await response.json().catch(() => null)
+      const body = await readApiJson(response).catch(() => null)
       throw new Error(response.status === 401 ? "Invalid PIN" :
         typeof body?.error === "string" ? body.error : fallback)
     }

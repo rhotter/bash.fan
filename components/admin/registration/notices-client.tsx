@@ -1,5 +1,7 @@
 "use client"
 
+import { fetchApi as fetch, readApiJson, errorMessage } from "@/lib/api-errors"
+
 import { Spinner } from "@/components/ui/spinner"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
@@ -113,7 +115,7 @@ export function NoticesClient({ initial }: { initial: NoticeRow[] }) {
           ackType: form.ackType,
         }),
       })
-      const data = await res.json()
+      const data = await readApiJson(res)
       if (!res.ok) throw new Error(data.error || "Save failed")
 
       const saved: NoticeRow = {
@@ -132,7 +134,7 @@ export function NoticesClient({ initial }: { initial: NoticeRow[] }) {
       toast.success(editing ? "Notice updated" : "Notice created")
       router.refresh()
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Save failed")
+      toast.error(errorMessage(err, "Save failed"))
     } finally {
       setBusy(false)
     }
@@ -145,14 +147,14 @@ export function NoticesClient({ initial }: { initial: NoticeRow[] }) {
       const res = await fetch(`/api/bash/admin/registration/notices/${pendingDelete.id}`, {
         method: "DELETE",
       })
-      const data = await res.json()
+      const data = await readApiJson(res)
       if (!res.ok) throw new Error(data.error || "Delete failed")
       setNotices((prev) => prev.filter((c) => c.id !== pendingDelete.id))
       setPendingDelete(null)
       toast.success("Notice deleted")
       router.refresh()
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Delete failed")
+      toast.error(errorMessage(err, "Delete failed"))
     } finally {
       setBusy(false)
     }
