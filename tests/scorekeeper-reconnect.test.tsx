@@ -83,6 +83,30 @@ describe("offline finalization after reload", () => {
     expect(JSON.parse(fetch.mock.calls[1][1].body).notes).toBe("Intentional edit")
   })
 
+  it("defers an expired clock transition until authentication, then persists the advanced period", async () => {
+    const state = { ...createInitialState(), period: 1, updatedAt: 1234, clockSeconds: 1, clockRunning: true, clockStartedAt: Date.now() }
+    const fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ok: true }) })
+    vi.stubGlobal("fetch", fetch)
+    await act(async () => root.render(<ScorekeeperApp gameId="g55" date="2026-07-18" time="10:00" status="live"
+      isPlayoff={false} homeSlug="home" awaySlug="away" homeTeam="Home" awayTeam="Away"
+      homeRoster={[]} awayRoster={[]} existingState={state} />))
+    await act(async () => { await vi.advanceTimersByTimeAsync(2500) })
+    expect(fetch).not.toHaveBeenCalled()
+    expect(localStorage.getItem("bash-live-g55")).toBeNull()
+    const input = container.querySelector<HTMLInputElement>('input[placeholder="Enter PIN"]')!
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, "test-pin")
+      input.dispatchEvent(new Event("input", { bubbles: true }))
+    })
+    await act(async () => input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })))
+    await act(async () => { await vi.advanceTimersByTimeAsync(600) })
+    expect(fetch.mock.calls.map(([url]) => url)).toEqual(["/api/bash/admin/validate-pin", "/api/bash/scorekeeper/g55/state"])
+    const saved = JSON.parse(fetch.mock.calls[1][1].body)
+    expect(saved.period).toBe(2)
+    expect(saved.clockRunning).toBe(false)
+    expect(JSON.parse(localStorage.getItem("bash-live-g55")!).period).toBe(2)
+  })
+
   it.each([false, true])("saves the current state before retrying finalization (newer local state: %s)", async (newerLocal) => {
     const state = { ...createInitialState(), period: 3, clockSeconds: 0, updatedAt: 1234,
       homeGoalieId: 1, awayGoalieId: 2, homeAttendance: [1], awayAttendance: [2], homeShots: [3, 3, 3], awayShots: [4, 4, 4] }

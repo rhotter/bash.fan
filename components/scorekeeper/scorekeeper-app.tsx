@@ -232,6 +232,9 @@ export function ScorekeeperApp({
   const scoresRef = useRef(scores)
   scoresRef.current = scores
   useEffect(() => {
+    // Reading an expired clock on the PIN screen must not edit game state.
+    // Resume automatic transitions only once the scoring session is active.
+    if (!authenticated || finalized || state.finalizationPending) return
     if (displayClock <= 0 && state.clockRunning && state.period >= 1) {
       if (state.period < 3) {
         // P1 → P2, P2 → P3: always advance
@@ -248,7 +251,7 @@ export function ScorekeeperApp({
       // Playoff OT with a lead → bottom bar handles finalize
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [displayClock])
+  }, [displayClock, authenticated, finalized, state.finalizationPending])
 
   // ─── Power Play State ──────────────────────────────────────────────────
   const activePenalties = useMemo(
