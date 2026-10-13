@@ -37,6 +37,7 @@ import { ShootoutPanel } from "@/components/scorekeeper/shared/shootout-panel"
 import { TimeoutButton } from "@/components/scorekeeper/shared/timeout-button"
 import { ScorekeeperSectionHeader as SectionHeader } from "@/components/scorekeeper/shared/section-header"
 import { AddPlayerModal } from "@/components/scorekeeper/add-player-modal"
+import { authenticateScorekeeper } from "@/lib/scorekeeper-login"
 import { GoalieShotAllocation } from "@/components/scorekeeper/shared/goalie-shot-allocation"
 import { SubBadge } from "@/components/scorekeeper/shared/sub-badge"
 
@@ -384,34 +385,14 @@ export function ScorekeeperApp({
     setPinError("")
     setStarting(true)
     try {
-      if (status !== "live" && status !== "final") {
-        const res = await fetch(`/api/bash/scorekeeper/${gameId}/start`, {
-          method: "POST",
-          headers: { "x-pin": pin },
-        })
-        if (!res.ok) {
-          const data = await res.json()
-          setPinError(data.error || "Invalid PIN")
-          setStarting(false)
-          return
-        }
-      } else {
-        const res = await fetch(`/api/bash/scorekeeper/${gameId}/state`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json", "x-pin": pin },
-          body: JSON.stringify(state),
-        })
-        if (!res.ok) {
-          setPinError("Invalid PIN")
-          setStarting(false)
-          return
-        }
-      }
+      const validatedPin = await authenticateScorekeeper(gameId, status, pin)
+      setPin(validatedPin)
       setAuthenticated(true)
-    } catch {
-      setPinError("Network error — try again")
+    } catch (error) {
+      setPinError(error instanceof Error ? error.message : "Could not sign in. Please try again.")
+    } finally {
+      setStarting(false)
     }
-    setStarting(false)
   }
 
   // ─── Clock Controls ─────────────────────────────────────────────────────
