@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { db, schema, rawSql } from "@/lib/db"
 import { sql } from "drizzle-orm"
-import { getCurrentSeason, getAllSeasons } from "@/lib/seasons"
+import { getCurrentSeason, getAllSeasons, compareSeasonsDesc } from "@/lib/seasons"
 import { playerSlug } from "@/lib/player-slug"
 import { computeGaa, DEFAULT_GAME_LENGTH_MIN } from "@/lib/game-rules"
 import type {
@@ -42,6 +42,7 @@ export async function GET(
   const seasonId = !isAllTime ? (seasonParam || currentSeasonId) : null
   const allSeasons = await getAllSeasons()
   const seasonMap = new Map(allSeasons.map(s => [s.id, s.name]))
+  const seasonOrder = sql`array_position(ARRAY[${sql.join(allSeasons.map((s) => sql`${s.id}`), sql`, `)}]::text[], ps.season_id) ASC NULLS LAST`
 
   try {
     // Look up player by slug (derived from name)
@@ -63,7 +64,7 @@ export async function GET(
         JOIN player_seasons ps ON p.id = ps.player_id
         JOIN teams t ON ps.team_slug = t.slug
         WHERE p.id = ${playerId}
-        ORDER BY ps.season_id DESC
+        ORDER BY ${seasonOrder}
         LIMIT 1
       `)
     } else {
@@ -73,7 +74,7 @@ export async function GET(
         JOIN player_seasons ps ON p.id = ps.player_id AND ps.season_id = ${seasonId}
         JOIN teams t ON ps.team_slug = t.slug
         WHERE p.id = ${playerId}
-        ORDER BY ps.season_id DESC
+        ORDER BY ${seasonOrder}
         LIMIT 1
       `)
       // Fall back to most recent season if not found in requested season
@@ -84,7 +85,7 @@ export async function GET(
           JOIN player_seasons ps ON p.id = ps.player_id
           JOIN teams t ON ps.team_slug = t.slug
           WHERE p.id = ${playerId}
-          ORDER BY ps.season_id DESC
+          ORDER BY ${seasonOrder}
           LIMIT 1
         `)
       }
@@ -443,7 +444,7 @@ export async function GET(
         teamName: r.team_name,
         teamSlug: r.team_slug,
         stats: buildSkaterStats(r),
-      }))
+      })).sort(compareSeasonsDesc)
     games = skaterGameRows.map((r) => {
       const isHome = player.team_slug ? r.home_team === player.team_slug : true
       const teamScore = isHome ? r.home_score : r.away_score
@@ -479,7 +480,7 @@ export async function GET(
         teamName: r.team_name,
         teamSlug: r.team_slug,
         stats: buildGoalieStats(r, r.game_length),
-      }))
+      })).sort(compareSeasonsDesc)
     goalieGames = goalieGameRows.map((r) => {
       const isHome = player.team_slug ? r.home_team === player.team_slug : true
       return {
@@ -509,7 +510,7 @@ export async function GET(
         teamName: r.team_name,
         teamSlug: r.team_slug,
         stats: buildSkaterStats(r),
-      }))
+      })).sort(compareSeasonsDesc)
     playoffGames = poSkaterGameRows.map((r) => {
       const isHome = player.team_slug ? r.home_team === player.team_slug : true
       const teamScore = isHome ? r.home_score : r.away_score
@@ -542,7 +543,7 @@ export async function GET(
         teamName: r.team_name,
         teamSlug: r.team_slug,
         stats: buildGoalieStats(r, r.game_length),
-      }))
+      })).sort(compareSeasonsDesc)
     playoffGoalieGames = poGoalieGameRows.map((r) => {
       const isHome = player.team_slug ? r.home_team === player.team_slug : true
       return {
@@ -564,14 +565,14 @@ export async function GET(
     championships = championshipRows.map((r) => ({
       seasonId: r.season_id,
       seasonName: seasonMap.get(r.season_id) ?? r.season_id,
-    }))
+    })).sort(compareSeasonsDesc)
 
     // Populate awards
     awards = awardRows.map((r) => ({
       awardType: r.award_type,
       seasonId: r.season_id,
       seasonName: seasonMap.get(r.season_id) ?? r.season_id,
-    }))
+    })).sort(compareSeasonsDesc)
 
     // Populate hall of fame
     if (hofRows.length > 0) {
