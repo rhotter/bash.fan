@@ -1,6 +1,9 @@
 "use client"
 
 import useSWR from "swr"
+import { useState } from "react"
+import { useRouter } from "next/navigation"
+import { PrefetchKind } from "next/dist/client/components/router-reducer/router-reducer-types"
 import { useIsMobile } from "@/components/ui/use-mobile"
 import {
   Command,
@@ -34,6 +37,11 @@ export function PlayerSearchDialog({ open, onOpenChange, onSelect }: {
   onSelect: (slug: string) => void
 }) {
   const isMobile = useIsMobile()
+  const router = useRouter()
+  const [selectedPlayer, setSelectedPlayer] = useState("")
+  const prefetchPlayer = (slug: string) => {
+    if (slug) router.prefetch(`/player/${slug}`, { kind: PrefetchKind.FULL })
+  }
   // Only fetch when opened
   const { data } = useSWR<{ players: PlayerSearchResult[] }>(
     open ? "/api/bash/players/search" : null,
@@ -43,7 +51,10 @@ export function PlayerSearchDialog({ open, onOpenChange, onSelect }: {
   const players = data?.players ?? []
 
   const commandContent = (
-    <Command className="rounded-lg" shouldFilter>
+    <Command className="rounded-lg" shouldFilter value={selectedPlayer} onValueChange={(slug) => {
+      setSelectedPlayer(slug)
+      prefetchPlayer(slug)
+    }}>
       <CommandInput placeholder="Search players..." />
       <CommandList className="max-h-[60vh]">
         <CommandEmpty>No players found.</CommandEmpty>
@@ -51,8 +62,12 @@ export function PlayerSearchDialog({ open, onOpenChange, onSelect }: {
           {players.map((p) => (
             <CommandItem
               key={p.slug}
-              value={p.name}
+              value={p.slug}
+              keywords={[p.name]}
               onSelect={() => onSelect(p.slug)}
+              onMouseEnter={() => prefetchPlayer(p.slug)}
+              onFocus={() => prefetchPlayer(p.slug)}
+              onTouchStart={() => prefetchPlayer(p.slug)}
               className="flex items-center justify-between gap-2 py-3"
             >
               <span className="font-medium text-sm">{p.name}</span>

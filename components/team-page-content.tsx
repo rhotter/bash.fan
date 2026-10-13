@@ -5,7 +5,6 @@ import { formatGameDate, formatGameDateNoYear, formatGameTime } from "@/lib/form
 import { cn } from "@/lib/utils"
 import { IntentLink as Link } from "@/components/intent-link"
 import { playerSlug } from "@/lib/player-slug"
-import { useRouter } from "next/navigation"
 import type { TeamDetail } from "@/app/api/bash/team/[slug]/route"
 import { useSort, SortableTh } from "@/components/stats-table"
 import { TeamLogo } from "@/components/team-logo"
@@ -198,30 +197,31 @@ export function TeamPageContent({ team }: { team: TeamDetail }) {
 }
 
 function GameRow({ game: g }: { game: TeamDetail["games"][number] }) {
-  const router = useRouter()
   const isFinal = g.status === "final"
 
   return (
     <div
-      className="flex items-center gap-1.5 sm:gap-3 px-2 sm:px-3 py-1.5 rounded-lg hover:bg-muted/50 cursor-pointer"
-      onClick={() => router.push(`/game/${g.id}`)}
+      className="relative flex items-center gap-1.5 sm:gap-3 px-2 sm:px-3 py-1.5 rounded-lg hover:bg-muted/50"
     >
       <Link
         href={`/game/${g.id}`}
-        className="text-[10px] text-muted-foreground/60 hover:text-primary font-medium shrink-0 w-[80px] sm:w-32 whitespace-nowrap transition-colors"
-        onClick={(e) => e.stopPropagation()}
+        prefetch={true}
+        className="absolute inset-0 rounded-lg focus-visible:outline-2 focus-visible:outline-primary"
+        aria-label={`View ${formatGameDate(g.date)} game against ${g.opponent}`}
       >
+        <span className="sr-only">View game</span>
+      </Link>
+      <span className="text-[10px] text-muted-foreground/60 font-medium shrink-0 w-[80px] sm:w-32 whitespace-nowrap">
         <span className="sm:hidden">{formatGameDateNoYear(g.date)}</span>
         <span className="hidden sm:inline">{formatGameDate(g.date)}</span>
-      </Link>
+      </span>
       <span className="text-[10px] text-muted-foreground/40 w-3 sm:w-4 shrink-0 text-center">
         {g.isHome ? "vs" : "@"}
       </span>
       <span className="flex-1 min-w-0 truncate">
         <Link
           href={`/team/${g.opponentSlug}`}
-          className="text-xs font-medium text-foreground hover:text-primary transition-colors"
-          onClick={(e) => e.stopPropagation()}
+          className="relative z-10 text-xs font-medium text-foreground hover:text-primary transition-colors"
         >
           {g.opponent}
         </Link>
