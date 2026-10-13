@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { act } from "react"
+import type { ReactNode } from "react"
 import { createRoot } from "react-dom/client"
 import { describe, expect, it, vi } from "vitest"
 import { StatsTab } from "@/components/stats-tab"
@@ -11,6 +12,10 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace: vi.fn(), prefetch: vi.fn() }),
 }))
 vi.mock("@/components/team-logo", () => ({ TeamLogo: () => null }))
+vi.mock("next/link", () => ({
+  default: ({ href, prefetch, children }: { href: string; prefetch?: boolean; children: ReactNode }) =>
+    <a href={href} data-prefetch={String(prefetch)}>{children}</a>,
+}))
 const skaters: SkaterStat[] = Array.from({ length: 30 }, (_, i) => ({
   id: i, name: i === 29 ? "Search Target" : `Player ${i}`, team: "Seals", teamSlug: "seals",
   gp: 20, points: 30 - i, goals: i, assists: 0, ptsPg: "1.00", gwg: 0, ppg: 0,
@@ -36,6 +41,9 @@ describe("Stats search rankings", () => {
       try {
         await act(async () => root.render(<StatsTab />))
         expect(container.querySelectorAll("tbody tr")).toHaveLength(25)
+        const playerLinks = container.querySelectorAll('a[href^="/player/"]')
+        expect(playerLinks).toHaveLength(25)
+        for (const link of playerLinks) expect(link.getAttribute("data-prefetch")).toBe("true")
         expect(container.textContent).not.toContain("Search Target")
         const input = container.querySelector<HTMLInputElement>('input[placeholder="Search players..."]')!
         const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!

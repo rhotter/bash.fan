@@ -338,7 +338,7 @@ export function StatsTab({ initialData }: { initialData?: PlayerStatsData }) {
                       <div className="flex items-center gap-2 pr-4">
                         <span className="text-muted-foreground/40 tabular-nums text-[10px] shrink-0 w-3 text-right">{p.rank}</span>
                         <TeamLogo slug={p.teamSlug} name={p.team} size={18} className="shrink-0" linked />
-                        <Link href={`/player/${playerSlug(p.name)}`} className="text-xs font-semibold leading-tight text-foreground hover:text-primary transition-colors truncate">{p.name}</Link>
+                        <Link href={`/player/${playerSlug(p.name)}`} prefetch={true} className="text-xs font-semibold leading-tight text-foreground hover:text-primary transition-colors truncate">{p.name}</Link>
                       </div>
                     </td>
                     <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{p.gp}</td>
@@ -401,7 +401,7 @@ export function StatsTab({ initialData }: { initialData?: PlayerStatsData }) {
                       <div className="flex items-center gap-2 pr-4">
                         <span className="text-muted-foreground/40 tabular-nums text-[10px] shrink-0 w-3 text-right">{p.rank}</span>
                         <TeamLogo slug={p.teamSlug} name={p.team} size={18} className="shrink-0" linked />
-                        <Link href={`/player/${playerSlug(p.name)}`} className="text-xs font-semibold leading-tight text-foreground hover:text-primary transition-colors truncate">{p.name}</Link>
+                        <Link href={`/player/${playerSlug(p.name)}`} prefetch={true} className="text-xs font-semibold leading-tight text-foreground hover:text-primary transition-colors truncate">{p.name}</Link>
                       </div>
                     </td>
                     <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{p.gp}</td>
