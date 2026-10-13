@@ -33,6 +33,26 @@ afterEach(async () => {
 })
 
 describe("offline finalization after reload", () => {
+  it("opens a completed game with a valid PIN without attempting a live-state save", async () => {
+    const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({ ok: true })))
+    vi.stubGlobal("fetch", fetch)
+    await act(async () => root.render(<ScorekeeperApp gameId="g55" date="2026-07-18" time="10:00" status="final"
+      isPlayoff={false} homeSlug="home" awaySlug="away" homeTeam="Home" awayTeam="Away"
+      homeRoster={[]} awayRoster={[]} existingState={createInitialState()} />))
+    const input = container.querySelector<HTMLInputElement>('input[placeholder="Enter PIN"]')!
+    const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!
+    await act(async () => {
+      setValue.call(input, "test-pin")
+      input.dispatchEvent(new Event("input", { bubbles: true }))
+    })
+    await act(async () => input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })))
+    await act(async () => { await vi.advanceTimersByTimeAsync(2500) })
+    expect(fetch.mock.calls.map(([url]) => url)).toEqual(["/api/bash/admin/validate-pin"])
+    expect(container.querySelector('input[placeholder="Enter PIN"]')).toBeNull()
+    expect(container.textContent).toContain("View game page")
+    expect(container.textContent).not.toContain("Invalid PIN")
+  })
+
   it.each([false, true])("saves the current state before retrying finalization (newer local state: %s)", async (newerLocal) => {
     const state = { ...createInitialState(), period: 3, clockSeconds: 0, updatedAt: 1234,
       homeGoalieId: 1, awayGoalieId: 2, homeAttendance: [1], awayAttendance: [2], homeShots: [3, 3, 3], awayShots: [4, 4, 4] }
