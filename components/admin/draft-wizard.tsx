@@ -114,6 +114,7 @@ export function DraftWizard({ open, onOpenChange, seasonId, seasonType, teams, r
   const [error, setError] = useState<string | null>(null)
   const [rosterLoadError, setRosterLoadError] = useState<string | null>(null)
   const [rosterLoaded, setRosterLoaded] = useState(false)
+  const rosterRequest = useRef(0)
   const [csvFile, setCsvFile] = useState<File | null>(null)
 
   // Suggested rounds: ceil(rosterCount / teamCount), minimum 1
@@ -161,23 +162,29 @@ export function DraftWizard({ open, onOpenChange, seasonId, seasonType, teams, r
 
   // Re-initialize form when the modal opens or existingDraft changes
   useEffect(() => {
+    rosterRequest.current += 1
     if (open) {
+      setRosterLoaded(false)
+      setRosterLoadError(null)
+      setRosterLoading(false)
       setForm(defaultForm())
       setStep(0)
       setError(null)
       setRosterPlayers([])
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, existingDraft?.id])
+  }, [open, existingDraft?.id, seasonId])
 
   // Fetch roster players when entering the Teams & Captains step
   const teamsCaptainsStepIndex = STEPS.indexOf("Teams & Captains")
   useEffect(() => {
-    if (step === teamsCaptainsStepIndex && rosterPlayers.length === 0 && !rosterLoading && !rosterLoadError && !rosterLoaded) {
+    if (open && step === teamsCaptainsStepIndex && rosterPlayers.length === 0 && !rosterLoading && !rosterLoadError && !rosterLoaded) {
+      const requestId = ++rosterRequest.current
       setRosterLoading(true)
       fetch(`/api/bash/admin/seasons/${seasonId}/draft/roster-players`)
         .then(res => res.ok ? readApiJson(res) : { players: [] })
         .then(data => {
+          if (requestId !== rosterRequest.current) return
           const players = data.players || []
           setRosterPlayers(players)
           
@@ -203,15 +210,21 @@ export function DraftWizard({ open, onOpenChange, seasonId, seasonType, teams, r
           }
         })
         .catch((error) => {
+          if (requestId !== rosterRequest.current) return
           const message = errorMessage(error, "Could not load the roster. Please try again.")
           setRosterLoadError(message)
           setError(message)
         })
-        .finally(() => { setRosterLoading(false); setRosterLoaded(true) })
+        .finally(() => {
+          if (requestId !== rosterRequest.current) return
+          setRosterLoading(false)
+          setRosterLoaded(true)
+        })
     }
-  }, [step, teamsCaptainsStepIndex, seasonId, rosterPlayers.length, rosterLoading, rosterLoadError, rosterLoaded, form.captains.length])
+  }, [open, step, teamsCaptainsStepIndex, seasonId, rosterPlayers.length, rosterLoading, rosterLoadError, rosterLoaded, form.captains.length])
 
   const canNext = () => {
+    if (step === teamsCaptainsStepIndex) return rosterLoaded && !rosterLoading && !rosterLoadError
     if (step === 0) return !!form.name && form.timerSeconds > 0
     return true
   }
@@ -246,6 +259,10 @@ export function DraftWizard({ open, onOpenChange, seasonId, seasonType, teams, r
   }
 
   async function handleSubmit() {
+    if (!rosterLoaded || rosterLoading || rosterLoadError) {
+      setError("Load the roster in Teams & Captains before saving, so existing captains are preserved.")
+      return
+    }
     setCreating(true)
     setError(null)
     try {

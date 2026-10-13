@@ -18,7 +18,7 @@ export default function RegisterPage() {
   // ─── Registration Closed State ──────────────────────────────────────────────
   if (isClosed) {
     return (
-      <div className="flex min-h-screen flex-col bg-background">
+      <div className="flex flex-1 flex-col bg-background">
         <div className="flex-1 flex items-center justify-center">
           <div className="max-w-lg mx-auto px-4 py-16 text-center space-y-8">
             <div className="space-y-4">
@@ -64,7 +64,7 @@ export default function RegisterPage() {
 
   // ─── Registration Open State ────────────────────────────────────────────────
   return (
-    <div className="flex min-h-screen flex-col bg-background">
+    <div className="flex flex-1 flex-col bg-background">
       <div className="flex-1">
         <div className="max-w-3xl mx-auto px-4 py-12 sm:py-16 text-center space-y-12">
 

@@ -137,6 +137,9 @@ export function ScorekeeperApp({
 
   const latestState = useRef(state)
   latestState.current = state
+  const lastScheduledState = useRef(state)
+  const hasEditedState = useRef(false)
+  const restoredState = useRef<LiveGameState | null>(null)
 
   // ─── Sync ────────────────────────────────────────────────────────────────
   const [syncStatus, setSyncStatus] = useState<SyncStatus>("synced")
@@ -229,6 +232,9 @@ export function ScorekeeperApp({
   const scoresRef = useRef(scores)
   scoresRef.current = scores
   useEffect(() => {
+    // Reading an expired clock on the PIN screen must not edit game state.
+    // Resume automatic transitions only once the scoring session is active.
+    if (!authenticated || finalized || state.finalizationPending) return
     if (displayClock <= 0 && state.clockRunning && state.period >= 1) {
       if (state.period < 3) {
         // P1 → P2, P2 → P3: always advance
@@ -245,7 +251,7 @@ export function ScorekeeperApp({
       // Playoff OT with a lead → bottom bar handles finalize
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [displayClock])
+  }, [displayClock, authenticated, finalized, state.finalizationPending])
 
   // ─── Power Play State ──────────────────────────────────────────────────
   const activePenalties = useMemo(
@@ -261,6 +267,8 @@ export function ScorekeeperApp({
   useEffect(() => {
     const saved = loadFromLocalStorage(gameId)
     if (saved && saved.updatedAt > state.updatedAt) {
+      restoredState.current = saved
+      lastScheduledState.current = saved
       setState(saved)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -280,7 +288,18 @@ export function ScorekeeperApp({
 
   // ─── Save to localStorage on change ──────────────────────────────────────
   useEffect(() => {
-    if (authenticated && !finalized) {
+    if (restoredState.current) {
+      if (state !== restoredState.current) return
+      restoredState.current = null
+      lastScheduledState.current = state
+    }
+    if (!authenticated || finalized) {
+      lastScheduledState.current = state
+      return
+    }
+    if (state !== lastScheduledState.current) {
+      lastScheduledState.current = state
+      hasEditedState.current = true
       setLocalSaveFailed(!saveToLocalStorage(gameId, state))
       if (!state.finalizationPending) syncRef.current?.scheduleSync(state)
     }
@@ -289,10 +308,13 @@ export function ScorekeeperApp({
   // ─── Page unload beacon ──────────────────────────────────────────────────
   useEffect(() => {
     if (!authenticated) return
-    const handler = () => syncRef.current?.sendBeacon(state)
+    const handler = () => {
+      if (hasEditedState.current && !finalized && !state.finalizationPending &&
+        syncRef.current?.getLastSyncedUpdatedAt() !== state.updatedAt) syncRef.current?.sendBeacon(state)
+    }
     window.addEventListener("beforeunload", handler)
     return () => window.removeEventListener("beforeunload", handler)
-  }, [state, authenticated])
+  }, [state, authenticated, finalized])
 
   // ─── Check for pending finalize on mount ───────────────────────────────
   useEffect(() => {
@@ -318,6 +340,9 @@ export function ScorekeeperApp({
       try {
         const retryingSavedState = latestState.current.finalizationPending?.phase === "failed"
         if (!retryingSavedState && syncRef.current?.canAutoRetry() === false) return
+        // The persisted finalization intent explicitly authorizes saving the
+        // restored snapshot; merely opening or signing in does not.
+        if (!retryingSavedState) syncRef.current?.scheduleSync(latestState.current)
         const synced = retryingSavedState || await syncRef.current?.flush()
         if (!synced) return
         const syncedAt = retryingSavedState ? latestState.current.updatedAt : syncRef.current?.getLastSyncedUpdatedAt()
@@ -394,6 +419,8 @@ export function ScorekeeperApp({
     setStarting(true)
     try {
       const validatedPin = await authenticateScorekeeper(gameId, status, pin)
+      lastScheduledState.current = latestState.current
+      hasEditedState.current = false
       setPin(validatedPin)
       setAuthenticated(true)
     } catch (error) {
@@ -889,6 +916,7 @@ export function ScorekeeperApp({
     setFinalizeError(null)
     try {
       if (state.finalizationPending?.phase !== "failed") {
+        hasEditedState.current = true
         syncRef.current?.scheduleSync(state)
         const synced = await syncRef.current?.flush()
         if (!synced) throw new Error(syncRef.current?.getLastError() ?? "The latest changes have not synced yet. Try again once saving finishes.")

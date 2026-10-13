@@ -2,12 +2,13 @@ import { createRequire } from "node:module"
 import { createHash } from "node:crypto"
 import { readdir, readFile, mkdir, writeFile } from "node:fs/promises"
 import path from "node:path"
+import { fileURLToPath } from "node:url"
 import console from "node:console"
 
 // Use the same Sharp dependency as Next's image optimizer.
 const require = createRequire(import.meta.url)
 const sharp = createRequire(require.resolve("next/package.json"))("sharp")
-const root = path.resolve(import.meta.dirname, "..")
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
 const output = path.join(root, "public/optimized-logos")
 await mkdir(output, { recursive: true })
 const sources = ["/logo.png", ...(await readdir(path.join(root, "public/team-logos")))
