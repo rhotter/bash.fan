@@ -64,9 +64,8 @@ export function StatsTab({ initialData }: { initialData?: PlayerStatsData }) {
 
   const nameLower = nameFilter.toLowerCase()
 
-  const filteredSkaters = useMemo(() => {
+  const rankedSkaters = useMemo(() => {
     let list = (season === "all" || teamFilter === "all") ? skaters : skaters.filter((p) => p.teamSlug === teamFilter)
-    if (nameLower) list = list.filter((p) => p.name.toLowerCase().includes(nameLower))
     if (season === "all" && tab === "skaters") {
       const minGp = typeof minGames === "number" ? minGames : 0
       list = list.filter((p) => p.gp >= minGp)
@@ -75,12 +74,11 @@ export function StatsTab({ initialData }: { initialData?: PlayerStatsData }) {
       const av = (a[sortKey] ?? 0) as number
       const bv = (b[sortKey] ?? 0) as number
       return sortDir === "desc" ? bv - av : av - bv
-    })
-  }, [skaters, teamFilter, nameLower, sortKey, sortDir, season, tab, minGames])
+    }).map((player, index) => ({ ...player, rank: index + 1 }))
+  }, [skaters, teamFilter, sortKey, sortDir, season, tab, minGames])
  
-  const filteredGoalies = useMemo(() => {
+  const rankedGoalies = useMemo(() => {
     let list = (season === "all" || teamFilter === "all") ? goalies : goalies.filter((p) => p.teamSlug === teamFilter)
-    if (nameLower) list = list.filter((p) => p.name.toLowerCase().includes(nameLower))
     if (season === "all" && tab === "goalies") {
       const minGp = typeof minGames === "number" ? minGames : 0
       list = list.filter((p) => p.gp >= minGp)
@@ -89,8 +87,12 @@ export function StatsTab({ initialData }: { initialData?: PlayerStatsData }) {
       const av = (a[goalieSortKey] ?? 0) as number
       const bv = (b[goalieSortKey] ?? 0) as number
       return goalieSortDir === "desc" ? bv - av : av - bv
-    })
-  }, [goalies, teamFilter, nameLower, goalieSortKey, goalieSortDir, season, tab, minGames])
+    }).map((player, index) => ({ ...player, rank: index + 1 }))
+  }, [goalies, teamFilter, goalieSortKey, goalieSortDir, season, tab, minGames])
+
+  // Search hides rows without changing their position in the full ranking.
+  const filteredSkaters = useMemo(() => rankedSkaters.filter((player) => player.name.toLowerCase().includes(nameLower)), [rankedSkaters, nameLower])
+  const filteredGoalies = useMemo(() => rankedGoalies.filter((player) => player.name.toLowerCase().includes(nameLower)), [rankedGoalies, nameLower])
 
   const skaterTotalPages = Math.max(1, Math.ceil(filteredSkaters.length / PER_PAGE))
   const goalieTotalPages = Math.max(1, Math.ceil(filteredGoalies.length / PER_PAGE))
@@ -334,7 +336,7 @@ export function StatsTab({ initialData }: { initialData?: PlayerStatsData }) {
                   >
                     <td className="py-2 sticky left-0 z-10 bg-background group-hover:bg-muted/50 pl-4 sm:pl-2 w-[170px] sm:w-[100px] after:absolute after:right-0 after:top-0 after:bottom-0 after:w-4 after:bg-gradient-to-r after:from-background/80 after:to-transparent after:pointer-events-none group-hover:after:from-muted/50">
                       <div className="flex items-center gap-2 pr-4">
-                        <span className="text-muted-foreground/40 tabular-nums text-[10px] shrink-0 w-3 text-right">{(skaterPage - 1) * PER_PAGE + i + 1}</span>
+                        <span className="text-muted-foreground/40 tabular-nums text-[10px] shrink-0 w-3 text-right">{p.rank}</span>
                         <TeamLogo slug={p.teamSlug} name={p.team} size={18} className="shrink-0" linked />
                         <Link href={`/player/${playerSlug(p.name)}`} className="text-xs font-semibold leading-tight text-foreground hover:text-primary transition-colors truncate">{p.name}</Link>
                       </div>
@@ -397,7 +399,7 @@ export function StatsTab({ initialData }: { initialData?: PlayerStatsData }) {
                   >
                     <td className="py-2 sticky left-0 z-10 bg-background group-hover:bg-muted/50 pl-4 sm:pl-2 w-[170px] sm:w-[100px] after:absolute after:right-0 after:top-0 after:bottom-0 after:w-4 after:bg-gradient-to-r after:from-background/80 after:to-transparent after:pointer-events-none group-hover:after:from-muted/50">
                       <div className="flex items-center gap-2 pr-4">
-                        <span className="text-muted-foreground/40 tabular-nums text-[10px] shrink-0 w-3 text-right">{(goaliePage - 1) * PER_PAGE + i + 1}</span>
+                        <span className="text-muted-foreground/40 tabular-nums text-[10px] shrink-0 w-3 text-right">{p.rank}</span>
                         <TeamLogo slug={p.teamSlug} name={p.team} size={18} className="shrink-0" linked />
                         <Link href={`/player/${playerSlug(p.name)}`} className="text-xs font-semibold leading-tight text-foreground hover:text-primary transition-colors truncate">{p.name}</Link>
                       </div>
