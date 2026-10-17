@@ -200,8 +200,7 @@ To prevent row fan-out if a legacy season has multiple `player_seasons` rows for
      WITH team_game_stats AS (
        SELECT pgs.*
        FROM player_game_stats pgs
-       JOIN games g ON pgs.game_id = g.id
-         AND NOT g.is_forfeit
+       JOIN games g ON pgs.game_id = g.id AND NOT g.is_forfeit
          AND g.season_id = ${seasonId}
          AND g.game_type IN ('regular', 'playoff', 'championship')
        WHERE NOT pgs.is_sub
@@ -234,7 +233,7 @@ To prevent row fan-out if a legacy season has multiple `player_seasons` rows for
      GROUP BY p.id, p.name
      ORDER BY points DESC, goals DESC, p.name ASC
      ```
-   - Apply the same CTE pattern (`team_goalie_stats` + `eligible_goalies` where `ps.is_goalie = true`) to the goalies query. This ensures newly acquired traded players appear immediately on their new team's page with `0 GP` while keeping prior-team game stats on their previous team's page.
+   - Apply the same CTE pattern (`team_goalie_stats` + `eligible_goalies` where `ps.is_goalie = true`, keeping `JOIN games g ON ggs.game_id = g.id AND NOT g.is_forfeit` on a single line) to the goalies query, using `COUNT(tgs.game_id)::int as gp` and wrapping `SUM(tgs.goals_against)`, `SUM(tgs.saves)`, `SUM(tgs.shots_against)`, `SUM(tgs.seconds)`, `SUM(tgs.shutouts)`, and `SUM(tgs.goalie_assists)` in `COALESCE(..., 0)::int`. This ensures newly acquired traded skaters and goalies appear immediately on their new team's page with `0 GP` and non-null `0` totals while keeping prior-team game stats on their previous team's page.
 3. **Player Detail Page (`lib/fetch-player-detail.ts` & `app/api/bash/player/[slug]/route.ts`):**
    - `fetchPlayerQueryGroup` (`lib/fetch-player-query-group.ts`) materializes `SELECT * FROM player_game_stats` and `SELECT * FROM goalie_game_stats`, automatically exposing `team_slug` on `player_stats` and `goalie_stats`.
    - **Per-Season Skater & Goalie Queries (Regular & Playoff):** Resolve each game's effective team via `COALESCE(pgs.team_slug, (SELECT ps.team_slug FROM player_seasons ps WHERE ps.player_id = pgs.player_id AND ps.season_id = g.season_id LIMIT 1))` (and `ggs.team_slug`), join `teams t` on that effective `team_slug`, and `GROUP BY` `g.season_id`, the effective `team_slug`, and `t.name`.
@@ -246,7 +245,14 @@ To prevent row fan-out if a legacy season has multiple `player_seasons` rows for
    - In `POST`, explicitly check if the player already has a `player_seasons` row in `seasonId` (across any `teamSlug`) and return HTTP `400` (`"Player is already assigned to a team this season"`) so a player cannot be added to two teams simultaneously.
 2. **Season Trades Endpoint (`app/api/bash/admin/seasons/[id]/trades/route.ts`):**
    - `GET`: Returns all trades and items for the season ordered by `traded_at DESC, id DESC`.
-   - `POST`: Verifies `season.status === "draft" || season.status === "active"` (returning `404` if missing or `400` if `"completed"`), validates payload via `validateTradeInput` (`lib/trade-helpers.ts`, supporting draft pick rounds `1..20`), then sequentially inserts `season_trades`, inserts `season_trade_items`, and updates `player_seasons.team_slug` for each traded player.
+   - `POST`: Verifies `season.status === "draft" || season.status === "active"` (returning `404` if missing or `400` if `"completed"`), validates payload via `validateTradeInput` (`lib/trade-helpers.ts`, supporting draft pick rounds `1..20`), and then executes the entire trade atomically in a **single-statement data-modifying CTE** via `rawSql` (following the pattern in `lib/final-game-shots.ts` since `drizzle-orm/neon-http` does not support multi-statement `db.transaction()`):
+     - `locked_season`: Locks and verifies `seasons.id = ${seasonId}` has `status IN ('draft', 'active')`.
+     - `locked_rosters`: Locks (`FOR UPDATE`) the `player_seasons` rows in `season_id` for all traded players and checks that every player in `teamAPlayerIds` currently has `team_slug = ${teamASlug}` and every player in `teamBPlayerIds` currently has `team_slug = ${teamBSlug}`.
+     - `guard`: Requires `locked_season` to exist, verifies both `teamASlug` and `teamBSlug` belong to `season_teams` for `seasonId` (`(SELECT count(*) FROM season_teams WHERE season_id = ${seasonId} AND team_slug IN (${teamASlug}, ${teamBSlug})) = 2`), and requires the count of matched `locked_rosters` rows to equal `teamAPlayerIds.length + teamBPlayerIds.length`. If any precondition fails, `guard` returns 0 rows and the statement performs 0 writes.
+     - `updated_rosters`: Updates `player_seasons.team_slug` (`teamASlug → teamBSlug` and `teamBSlug → teamASlug`) gated on `FROM guard` (preventing partial player swaps).
+     - `inserted_trade`: Inserts the `season_trades` header row gated on `FROM guard WHERE (SELECT count(*) FROM updated_rosters) = ${expectedPlayerCount} RETURNING id, traded_at`.
+     - `inserted_items`: Inserts all `season_trade_items` rows (`player` and `draft_pick` items) from `jsonb_to_recordset` joined against `inserted_trade`.
+     - Because Postgres executes a single SQL statement with data-modifying CTEs inside an implicit server transaction, **either the trade record, all trade items, and all player roster updates succeed together, or the entire statement rolls back with zero partial state**.
 3. **Admin Roster Tab UI (`components/admin/season-roster-tab.tsx`):**
    - Unlock row editing and **"Add Player"** when `seasonStatus === "draft" || seasonStatus === "active"`.
    - Add a **"Record Trade"** button and modal (Team A & Team B selectors, player checklists for each team, optional future draft pick swap rows with direction, round `1–20`, original owner, target season, and optional notes).
@@ -256,9 +262,14 @@ To prevent row fan-out if a legacy season has multiple `player_seasons` rows for
 
 ## 6. Phased Implementation Plan
 
-### Phase 1: PRD & Drizzle Schema Definitions (Current PR)
+### Phase 1: PRD, Drizzle Schema & Idempotent DB Migration Script (Current PR)
 - [x] **Step 1.1:** Draft comprehensive PRD (`docs/prd-traded-player-support.md`) with technical design and phased implementation plan.
 - [x] **Step 1.2:** Update `lib/db/schema.ts` to add `teamSlug` to `playerGameStats` and `goalieGameStats` and define `seasonTrades` and `seasonTradeItems` tables + exported types.
+- [x] **Step 1.3:** Create `scripts/deploy-trades-schema.ts` to idempotently apply `ALTER TABLE` / `CREATE TABLE` DDL (`ADD COLUMN IF NOT EXISTS team_slug`, `CREATE TABLE IF NOT EXISTS season_trades`, `CREATE TABLE IF NOT EXISTS season_trade_items`, and indexes) and backfill `player_game_stats.team_slug` and `goalie_game_stats.team_slug` across all existing games using priority order (every rule guarantees `team_slug IN (games.home_team, games.away_team)` and is unambiguous):
+  1. `game_live.state->'homeAttendance'` / `'awayAttendance'` matching `games.home_team` / `games.away_team` (with `COALESCE(..., false)` null-safe XOR).
+  2. `adhoc_game_rosters.team_side` (`'home' → games.home_team`, `'away' → games.away_team`).
+  3. `player_seasons.team_slug` where `player_seasons.season_id = games.season_id`, `games.game_type NOT IN ('exhibition', 'tryout')`, `player_seasons.team_slug IN (games.home_team, games.away_team)` (when unambiguous), and the player has no trade rows in `season_trade_items` for that season.
+- [ ] **Step 1.4 (Pre-Merge Deployment Gate):** Execute `npx tsx scripts/deploy-trades-schema.ts` against the target database(s) **before** merging PR #52 to `main`. Because Drizzle's `db.insert(schema.playerGameStats)` and `db.insert(schema.goalieGameStats)` enumerate all schema columns in generated `INSERT` statements, applying the additive `team_slug` columns and backfill first guarantees zero downtime or score-finalization failures when `lib/db/schema.ts` deploys.
 
 ### Phase 2: Stat Write Paths & Read Queries (Follow-up PR)
 - [ ] **Step 2.1:** Add `lib/trade-helpers.ts` (`validateTradeInput`) and unit tests in `tests/trade-helpers.test.ts`.
@@ -266,14 +277,10 @@ To prevent row fan-out if a legacy season has multiple `player_seasons` rows for
 - [ ] **Step 2.3:** Update stat read queries (`lib/fetch-game-detail.ts`, `lib/fetch-team-detail.ts`, `lib/fetch-player-detail.ts`, `app/api/bash/player/[slug]/route.ts`, `app/game/[id]/page.tsx`, `app/admin/games/[id]/edit/page.tsx`) and add unit tests in `tests/traded-player-stats.test.ts`.
 
 ### Phase 3: Admin Trade API & Roster UI
-- [ ] **Step 3.1:** Unlock `active` season mutations in `app/api/bash/admin/seasons/[id]/roster/route.ts`, implement `GET`/`POST /api/bash/admin/seasons/[id]/trades`, and add unit tests in `tests/admin-season-trades.test.ts`.
+- [ ] **Step 3.1:** Unlock `active` season mutations in `app/api/bash/admin/seasons/[id]/roster/route.ts`, implement `GET`/`POST /api/bash/admin/seasons/[id]/trades` (using the atomic single-statement data-modifying CTE), and add unit tests in `tests/admin-season-trades.test.ts`.
 - [ ] **Step 3.2:** Update `components/admin/season-roster-tab.tsx` with active-season editing, the **"Record Trade"** modal, and the **"Season Trades"** log, plus UI tests in `tests/season-roster-trade-ui.test.tsx`.
 
-### Phase 4: Database Migration, Historical Backfill & Week 1 Trades Execution
-- [ ] **Step 4.1:** Create `scripts/deploy-trades-schema.ts` to apply `ALTER TABLE` / `CREATE TABLE` DDL and backfill `player_game_stats.team_slug` and `goalie_game_stats.team_slug` across all existing games using priority order (every rule guarantees `team_slug IN (games.home_team, games.away_team)`):
-  1. `game_live.state->'homeAttendance'` / `'awayAttendance'` matching `games.home_team` / `games.away_team`.
-  2. `adhoc_game_rosters.team_side` (`'home' → games.home_team`, `'away' → games.away_team`).
-  3. `player_seasons.team_slug` where `player_seasons.season_id = games.season_id` and `player_seasons.team_slug IN (games.home_team, games.away_team)` (when unambiguous).
-- [ ] **Step 4.2:** Update `scripts/export-prod-db.ts` to include `team_slug` when copying `player_game_stats` and `goalie_game_stats`, and to copy `season_trades` and `season_trade_items`.
-- [ ] **Step 4.3:** Run `scripts/deploy-trades-schema.ts` to backfill `team_slug` **before** mutating any Week 1 rosters (ensuring Darrell Draper's Week 1 game `g130` is permanently stamped with `team_slug = 'loons'`).
-- [ ] **Step 4.4:** Record Week 1 Trade #1 (Eddie Parsons ↔ Logan Truman) and Trade #2 (Jonny Callan & Lee Jacobs ↔ Steph Tryphonas & Darrell Draper) via the Admin UI or `scripts/apply-fall-2026-week1-trades.ts`.
+### Phase 4: DB Export Sync & Week 1 Trades Execution
+- [ ] **Step 4.1:** Update `scripts/export-prod-db.ts` to include `team_slug` when copying `player_game_stats` and `goalie_game_stats`, and to copy `season_trades` and `season_trade_items`.
+- [ ] **Step 4.2:** Re-run `npx tsx scripts/deploy-trades-schema.ts` after Phase 2 write paths are deployed (and before recording any Week 1 roster trades) so any game re-finalized between Phase 1 and Phase 2 is stamped with `team_slug` (ensuring Darrell Draper's Week 1 game `g130` has `team_slug = 'loons'`).
+- [ ] **Step 4.3:** Record Week 1 Trade #1 (Eddie Parsons ↔ Logan Truman) and Trade #2 (Jonny Callan & Lee Jacobs ↔ Steph Tryphonas & Darrell Draper) via the Admin UI or `scripts/apply-fall-2026-week1-trades.ts`.
