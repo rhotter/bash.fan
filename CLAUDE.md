@@ -47,11 +47,11 @@ Prefer neutral theme tokens (`text-foreground`, `text-muted-foreground`, `bg-mut
 1. **Database Round-Trips (`neon-http`):**
    - Serverless functions are pinned to `pdx1` in `vercel.json` to colocate with Neon Postgres.
    - Because `neon-http` executes each query as an individual HTTP round-trip, **never** write sequential `await` waterfalls for independent reads. Group independent queries into a single `Promise.all(...)`.
-   - When computing multiple stat sections for the same entity (e.g., player detail pages), batch them into a single SQL round-trip using `WITH ... AS MATERIALIZED` CTEs and `json_agg` via `lib/fetch-player-query-group.ts`.
+   - When computing multiple stat sections for a resolved entity (e.g., the 23 stat sections on player detail pages after the initial season/identity lookup wave), batch those sections into a single SQL query using `WITH ... AS MATERIALIZED` CTEs and `json_agg` via `lib/fetch-player-query-group.ts`.
    - Filter in SQL (e.g., `playerSlugSql` in `lib/player-slug-sql.ts`) rather than fetching full directory tables into Node to filter in JS.
 2. **Server Caching & Client Hydration Deduplication:**
    - Wrap server-side page data fetchers (`lib/fetch-*.ts`) in React's `cache()` so `generateMetadata()` and the page Server Component share a single read per render pass.
-   - Use `lib/cached-page-data.ts` (`unstable_cache`, 30s TTL) for shared public snapshots (`/stats`, `/team/[slug]`), while keeping `/player/[slug]` on uncached (`revalidate = 0`) single-round-trip CTE reads.
+   - Use `lib/cached-page-data.ts` (`unstable_cache`, 30s TTL) for shared public snapshots (`/stats`, `/team/[slug]`), while keeping `/player/[slug]` on uncached (`revalidate = 0`) fresh reads (two query waves: season metadata + SQL slug identity lookup first, followed by a single batched CTE query for all 23 stat sections).
    - When passing server `fallbackData` to SWR hooks (`lib/hockey-data.ts`), set `revalidateOnMount: fallbackData ? false : undefined` so the client does not immediately re-fetch the same snapshot on mount.
 3. **Speculative Prefetching & Persistent Layout:**
    - **Use `IntentLink` (`components/intent-link.tsx`)** instead of raw `next/link` for public detail navigation (`/player/[slug]`, `/team/[slug]`, `/game/[id]`) so pointer hover, focus, and touch-start trigger full RSC prefetching (`PrefetchKind.FULL`). Never use `<div onClick={() => router.push(...)}>` for navigable rows — use `<Link>` overlays so Next.js can prefetch and keyboard accessibility is preserved.
@@ -66,7 +66,7 @@ Prefer neutral theme tokens (`text-foreground`, `text-muted-foreground`, `bg-mut
 
 ### Page Pattern
 
-Each page follows: async Server Component (data fetch via `React.cache` / `lib/cached-page-data.ts` + `generateMetadata`) → route `loading.tsx` (`PageLoading` skeleton) → Client Component for interactivity. Public list/team pages use 30–60s caching; player pages use `revalidate = 0` backed by single-query CTE reads.
+Each page follows: async Server Component (data fetch via `React.cache` / `lib/cached-page-data.ts` + `generateMetadata`) → route `loading.tsx` (`PageLoading` skeleton) → Client Component for interactivity. Public list/team pages use 30–60s caching; player pages use `revalidate = 0` backed by a two-wave fresh read (identity/season lookup followed by a single batched CTE stat query).
 
 ### Key Directories
 
