@@ -163,12 +163,25 @@ async function main() {
     CREATE TABLE IF NOT EXISTS season_trades (
       id serial PRIMARY KEY,
       season_id text NOT NULL REFERENCES seasons(id) ON DELETE CASCADE,
-      team_a_slug text NOT NULL REFERENCES teams(slug),
-      team_b_slug text NOT NULL REFERENCES teams(slug),
+      team_slugs text[] NOT NULL,
       notes text,
       traded_at timestamp with time zone NOT NULL DEFAULT now(),
       created_at timestamp with time zone NOT NULL DEFAULT now()
     )
+  `
+  await sql`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'season_trades' AND column_name = 'team_slugs'
+      ) THEN
+        ALTER TABLE season_trades ADD COLUMN team_slugs text[];
+        UPDATE season_trades SET team_slugs = ARRAY[team_a_slug, team_b_slug] WHERE team_slugs IS NULL;
+        ALTER TABLE season_trades ALTER COLUMN team_slugs SET NOT NULL;
+        ALTER TABLE season_trades DROP COLUMN IF EXISTS team_a_slug, DROP COLUMN IF EXISTS team_b_slug;
+      END IF;
+    END $$;
   `
   await sql`
     CREATE INDEX IF NOT EXISTS idx_season_trades_season

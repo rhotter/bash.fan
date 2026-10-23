@@ -63,7 +63,7 @@ In `lib/fetch-player-detail.ts` and `app/api/bash/player/[slug]/route.ts`:
 | **League Leaderboards (`/stats`) & Player Top Summary Card** | Combines all non-sub regular-season stats across all teams played for in the season so traded players are not penalized in league-wide point/goal rankings, while displaying their current team badge. |
 | **Player Per-Season Table (`/player/[slug]`)** | Shows separate rows per `(season_id, team_slug)` when a player has logged games for multiple teams in the same season (e.g., `2026-2027 — Loons` and `2026-2027 — Yetis`). |
 | **Player Game Logs (`/player/[slug]`)** | Uses the game-level `team_slug` (`COALESCE(pgs.team_slug, player.team_slug)`) to compute `isHome`, `opponent`, `teamScore`, `opponentScore`, and `W/L/OTW/OTL`. |
-| **Admin Roster & Trade UI (`/admin/seasons/[id]`)** | Unlocks direct player add/edit during `active` seasons and adds a **"Record Trade"** modal supporting multi-player swaps between two teams, optional future draft pick swaps, and a visible **Season Trades** log. |
+| **Admin Roster & Trade UI (`/admin/seasons/[id]`)** | Unlocks direct player add/edit during `active` seasons and adds a **"Record Trade"** modal supporting multi-player and multi-team ($N$-team circular) swaps, optional future draft pick swaps, and a visible **Season Trades** log. |
 
 ---
 
@@ -90,7 +90,7 @@ Making `team_slug` nullable allows zero-downtime deployment: existing rows conti
 
 ### 4.2 Season Trade Log Tables (`season_trades` & `season_trade_items`)
 
-Add two new tables to record mid-season trades (both player swaps and future draft pick swaps):
+Add two new tables to record mid-season trades (supporting 2-team, 3-team circular, or $N$-team player swaps and future draft pick swaps):
 
 ```ts
 export const seasonTrades = pgTable(
@@ -100,12 +100,7 @@ export const seasonTrades = pgTable(
     seasonId: text("season_id")
       .notNull()
       .references(() => seasons.id, { onDelete: "cascade" }),
-    teamASlug: text("team_a_slug")
-      .notNull()
-      .references(() => teams.slug),
-    teamBSlug: text("team_b_slug")
-      .notNull()
-      .references(() => teams.slug),
+    teamSlugs: text("team_slugs").array().notNull(), // Participating teams (2+ teams)
     notes: text("notes"),
     tradedAt: timestamp("traded_at", { withTimezone: true }).defaultNow().notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
@@ -142,7 +137,9 @@ export const seasonTradeItems = pgTable(
 ```
 
 > [!NOTE]
-> **Future Draft Wizard Integration:** Recording `draft_pick` items with `fromTeamSlug`, `toTeamSlug`, `draftPickRound`, `draftPickOriginalTeamSlug`, and `draftPickTargetSeason` captures the exact fields needed by `draft_trades` in the Draft system. In a future milestone, creating a new season's draft in the Draft Wizard can query `season_trade_items` for `draftPickTargetSeason` and offer a one-click import into pre-draft pick trades.
+> **$N$-Team Circular Trade Support & Future Draft Wizard Integration:**
+> - Storing `teamSlugs` (`text[]`) on `season_trades` alongside per-item `fromTeamSlug` and `toTeamSlug` edges on `season_trade_items` natively models 2-team, 3-team circular (`A → B → C → A`), and $N$-team trades without requiring fixed `team_a_slug` / `team_b_slug` header columns.
+> - Recording `draft_pick` items with `fromTeamSlug`, `toTeamSlug`, `draftPickRound`, `draftPickOriginalTeamSlug`, and `draftPickTargetSeason` captures the exact fields needed by `draft_trades` in the Draft system. In a future milestone, creating a new season's draft in the Draft Wizard can query `season_trade_items` for `draftPickTargetSeason` and offer a one-click import into pre-draft pick trades.
 
 ---
 
@@ -245,17 +242,18 @@ To prevent row fan-out if a legacy season has multiple `player_seasons` rows for
    - In `POST`, explicitly check if the player already has a `player_seasons` row in `seasonId` (across any `teamSlug`) and return HTTP `400` (`"Player is already assigned to a team this season"`) so a player cannot be added to two teams simultaneously.
 2. **Season Trades Endpoint (`app/api/bash/admin/seasons/[id]/trades/route.ts`):**
    - `GET`: Returns all trades and items for the season ordered by `traded_at DESC, id DESC`.
-   - `POST`: Verifies `season.status === "draft" || season.status === "active"` (returning `404` if missing or `400` if `"completed"`), validates payload via `validateTradeInput` (`lib/trade-helpers.ts`, supporting draft pick rounds `1..20`), and then executes the entire trade atomically in a **single-statement data-modifying CTE** via `rawSql` (following the pattern in `lib/final-game-shots.ts` since `drizzle-orm/neon-http` does not support multi-statement `db.transaction()`):
+   - `POST`: Verifies `season.status === "draft" || season.status === "active"` (returning `404` if missing or `400` if `"completed"`), validates payload via `validateTradeInput` (`lib/trade-helpers.ts`, supporting 2+ participating `teamSlugs`, directed player moves `{ playerId, fromTeamSlug, toTeamSlug }`, and draft pick rounds `1..20`), and then executes the entire trade atomically in a **single-statement data-modifying CTE** via `rawSql` (following the pattern in `lib/final-game-shots.ts` since `drizzle-orm/neon-http` does not support multi-statement `db.transaction()`):
+     - `trade_player_moves`: Unpacks directed player moves from `jsonb_to_recordset(${playerMovesJson}::jsonb) AS m("playerId" int, "fromTeamSlug" text, "toTeamSlug" text)`.
      - `locked_season`: Locks and verifies `seasons.id = ${seasonId}` has `status IN ('draft', 'active')`.
-     - `locked_rosters`: Locks (`FOR UPDATE`) the `player_seasons` rows in `season_id` for all traded players and checks that every player in `teamAPlayerIds` currently has `team_slug = ${teamASlug}` and every player in `teamBPlayerIds` currently has `team_slug = ${teamBSlug}`.
-     - `guard`: Requires `locked_season` to exist, verifies both `teamASlug` and `teamBSlug` belong to `season_teams` for `seasonId` (`(SELECT count(*) FROM season_teams WHERE season_id = ${seasonId} AND team_slug IN (${teamASlug}, ${teamBSlug})) = 2`), and requires the count of matched `locked_rosters` rows to equal `teamAPlayerIds.length + teamBPlayerIds.length`. If any precondition fails, `guard` returns 0 rows and the statement performs 0 writes.
-     - `updated_rosters`: Updates `player_seasons.team_slug` (`teamASlug → teamBSlug` and `teamBSlug → teamASlug`) gated on `FROM guard` (preventing partial player swaps).
-     - `inserted_trade`: Inserts the `season_trades` header row gated on `FROM guard WHERE (SELECT count(*) FROM updated_rosters) = ${expectedPlayerCount} RETURNING id, traded_at`.
+     - `locked_rosters`: Locks (`FOR UPDATE`) the `player_seasons` rows in `season_id` joining `trade_player_moves m ON ps.player_id = m."playerId" AND ps.team_slug = m."fromTeamSlug"` to verify every traded player currently belongs to their expected `fromTeamSlug`.
+     - `guard`: Requires `locked_season` to exist, verifies all participating `teamSlugs` belong to `season_teams` for `seasonId` (`(SELECT count(*) FROM season_teams WHERE season_id = ${seasonId} AND team_slug = ANY(${teamSlugsArray}::text[])) = ${teamSlugs.length}`), and requires the count of matched `locked_rosters` rows to equal `playerMoves.length`. If any precondition fails, `guard` returns 0 rows and the statement performs 0 writes.
+     - `updated_rosters`: Updates `player_seasons ps SET team_slug = m."toTeamSlug" FROM trade_player_moves m, guard WHERE ps.season_id = ${seasonId} AND ps.player_id = m."playerId" AND ps.team_slug = m."fromTeamSlug"` (preventing partial player swaps across 2, 3, or $N$ teams).
+     - `inserted_trade`: Inserts the `season_trades (season_id, team_slugs, notes)` header row gated on `FROM guard WHERE (SELECT count(*) FROM updated_rosters) = ${expectedPlayerCount} RETURNING id, traded_at`.
      - `inserted_items`: Inserts all `season_trade_items` rows (`player` and `draft_pick` items) from `jsonb_to_recordset` joined against `inserted_trade`.
      - Because Postgres executes a single SQL statement with data-modifying CTEs inside an implicit server transaction, **either the trade record, all trade items, and all player roster updates succeed together, or the entire statement rolls back with zero partial state**.
 3. **Admin Roster Tab UI (`components/admin/season-roster-tab.tsx`):**
    - Unlock row editing and **"Add Player"** when `seasonStatus === "draft" || seasonStatus === "active"`.
-   - Add a **"Record Trade"** button and modal (Team A & Team B selectors, player checklists for each team, optional future draft pick swap rows with direction, round `1–20`, original owner, target season, and optional notes).
+   - Add a **"Record Trade"** button and modal (supporting participating team selectors, player checklists/destination routing, optional future draft pick swap rows with direction, round `1–20`, original owner, target season, and optional notes).
    - Render a **"Season Trades"** history section below the roster table.
 
 ---

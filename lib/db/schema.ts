@@ -823,12 +823,7 @@ export const seasonTrades = pgTable(
     seasonId: text("season_id")
       .notNull()
       .references(() => seasons.id, { onDelete: "cascade" }),
-    teamASlug: text("team_a_slug")
-      .notNull()
-      .references(() => teams.slug),
-    teamBSlug: text("team_b_slug")
-      .notNull()
-      .references(() => teams.slug),
+    teamSlugs: text("team_slugs").array().notNull(),
     notes: text("notes"),
     tradedAt: timestamp("traded_at", { withTimezone: true }).defaultNow().notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
