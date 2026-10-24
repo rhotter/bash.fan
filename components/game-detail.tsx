@@ -612,15 +612,17 @@ function EventLog({ state, homeSlug, awaySlug, homeTeam, awayTeam, playerNames, 
                           <span className="font-semibold text-foreground inline-flex items-center">{renderName(g.scorerId)}</span>
                           {(g.assist1Id || g.assist2Id) ? (
                             <span className="text-muted-foreground">
-                              {" "}(
-                              <span className="inline-flex items-center">{renderName(g.assist1Id)}</span>
-                              {g.assist2Id && (
-                                <>
-                                  <span>, </span>
-                                  <span className="inline-flex items-center">{renderName(g.assist2Id)}</span>
-                                </>
-                              )}
-                              )
+                              {" "}
+                              {[g.assist1Id, g.assist2Id].filter((id) => id != null).map((id, index, assists) => (
+                                <span key={index}>
+                                  {index > 0 && " "}
+                                  <span className="inline-flex items-center">
+                                    {index === 0 && "("}
+                                    {renderName(id)}
+                                    {index === assists.length - 1 ? ")" : ","}
+                                  </span>
+                                </span>
+                              ))}
                             </span>
                           ) : (
                             <span className="text-muted-foreground/50"> (unassisted)</span>
