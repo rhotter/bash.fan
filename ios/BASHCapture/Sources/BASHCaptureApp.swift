@@ -212,27 +212,30 @@ struct NativeCameraView: View {
                     Color.black.ignoresSafeArea()
                     CapturePreview(mixer: camera.mixer)
                     VStack {
-                        VStack(spacing: 5) {
-                            Text("\(camera.pairing?.side.capitalized ?? "Rink") camera").font(.headline)
-                            HStack(spacing: 12) {
-                                Label("4K · \(camera.framesPerSecond)", systemImage: "video")
-                                if camera.streaming { Label("Live", systemImage: "dot.radiowaves.left.and.right").foregroundStyle(.red) }
-                                if camera.recording, let start = camera.recordingStartedAt {
-                                    Text(start, style: .timer).monospacedDigit().foregroundStyle(.red)
-                                }
-                            }.font(.caption.weight(.semibold))
-                        }.padding(.horizontal, 18).padding(.vertical, 10).captureGlass()
-                        Spacer()
-                        if !camera.ready {
-                            VStack(spacing: 6) {
-                                Text("Camera preview").font(.headline)
-                                Text(camera.error ?? "Use a physical iPhone to record.").font(.callout).foregroundStyle(.secondary).multilineTextAlignment(.center)
-                            }.frame(maxWidth: 420)
+                        if correctlyOriented {
+                            VStack(spacing: 5) {
+                                Text("\(camera.pairing?.side.capitalized ?? "Rink") camera").font(.headline)
+                                HStack(spacing: 12) {
+                                    Label("4K · \(camera.framesPerSecond)", systemImage: "video")
+                                    if camera.streaming { Label("Live", systemImage: "dot.radiowaves.left.and.right").foregroundStyle(.red) }
+                                    if camera.recording, let start = camera.recordingStartedAt {
+                                        Text(start, style: .timer).monospacedDigit().foregroundStyle(.red)
+                                    }
+                                }.font(.caption.weight(.semibold))
+                            }.padding(.horizontal, 18).padding(.vertical, 10).captureGlass()
                             Spacer()
-                        } else if let error = camera.error {
-                            Text(error).font(.callout).multilineTextAlignment(.center).padding(12).background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
+                            if !camera.ready {
+                                VStack(spacing: 6) {
+                                    Text("Camera preview").font(.headline)
+                                    Text(camera.error ?? "Use a physical iPhone to record.").font(.callout).foregroundStyle(.secondary).multilineTextAlignment(.center)
+                                }.frame(maxWidth: 420)
+                                Spacer()
+                            } else if let error = camera.error {
+                                Text(error).font(.callout).multilineTextAlignment(.center).padding(12).background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
+                            }
                         }
                         if !correctlyOriented {
+                            Spacer()
                             VStack(spacing: 6) {
                                 Label(rotationInstruction, systemImage: "rotate.right").font(.headline)
                                 Text("Landscape, with the volume buttons facing up.").font(.callout)
@@ -244,6 +247,7 @@ struct NativeCameraView: View {
                             .padding(12)
                             .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
                             .accessibilityElement(children: .combine)
+                            Spacer()
                         }
                     }.padding()
                 }
