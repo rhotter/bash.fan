@@ -23,7 +23,6 @@ struct TeamCircleBackground: View {
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
     var body: some View {
-        let color = TeamPalette.color(slug)
         ZStack {
             if reduceTransparency {
                 Circle().fill(TeamPalette.color(slug, lift: 0.30))
@@ -36,7 +35,7 @@ struct TeamCircleBackground: View {
                 ], startPoint: .topLeading, endPoint: .bottomTrailing))
             }
         }
-        .overlay(Circle().strokeBorder(LinearGradient(colors: [.white.opacity(0.38), color.opacity(0.25)], startPoint: .topLeading, endPoint: .bottomTrailing), lineWidth: 0.7))
+        .overlay(Circle().strokeBorder(.white.opacity(0.95), lineWidth: 1.5))
         .shadow(color: .black.opacity(0.18), radius: 2, y: 1)
         .accessibilityHidden(true)
     }

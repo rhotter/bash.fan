@@ -322,6 +322,12 @@ struct TeamLogo: View {
             }
             else { Image(systemName: "shield").resizable().scaledToFit().foregroundStyle(colorScheme == .dark ? Color.gray : Color.secondary).padding(5) }
         }
+        // A small white keyline separates the artwork from its team-color fill.
+        .compositingGroup()
+        .shadow(color: .white, radius: 0, x: -0.6, y: 0)
+        .shadow(color: .white, radius: 0, x: 0.6, y: 0)
+        .shadow(color: .white, radius: 0, x: 0, y: -0.6)
+        .shadow(color: .white, radius: 0, x: 0, y: 0.6)
         .padding(size * 0.10)
         .frame(width: size, height: size)
         .background {
