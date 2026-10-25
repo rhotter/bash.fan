@@ -83,23 +83,29 @@ async function main() {
     const pgsColCheck = (await sql`
       SELECT EXISTS (
         SELECT 1 FROM information_schema.columns
-        WHERE table_name = 'player_game_stats' AND column_name = 'team_slug'
+        WHERE table_schema = 'public' AND table_name = 'player_game_stats' AND column_name = 'team_slug'
       ) as exists
     `) as { exists: boolean }[]
     const ggsColCheck = (await sql`
       SELECT EXISTS (
         SELECT 1 FROM information_schema.columns
-        WHERE table_name = 'goalie_game_stats' AND column_name = 'team_slug'
+        WHERE table_schema = 'public' AND table_name = 'goalie_game_stats' AND column_name = 'team_slug'
       ) as exists
     `) as { exists: boolean }[]
     const tradesTableCheck = (await sql`
       SELECT EXISTS (
-        SELECT 1 FROM information_schema.tables WHERE table_name = 'season_trades'
+        SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'season_trades'
+      ) as exists
+    `) as { exists: boolean }[]
+    const tradesTeamSlugsColCheck = (await sql`
+      SELECT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = 'season_trades' AND column_name = 'team_slugs'
       ) as exists
     `) as { exists: boolean }[]
     const tradeItemsTableCheck = (await sql`
       SELECT EXISTS (
-        SELECT 1 FROM information_schema.tables WHERE table_name = 'season_trade_items'
+        SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'season_trade_items'
       ) as exists
     `) as { exists: boolean }[]
 
@@ -110,7 +116,13 @@ async function main() {
       `  • Column 'goalie_game_stats.team_slug' : ${ggsColCheck[0]?.exists ? "ALREADY EXISTS" : "NOT FOUND (will be added)"}`
     )
     console.log(
-      `  • Table  'season_trades'               : ${tradesTableCheck[0]?.exists ? "ALREADY EXISTS" : "NOT FOUND (will be created)"}`
+      `  • Table  'season_trades'               : ${
+        !tradesTableCheck[0]?.exists
+          ? "NOT FOUND (will be created)"
+          : tradesTeamSlugsColCheck[0]?.exists
+            ? "ALREADY EXISTS (with team_slugs)"
+            : "EXISTS (will migrate team_a_slug/team_b_slug -> team_slugs)"
+      }`
     )
     console.log(
       `  • Table  'season_trade_items'          : ${tradeItemsTableCheck[0]?.exists ? "ALREADY EXISTS" : "NOT FOUND (will be created)"}`
@@ -174,7 +186,7 @@ async function main() {
     BEGIN
       IF NOT EXISTS (
         SELECT 1 FROM information_schema.columns
-        WHERE table_name = 'season_trades' AND column_name = 'team_slugs'
+        WHERE table_schema = 'public' AND table_name = 'season_trades' AND column_name = 'team_slugs'
       ) THEN
         ALTER TABLE season_trades ADD COLUMN team_slugs text[];
         UPDATE season_trades SET team_slugs = ARRAY[team_a_slug, team_b_slug] WHERE team_slugs IS NULL;
@@ -408,24 +420,25 @@ async function main() {
   const pgsCols = (await sql`
     SELECT column_name, data_type, is_nullable, column_default
     FROM information_schema.columns
-    WHERE table_name = 'player_game_stats' AND column_name = 'team_slug'
+    WHERE table_schema = 'public' AND table_name = 'player_game_stats' AND column_name = 'team_slug'
   `) as ColumnInfo[]
   const ggsCols = (await sql`
     SELECT column_name, data_type, is_nullable, column_default
     FROM information_schema.columns
-    WHERE table_name = 'goalie_game_stats' AND column_name = 'team_slug'
+    WHERE table_schema = 'public' AND table_name = 'goalie_game_stats' AND column_name = 'team_slug'
   `) as ColumnInfo[]
   const tradesCols = (await sql`
-    SELECT column_name FROM information_schema.columns WHERE table_name = 'season_trades'
+    SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'season_trades'
   `) as { column_name: string }[]
   const tradeItemsCols = (await sql`
-    SELECT column_name FROM information_schema.columns WHERE table_name = 'season_trade_items'
+    SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'season_trade_items'
   `) as { column_name: string }[]
 
   if (pgsCols.length === 0 || ggsCols.length === 0) {
     throw new Error("Schema verification failed: team_slug missing from player_game_stats or goalie_game_stats")
   }
-  if (tradesCols.length < 7 || tradeItemsCols.length < 9) {
+  const hasTeamSlugsCol = tradesCols.some((c) => c.column_name === "team_slugs")
+  if (tradesCols.length < 6 || !hasTeamSlugsCol || tradeItemsCols.length < 9) {
     throw new Error("Schema verification failed: season_trades or season_trade_items columns incomplete")
   }
 
