@@ -15,7 +15,7 @@ final class CaptureController: ObservableObject {
     @Published var busy = false
     @Published var error: String?
     @Published var status = "Pair this phone to a recording session"
-    let framesPerSecond = 30
+    let framesPerSecond = 60
     let liveEnabled = true
     let library = RecordingLibrary()
     let mixer = MediaMixer(captureSessionMode: .single)
@@ -73,20 +73,30 @@ final class CaptureController: ObservableObject {
             }
             // Volume buttons up: device landscapeRight maps to capture landscapeLeft.
             await mixer.setVideoOrientation(.landscapeLeft)
-            try await mixer.setFrameRate(Double(framesPerSecond))
+            // Select an actual 4K/60 format before asking the mixer for 60 fps;
+            // its automatic format search can otherwise fall back to a lower resolution.
+            guard let format = camera.formats.first(where: { format in
+                let size = CMVideoFormatDescriptionGetDimensions(format.formatDescription)
+                return size.width == 3840 && size.height == 2160 && format.videoSupportedFrameRateRanges.contains {
+                    $0.minFrameRate <= Double(framesPerSecond) && $0.maxFrameRate >= Double(framesPerSecond)
+                }
+            }) else { throw CaptureError.message("This iPhone’s 0.5× camera does not support 4K at 60 fps.") }
             // The physical ultra-wide lens is the Camera app's 0.5× view.
             // AVFoundation uses 1.0 for this lens's full, uncropped field of view.
             try camera.lockForConfiguration()
+            camera.activeFormat = format
             camera.videoZoomFactor = 1.0
             camera.unlockForConfiguration()
+            try await mixer.setFrameRate(Double(framesPerSecond))
             await recorder.setMovieFragmentInterval(10)
             await mixer.addOutput(recorder)
             var liveSettings = await stream.videoSettings
             liveSettings.videoSize = CGSize(width: 1920, height: 1080)
-            liveSettings.bitRate = 6_000_000
+            liveSettings.bitRate = 9_000_000
             liveSettings.maxKeyFrameIntervalDuration = 2
-            liveSettings.expectedFrameRate = 30
-            liveSettings.frameInterval = VideoCodecSettings.frameInterval30
+            liveSettings.expectedFrameRate = Double(framesPerSecond)
+            // Capture is already fixed at 60 fps; do not discard frames in the live encoder.
+            liveSettings.frameInterval = 0
             try await stream.setVideoSettings(liveSettings)
             await mixer.addOutput(stream)
             await mixer.startRunning()
@@ -172,7 +182,7 @@ final class CaptureController: ObservableObject {
         current = item
         let settings: [AVMediaType: [String: any Sendable]] = [
             .video: [AVVideoCodecKey: AVVideoCodecType.hevc, AVVideoWidthKey: 3840, AVVideoHeightKey: 2160,
-                     AVVideoCompressionPropertiesKey: [AVVideoAverageBitRateKey: framesPerSecond == 60 ? 40_000_000 : 25_000_000, AVVideoMaxKeyFrameIntervalDurationKey: 2]],
+                     AVVideoCompressionPropertiesKey: [AVVideoAverageBitRateKey: 40_000_000, AVVideoExpectedSourceFrameRateKey: framesPerSecond, AVVideoMaxKeyFrameIntervalDurationKey: 2]],
             .audio: [AVFormatIDKey: Int(kAudioFormatMPEG4AAC), AVSampleRateKey: 48000, AVNumberOfChannelsKey: 1, AVEncoderBitRateKey: 96000]
         ]
         try await recorder.startRecording(item.file, settings: settings)
