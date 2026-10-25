@@ -1,0 +1,544 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		0A86B4E21CD50F2BA027C72E /* GameDetail.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52ACE26F057E028385067236 /* GameDetail.swift */; };
+		149E1699EE1CAE56AF2B0C75 /* ScoreCardBackground.swift in Sources */ = {isa = PBXBuildFile; fileRef = 662C64D85BE6FD363C3581D3 /* ScoreCardBackground.swift */; };
+		2C471C9E41F5FA5C3FD769AA /* DetailCacheTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB857EE7D89D2A05A34DCCB0 /* DetailCacheTests.swift */; };
+		3556D4A65D5684C095A8F805 /* LeagueUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07FDC56F0407FD50B0F416C2 /* LeagueUITests.swift */; };
+		3C7038CB3FBEC3612DB1365D /* LoadingPlaceholder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79083B7C7ABD5B118F2B97C1 /* LoadingPlaceholder.swift */; };
+		449F3829F015AB040E3F25AD /* GameTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 904765BCCE7AB289BB8F4650 /* GameTests.swift */; };
+		4DC3E8F40AD8DD932BEA6969 /* LeagueData.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5B5841D29973CEA288CD15A /* LeagueData.swift */; };
+		599543D724067159EADD7412 /* DetailResponseCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88C2A3FA0E4C687A4DA58FAE /* DetailResponseCache.swift */; };
+		683800C593084D9745ABEFF5 /* BASHApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0EC877F5A9341250108252B4 /* BASHApp.swift */; };
+		8F63C217A2CEE08DF708D093 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 71A31660490BA4CF941A8532 /* Assets.xcassets */; };
+		AD22E9611CDC75565EC0D12F /* PlayerHistory.swift in Sources */ = {isa = PBXBuildFile; fileRef = B28834DA8ABAFE900240AFA9 /* PlayerHistory.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		946566924879EED030C57034 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = ED90862B5C22CD9C31EDCF7B /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = B65F62E543AF5D367782ACC5;
+			remoteInfo = BASH;
+		};
+		9EBACEDB5B535182A4F949CF /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = ED90862B5C22CD9C31EDCF7B /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = B65F62E543AF5D367782ACC5;
+			remoteInfo = BASH;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		07FDC56F0407FD50B0F416C2 /* LeagueUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LeagueUITests.swift; sourceTree = "<group>"; };
+		0EC877F5A9341250108252B4 /* BASHApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BASHApp.swift; sourceTree = "<group>"; };
+		11DC8C840FE53CD81AA3FD84 /* BASH.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = BASH.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		28810086D5C56AF02117A1D3 /* BASHUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = BASHUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		52ACE26F057E028385067236 /* GameDetail.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameDetail.swift; sourceTree = "<group>"; };
+		662C64D85BE6FD363C3581D3 /* ScoreCardBackground.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScoreCardBackground.swift; sourceTree = "<group>"; };
+		71A31660490BA4CF941A8532 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		79083B7C7ABD5B118F2B97C1 /* LoadingPlaceholder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoadingPlaceholder.swift; sourceTree = "<group>"; };
+		88C2A3FA0E4C687A4DA58FAE /* DetailResponseCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DetailResponseCache.swift; sourceTree = "<group>"; };
+		904765BCCE7AB289BB8F4650 /* GameTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameTests.swift; sourceTree = "<group>"; };
+		B28834DA8ABAFE900240AFA9 /* PlayerHistory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerHistory.swift; sourceTree = "<group>"; };
+		C3D924346F3638F44EA3D5DE /* BASHTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = BASHTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		D5B5841D29973CEA288CD15A /* LeagueData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LeagueData.swift; sourceTree = "<group>"; };
+		DB857EE7D89D2A05A34DCCB0 /* DetailCacheTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DetailCacheTests.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		2134830CC4CE13636AF61C42 /* UITests */ = {
+			isa = PBXGroup;
+			children = (
+				07FDC56F0407FD50B0F416C2 /* LeagueUITests.swift */,
+			);
+			path = UITests;
+			sourceTree = "<group>";
+		};
+		51D88A6AE8E41D2B0C628273 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				11DC8C840FE53CD81AA3FD84 /* BASH.app */,
+				C3D924346F3638F44EA3D5DE /* BASHTests.xctest */,
+				28810086D5C56AF02117A1D3 /* BASHUITests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		5AD2E7A46274B40ECCC4949E /* Tests */ = {
+			isa = PBXGroup;
+			children = (
+				DB857EE7D89D2A05A34DCCB0 /* DetailCacheTests.swift */,
+				904765BCCE7AB289BB8F4650 /* GameTests.swift */,
+			);
+			path = Tests;
+			sourceTree = "<group>";
+		};
+		6B7540FA76EC017676E71085 /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				71A31660490BA4CF941A8532 /* Assets.xcassets */,
+				0EC877F5A9341250108252B4 /* BASHApp.swift */,
+				88C2A3FA0E4C687A4DA58FAE /* DetailResponseCache.swift */,
+				52ACE26F057E028385067236 /* GameDetail.swift */,
+				D5B5841D29973CEA288CD15A /* LeagueData.swift */,
+				79083B7C7ABD5B118F2B97C1 /* LoadingPlaceholder.swift */,
+				B28834DA8ABAFE900240AFA9 /* PlayerHistory.swift */,
+				662C64D85BE6FD363C3581D3 /* ScoreCardBackground.swift */,
+			);
+			path = Sources;
+			sourceTree = "<group>";
+		};
+		A4F7DD691C40859EA75C1099 = {
+			isa = PBXGroup;
+			children = (
+				6B7540FA76EC017676E71085 /* Sources */,
+				5AD2E7A46274B40ECCC4949E /* Tests */,
+				2134830CC4CE13636AF61C42 /* UITests */,
+				51D88A6AE8E41D2B0C628273 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		14D346FA5D4B068DB5920B8B /* BASHTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 878A77C2825831B191FC886E /* Build configuration list for PBXNativeTarget "BASHTests" */;
+			buildPhases = (
+				80D30BAEFC14ABD2233FABD6 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				B8ECB6921D0606A9F0B0DB30 /* PBXTargetDependency */,
+			);
+			name = BASHTests;
+			packageProductDependencies = (
+			);
+			productName = BASHTests;
+			productReference = C3D924346F3638F44EA3D5DE /* BASHTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		4CC609D74065AE8929145384 /* BASHUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = DA3AC08F70D742B08CC6348B /* Build configuration list for PBXNativeTarget "BASHUITests" */;
+			buildPhases = (
+				D15CD814B64C9EBCACEE7EF5 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				6BF77B189EEFF91E26331070 /* PBXTargetDependency */,
+			);
+			name = BASHUITests;
+			packageProductDependencies = (
+			);
+			productName = BASHUITests;
+			productReference = 28810086D5C56AF02117A1D3 /* BASHUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
+		B65F62E543AF5D367782ACC5 /* BASH */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = D58451941055AB51582129A8 /* Build configuration list for PBXNativeTarget "BASH" */;
+			buildPhases = (
+				1CD8B43378D815160F52B2E5 /* Sources */,
+				7CFF3C69ABF292F15B2B1271 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = BASH;
+			packageProductDependencies = (
+			);
+			productName = BASH;
+			productReference = 11DC8C840FE53CD81AA3FD84 /* BASH.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		ED90862B5C22CD9C31EDCF7B /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					4CC609D74065AE8929145384 = {
+						TestTargetID = B65F62E543AF5D367782ACC5;
+					};
+					B65F62E543AF5D367782ACC5 = {
+						DevelopmentTeam = 8GJXSBZAF8;
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = 1992185B4D0CC6863725ABB0 /* Build configuration list for PBXProject "BASH" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = A4F7DD691C40859EA75C1099;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 51D88A6AE8E41D2B0C628273 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				B65F62E543AF5D367782ACC5 /* BASH */,
+				14D346FA5D4B068DB5920B8B /* BASHTests */,
+				4CC609D74065AE8929145384 /* BASHUITests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		7CFF3C69ABF292F15B2B1271 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				8F63C217A2CEE08DF708D093 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		1CD8B43378D815160F52B2E5 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				683800C593084D9745ABEFF5 /* BASHApp.swift in Sources */,
+				599543D724067159EADD7412 /* DetailResponseCache.swift in Sources */,
+				0A86B4E21CD50F2BA027C72E /* GameDetail.swift in Sources */,
+				4DC3E8F40AD8DD932BEA6969 /* LeagueData.swift in Sources */,
+				3C7038CB3FBEC3612DB1365D /* LoadingPlaceholder.swift in Sources */,
+				AD22E9611CDC75565EC0D12F /* PlayerHistory.swift in Sources */,
+				149E1699EE1CAE56AF2B0C75 /* ScoreCardBackground.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		80D30BAEFC14ABD2233FABD6 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				2C471C9E41F5FA5C3FD769AA /* DetailCacheTests.swift in Sources */,
+				449F3829F015AB040E3F25AD /* GameTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D15CD814B64C9EBCACEE7EF5 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				3556D4A65D5684C095A8F805 /* LeagueUITests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		6BF77B189EEFF91E26331070 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = B65F62E543AF5D367782ACC5 /* BASH */;
+			targetProxy = 9EBACEDB5B535182A4F949CF /* PBXContainerItemProxy */;
+		};
+		B8ECB6921D0606A9F0B0DB30 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = B65F62E543AF5D367782ACC5 /* BASH */;
+			targetProxy = 946566924879EED030C57034 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		2E77B3DD4E3BCEAAC635601F /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = fan.bash.BASHTests;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/BASH.app/BASH";
+			};
+			name = Debug;
+		};
+		31748448A55921E410AD11FE /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = fan.bash.BASHUITests;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = BASH;
+			};
+			name = Debug;
+		};
+		442BC0E90CBA733B6526E173 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = fan.bash.BASHTests;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/BASH.app/BASH";
+			};
+			name = Release;
+		};
+		A382AA4125B2694C12D245AD /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = fan.bash.BASHUITests;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = BASH;
+			};
+			name = Release;
+		};
+		C4125F915B0FC6AB6DEFB6D3 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		CA39EEDBD2BC1C46E76819A2 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 19;
+				DEVELOPMENT_TEAM = 8GJXSBZAF8;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = BASH;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 0.1;
+				PRODUCT_BUNDLE_IDENTIFIER = fan.bash.league;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		D5855DD7FFBF403A302E7D27 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 19;
+				DEVELOPMENT_TEAM = 8GJXSBZAF8;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = BASH;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 0.1;
+				PRODUCT_BUNDLE_IDENTIFIER = fan.bash.league;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
+		FC105664CC4577AE8C7EC477 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		1992185B4D0CC6863725ABB0 /* Build configuration list for PBXProject "BASH" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				C4125F915B0FC6AB6DEFB6D3 /* Debug */,
+				FC105664CC4577AE8C7EC477 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		878A77C2825831B191FC886E /* Build configuration list for PBXNativeTarget "BASHTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				2E77B3DD4E3BCEAAC635601F /* Debug */,
+				442BC0E90CBA733B6526E173 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		D58451941055AB51582129A8 /* Build configuration list for PBXNativeTarget "BASH" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				CA39EEDBD2BC1C46E76819A2 /* Debug */,
+				D5855DD7FFBF403A302E7D27 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		DA3AC08F70D742B08CC6348B /* Build configuration list for PBXNativeTarget "BASHUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				31748448A55921E410AD11FE /* Debug */,
+				A382AA4125B2694C12D245AD /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = ED90862B5C22CD9C31EDCF7B /* Project object */;
+}

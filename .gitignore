@@ -52,4 +52,11 @@ ios/**/DerivedData/
 ios/**/xcuserdata/
 ios/**/*.xcuserstate
 ios/**/Local.xcconfig
+ios/**/build/
+ios/**/vendor/
+ios/**/.bundle/
+ios/**/fastlane/report.xml
+*.p8
+*.p12
+*.mobileprovision
 
