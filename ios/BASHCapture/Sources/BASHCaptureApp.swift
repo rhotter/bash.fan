@@ -99,6 +99,7 @@ struct CaptureHome: View {
             let size: CGFloat = compact ? 120 : 164
             Image("BASHBadge")
                 .resizable().scaledToFit().frame(width: size, height: size)
+                .clipShape(Circle().inset(by: size * 0.084))
                 .shadow(color: .black.opacity(0.08), radius: 20, y: 8)
                 .accessibilityHidden(true)
             Text("Welcome to BASH")
