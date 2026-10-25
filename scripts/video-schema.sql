@@ -24,3 +24,7 @@ CREATE TABLE IF NOT EXISTS video_markers (
 
 CREATE UNIQUE INDEX IF NOT EXISTS video_sessions_open_game ON video_sessions(game_id)
   WHERE ended_at IS NULL AND game_id IS NOT NULL;
+
+-- Daily automatic capture is independent of game selection.
+ALTER TABLE video_sessions ADD COLUMN IF NOT EXISTS capture_day text;
+CREATE UNIQUE INDEX IF NOT EXISTS video_sessions_capture_day ON video_sessions(capture_day);

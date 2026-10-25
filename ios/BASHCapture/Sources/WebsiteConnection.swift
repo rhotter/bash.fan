@@ -1,6 +1,5 @@
 import Foundation
 
-private struct GamesResponse: Decodable { let games: [CaptureGame] }
 private struct ClaimResponse: Decodable { let sessionId: String; let side: String; let token: String }
 private struct OKResponse: Decodable { let ok: Bool }
 private struct WebsiteError: LocalizedError {
@@ -11,7 +10,6 @@ private struct WebsiteError: LocalizedError {
 
 @MainActor
 final class WebsiteConnection: ObservableObject {
-    @Published private(set) var games: [CaptureGame] = []
     @Published private(set) var signedIn = false
     @Published private(set) var busy = false
     @Published var error: String?
@@ -40,41 +38,31 @@ final class WebsiteConnection: ObservableObject {
             let server = try serverURL()
             let _: OKResponse = try await call(server, "api/bash/admin/login", body: ["pin": pin.trimmingCharacters(in: .whitespacesAndNewlines)])
             authenticatedServer = server; signedIn = true
-            // A schedule outage must not discard a successful operator login.
-            await refresh()
         } catch { self.error = error.localizedDescription; signedIn = false }
     }
-    func refresh() async {
-        guard let server = authenticatedServer, signedIn else { return }
-        do { let result: GamesResponse = try await call(server, "api/bash/video/games"); games = result.games; error = nil }
-        catch { self.error = error.localizedDescription }
-    }
-    func choose(_ game: CaptureGame, side: String, camera: CaptureController, replace: Bool = false) async -> Bool {
+    func connect(side: String, camera: CaptureController, replace: Bool = false) async -> Bool {
         guard let server = authenticatedServer, !busy, !camera.recording else { return false }
         busy = true; error = nil; cameraConflict = false; defer { busy = false }
         do {
-            let pairing: Pairing
-            if !replace, let current = camera.pairing, current.server == server, current.side == side,
-               camera.configuration?.game?.id == game.id, camera.configuration?.ended == false {
-                pairing = current
-            } else {
-                let claim: ClaimResponse = try await call(server, "api/bash/video/games", body: ["gameId": game.id, "side": side, "replace": replace])
-                var link = URLComponents(); link.scheme = "bashcapture"; link.host = "pair"
-                link.queryItems = [URLQueryItem(name: "server", value: server.absoluteString), URLQueryItem(name: "session", value: claim.sessionId), URLQueryItem(name: "side", value: claim.side), URLQueryItem(name: "token", value: claim.token)]
-                guard let url = link.url else { throw CaptureError.message("Could not connect this camera.") }
-                // Preserve the claimed credential even if a subsequent network request fails.
-                pairing = try Pairing(link: url.absoluteString)
-                try CameraKeychain.save(pairing); camera.pairing = pairing; camera.configuration = nil
-                UserDefaults.standard.set(pairing.key, forKey: "pairingKey")
+            var body: [String: Any] = ["side": side, "replace": replace]
+            if let current = camera.pairing, current.server == server, current.side == side {
+                body["sessionId"] = current.session; body["token"] = current.token
             }
+            let claim: ClaimResponse = try await call(server, "api/bash/video/capture", body: body)
+            var link = URLComponents(); link.scheme = "bashcapture"; link.host = "pair"
+            link.queryItems = [URLQueryItem(name: "server", value: server.absoluteString), URLQueryItem(name: "session", value: claim.sessionId), URLQueryItem(name: "side", value: claim.side), URLQueryItem(name: "token", value: claim.token)]
+            guard let url = link.url else { throw CaptureError.message("Could not connect this camera.") }
+            let pairing = try Pairing(link: url.absoluteString)
+            try CameraKeychain.save(pairing); camera.pairing = pairing; camera.configuration = nil
+            UserDefaults.standard.set(pairing.key, forKey: "pairingKey")
             camera.error = nil
             if camera.liveEnabled {
                 do { let _: OKResponse = try await call(server, "api/bash/video/\(pairing.session)", body: ["action": "prepareStream", "side": side]) }
-                catch { camera.error = "Live setup could not finish. Local recording is still available. Reopen this game from Games to retry live setup." }
+                catch { camera.error = "Live setup could not finish. Local recording is still available. Reopen the camera to retry." }
             }
             await camera.refreshConfiguration()
-            let connected = camera.configuration?.game?.id == game.id
-            if !connected { error = camera.error ?? "Could not load the game. Open this camera from Games to retry." }
+            let connected = camera.configuration != nil && camera.configuration?.ended == false
+            if !connected { error = camera.error ?? "Could not connect. Try opening the camera again." }
             return connected
         } catch {
             self.error = error.localizedDescription
@@ -94,6 +82,6 @@ final class WebsiteConnection: ObservableObject {
     }
     func signOut() {
         session.configuration.httpCookieStorage?.removeCookies(since: .distantPast)
-        signedIn = false; games = []; authenticatedServer = nil
+        signedIn = false; authenticatedServer = nil
     }
 }

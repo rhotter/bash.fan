@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
-const mocks = vi.hoisted(() => ({ query: vi.fn(), detail: vi.fn(), playback: vi.fn(), stream: vi.fn() }))
+const mocks = vi.hoisted(() => ({ query: vi.fn(), detail: vi.fn(), playback: vi.fn(), stream: vi.fn(), coverage: vi.fn() }))
 vi.mock("@/lib/db", () => ({ rawSql: mocks.query }))
+vi.mock("@/lib/video/auto-coverage", () => ({ automaticCoverage: mocks.coverage }))
 vi.mock("@/lib/video/detail", () => ({ readVideoDetail: mocks.detail }))
 vi.mock("@/lib/video/cloudflare", () => ({ playbackUrl: mocks.playback, streamRequest: mocks.stream }))
 import { GET, POST } from "@/app/api/bash/game/[id]/video/route"
@@ -59,6 +60,28 @@ describe("game-scoped viewing", () => {
     expect(query.sql).toContain("uploaded_at IS NOT NULL")
     expect(query.params).toEqual([segmentId, sessionId])
     expect(mocks.playback).toHaveBeenCalledWith("game/clip.mp4")
+  })
+  it("rejects automatic footage outside this game's observed interval", async () => {
+    mocks.query.mockResolvedValueOnce([{ ...session, capture_day: "2026-10-24" }]).mockResolvedValueOnce([{ object_key: "private-key", started_at: session.created_at, duration: 60 }])
+    mocks.coverage.mockResolvedValueOnce({ includes: () => false, live: false })
+    expect((await POST(request({ action: "playback", sessionId, segmentId }), context)).status).toBe(404)
+    expect(mocks.playback).not.toHaveBeenCalled()
+  })
+  it("does not expose a daily live stream for a different game", async () => {
+    mocks.query.mockResolvedValueOnce([{ ...session, capture_day: "2026-10-24" }])
+    mocks.coverage.mockResolvedValueOnce({ includes: () => false, live: false })
+    expect((await POST(request({ action: "livePlayback", sessionId, side: "left" }), context)).status).toBe(404)
+    expect(mocks.stream).not.toHaveBeenCalled()
+  })
+  it("filters daily footage and exposes only this game's markers", async () => {
+    mocks.query.mockResolvedValueOnce([{ ...session, capture_day: "2026-10-24" }])
+    mocks.coverage.mockResolvedValueOnce({ includes: (segment: { id: string }) => segment.id === segmentId, live: false })
+    mocks.detail.mockResolvedValueOnce({ cameras: [], markers: [], segments: [
+      { id: segmentId, uploaded_at: session.created_at }, { id: "other-game", uploaded_at: session.created_at },
+    ] })
+    const response = await GET(new Request("http://localhost/api/bash/game/g70/video"), context)
+    expect((await response.json()).segments.map((s: { id: string }) => s.id)).toEqual([segmentId])
+    expect(mocks.detail).toHaveBeenCalledWith(sessionId, "g70")
   })
   it("rejects camera administration through the public viewing endpoint", async () => {
     expect((await POST(request({ action: "pair", sessionId, side: "left" }), context)).status).toBe(400)

@@ -1,5 +1,6 @@
 export type CameraSide = "left" | "right"
-export interface VideoSession { id: string; game_id: string | null; title: string; created_at: string; ended_at: string | null }
+export interface VideoSession {
+  capture_day?: string | null; id: string; game_id: string | null; title: string; created_at: string; ended_at: string | null }
 export interface VideoCamera {
   side: CameraSide; last_seen_at: string | null; device_name: string | null;
   recording: boolean; streaming: boolean; battery: number | null;

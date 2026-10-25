@@ -25,13 +25,6 @@ struct BASHCaptureApp: App {
                         do { try await Task.sleep(for: .seconds(30)) } catch { break }
                     }
                 }
-                .task(id: phase) {
-                    guard phase == .active else { return }
-                    while !Task.isCancelled {
-                        if !website.busy && !camera.recording { await website.refresh() }
-                        do { try await Task.sleep(for: .seconds(60)) } catch { break }
-                    }
-                }
                 .onChange(of: camera.library.uploading) { _, _ in
                     UIApplication.shared.isIdleTimerDisabled = camera.recording || camera.library.uploading
                 }
@@ -49,8 +42,7 @@ struct CaptureHome: View {
     @State private var pin = ""
     @State private var showUploads = false
     @State private var showCamera = false
-    @State private var selectedGame: CaptureGame?
-    @State private var openCameraAfterSetup = false
+    @AppStorage("captureSide") private var side = "left"
 
     var body: some View {
         NavigationStack {
@@ -81,35 +73,23 @@ struct CaptureHome: View {
                         }.buttonStyle(.plain)
                     }
                 }
-                if let game = camera.configuration?.game, let pairing = camera.pairing, camera.configuration?.ended == false {
-                    Section {
-                        Button { showCamera = true } label: {
-                            Label {
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text(game.matchup).font(.headline)
-                                    Text("Open \(pairing.side) camera").font(.subheadline).foregroundStyle(.secondary)
-                                }
-                            } icon: { Image(systemName: "video.fill").foregroundStyle(BASHStyle.orange) }
-                        }.foregroundStyle(.primary).buttonStyle(.plain)
-                    }
-                }
                 if website.signedIn {
-                    Section("Choose a game") {
-                        ForEach(website.games) { game in
-                            Button { selectedGame = game } label: {
-                                HStack(spacing: 12) {
-                                    VStack(alignment: .leading, spacing: 5) {
-                                        Text(game.matchup).font(.headline)
-                                        Text("\(game.dateLabel) · \(game.time)").font(.subheadline).foregroundStyle(.secondary)
-                                    }
-                                    Spacer()
-                                    if game.status == "live" { Text("LIVE").font(.caption.bold()).foregroundStyle(BASHStyle.orange) }
-                                    Image(systemName: "chevron.right").font(.caption.weight(.semibold)).foregroundStyle(.tertiary)
-                                }.foregroundStyle(.primary).padding(.vertical, 6)
-                            }.buttonStyle(.plain)
-                        }
-                        if website.games.isEmpty { Text("No games available.").foregroundStyle(.secondary) }
-                    }
+                    Section {
+                        Picker("Camera position", selection: $side) {
+                            Label("Left", systemImage: "arrow.left").tag("left")
+                            Label("Right", systemImage: "arrow.right").tag("right")
+                        }.pickerStyle(.segmented)
+                    } header: { Text("Which side is this phone?") } footer: { Text("Facing the rink, choose this phone’s side of the mount.") }
+                    Section {
+                        Button { connect() } label: {
+                            HStack {
+                                Spacer()
+                                if website.busy { ProgressView().tint(.white) }
+                                else { Label("Open camera", systemImage: "video.fill").fontWeight(.semibold) }
+                                Spacer()
+                            }.padding(.vertical, 6)
+                        }.buttonStyle(.borderedProminent).disabled(website.busy || camera.recording)
+                    } footer: { Text("Record through the games. BASH matches footage to the scorekeeper automatically.") }
                 } else {
                     Section {
                         SecureField("League PIN", text: $pin).textContentType(.password).submitLabel(.go)
@@ -121,68 +101,30 @@ struct CaptureHome: View {
                                 Spacer()
                             }.padding(.vertical, 6)
                         }.buttonStyle(.borderedProminent).disabled(pin.isEmpty || website.busy)
-                    } header: { Text("Ready to record?") } footer: { Text("Enter the league PIN to choose your game.") }
+                    } header: { Text("Ready to record?") } footer: { Text("Enter the league PIN to connect this camera.") }
                 }
                 if let error = website.error {
                     Section {
                         Text(error).foregroundStyle(.red).font(.callout)
-                        if website.signedIn { Button("Try again") { Task { await website.refresh() } } }
                     }
                 }
             }
             .navigationTitle("BASH Capture")
-            .refreshable { await website.refresh(); await camera.refreshConfiguration(); await library.uploadPending() }
+            .refreshable { await camera.refreshConfiguration(); await library.uploadPending() }
         }
         .sheet(isPresented: $showUploads) { UploadStatusSheet(library: library) }
-        .sheet(item: $selectedGame, onDismiss: {
-            if openCameraAfterSetup { openCameraAfterSetup = false; showCamera = true }
-        }) { game in
-            GameSetupSheet(game: game, camera: camera, website: website) { openCameraAfterSetup = true; selectedGame = nil }
-        }
+        .confirmationDialog("Replace the \(side) camera?", isPresented: $website.cameraConflict, titleVisibility: .visible) {
+            Button("Replace camera", role: .destructive) { connect(replace: true) }
+        } message: { Text("Another phone is assigned to this side. Its unuploaded footage stays on that phone.") }
         .fullScreenCover(isPresented: $showCamera) { NativeCameraView(camera: camera, library: library) }
         .task { await library.recoverInterrupted(); await camera.refreshConfiguration(); await library.uploadPending() }
+    }
+    private func connect(replace: Bool = false) {
+        Task { if await website.connect(side: side, camera: camera, replace: replace) { showCamera = true } }
     }
     private func signIn() {
         guard !pin.isEmpty, !website.busy else { return }
         Task { await website.signIn(pin: pin); pin = "" }
-    }
-}
-
-struct GameSetupSheet: View {
-    let game: CaptureGame
-    @ObservedObject var camera: CaptureController
-    @ObservedObject var website: WebsiteConnection
-    let onConnected: () -> Void
-    @Environment(\.dismiss) private var dismiss
-    @AppStorage("captureSide") private var side = "left"
-    var body: some View {
-        NavigationStack {
-            Form {
-                Section {
-                    Text(game.matchup).font(.title2.bold())
-                    Text("\(game.dateLabel) · \(game.time)").foregroundStyle(.secondary)
-                }
-                Section {
-                    Picker("Camera position", selection: $side) {
-                        Label("Left", systemImage: "arrow.left").tag("left")
-                        Label("Right", systemImage: "arrow.right").tag("right")
-                    }.pickerStyle(.segmented)
-                } header: { Text("Which side is this phone?") } footer: { Text("Facing the rink, choose this phone’s side of the mount.") }
-                Section {
-                    Button { connect() } label: {
-                        HStack { Spacer(); if website.busy { ProgressView().tint(.white) } else { Label("Open camera", systemImage: "video.fill").fontWeight(.semibold) }; Spacer() }.padding(.vertical, 6)
-                    }.buttonStyle(.borderedProminent).disabled(website.busy || camera.recording)
-                } footer: { Text("Record in 4K. Footage uploads automatically.") }
-                if let error = website.error { Section { Text(error).foregroundStyle(.red) } }
-            }.navigationTitle("Set up this phone").navigationBarTitleDisplayMode(.inline)
-                .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } } }
-                .confirmationDialog("Replace the \(side) camera?", isPresented: $website.cameraConflict, titleVisibility: .visible) {
-                    Button("Replace camera", role: .destructive) { connect(replace: true) }
-                } message: { Text("Another phone is assigned to this side. Its saved footage will stay on that phone.") }
-        }.presentationDetents([.height(520), .large]).presentationDragIndicator(.visible)
-    }
-    private func connect(replace: Bool = false) {
-        Task { if await website.choose(game, side: side, camera: camera, replace: replace) { onConnected() } }
     }
 }
 
@@ -220,7 +162,7 @@ struct NativeCameraView: View {
                     CapturePreview(mixer: camera.mixer)
                     VStack {
                         VStack(spacing: 5) {
-                            Text(camera.configuration?.game?.matchup ?? camera.configuration?.title ?? "BASH recording").font(.headline)
+                            Text("\(camera.pairing?.side.capitalized ?? "Rink") camera").font(.headline)
                             HStack(spacing: 12) {
                                 Label("4K · \(camera.framesPerSecond)", systemImage: "video")
                                 if camera.streaming { Label("Live", systemImage: "dot.radiowaves.left.and.right").foregroundStyle(.red) }

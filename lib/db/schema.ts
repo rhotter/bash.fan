@@ -839,10 +839,12 @@ export type NewSiteBanner = typeof siteBanners.$inferInsert
 export const videoSessions = pgTable("video_sessions", {
   id: text("id").primaryKey(),
   gameId: text("game_id").references(() => games.id),
+  captureDay: text("capture_day"),
   title: text("title").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   endedAt: timestamp("ended_at", { withTimezone: true }),
-}, t => [uniqueIndex("video_sessions_open_game").on(t.gameId).where(sql`${t.endedAt} IS NULL AND ${t.gameId} IS NOT NULL`)])
+}, t => [uniqueIndex("video_sessions_open_game").on(t.gameId).where(sql`${t.endedAt} IS NULL AND ${t.gameId} IS NOT NULL`),
+  uniqueIndex("video_sessions_capture_day").on(t.captureDay)])
 export const videoCameras = pgTable("video_cameras", {
   sessionId: text("session_id").notNull().references(() => videoSessions.id),
   side: text("side").notNull(),
