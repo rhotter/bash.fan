@@ -10,6 +10,7 @@ import {
   primaryKey,
   index,
   unique,
+  uniqueIndex,
   uuid,
   bigint,
   foreignKey,
@@ -841,7 +842,7 @@ export const videoSessions = pgTable("video_sessions", {
   title: text("title").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   endedAt: timestamp("ended_at", { withTimezone: true }),
-})
+}, t => [uniqueIndex("video_sessions_open_game").on(t.gameId).where(sql`${t.endedAt} IS NULL AND ${t.gameId} IS NOT NULL`)])
 export const videoCameras = pgTable("video_cameras", {
   sessionId: text("session_id").notNull().references(() => videoSessions.id),
   side: text("side").notNull(),

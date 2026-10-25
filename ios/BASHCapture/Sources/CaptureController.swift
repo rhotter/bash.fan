@@ -6,6 +6,9 @@ import RTMPHaishinKit
 @MainActor
 final class CaptureController: ObservableObject {
     @Published var pairing: Pairing?
+    @Published var configuration: CameraConfiguration?
+    @Published var recordingStartedAt: Date?
+    @Published var clockChecked = false
     @Published var ready = false
     @Published var recording = false
     @Published var streaming = false
@@ -24,7 +27,7 @@ final class CaptureController: ObservableObject {
     private var interruptionTask: Task<Void, Never>?
     private var recorderErrorTask: Task<Void, Never>?
     private var current: LocalRecording?
-    private var serverOffset: Double = 0
+    private var clockAnchor: CaptureClockAnchor?
     private var prepared = false
 
     init() {
@@ -36,17 +39,24 @@ final class CaptureController: ObservableObject {
         busy = true; defer { busy = false }
         do {
             let pair = try Pairing(link: link)
-            let sent = Date().timeIntervalSince1970 * 1000
             let config: CameraConfiguration = try await CaptureAPI.call(pair)
             guard !config.ended else { throw CaptureError.message("This recording session has ended.") }
-            serverOffset = config.serverTime - (sent + Date().timeIntervalSince1970 * 1000) / 2
             try CameraKeychain.save(pair); pairing = pair
+            configuration = config
             UserDefaults.standard.set(pair.key, forKey: "pairingKey")
             error = nil; status = "\(pair.side.capitalized) camera paired"
         } catch { self.error = error.localizedDescription }
     }
+    func refreshConfiguration() async {
+        guard let pairing, !recording else { return }
+        configuration = nil
+        do {
+            configuration = try await CaptureAPI.call(pairing)
+            status = configuration?.ended == true ? "Recording session ended" : "Ready to set up this camera"
+        } catch { self.error = error.localizedDescription }
+    }
     func prepare() async {
-        guard !prepared else { return }
+        if prepared { await mixer.startRunning(); return }
         guard await AVCaptureDevice.requestAccess(for: .video), await AVCaptureDevice.requestAccess(for: .audio) else { error = "Allow camera and microphone access in Settings to record."; return }
         do {
             guard let camera = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back) else { throw CaptureError.message("A physical iPhone rear camera is required.") }
@@ -81,6 +91,10 @@ final class CaptureController: ObservableObject {
             }
         } catch { self.error = error.localizedDescription }
     }
+    func suspendPreview() async {
+        guard !recording else { return }
+        await mixer.stopRunning()
+    }
     func start() async {
         guard let pairing, ready, !recording, !busy else { return }
         busy = true; error = nil
@@ -88,13 +102,13 @@ final class CaptureController: ObservableObject {
         do {
             let free = try URL.documentsDirectory.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey]).volumeAvailableCapacityForImportantUsage ?? 0
             guard free > 2_000_000_000 else { throw CaptureError.message("Free at least 2 GB before recording.") }
-            let sent = Date().timeIntervalSince1970 * 1000
             let config: CameraConfiguration = try await CaptureAPI.call(pairing)
             guard !config.ended else { throw CaptureError.message("This session has ended.") }
-            serverOffset = config.serverTime - (sent + Date().timeIntervalSince1970 * 1000) / 2
+            configuration = config
+            clockAnchor = try await CaptureAPI.synchronize(pairing); clockChecked = true
             try await mixer.setFrameRate(Double(framesPerSecond))
             try await beginSegment(pairing)
-            recording = true; status = "Recording 4K locally"; UIApplication.shared.isIdleTimerDisabled = true
+            recordingStartedAt = Date(); recording = true; status = "Recording 4K locally"; UIApplication.shared.isIdleTimerDisabled = true
             recordingTask = Task { [weak self] in
                 guard let self else { return }
                 while !Task.isCancelled {
@@ -108,7 +122,7 @@ final class CaptureController: ObservableObject {
                     } catch { self.error = error.localizedDescription; break }
                 }
                 do { try await finishSegment() } catch { self.error = "Could not finalize the last segment. Existing files are preserved." }
-                recording = false; UIApplication.shared.isIdleTimerDisabled = false
+                recording = false; recordingStartedAt = nil; UIApplication.shared.isIdleTimerDisabled = false
                 status = "Recording saved on this phone"
                 serviceTask?.cancel(); _ = try? await stream.close(); try? await connection.close(); streaming = false
                 await sendHeartbeat(pairing)
@@ -137,7 +151,7 @@ final class CaptureController: ObservableObject {
         } catch { self.error = error.localizedDescription }
     }
     private func beginSegment(_ pairing: Pairing) async throws {
-        let item = try library.begin(pairing: pairing, startedAt: Date(timeIntervalSinceNow: serverOffset / 1000))
+        let item = try library.begin(pairing: pairing, startedAt: clockAnchor?.serverDate ?? Date(), clockAnchor: clockAnchor)
         current = item
         let settings: [AVMediaType: [String: any Sendable]] = [
             .video: [AVVideoCodecKey: AVVideoCodecType.hevc, AVVideoWidthKey: 3840, AVVideoHeightKey: 2160,

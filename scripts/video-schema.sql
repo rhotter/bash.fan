@@ -21,3 +21,6 @@ CREATE TABLE IF NOT EXISTS video_markers (
   id uuid PRIMARY KEY, session_id text NOT NULL REFERENCES video_sessions(id),
   label text NOT NULL, occurred_at timestamptz NOT NULL, source text NOT NULL DEFAULT 'manual'
 );
+
+CREATE UNIQUE INDEX IF NOT EXISTS video_sessions_open_game ON video_sessions(game_id)
+  WHERE ended_at IS NULL AND game_id IS NOT NULL;

@@ -4,103 +4,308 @@ import HaishinKit
 @main
 struct BASHCaptureApp: App {
     @StateObject private var camera = CaptureController()
+    @StateObject private var website = WebsiteConnection()
     @Environment(\.scenePhase) private var phase
     var body: some Scene {
         WindowGroup {
-            CaptureView(camera: camera, library: camera.library)
-                .tint(Color(red: 0.88, green: 0.48, blue: 0.16))
-                .preferredColorScheme(.light)
-                .onOpenURL { url in Task { await camera.pair(url.absoluteString) } }
+            CaptureHome(camera: camera, library: camera.library, website: website)
                 .onChange(of: phase) { _, next in
-                    if next == .background { Task { await camera.stop() } }
+                    if next == .background { Task { await camera.stop(); await camera.suspendPreview() } }
                 }
+        }
+    }
+}
+
+struct CaptureHome: View {
+    @ObservedObject var camera: CaptureController
+    @ObservedObject var library: RecordingLibrary
+    @ObservedObject var website: WebsiteConnection
+    @State private var showConnection = false
+    @State private var showCamera = false
+    @State private var selectedGame: CaptureGame?
+    @State private var openCameraAfterSetup = false
+
+    var body: some View {
+        TabView {
+            NavigationStack {
+                List {
+                    if let pairing = camera.pairing {
+                        Section("This camera") {
+                            Button { showCamera = true } label: {
+                                HStack(spacing: 14) {
+                                    Image(systemName: "video.fill").font(.title2).foregroundStyle(.tint)
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text(camera.configuration?.game?.matchup ?? camera.configuration?.title ?? "Connected recording").font(.headline).foregroundStyle(.primary)
+                                        Text("\(pairing.side.capitalized) camera · \(camera.configuration?.ended == true ? "Session ended" : "Ready to open")").font(.subheadline).foregroundStyle(.secondary)
+                                    }
+                                    Spacer(); Image(systemName: "chevron.right").font(.caption.bold()).foregroundStyle(.tertiary)
+                                }.padding(.vertical, 5)
+                            }.buttonStyle(.plain)
+                        }
+                    }
+                    if website.signedIn {
+                        Section("League schedule") {
+                            ForEach(website.games) { game in
+                                Button { selectedGame = game } label: {
+                                    VStack(alignment: .leading, spacing: 5) {
+                                        HStack {
+                                            Text(game.matchup).font(.headline).foregroundStyle(.primary)
+                                            Spacer()
+                                            if game.status == "live" { Text("LIVE").font(.caption.bold()).foregroundStyle(.red) }
+                                        }
+                                        Text("\(game.dateLabel) · \(game.time)").font(.subheadline).foregroundStyle(.secondary)
+                                        if let location = game.location { Text(location).font(.caption).foregroundStyle(.secondary) }
+                                    }.padding(.vertical, 5)
+                                }.buttonStyle(.plain)
+                            }
+                            if website.games.isEmpty { Text(website.error == nil ? "No games in the current season." : "The schedule could not be loaded.").foregroundStyle(.secondary) }
+                        }
+                    } else {
+                        Section {
+                            ContentUnavailableView("Your rink. Your games.", systemImage: "sportscourt", description: Text("Connect to BASH to choose a game and assign this phone to the left or right camera."))
+                            Button("Connect to BASH", systemImage: "link") { showConnection = true }
+                                .frame(maxWidth: .infinity).buttonStyle(.borderedProminent).padding(.bottom, 12)
+                        }
+                    }
+                    if let error = website.error {
+                        Section {
+                            Text(error).foregroundStyle(.red).font(.callout)
+                            if website.signedIn { Button("Retry") { Task { await website.refresh() } } }
+                        }
+                    }
+                }
+                .navigationTitle("Games")
+                .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Connection", systemImage: "person.crop.circle") { showConnection = true } } }
+                .refreshable { await website.refresh(); await camera.refreshConfiguration() }
+            }.tabItem { Label("Games", systemImage: "sportscourt") }
+            RecordingLibraryView(camera: camera, library: library)
+                .tabItem { Label("Recordings", systemImage: "play.rectangle.on.rectangle") }
+        }
+        .sheet(isPresented: $showConnection) { ConnectionSheet(camera: camera, website: website) }
+        .sheet(item: $selectedGame, onDismiss: {
+            if openCameraAfterSetup { openCameraAfterSetup = false; showCamera = true }
+        }) { game in
+            GameSetupSheet(game: game, camera: camera, website: website) { openCameraAfterSetup = true; selectedGame = nil }
+        }
+        .fullScreenCover(isPresented: $showCamera) { NativeCameraView(camera: camera) }
+        .task { await library.recoverInterrupted(); await camera.refreshConfiguration() }
+        .onOpenURL { url in Task { await camera.pair(url.absoluteString); if camera.error == nil { showCamera = true } } }
+    }
+}
+
+struct ConnectionSheet: View {
+    @ObservedObject var camera: CaptureController
+    @ObservedObject var website: WebsiteConnection
+    @Environment(\.dismiss) private var dismiss
+    @State private var pin = ""
+    @State private var setupLink = ""
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    TextField("Website", text: $website.serverText).keyboardType(.URL).textInputAutocapitalization(.never).autocorrectionDisabled().disabled(website.signedIn)
+                    if website.signedIn {
+                        Label("Connected to the league schedule", systemImage: "checkmark.circle.fill").foregroundStyle(.green)
+                        Button("Sign out", role: .destructive) { website.signOut() }
+                    } else {
+                        SecureField("League PIN", text: $pin)
+                        Button { Task { await website.signIn(pin: pin); pin = ""; if website.signedIn { dismiss() } } } label: {
+                            if website.busy { ProgressView() } else { Text("Connect") }
+                        }.disabled(pin.isEmpty || website.busy)
+                    }
+                } header: { Text("BASH website") } footer: { Text("Uses the same game schedule and operator PIN as the website. Your PIN is never saved.") }
+                Section {
+                    TextField("Camera setup link", text: $setupLink, axis: .vertical).textInputAutocapitalization(.never).autocorrectionDisabled()
+                    Button("Pair with setup link") { Task { await camera.pair(setupLink); if camera.error == nil { setupLink = ""; dismiss() } } }.disabled(setupLink.isEmpty || camera.busy || camera.recording)
+                } header: { Text("Or pair from the website") } footer: { Text("Open a game's score page, choose Record this game, and copy its camera setup link.") }
+                if let error = website.error ?? camera.error { Section { Text(error).foregroundStyle(.red) } }
+            }.navigationTitle("Connection").navigationBarTitleDisplayMode(.inline)
+                .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
+        }
+    }
+}
+
+struct GameSetupSheet: View {
+    let game: CaptureGame
+    @ObservedObject var camera: CaptureController
+    @ObservedObject var website: WebsiteConnection
+    let onConnected: () -> Void
+    @Environment(\.dismiss) private var dismiss
+    @State private var side = "left"
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    Text(game.matchup).font(.headline)
+                    Label("\(game.dateLabel) · \(game.time)", systemImage: "calendar")
+                    if let location = game.location { Label(location, systemImage: "mappin.and.ellipse") }
+                }
+                Section {
+                    Picker("Camera position", selection: $side) { Text("Left").tag("left"); Text("Right").tag("right") }.pickerStyle(.segmented)
+                    Toggle("Livestream", isOn: $camera.liveEnabled)
+                } header: { Text("This iPhone") } footer: { Text("Choose the same game on both phones, then assign one to each side of the fixed mount. 4K originals stay on each phone.") }
+                Section {
+                    Button { Task { if await website.choose(game, side: side, camera: camera) { onConnected() } } } label: {
+                        if website.busy { ProgressView() } else { Label("Open camera", systemImage: "video") }
+                    }.disabled(website.busy || camera.recording)
+                }
+                if let error = website.error { Section { Text(error).foregroundStyle(.red) } }
+            }.navigationTitle("Record game").navigationBarTitleDisplayMode(.inline)
+                .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } } }
         }
     }
 }
 
 struct CapturePreview: UIViewRepresentable {
     let mixer: MediaMixer
+    final class Coordinator {
+        let mixer: MediaMixer
+        var attach: Task<Void, Never>?
+        init(_ mixer: MediaMixer) { self.mixer = mixer }
+    }
+    func makeCoordinator() -> Coordinator { Coordinator(mixer) }
     func makeUIView(context: Context) -> MTHKView {
-        let view = MTHKView(frame: .zero)
-        view.videoGravity = .resizeAspect
-        Task { await mixer.addOutput(view) }
+        let view = MTHKView(frame: .zero); view.videoGravity = .resizeAspect
+        context.coordinator.attach = Task { await mixer.addOutput(view) }
         return view
     }
     func updateUIView(_ view: MTHKView, context: Context) {}
+    static func dismantleUIView(_ view: MTHKView, coordinator: Coordinator) {
+        Task { await coordinator.attach?.value; await coordinator.mixer.removeOutput(view) }
+    }
 }
 
-struct CaptureView: View {
+struct NativeCameraView: View {
+    @ObservedObject var camera: CaptureController
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.scenePhase) private var phase
+    @State private var showSettings = false
+    @State private var confirmStop = false
+    var body: some View {
+        NavigationStack {
+            GeometryReader { geometry in
+                let landscape = geometry.size.width > geometry.size.height
+                ZStack {
+                    Color.black.ignoresSafeArea()
+                    CapturePreview(mixer: camera.mixer)
+                    VStack {
+                        VStack(spacing: 5) {
+                            Text(camera.configuration?.game?.matchup ?? camera.configuration?.title ?? "BASH recording").font(.headline)
+                            HStack(spacing: 12) {
+                                Label("4K · \(camera.framesPerSecond)", systemImage: "video")
+                                if camera.streaming { Label("Live", systemImage: "dot.radiowaves.left.and.right").foregroundStyle(.red) }
+                                if camera.recording, let start = camera.recordingStartedAt {
+                                    Text(start, style: .timer).monospacedDigit().foregroundStyle(.red)
+                                }
+                            }.font(.caption.weight(.semibold))
+                        }.padding(.horizontal, 18).padding(.vertical, 10).captureGlass()
+                        Spacer()
+                        if !camera.ready {
+                            VStack(spacing: 6) {
+                                Text("Camera preview").font(.headline)
+                                Text(camera.error ?? "Use a physical iPhone to record.").font(.callout).foregroundStyle(.secondary).multilineTextAlignment(.center)
+                            }.frame(maxWidth: 420)
+                            Spacer()
+                        } else if let error = camera.error {
+                            Text(error).font(.callout).multilineTextAlignment(.center).padding(12).background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
+                        }
+                        if !landscape { Label("Rotate with the volume buttons facing up", systemImage: "rotate.right").font(.callout).padding(10) }
+                    }.padding()
+                }
+                .safeAreaInset(edge: .bottom) {
+                    HStack(spacing: 28) {
+                        VStack(alignment: .trailing, spacing: 3) {
+                            Text(camera.pairing.map { "\($0.side.capitalized) camera" } ?? "Not paired").font(.subheadline.weight(.semibold))
+                            Text(camera.recording ? "Recording on iPhone" : "Ready when you are").font(.caption).foregroundStyle(.secondary)
+                        }.frame(maxWidth: .infinity, alignment: .trailing)
+                        Button {
+                            if camera.recording { confirmStop = true } else { Task { await camera.start() } }
+                        } label: {
+                            ZStack {
+                                Circle().strokeBorder(.white, lineWidth: 3).frame(width: 76, height: 76)
+                                if camera.recording { RoundedRectangle(cornerRadius: 7).fill(.red).frame(width: 30, height: 30) }
+                                else { Circle().fill(.red).frame(width: 64, height: 64) }
+                            }
+                        }.buttonStyle(.plain).accessibilityLabel(camera.recording ? "Stop recording" : "Start recording")
+                            .disabled(camera.busy || !camera.ready || camera.pairing == nil || camera.configuration?.ended == true || (!landscape && !camera.recording))
+                            .opacity(camera.ready && landscape ? 1 : 0.45)
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(camera.clockChecked ? "Clock checked" : "Local + live").font(.subheadline.weight(.semibold))
+                            Text(camera.liveEnabled ? "1080p broadcast" : "Local recording only").font(.caption).foregroundStyle(.secondary)
+                        }.frame(maxWidth: .infinity, alignment: .leading)
+                    }.padding(.horizontal, 20).padding(.vertical, 12).captureGlass().padding(.horizontal).padding(.bottom, 8)
+                }
+            }
+            .navigationTitle("Camera").navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) { Button("Close", systemImage: "xmark") { dismiss() }.disabled(camera.recording || camera.busy) }
+                ToolbarItem(placement: .topBarTrailing) { Button("Capture settings", systemImage: "slider.horizontal.3") { showSettings = true }.disabled(camera.recording) }
+            }
+            .sheet(isPresented: $showSettings) { CaptureSettings(camera: camera) }
+            .confirmationDialog("Stop recording this camera?", isPresented: $confirmStop, titleVisibility: .visible) { Button("Stop recording", role: .destructive) { Task { await camera.stop() } } }
+            .task { await camera.refreshConfiguration(); await camera.prepare() }
+            .onDisappear { Task { await camera.suspendPreview() } }
+            .onChange(of: phase) { _, next in if next == .active { Task { await camera.prepare() } } }
+            .sensoryFeedback(.impact(weight: .medium), trigger: camera.recording)
+        }.preferredColorScheme(.dark)
+    }
+}
+
+private extension View {
+    @ViewBuilder func captureGlass() -> some View {
+        if #available(iOS 26, *) { self.glassEffect(.regular, in: .capsule) }
+        else { self.background(.ultraThinMaterial, in: Capsule()) }
+    }
+}
+
+struct CaptureSettings: View {
+    @ObservedObject var camera: CaptureController
+    @Environment(\.dismiss) private var dismiss
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Recording") {
+                    LabeledContent("Resolution", value: "4K HEVC")
+                    Picker("Frame rate", selection: $camera.framesPerSecond) { Text("30 fps").tag(30); Text("60 fps").tag(60) }
+                    Toggle("Livestream at 1080p", isOn: $camera.liveEnabled)
+                }
+                Section { Text("Use the same frame rate on both phones. Keep them fixed with overlapping views, and record a clap near the mount before play for alignment.").font(.callout) }
+            }.navigationTitle("Capture settings").navigationBarTitleDisplayMode(.inline)
+                .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
+        }.presentationDetents([.medium, .large])
+    }
+}
+
+struct RecordingLibraryView: View {
     @ObservedObject var camera: CaptureController
     @ObservedObject var library: RecordingLibrary
-    @State private var setupLink = ""
-    @State private var showPairing = false
-    @State private var showLibrary = false
     @State private var confirmCleanup = false
-
     var body: some View {
-        HStack(spacing: 0) {
-            ZStack(alignment: .topLeading) {
-                Color.black
-                CapturePreview(mixer: camera.mixer)
-                if !camera.ready {
-                    VStack(spacing: 12) { Image(systemName: "video").font(.largeTitle); Text("Camera preview").font(.headline); Text("Use a physical iPhone to capture 4K.").font(.caption) }.foregroundStyle(.white.opacity(0.7)).frame(maxWidth: .infinity, maxHeight: .infinity)
-                }
-                HStack(spacing: 8) {
-                    Label(camera.recording ? "REC" : "STANDBY", systemImage: "circle.fill").foregroundStyle(camera.recording ? .red : .white)
-                    Text("4K · \(camera.framesPerSecond) FPS").foregroundStyle(.white)
-                    if camera.streaming { Text("LIVE").foregroundStyle(.green) }
-                }.font(.system(size: 11, weight: .bold, design: .monospaced)).padding(10).background(.black.opacity(0.6), in: Capsule()).padding(16)
-                // Center overlap guides are framing aids, not a calibration result.
-                Rectangle().stroke(.white.opacity(0.25), style: StrokeStyle(lineWidth: 1, dash: [5, 5])).padding(.horizontal, 45).padding(.vertical, 35).allowsHitTesting(false)
-            }
-            VStack(alignment: .leading, spacing: 14) {
-                HStack { Text("BASH").font(.system(size: 17, weight: .bold)); Text("CAPTURE").font(.system(size: 10, weight: .bold)).tracking(2).foregroundStyle(.secondary) }
-                Text(camera.pairing.map { "\($0.side.capitalized) camera" } ?? "Set up your camera").font(.title3.bold())
-                Text(camera.status).font(.caption).foregroundStyle(.secondary)
-                if let error = camera.error ?? library.error { Text(error).font(.caption).foregroundStyle(.red).fixedSize(horizontal: false, vertical: true) }
-                HStack {
-                    Text("Frame rate").font(.caption)
-                    Picker("Frame rate", selection: $camera.framesPerSecond) { Text("30").tag(30); Text("60").tag(60) }.pickerStyle(.segmented).disabled(camera.recording)
-                }
-                Toggle("Livestream at 1080p", isOn: $camera.liveEnabled).font(.caption).disabled(camera.recording)
-                Button { Task { if camera.recording { await camera.stop() } else { await camera.start() } } } label: {
-                    Label(camera.recording ? "Stop recording" : "Start recording", systemImage: camera.recording ? "stop.fill" : "record.circle").font(.headline).frame(maxWidth: .infinity).padding(.vertical, 9)
-                }.buttonStyle(.borderedProminent).disabled(camera.busy || !camera.ready || camera.pairing == nil)
-                HStack {
-                    Button("Pair phone", systemImage: "link") { showPairing = true }.disabled(camera.recording || camera.busy)
-                    Spacer()
-                    Button("Library", systemImage: "film.stack") { showLibrary = true }
-                }.font(.caption)
-                Spacer(minLength: 0)
-                Label("\(library.pending) segments waiting to upload", systemImage: "icloud.and.arrow.up").font(.caption).foregroundStyle(.secondary)
-                Text("Keep the app open while recording. Originals stay on this phone until you remove verified uploads.").font(.system(size: 10)).foregroundStyle(.secondary)
-            }.padding(16).frame(width: 300)
-        }.background(Color(white: 0.985)).ignoresSafeArea(edges: .vertical)
-        .task { await camera.prepare(); await library.recoverInterrupted() }
-        .sheet(isPresented: $showPairing) {
-            NavigationStack { Form {
-                Section("Pair with your dashboard") {
-                    Text("Open the game’s score page and choose Record this game. Copy its private camera setup link and paste it here.")
-                    TextField("bashcapture://pair?…", text: $setupLink, axis: .vertical).textInputAutocapitalization(.never).autocorrectionDisabled()
-                    Button("Connect camera") { Task { await camera.pair(setupLink); if camera.error == nil { setupLink = ""; showPairing = false } } }.disabled(camera.busy || setupLink.isEmpty)
-                    if let error = camera.error { Text(error).foregroundStyle(.red) }
-                }
-            }.navigationTitle("Pair camera").toolbar { Button("Done") { showPairing = false } } }
-        }
-        .sheet(isPresented: $showLibrary) {
-            NavigationStack { List {
+        NavigationStack {
+            List {
                 Section {
-                    Button(library.uploading ? "Uploading…" : "Upload pending recordings", systemImage: "icloud.and.arrow.up") { Task { await library.uploadPending() } }.disabled(library.uploading || camera.recording)
-                    Text("Upload after the game to give recording and livestreaming the available bandwidth. Keep the app open during uploads.").font(.caption).foregroundStyle(.secondary)
-                    if let error = library.error { Text(error).font(.caption).foregroundStyle(.red) }
+                    Button { Task { await library.uploadPending() } } label: { Label(library.uploading ? "Uploading…" : "Upload recordings", systemImage: "icloud.and.arrow.up") }.disabled(library.uploading || camera.recording || library.pending == 0)
+                    LabeledContent("Waiting to upload", value: "\(library.pending)")
+                } footer: { Text("Upload after the game. Keep the app open until uploads finish.") }
+                if library.recordings.isEmpty { ContentUnavailableView("No recordings yet", systemImage: "film.stack", description: Text("Your recordings stay on this iPhone until you choose to remove saved copies.")) }
+                Section("On this iPhone") {
+                    ForEach(library.recordings.reversed()) { item in
+                        HStack {
+                            Image(systemName: item.uploaded ? "checkmark.icloud" : "film").foregroundStyle(item.uploaded ? .green : .secondary)
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(item.startedAt, format: .dateTime.month().day().hour().minute())
+                                Text(item.duration.map { "\(Int($0)) seconds" } ?? "Needs recovery").font(.caption).foregroundStyle(.secondary)
+                            }
+                            Spacer(); Text(item.uploaded ? "Saved" : "On iPhone").font(.caption).foregroundStyle(.secondary)
+                        }
+                    }
                 }
-                ForEach(library.recordings.reversed()) { item in
-                    HStack { VStack(alignment: .leading) { Text(item.startedAt, style: .time); Text(item.duration.map { "\(Int($0)) seconds" } ?? "Needs recovery").font(.caption).foregroundStyle(.secondary) }; Spacer(); Text(item.uploaded ? "Verified in R2" : "On this phone").font(.caption) }
-                }
-                Section { Button("Remove verified local copies", role: .destructive) { confirmCleanup = true }.disabled(camera.recording || library.uploading || !library.recordings.contains(where: { $0.uploaded })) }
-            }.navigationTitle("Recordings").toolbar { Button("Done") { showLibrary = false } }
-                .confirmationDialog("Remove local copies already verified in R2?", isPresented: $confirmCleanup, titleVisibility: .visible) { Button("Remove local copies", role: .destructive) { do { try library.removeVerified() } catch { library.error = error.localizedDescription } } }
-            }
+                if let error = library.error { Section { Text(error).foregroundStyle(.red) } }
+            }.navigationTitle("Recordings")
+                .toolbar { ToolbarItem(placement: .topBarTrailing) {
+                    Menu("Library options", systemImage: "ellipsis") { Button("Remove saved local copies", role: .destructive) { confirmCleanup = true }.disabled(camera.recording || library.uploading || !library.recordings.contains(where: { $0.uploaded })) }
+                } }
+                .confirmationDialog("Remove local copies already saved to BASH?", isPresented: $confirmCleanup, titleVisibility: .visible) { Button("Remove local copies", role: .destructive) { do { try library.removeVerified() } catch { library.error = error.localizedDescription } } }
         }
     }
 }

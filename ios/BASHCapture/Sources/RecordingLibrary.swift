@@ -5,6 +5,7 @@ struct LocalRecording: Codable, Identifiable, Sendable {
     let id: String
     let pairingKey: String
     let startedAt: Date
+    var clockAnchor: CaptureClockAnchor?
     var duration: Double?
     var uploaded: Bool
     var file: URL { RecordingLibrary.directory.appending(path: "\(id).mp4") }
@@ -33,9 +34,9 @@ final class RecordingLibrary: ObservableObject {
         guard manifestLoaded else { throw CaptureError.message("Recording library needs recovery before recording or uploading. Existing files have been preserved.") }
         try JSONEncoder().encode(recordings).write(to: manifest, options: .atomic)
     }
-    func begin(pairing: Pairing, startedAt: Date) throws -> LocalRecording {
+    func begin(pairing: Pairing, startedAt: Date, clockAnchor: CaptureClockAnchor? = nil) throws -> LocalRecording {
         guard manifestLoaded else { throw CaptureError.message("Recording library needs recovery. Existing files have been preserved.") }
-        let item = LocalRecording(id: UUID().uuidString.lowercased(), pairingKey: pairing.key, startedAt: startedAt, uploaded: false)
+        let item = LocalRecording(id: UUID().uuidString.lowercased(), pairingKey: pairing.key, startedAt: startedAt, clockAnchor: clockAnchor, uploaded: false)
         recordings.append(item); try persist(); return item
     }
     func finalize(_ item: LocalRecording) async throws {

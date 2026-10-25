@@ -39,6 +39,10 @@ Keep ad-hoc signing enabled for simulator runs: unsigned builds compile but cann
 
 Use an HTTPS dev URL accessible from the phone, or a trusted LAN hostname/address. A pairing link copied from `localhost` points to the phone itself. The setup link can be pasted into the app; its custom URL scheme is `bashcapture://pair`. Pairing credentials are stored in Keychain, never in the recording manifest. Opening a link while recording does not replace the active session.
 
+The app uses native SwiftUI navigation, lists, forms, sheets, system typography and a full-screen camera. On iOS 26 its camera controls use Liquid Glass; earlier supported versions use system material. It follows the device's appearance outside the dark viewfinder. The web score pages keep the public BASH design.
+
+In **Games → Connection**, enter the website address and existing league operator PIN. The app reads the current-season schedule from `GET /api/bash/video/games`. The PIN is not saved; the operator cookie lives in an ephemeral URL session. Choose a game and a camera side on each phone. Both phones converge on the same open recording session through a database unique index, including concurrent joins. An active side cannot be silently reclaimed by another phone; deliberate replacement remains **Pair again** on the website. **Livestream** provisions that camera's Stream input when joining a game. The saved camera pairing still works after operator sign-out.
+
 ## Capture, uploads, and failure behavior
 
 - Landscape rear wide camera; 4K HEVC at 30 fps by default, selectable 60 fps when supported. Targets 25 Mbps at 30 fps / 40 Mbps at 60 fps, plus AAC audio. Test visual quality and actual dimensions on the selected phones.
@@ -53,7 +57,9 @@ Use an HTTPS dev URL accessible from the phone, or a trusted LAN hostname/addres
 
 ## Replays and synchronization
 
-Segment metadata maps approximate recording-start wall time onto the server clock using a request round trip. This is not frame-accurate synchronization; first-frame latency, clock drift, network asymmetry and scorekeeper reaction delay remain. Camera offsets can be adjusted in seconds in the dashboard (positive means camera timestamps are ahead of event timestamps).
+Before capture, the phone samples the authenticated clock endpoint five times. The server reports request-received and response-sent timestamps, allowing the client to subtract server processing time and select the sample with the lowest estimated network delay. That estimate anchors the phone's monotonic uptime to server time, so a phone wall-clock adjustment does not move an ongoing recording's timestamps. The anchor and estimated network uncertainty are saved in the local recording manifest; the API still receives the derived segment start time.
+
+These remain recording-request timestamps, not measured first-frame timestamps. The clock estimate is not frame-accurate synchronization or an accuracy guarantee: first-frame latency, long-term clock drift, network asymmetry and scorekeeper reaction delay remain. Camera offsets can be adjusted in seconds in the dashboard (positive means camera timestamps are ahead of event timestamps). See [the fusion plan](video-fusion.md) for audio alignment, calibration and live processing.
 
 Manual highlight markers are stored in `video_markers`. For linked games, the dashboard reads original `add` observations from `game_timing_events` (when migrated), falling back to legacy `game_live.state.timing` entries, for goals still present in the game. Later scoring edits don't silently replace the original observation. It never exposes the entire private timing history publicly.
 
@@ -73,8 +79,10 @@ Cloudflare Stream is activated with 1,000 stored video minutes at $5/month, plus
 
 The initial development R2 and Stream credentials expire November 23, 2026. Renew the scoped credentials before testing after that date. Credentials belong only in the ignored server environment, not in this document or the iPhone application.
 
-`pnpm exec vitest run tests/video.test.ts tests/game-video.test.ts` runs 19 tests covering authorization, expired credentials, upload verification, retry/id collisions, payload limits, replay gaps/offsets, game-scoped viewing, and public metadata redaction. Run `pnpm exec tsc --noEmit` and the simulator build above. Before field use: verify two physical cameras, actual 4K dimensions, audio/video sync, stream disconnect/reconnect, R2 byte checks, interrupted uploads, app restart recovery, clock correction and full two-hour thermal/storage behavior.
+`pnpm exec vitest run tests/video.test.ts tests/game-video.test.ts tests/video-games.test.ts` runs 26 tests covering authorization, expired credentials, upload verification, retry/id collisions, payload limits, replay gaps/offsets, game-scoped viewing, public metadata redaction, native game selection, camera claim isolation and clock responses. Run `pnpm exec tsc --noEmit` and the simulator build above. Before field use: verify two physical cameras, actual 4K dimensions, audio/video sync, stream disconnect/reconnect, R2 byte checks, interrupted uploads, app restart recovery, clock correction and full two-hour thermal/storage behavior.
 
 The video layout was checked in Chrome and a narrow in-app browser viewport after switching to the public site shell. The standalone routes have been removed. Viewer metadata and signed playback are scoped to the game; admin APIs still require authentication. TypeScript, targeted ESLint, video tests, and the updated iOS simulator build passed.
 
 On the `video` branch, the synthetic R2 fixture is linked only to development game `g70`. Browser verification confirmed playback within that game page (1280×720, readyState 4, advancing playback, no media error) and inline admin camera setup. Both removed standalone page URLs return 404; the admin API rejects unauthenticated requests while the game viewing endpoint serves only game-scoped viewer data.
+
+The native schedule was also verified in the iOS 26.1 simulator against the running dev website. A live API integration check on development game `g49` joined left/right concurrently, confirmed a shared session and matching game metadata, rejected a duplicate side with 409, and checked both authenticated clock responses. The explicitly titled **Native pairing · integration test** session was then ended. No media or Cloudflare inputs were created by that check. The unique open-game index was applied to the dev database only.

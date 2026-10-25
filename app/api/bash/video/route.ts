@@ -19,7 +19,9 @@ export async function POST(request: Request) { return videoHandler(async () => {
   const body = z.object({ title: z.string().trim().min(1).max(120), gameId: z.string().max(100).nullable().optional() }).parse(await request.json())
   if (body.gameId && !(await rawSql(sql`SELECT id FROM games WHERE id = ${body.gameId}`)).length) fail("Game not found", 404)
   const id = randomUUID()
-  const [session] = await rawSql(sql`INSERT INTO video_sessions (id, title, game_id) VALUES (${id}, ${body.title}, ${body.gameId ?? null}) RETURNING *`)
-  // Camera rows are initialized idempotently in the detail endpoint, so a partial creation is recoverable.
+  const [session] = await rawSql(sql`INSERT INTO video_sessions (id, title, game_id) VALUES (${id}, ${body.title}, ${body.gameId ?? null})
+    ON CONFLICT (game_id) WHERE ended_at IS NULL AND game_id IS NOT NULL
+    DO UPDATE SET game_id = EXCLUDED.game_id RETURNING *`)
+  // Camera rows are created when each side is paired.
   return Response.json({ session }, { status: 201 })
 }) }

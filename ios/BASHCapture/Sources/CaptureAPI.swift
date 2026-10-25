@@ -2,6 +2,18 @@ import Foundation
 import Security
 import CryptoKit
 
+func captureServerURL(_ text: String) throws -> URL {
+    guard let url = URL(string: text.trimmingCharacters(in: .whitespacesAndNewlines)),
+          let host = url.host, url.user == nil, url.password == nil, url.query == nil, url.fragment == nil,
+          url.path.isEmpty || url.path == "/" else { throw CaptureError.message("Enter the website address, for example https://bash.fan.") }
+    let parts = host.split(separator: ".", omittingEmptySubsequences: false)
+    let octets = parts.compactMap { Int($0) }
+    let privateIP = parts.count == 4 && octets.count == 4 && octets.allSatisfy { (0...255).contains($0) } && (octets[0] == 10 || (octets[0] == 192 && octets[1] == 168) || (octets[0] == 172 && (16...31).contains(octets[1])))
+    let local = host == "localhost" || host == "127.0.0.1" || host.hasSuffix(".local") || privateIP
+    guard url.scheme == "https" || (url.scheme == "http" && local) else { throw CaptureError.message("Use HTTPS, or your local development server.") }
+    return url
+}
+
 struct Pairing: Codable, Sendable {
     let server: URL
     let session: String
@@ -14,13 +26,11 @@ struct Pairing: Codable, Sendable {
         guard let components = URLComponents(string: link.trimmingCharacters(in: .whitespacesAndNewlines)), components.scheme == "bashcapture", components.host == "pair" else { throw CaptureError.message("Paste a camera setup link from the BASH dashboard.") }
         let items = components.queryItems ?? []
         func value(_ name: String) -> String? { items.first { $0.name == name }?.value }
-        guard let raw = value("server"), let server = URL(string: raw), let host = server.host,
-              server.user == nil, server.password == nil, server.query == nil, server.fragment == nil,
+        guard let raw = value("server"),
               let session = value("session"), UUID(uuidString: session) != nil,
               let side = value("side"), ["left", "right"].contains(side),
               let token = value("token"), token.count == 43 else { throw CaptureError.message("Invalid camera setup link.") }
-        let local = host == "localhost" || host.hasSuffix(".local") || host.hasPrefix("192.168.") || host.hasPrefix("10.") || host == "127.0.0.1"
-        guard server.scheme == "https" || (server.scheme == "http" && local) else { throw CaptureError.message("Use HTTPS, or a local development address.") }
+        let server = try captureServerURL(raw)
         self.server = server; self.session = session; self.side = side; self.token = token
     }
 }
@@ -48,7 +58,26 @@ enum CameraKeychain {
     }
 }
 
+struct CaptureGame: Codable, Identifiable, Hashable, Sendable {
+    let id: String
+    let date: String
+    let time: String
+    let status: String
+    let location: String?
+    let homeTeam: String
+    let awayTeam: String
+    var matchup: String { "\(awayTeam) at \(homeTeam)" }
+    var dateLabel: String {
+        let formatter = DateFormatter(); formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(identifier: "America/Los_Angeles"); formatter.dateFormat = "yyyy-MM-dd"
+        guard let value = formatter.date(from: date) else { return date }
+        formatter.setLocalizedDateFormatFromTemplate("EEE MMM d")
+        return formatter.string(from: value)
+    }
+}
 struct CameraConfiguration: Decodable {
+    let title: String?
+    let game: CaptureGame?
     let ended: Bool
     let serverTime: Double
     let rtmpsUrl: String?
@@ -71,5 +100,30 @@ enum CaptureAPI {
             throw CaptureError.message(message)
         }
         return try JSONDecoder().decode(T.self, from: data)
+    }
+}
+
+struct ClockReply: Decodable { let receivedAt: Double; let sentAt: Double }
+struct CaptureClockAnchor: Codable, Sendable {
+    let serverMilliseconds: Double
+    let uptimeSeconds: Double
+    let estimatedNetworkErrorMs: Double
+    var serverDate: Date { Date(timeIntervalSince1970: (serverMilliseconds + (ProcessInfo.processInfo.systemUptime - uptimeSeconds) * 1000) / 1000) }
+}
+extension CaptureAPI {
+    static func synchronize(_ pairing: Pairing, samples: Int = 5) async throws -> CaptureClockAnchor {
+        var best: CaptureClockAnchor?
+        for _ in 0..<samples {
+            let sent = ProcessInfo.processInfo.systemUptime
+            let reply: ClockReply = try await call(pairing, body: ["action": "clock"])
+            let received = ProcessInfo.processInfo.systemUptime
+            guard reply.sentAt >= reply.receivedAt else { continue }
+            let networkDelay = max(0, (received - sent) * 1000 - (reply.sentAt - reply.receivedAt))
+            let sample = CaptureClockAnchor(serverMilliseconds: (reply.receivedAt + reply.sentAt) / 2,
+                uptimeSeconds: (sent + received) / 2, estimatedNetworkErrorMs: networkDelay / 2)
+            if best == nil || sample.estimatedNetworkErrorMs < best!.estimatedNetworkErrorMs { best = sample }
+        }
+        guard let best else { throw CaptureError.message("Could not check the camera clock. Try connecting again.") }
+        return best
     }
 }

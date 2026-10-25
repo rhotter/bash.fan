@@ -19,7 +19,7 @@ export async function cameraVideo(request: Request, id: string, side: string) {
   if (side !== "left" && side !== "right") fail("Invalid camera")
   const token = request.headers.get("Authorization")?.match(/^Bearer ([A-Za-z0-9_-]{43})$/)?.[1]
   if (!token) fail("Unauthorized", 401)
-  const [camera] = await rawSql(sql`SELECT c.*, s.ended_at FROM video_cameras c JOIN video_sessions s ON s.id = c.session_id
+  const [camera] = await rawSql(sql`SELECT c.*, s.ended_at, s.game_id, s.title FROM video_cameras c JOIN video_sessions s ON s.id = c.session_id
     WHERE c.session_id = ${id} AND c.side = ${side}`)
   if (!camera?.token_hash || !tokenMatches(token, camera.token_hash) || !Number.isFinite(Date.parse(camera.token_expires_at)) || Date.parse(camera.token_expires_at) <= Date.now()) fail("Pair this camera again", 401)
   return camera
