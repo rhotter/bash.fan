@@ -27,7 +27,7 @@ describe("video access and upload integrity", () => {
   })
   it("rejects unauthenticated administration before reading the database", async () => {
     mocks.admin.mockRejectedValue(new Response("Unauthorized", { status: 401 }))
-    expect((await sessions()).status).toBe(401)
+    expect((await sessions(new Request("http://localhost/api/bash/video"))).status).toBe(401)
     expect(mocks.query).not.toHaveBeenCalled()
   })
   it("fails closed when video is disabled", async () => {
@@ -86,7 +86,7 @@ describe("replay alignment", () => {
       ])
     const response = await sessionDetail(new Request("http://localhost/api/bash/video/test-session"), { params: Promise.resolve({ id }) })
     expect(response.status).toBe(200)
-    expect((await response.json()).markers).toEqual([{ id: "original", label: "Goal · Period 1", occurred_at: original, source: "scorekeeper" }])
+    expect((await response.json()).markers).toEqual([{ id: "original", label: "Goal · Period 1", occurred_at: original, source: "scorekeeper", goalId: "goal-1" }])
   })
   const segment: VideoSegment = { id: "one", side: "left", started_at: "2026-10-24T20:00:00Z", duration: 60, bytes: 100, uploaded_at: "2026-10-24T21:00:00Z" }
   it("applies a camera offset and replay lead-in", () => {

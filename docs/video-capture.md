@@ -1,15 +1,15 @@
 # BASH Capture development
 
-The iPhone application is in `ios/BASHCapture`. The supporting Next.js dashboard is `/video`, behind the existing admin login. This is a development implementation: R2 upload and retrieval and Stream ingest have been verified with synthetic footage. Short synthetic live playback now works in Chrome. Game-length playback and physical camera performance still require validation before a game.
+The iPhone application is in `ios/BASHCapture`. Recording and replay controls live on each game’s existing score page, `/game/[id]`. Viewers can watch that game’s uploaded recordings and livestreams; camera setup requires the existing admin login. There is no standalone video page. This is a development implementation: R2 upload and retrieval and Stream ingest have been verified with synthetic footage. Short synthetic live playback now works in Chrome. Game-length playback and physical camera performance still require validation before a game.
 
 ## Run the dashboard
 
 1. Use a separate Neon dev endpoint in `DATABASE_URL_DEV` in `.env.local`.
 2. Run `pnpm exec tsx scripts/setup-video-dev.ts`. This additive, repeatable migration refuses a dev endpoint matching `DATABASE_URL_PROD`; it never falls back to `DATABASE_URL`.
 3. Run `VIDEO_ENABLED=1 DB_TARGET=dev pnpm dev --hostname 0.0.0.0 --port 3002`.
-4. Open `/video`, sign in with the existing admin PIN, and create a camera-test session or link a scheduled game.
+4. Sign in with the existing admin PIN, open a game from Scores, and choose **Record this game**. New recordings are automatically linked to that game.
 
-The dashboard uses the public BASH header/footer, max-w-6xl page width, compact typography, neutral selection pills, and shared theme tokens. It still requires the existing admin login; the old `/admin/video` URL redirects here. Camera configuration sits in a disclosure below the replay view. A provider-configuration notice distinguishes missing credentials from a live device. No simulated recording or stream status is displayed. The feature is disabled unless `VIDEO_ENABLED=1`.
+The dashboard uses the public BASH header/footer, max-w-6xl page width, compact typography, neutral selection pills, and shared theme tokens. Camera configuration is opened with **Record this game** below the scoreboard and requires the existing admin login. Covered goals have replay buttons in the scoring summary. A provider-configuration notice distinguishes missing credentials from a live device. No simulated recording or stream status is displayed. The feature is disabled unless `VIDEO_ENABLED=1`.
 
 ## Cloudflare setup
 
@@ -73,6 +73,8 @@ Cloudflare Stream is activated with 1,000 stored video minutes at $5/month, plus
 
 The initial development R2 and Stream credentials expire November 23, 2026. Renew the scoped credentials before testing after that date. Credentials belong only in the ignored server environment, not in this document or the iPhone application.
 
-`pnpm exec vitest run tests/video.test.ts` covers authorization, expired credentials, upload verification, retry/id collisions, payload limits and replay gaps/offsets. Run `pnpm exec tsc --noEmit` and the simulator build above. Before field use: verify two physical cameras, actual 4K dimensions, audio/video sync, stream disconnect/reconnect, R2 byte checks, interrupted uploads, app restart recovery, clock correction and full two-hour thermal/storage behavior.
+`pnpm exec vitest run tests/video.test.ts tests/game-video.test.ts` runs 19 tests covering authorization, expired credentials, upload verification, retry/id collisions, payload limits, replay gaps/offsets, game-scoped viewing, and public metadata redaction. Run `pnpm exec tsc --noEmit` and the simulator build above. Before field use: verify two physical cameras, actual 4K dimensions, audio/video sync, stream disconnect/reconnect, R2 byte checks, interrupted uploads, app restart recovery, clock correction and full two-hour thermal/storage behavior.
 
-The video layout was checked in Chrome and a narrow in-app browser viewport after switching to the public site shell. The old route redirects to `/video`. An unauthenticated page request shows the login gate without recording data, and the API returns 401. TypeScript, targeted ESLint, 12 video tests, and the updated iOS simulator build passed.
+The video layout was checked in Chrome and a narrow in-app browser viewport after switching to the public site shell. The standalone routes have been removed. Viewer metadata and signed playback are scoped to the game; admin APIs still require authentication. TypeScript, targeted ESLint, video tests, and the updated iOS simulator build passed.
+
+On the `video` branch, the synthetic R2 fixture is linked only to development game `g70`. Browser verification confirmed playback within that game page (1280×720, readyState 4, advancing playback, no media error) and inline admin camera setup. Both removed standalone page URLs return 404; the admin API rejects unauthenticated requests while the game viewing endpoint serves only game-scoped viewer data.

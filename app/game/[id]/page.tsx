@@ -113,6 +113,7 @@ export default async function GamePage({ params }: { params: Promise<{ id: strin
         )}
         {detail && (
           <GamePageContent
+            videoEnabled={process.env.VIDEO_ENABLED === "1"}
             initialDetail={detail}
             initialLiveData={liveData}
             homeRoster={homeRoster}

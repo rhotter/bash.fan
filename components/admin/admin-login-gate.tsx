@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 
-export function AdminLoginGate({ title = "BASH Admin", compact = false }: { title?: string; compact?: boolean }) {
+export function AdminLoginGate() {
   const [pin, setPin] = useState("")
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
@@ -44,7 +44,7 @@ export function AdminLoginGate({ title = "BASH Admin", compact = false }: { titl
   }
 
   return (
-    <div className={`${compact ? "min-h-[60vh]" : "min-h-screen"} bg-background flex items-center justify-center p-4`}>
+    <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <Card className="w-full max-w-sm">
         <CardHeader className="text-center space-y-3">
           <div className="mx-auto flex items-center justify-center w-12 h-12 rounded-xl bg-primary/10 border border-primary/20">
@@ -53,7 +53,7 @@ export function AdminLoginGate({ title = "BASH Admin", compact = false }: { titl
           <div className="space-y-1">
             <CardTitle className="text-lg flex items-center justify-center gap-2">
               <Image src="/logo.png" alt="BASH" width={20} height={20} />
-              {title}
+              BASH Admin
             </CardTitle>
             <CardDescription className="text-xs">
               Enter your PIN to continue

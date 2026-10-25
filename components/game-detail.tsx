@@ -1,5 +1,6 @@
 "use client"
 
+import { GameVideo, GoalReplayButton } from "@/components/video/game-video"
 import { ErrorNotice } from "@/components/error-notice"
 import { LoadingState } from "@/components/loading-state"
 import { useState, useMemo, useEffect } from "react"
@@ -231,6 +232,7 @@ export function GameDetail({ game, initialDetail, initialLiveData, homeRoster, a
       {/* Normal read-only content — hidden when in edit mode */}
       {!editMode && (
         <>
+          <GameVideo />
           {/* Three Stars */}
           {liveState?.threeStars && liveState.threeStars.some(id => id > 0) && (
             <ThreeStars
@@ -632,6 +634,7 @@ function EventLog({ state, homeSlug, awaySlug, homeTeam, awayTeam, playerNames, 
                           <span className="text-[9px] text-muted-foreground/60">{g.flags.join(", ")}</span>
                         )}
                       </div>
+                      <GoalReplayButton goalId={g.id} />
                       {score && (
                         <span className="text-[11px] font-bold tabular-nums font-mono text-foreground shrink-0 w-10 text-right">
                           {score.away}-{score.home}

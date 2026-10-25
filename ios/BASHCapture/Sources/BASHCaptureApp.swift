@@ -80,7 +80,7 @@ struct CaptureView: View {
         .sheet(isPresented: $showPairing) {
             NavigationStack { Form {
                 Section("Pair with your dashboard") {
-                    Text("Create a session at /video. Copy its private camera setup link and paste it here.")
+                    Text("Open the game’s score page and choose Record this game. Copy its private camera setup link and paste it here.")
                     TextField("bashcapture://pair?…", text: $setupLink, axis: .vertical).textInputAutocapitalization(.never).autocorrectionDisabled()
                     Button("Connect camera") { Task { await camera.pair(setupLink); if camera.error == nil { setupLink = ""; showPairing = false } } }.disabled(camera.busy || setupLink.isEmpty)
                     if let error = camera.error { Text(error).foregroundStyle(.red) }

@@ -9,7 +9,7 @@ export interface VideoSegment {
   id: string; side: CameraSide; started_at: string; duration: number; bytes: number;
   uploaded_at: string | null; playbackUrl?: string;
 }
-export interface VideoMarker { id: string; label: string; occurred_at: string; source: string }
+export interface VideoMarker { id: string; label: string; occurred_at: string; source: string; goalId?: string }
 export interface VideoDetail {
   session: VideoSession; cameras: VideoCamera[]; segments: VideoSegment[]; markers: VideoMarker[];
   configured: { r2: boolean; stream: boolean };
@@ -22,4 +22,12 @@ export function findReplay(segments: VideoSegment[], side: CameraSide, eventMs: 
     target >= Date.parse(s.started_at) && target < Date.parse(s.started_at) + s.duration * 1000)
   if (!segment) return null // Never silently seek across missing footage.
   return { segment, seconds: Math.max(0, (target - Date.parse(segment.started_at)) / 1000 - leadSeconds) }
+}
+
+export interface GameVideoData {
+  sessions: VideoSession[];
+  session: VideoSession | null;
+  cameras: { side: CameraSide; live: boolean; offset_ms: number }[];
+  segments: VideoSegment[];
+  markers: VideoMarker[];
 }

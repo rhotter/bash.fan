@@ -1,17 +1,19 @@
 "use client"
 
+import { GameVideoProvider } from "@/components/video/game-video"
 import { GameDetail } from "@/components/game-detail"
 import type { BashGameDetail } from "@/lib/hockey-data"
 import type { BashGame } from "@/lib/hockey-data"
 import type { LiveGameData } from "@/lib/fetch-live-game"
 import type { RosterPlayer } from "@/lib/scorekeeper-types"
 
-export function GamePageContent({ initialDetail, initialLiveData, homeRoster, awayRoster, forceEdit }: {
+export function GamePageContent({ initialDetail, initialLiveData, homeRoster, awayRoster, forceEdit, videoEnabled = false }: {
   initialDetail: BashGameDetail
   initialLiveData?: LiveGameData | null
   homeRoster?: RosterPlayer[]
   awayRoster?: RosterPlayer[]
   forceEdit?: boolean
+  videoEnabled?: boolean
 }) {
   const game: BashGame = {
     id: initialDetail.id,
@@ -45,6 +47,7 @@ export function GamePageContent({ initialDetail, initialLiveData, homeRoster, aw
   }
 
   return (
+    <GameVideoProvider key={game.id} gameId={game.id} gameTitle={`${game.awayTeam} at ${game.homeTeam}`} enabled={videoEnabled}>
     <GameDetail
       game={game}
       initialDetail={initialDetail}
@@ -53,5 +56,6 @@ export function GamePageContent({ initialDetail, initialLiveData, homeRoster, aw
       awayRoster={awayRoster}
       forceEdit={forceEdit}
     />
+    </GameVideoProvider>
   )
 }

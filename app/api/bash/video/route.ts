@@ -6,11 +6,13 @@ import { adminVideo, fail, videoHandler } from "@/lib/video/server"
 import { videoConfiguration } from "@/lib/video/cloudflare"
 export const runtime = "nodejs"
 
-export async function GET() { return videoHandler(async () => {
+export async function GET(request: Request) { return videoHandler(async () => {
   await adminVideo()
-  const sessions = await rawSql(sql`SELECT * FROM video_sessions ORDER BY created_at DESC LIMIT 100`)
-  const games = await rawSql(sql`SELECT id, date, time, home_team, away_team FROM games ORDER BY date DESC, time DESC LIMIT 100`)
-  return Response.json({ sessions, games, configured: videoConfiguration() })
+  const gameId = new URL(request.url).searchParams.get("gameId")
+  const sessions = gameId
+    ? await rawSql(sql`SELECT * FROM video_sessions WHERE game_id = ${gameId} ORDER BY created_at DESC LIMIT 100`)
+    : await rawSql(sql`SELECT * FROM video_sessions ORDER BY created_at DESC LIMIT 100`)
+  return Response.json({ sessions, configured: videoConfiguration() })
 }) }
 export async function POST(request: Request) { return videoHandler(async () => {
   await adminVideo()
