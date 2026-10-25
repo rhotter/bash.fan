@@ -1,33 +1,5 @@
 import SwiftUI
 import UserNotifications
-import CoreImage
-
-private enum TeamArtwork {
-    // Clean the source alpha before the white silhouette shadows amplify stray pixels.
-    // Cache once rather than filtering for every score, standings, or stats row.
-    static let seals: UIImage? = {
-        guard let original = UIImage(named: "seals"), let cgImage = original.cgImage else { return nil }
-        let source = CIImage(cgImage: cgImage)
-        let alpha = source.applyingFilter("CIColorMatrix", parameters: [
-            "inputRVector": CIVector(x: 0, y: 0, z: 0, w: 1),
-            "inputGVector": CIVector(x: 0, y: 0, z: 0, w: 1),
-            "inputBVector": CIVector(x: 0, y: 0, z: 0, w: 1),
-            "inputAVector": CIVector(x: 0, y: 0, z: 0, w: 0),
-            "inputBiasVector": CIVector(x: 0, y: 0, z: 0, w: 1)
-        ])
-        let radius = CGFloat(cgImage.width) / 256
-        let mask = alpha
-            .applyingFilter("CIMorphologyMinimum", parameters: ["inputRadius": radius])
-            .applyingFilter("CIMorphologyMaximum", parameters: ["inputRadius": radius])
-            .cropped(to: source.extent)
-        let result = source.applyingFilter("CIBlendWithMask", parameters: [
-            kCIInputBackgroundImageKey: CIImage(color: .clear).cropped(to: source.extent),
-            kCIInputMaskImageKey: mask
-        ])
-        guard let cleaned = CIContext().createCGImage(result, from: source.extent) else { return original }
-        return UIImage(cgImage: cleaned, scale: original.scale, orientation: original.imageOrientation)
-    }()
-}
 
 @MainActor final class NotificationRouter: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
     static var cameraOrientation = false
@@ -336,8 +308,7 @@ struct TeamLogo: View {
     var body: some View {
         Group {
             if let asset {
-                (asset == "seals" ? TeamArtwork.seals.map { Image(uiImage: $0) } ?? Image(asset) : Image(asset))
-                    .resizable().scaledToFit()
+                Image(asset).resizable().scaledToFit()
                     .background {
                         if asset == "yetis" {
                             // Fill only the interior of the ring in the original 1024px artwork.
