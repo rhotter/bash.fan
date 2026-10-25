@@ -35,7 +35,7 @@ Bay Area Street Hockey (BASH) league stats website. Displays scores, standings, 
 
 ### Database Constraints
 
-**No transaction support.** The `drizzle-orm/neon-http` driver uses stateless HTTP requests — `db.transaction()` is **not supported** and will fail at runtime. All multi-step writes use sequential `await db.` calls. Design mutations to be idempotent so partial failures are recoverable by re-running the operation. Do not introduce `db.transaction()` or `tx.` patterns without first migrating to `drizzle-orm/neon-serverless` (WebSocket driver).
+**No transaction support.** The `drizzle-orm/neon-http` driver uses stateless HTTP requests — `db.transaction()` is **not supported** and will fail at runtime. All multi-step writes use sequential `await db.` calls (or a single-statement data-modifying CTE via `rawSql()` when strict multi-table atomicity is required, as in `lib/final-game-shots.ts` and season trades). Design mutations to be idempotent so partial failures are recoverable by re-running the operation. Do not introduce `db.transaction()` or `tx.` patterns without first migrating to `drizzle-orm/neon-serverless` (WebSocket driver).
 
 ### Page Pattern
 
@@ -48,7 +48,7 @@ Each page follows: async Server Component (data fetch + `generateMetadata`) → 
 - `app/api/bash/admin/seasons/[id]/draft/` — Draft management API (22 endpoints)
 - `lib/fetch-*.ts` — Server-side data fetching functions (raw SQL queries)
 - `lib/hockey-data.ts` — SWR hooks for client-side data
-- `lib/db/schema.ts` — Drizzle ORM schema (40 tables)
+- `lib/db/schema.ts` — Drizzle ORM schema (43 tables)
 - `lib/db/game-id.ts` — Collision-free sequential `g[n]` game ID generator backed by `games_gen_seq`
 - `lib/banner-helpers.ts` — Pure helper algorithms, countdown suffixes, and banner contract validators
 - `lib/draft-banner-sync.ts` — Automated banner sync engine across draft lifecycle state transitions
@@ -62,7 +62,7 @@ Each page follows: async Server Component (data fetch + `generateMetadata`) → 
 - `components/admin/playoff-wizard.tsx` — Playoff bracket schedule wizard
 - `components/public-draft-board.tsx` — Real-time public draft spectator view
 - `app/admin/scoresheet/[gameId]/page.tsx` — Print-optimized game scoresheet (US Letter, one page)
-- `scripts/` — DB seeding, schema migration (`deploy-banners-schema.ts`), production DB sync (`export-prod-db.ts`), and data maintenance utilities
+- `scripts/` — DB seeding, schema migration (`deploy-banners-schema.ts`, `deploy-trades-schema.ts`), production DB sync (`export-prod-db.ts`), and data maintenance utilities
 
 ### Standings Computation
 

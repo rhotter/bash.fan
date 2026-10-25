@@ -48,7 +48,7 @@ Each page follows: async Server Component (data fetch + `generateMetadata`) → 
 - `app/api/bash/admin/seasons/[id]/draft/` — Draft management API (22 endpoints)
 - `lib/fetch-*.ts` — Server-side data fetching functions (raw SQL queries)
 - `lib/hockey-data.ts` — SWR hooks for client-side data
-- `lib/db/schema.ts` — Drizzle ORM schema (40 tables)
+- `lib/db/schema.ts` — Drizzle ORM schema (43 tables)
 - `lib/banner-helpers.ts` — Pure helper algorithms, countdown suffixes, and banner contract validators
 - `lib/draft-banner-sync.ts` — Automated banner sync engine across draft lifecycle state transitions
 - `lib/draft-helpers.ts` — Snake/linear pick slot generation
@@ -59,7 +59,7 @@ Each page follows: async Server Component (data fetch + `generateMetadata`) → 
 - `components/admin/banners-client.tsx` — Admin banner management portal with dual desktop/mobile preview
 - `components/admin/draft-*.tsx` — Draft wizard, board, and pool import components
 - `components/public-draft-board.tsx` — Real-time public draft spectator view
-- `scripts/` — DB seeding, schema migration (`deploy-banners-schema.ts`), production DB sync (`export-prod-db.ts`), and data maintenance utilities
+- `scripts/` — DB seeding, schema migration (`deploy-banners-schema.ts`, `deploy-trades-schema.ts`), production DB sync (`export-prod-db.ts`), and data maintenance utilities
 
 ### Standings Computation
 
