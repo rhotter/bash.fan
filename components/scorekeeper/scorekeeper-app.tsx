@@ -26,7 +26,7 @@ import {
   findPenaltyToEnd, clockToElapsed, parseClockString, clockToElapsedDisplay,
 } from "@/lib/scorekeeper-types"
 import {
-  saveToLocalStorage, loadFromLocalStorage, clearLocalStorage,
+  saveToLocalStorage, loadLocalDraft, clearLocalStorage,
   createSyncManager, type SyncStatus,
 } from "@/lib/scorekeeper-sync"
 import { captureGameTime, recordGameTiming, type TimingCapture } from "@/lib/scorekeeper-timing"
@@ -41,7 +41,7 @@ import { TimeoutButton } from "@/components/scorekeeper/shared/timeout-button"
 import { ScorekeeperSectionHeader as SectionHeader } from "@/components/scorekeeper/shared/section-header"
 import { AddPlayerModal } from "@/components/scorekeeper/add-player-modal"
 import { authenticateScorekeeper } from "@/lib/scorekeeper-login"
-import { GoalieShotAllocation } from "@/components/scorekeeper/shared/goalie-shot-allocation"
+import { captureGoalieShotSnapshot, prepareScorekeeperFinalization } from "@/lib/automatic-goalie-shots"
 import { SubBadge } from "@/components/scorekeeper/shared/sub-badge"
 
 /** Safe UUID helper — crypto.randomUUID() is unavailable in non-secure (HTTP) contexts on some mobile browsers */
@@ -164,6 +164,12 @@ export function ScorekeeperApp({
   const [finalizeOpen, setFinalizeOpen] = useState(false)
   const [finalizing, setFinalizing] = useState(false)
   const [finalized, setFinalized] = useState(status === "final" && !existingState?.finalizationPending)
+  // Completed games stay server-final while a correction is drafted locally.
+  const finalizedSnapshot = useRef(status === "final" ? existingState : null)
+  const [correctionExpectedState, setCorrectionExpectedState] = useState<LiveGameState | null>(null)
+  const correctionExpectedRef = useRef(correctionExpectedState)
+  correctionExpectedRef.current = correctionExpectedState
+  const finalizationInFlight = useRef(false)
   const [pendingFinalize, setPendingFinalize] = useState(false)
   const [showThreeStars, setShowThreeStars] = useState(false)
 
@@ -266,11 +272,17 @@ export function ScorekeeperApp({
 
   // ─── Load from localStorage on mount ─────────────────────────────────────
   useEffect(() => {
-    const saved = loadFromLocalStorage(gameId)
-    if (saved && saved.updatedAt > state.updatedAt) {
-      restoredState.current = saved
-      lastScheduledState.current = saved
-      setState(saved)
+    const draft = loadLocalDraft(gameId)
+    // Preserve the expected snapshot even if the server changed while offline.
+    // Finalization must detect that conflict rather than silently rebase edits.
+    if (draft && !state.finalizationPending && (draft.expectedState || draft.state.updatedAt > state.updatedAt)) {
+      restoredState.current = draft.state
+      lastScheduledState.current = draft.state
+      setState(draft.state)
+      if (draft.expectedState) {
+        setCorrectionExpectedState(draft.expectedState)
+        setFinalized(false)
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gameId])
@@ -301,21 +313,21 @@ export function ScorekeeperApp({
     if (state !== lastScheduledState.current) {
       lastScheduledState.current = state
       hasEditedState.current = true
-      setLocalSaveFailed(!saveToLocalStorage(gameId, state))
-      if (!state.finalizationPending) syncRef.current?.scheduleSync(state)
+      setLocalSaveFailed(!saveToLocalStorage(gameId, state, correctionExpectedState))
+      if (!correctionExpectedState && !state.finalizationPending) syncRef.current?.scheduleSync(state)
     }
-  }, [state, authenticated, finalized, gameId])
+  }, [state, authenticated, finalized, gameId, correctionExpectedState])
 
   // ─── Page unload beacon ──────────────────────────────────────────────────
   useEffect(() => {
     if (!authenticated) return
     const handler = () => {
-      if (hasEditedState.current && !finalized && !state.finalizationPending &&
+      if (hasEditedState.current && !finalized && !correctionExpectedState && !state.finalizationPending &&
         syncRef.current?.getLastSyncedUpdatedAt() !== state.updatedAt) syncRef.current?.sendBeacon(state)
     }
     window.addEventListener("beforeunload", handler)
     return () => window.removeEventListener("beforeunload", handler)
-  }, [state, authenticated, finalized])
+  }, [state, authenticated, finalized, correctionExpectedState])
 
   // ─── Check for pending finalize on mount ───────────────────────────────
   useEffect(() => {
@@ -335,41 +347,11 @@ export function ScorekeeperApp({
     let cancelled = false
 
     async function tryFinalize() {
-      // Give sync manager time to send latest state
       await new Promise(r => setTimeout(r, 2000))
-      if (cancelled) return
-      try {
-        const retryingSavedState = latestState.current.finalizationPending?.phase === "failed"
-        if (!retryingSavedState && syncRef.current?.canAutoRetry() === false) return
-        // The persisted finalization intent explicitly authorizes saving the
-        // restored snapshot; merely opening or signing in does not.
-        if (!retryingSavedState) syncRef.current?.scheduleSync(latestState.current)
-        const synced = retryingSavedState || await syncRef.current?.flush()
-        if (!synced) return
-        const syncedAt = retryingSavedState ? latestState.current.updatedAt : syncRef.current?.getLastSyncedUpdatedAt()
-        if (syncedAt == null) return
-        const res = await fetch(`/api/bash/scorekeeper/${gameId}/finalize`, {
-          method: "POST",
-          headers: { "x-pin": pin, "x-state-updated-at": String(syncedAt) },
-        })
-        if (res.ok && !cancelled) {
-          const data = await readApiJson(res)
-          setState((prev) => { const { finalizationPending: _pending, ...clean } = prev; return data.state ?? clean })
-          setFinalized(true)
-          clearLocalStorage(gameId)
-          setPendingFinalize(false)
-          localStorage.removeItem(`bash-finalize-${gameId}`)
-        } else if (!res.ok && !cancelled) {
-          const data = await readApiJson(res)
-          if (data.stateSaved && data.state) setState(data.state)
-          setFinalizeError(data.details || data.error || `Server error (${res.status})`)
-          setFinalizeOpen(true)
-          setPendingFinalize(false)
-          localStorage.removeItem(`bash-finalize-${gameId}`)
-        }
-      } catch {
-        // Still offline
-      }
+      if (cancelled || finalizationInFlight.current) return
+      if (!correctionExpectedRef.current && !latestState.current.finalizationPending &&
+        syncRef.current?.canAutoRetry() === false) return
+      await finalizeLatest.current()
     }
 
     tryFinalize()
@@ -628,7 +610,7 @@ export function ScorekeeperApp({
         outGoalieId: Number(outGoalieId),
         inGoalieId: Number(inGoalieId),
       }
-      return { ...prev, [key]: Number(inGoalieId), goalieChanges: [...(prev.goalieChanges ?? []), event] }
+      return { ...prev, [key]: Number(inGoalieId), goalieChanges: [...(prev.goalieChanges ?? []), captureGoalieShotSnapshot(prev, event, homeSlug)] }
     })
   }
 
@@ -916,45 +898,93 @@ export function ScorekeeperApp({
 
   const [finalizeError, setFinalizeError] = useState<string | null>(null)
 
+  function setFinalizationIntent(pending: boolean) {
+    setPendingFinalize(pending)
+    try {
+      if (pending) localStorage.setItem(`bash-finalize-${gameId}`, "1")
+      else localStorage.removeItem(`bash-finalize-${gameId}`)
+    } catch {
+      setLocalSaveFailed(true)
+    }
+  }
+
   async function handleFinalize() {
+    if (finalizationInFlight.current) return
+    finalizationInFlight.current = true
     setFinalizing(true)
     setFinalizeError(null)
+    let receivedResponse = false
+    const snapshot = latestState.current.finalizationPending
+      ? latestState.current
+      : prepareScorekeeperFinalization(latestState.current, homeSlug, awaySlug)
+    const expectedState = correctionExpectedRef.current
+    const retryingSavedState = snapshot.finalizationPending?.phase === "failed"
+    setLocalSaveFailed(!saveToLocalStorage(gameId, snapshot, expectedState))
     try {
-      if (state.finalizationPending?.phase !== "failed") {
+      if (!expectedState && !retryingSavedState) {
         hasEditedState.current = true
-        syncRef.current?.scheduleSync(state)
+        syncRef.current?.scheduleSync(snapshot)
         const synced = await syncRef.current?.flush()
-        if (!synced) throw new Error(syncRef.current?.getLastError() ?? "The latest changes have not synced yet. Try again once saving finishes.")
+        if (!synced) {
+          if (syncRef.current?.isOffline()) {
+            setFinalizationIntent(true)
+            setFinalizeOpen(false)
+          } else {
+            setFinalizationIntent(false)
+            setFinalizeError(syncRef.current?.getLastError() ?? "The latest changes have not synced yet. Try again once saving finishes.")
+            setFinalizeOpen(true)
+          }
+          return
+        }
       }
 
       const res = await fetch(`/api/bash/scorekeeper/${gameId}/finalize`, {
         method: "POST",
-        headers: { "x-pin": pin, "x-state-updated-at": String(state.updatedAt) },
+        headers: { "Content-Type": "application/json", "x-pin": pin, "x-state-updated-at": String(snapshot.updatedAt) },
+        ...(expectedState && !retryingSavedState ? { body: JSON.stringify({ expectedState, state: snapshot }) } : {}),
       })
+      receivedResponse = true
+      const data = await readApiJson(res)
       if (res.ok) {
-        const data = await readApiJson(res)
-        setState((prev) => { const { finalizationPending: _pending, ...clean } = prev; return data.state ?? clean })
+        const { finalizationPending: _pending, ...clean } = snapshot
+        const saved = data.state ?? clean
+        finalizedSnapshot.current = saved
+        setState(saved)
+        setCorrectionExpectedState(null)
         setFinalized(true)
         clearLocalStorage(gameId)
         setFinalizeOpen(false)
-        setPendingFinalize(false)
-        localStorage.removeItem(`bash-finalize-${gameId}`)
+        setFinalizationIntent(false)
       } else {
-        const data = await readApiJson(res)
-        if (data.stateSaved && data.state) setState(data.state)
-        const msg = data.details || data.error || `Server error (${res.status})`
-        setFinalizeError(msg)
-        console.error("Finalize failed:", res.status, data)
+        if (data.stateSaved && data.state) {
+          // Retry the accepted server snapshot if statistics rebuilding failed.
+          setCorrectionExpectedState(null)
+          setState(data.state)
+          setLocalSaveFailed(!saveToLocalStorage(gameId, data.state))
+        }
+        setFinalizationIntent(false)
+        setFinalizeError(data.details || data.error || `Server error (${res.status})`)
+        setFinalizeOpen(true)
       }
     } catch (err) {
-      // Network error — mark for auto-retry when back online
-      console.error("Finalize network error:", err)
-      setPendingFinalize(true)
-      localStorage.setItem(`bash-finalize-${gameId}`, "1")
-      setFinalizeOpen(false)
+      if (receivedResponse) {
+        setFinalizationIntent(false)
+        setFinalizeError(errorMessage(err))
+        setFinalizeOpen(true)
+      } else {
+        // Only transport failures queue an offline retry. Rejected saves remain
+        // visible with the local draft intact for correction or review.
+        setFinalizationIntent(true)
+        setFinalizeOpen(false)
+      }
+    } finally {
+      finalizationInFlight.current = false
+      setFinalizing(false)
     }
-    setFinalizing(false)
   }
+
+  const finalizeLatest = useRef(handleFinalize)
+  finalizeLatest.current = handleFinalize
 
   // ═════════════════════════════════════════════════════════════════════════
   // RENDER
@@ -1043,7 +1073,10 @@ export function ScorekeeperApp({
             <Button
               variant="outline"
               size="sm"
-              onClick={() => setFinalized(false)}
+              onClick={() => {
+                setCorrectionExpectedState(finalizedSnapshot.current ?? state)
+                setFinalized(false)
+              }}
               className="text-xs"
             >
               Edit Game
@@ -1068,12 +1101,13 @@ export function ScorekeeperApp({
         <div className="flex items-center justify-end px-4 py-2 max-w-2xl mx-auto">
           <div className="flex items-center gap-1.5">
             <span className={cn("h-1.5 w-1.5 rounded-full shrink-0", syncDotColor)} />
-            <span className={cn("text-[9px] capitalize", syncStatus === "offline" || syncStatus === "error" ? "text-red-500" : "text-muted-foreground")}>{syncStatus}</span>
+            <span className={cn("text-[9px] capitalize", syncStatus === "offline" || syncStatus === "error" ? "text-red-500" : "text-muted-foreground")}>{correctionExpectedState ? "Local correction" : syncStatus}</span>
           </div>
         </div>
       </div>
 
       <div className="max-w-2xl mx-auto px-4">
+        {correctionExpectedState && <p className="my-2 text-xs text-muted-foreground">Edits to this completed game are saved on this device until you finalize the correction.</p>}
         {syncError && <p role="alert" className="my-2 text-xs text-destructive">{syncError}</p>}
         {localSaveFailed && <p role="alert" className="my-2 text-xs text-destructive">This device couldn't save a backup. Keep this page open until your changes sync.</p>}
         {/* ─── Offline Finalize Banner ──────────────────────────────── */}
@@ -2034,21 +2068,13 @@ export function ScorekeeperApp({
           <div className="space-y-2 text-xs text-muted-foreground">
             <p>Final score: {awayTeam} {scores.away} — {homeTeam} {scores.home}</p>
             {finalizeError && (
-              <p className="text-red-500 font-medium">Error: {finalizeError}</p>
+              <div>
+                <p className="text-red-500 font-medium">Error: {finalizeError}</p>
+                {/(shots-against total for every goalie|goalie shots against must total)/.test(finalizeError) && <p className="mt-2">Ask an administrator to supply the recorded goalie shot split; it cannot be inferred safely from this game’s history.</p>}
+              </div>
             )}
           </div>
-          <fieldset disabled={finalizing}>
-          <GoalieShotAllocation
-            goalies={[
-              ...new Set([state.homeGoalieId, ...(state.goalieChanges ?? []).filter((c) => c.team === homeSlug).flatMap((c) => [c.outGoalieId, c.inGoalieId])]),
-            ].filter((id): id is number => id != null).map((id) => ({ id, name: homeRoster.find((p) => p.id === id)?.name ?? `#${id}`, team: homeTeam })).concat(
-              [...new Set([state.awayGoalieId, ...(state.goalieChanges ?? []).filter((c) => c.team === awaySlug).flatMap((c) => [c.outGoalieId, c.inGoalieId])])]
-                .filter((id): id is number => id != null).map((id) => ({ id, name: awayRoster.find((p) => p.id === id)?.name ?? `#${id}`, team: awayTeam }))
-            )}
-            value={state.goalieShotsAgainst}
-            onChange={(goalieShotsAgainst) => updateState((prev) => ({ ...prev, goalieShotsAgainst }))}
-          />
-          </fieldset>
+
           <DialogFooter className="flex gap-2">
             <Button variant="outline" disabled={finalizing} onClick={() => setFinalizeOpen(false)} className="flex-1">
               Cancel

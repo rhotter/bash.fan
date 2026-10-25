@@ -8,23 +8,29 @@ export function getStorageKey(gameId: string) {
   return `${STORAGE_PREFIX}${gameId}`
 }
 
-export function saveToLocalStorage(gameId: string, state: LiveGameState) {
+export function saveToLocalStorage(gameId: string, state: LiveGameState, expectedState?: LiveGameState | null) {
   try {
-    localStorage.setItem(getStorageKey(gameId), JSON.stringify(state))
+    // Keep the original server snapshot and correction together across reloads.
+    localStorage.setItem(getStorageKey(gameId), JSON.stringify(expectedState ? { state, expectedState } : state))
     return true
   } catch {
     return false
   }
 }
 
-export function loadFromLocalStorage(gameId: string): LiveGameState | null {
+export function loadLocalDraft(gameId: string): { state: LiveGameState; expectedState?: LiveGameState } | null {
   try {
     const raw = localStorage.getItem(getStorageKey(gameId))
     if (!raw) return null
-    return JSON.parse(raw) as LiveGameState
+    const saved = JSON.parse(raw)
+    return saved.state && saved.expectedState ? saved : { state: saved as LiveGameState }
   } catch {
     return null
   }
+}
+
+export function loadFromLocalStorage(gameId: string): LiveGameState | null {
+  return loadLocalDraft(gameId)?.state ?? null
 }
 
 export function clearLocalStorage(gameId: string) {
@@ -149,5 +155,5 @@ export function createSyncManager(gameId: string, pin: string) {
     if (retryTimer) clearTimeout(retryTimer)
   }
 
-  return { prepareState, scheduleSync, sendBeacon, setStatusListener, destroy, flush, getLastSyncedUpdatedAt: () => lastSyncedUpdatedAt, getLastError: () => lastError, canAutoRetry: () => lastError == null || shouldRetry }
+  return { prepareState, scheduleSync, sendBeacon, setStatusListener, destroy, flush, getLastSyncedUpdatedAt: () => lastSyncedUpdatedAt, getLastError: () => lastError, isOffline: () => networkFailure, canAutoRetry: () => lastError == null || shouldRetry }
 }

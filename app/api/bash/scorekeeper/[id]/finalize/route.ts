@@ -8,6 +8,7 @@ import { randomUUID } from "node:crypto"
 import type { LiveGameState, GoalEvent } from "@/lib/scorekeeper-types"
 import { computePulledSeconds, clockToElapsed, parseClockString } from "@/lib/scorekeeper-types"
 import { getSession } from "@/lib/admin-session"
+import { fillMissingGoalieShots } from "@/lib/automatic-goalie-shots"
 import { validateShotArray, validateGoalieShotAllocation } from "@/lib/goalie-shot-validation"
 
 async function validateAuth(request: Request): Promise<boolean> {
@@ -418,6 +419,8 @@ export async function POST(
         return NextResponse.json({ error: "Goalie substitution history must consistently identify who was in net" }, { status: incompleteStatus })
       }
     }
+
+    fillMissingGoalieShots(state, homeSlug, awaySlug)
 
     // Helper: compute per-goalie stats for a team
     function computeTeamGoalieStats(

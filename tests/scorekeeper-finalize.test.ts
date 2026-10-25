@@ -266,6 +266,30 @@ describe("scorekeeper finalization", () => {
     expectNoWrites()
   })
 
+  it.each([false, true])("finalizes a recorded goalie swap automatically (empty-net goal during pull: %s)", async (emptyNet) => {
+    state.homeAttendance.push(3)
+    state.homeGoalieId = 3
+    state.goalieChanges = [{ id: "swap", team: "home", period: 2, clock: "8:00", outGoalieId: 1, inGoalieId: 3,
+      shotSnapshot: { period: 2, clock: "8:00", opponentShots: [4, 2, 0] } }]
+    if (emptyNet) {
+      state.goaliePulls = [{ id: "pull", team: "home", period: 3, pulledAt: "1:00", returnedAt: "0:10" }]
+      state.goals.push(goal({ id: "away-eng", team: "away", clock: "0:30", scorerId: 20, assist1Id: null, assist2Id: null, flags: ["ENG"] }))
+    }
+    expect((await finalize()).status).toBe(200)
+    expect(rows("goalie_game_stats").find(row => row.playerId === 1)).toMatchObject({ shotsAgainst: 6, goalsAgainst: 0, saves: 6 })
+    expect(rows("goalie_game_stats").find(row => row.playerId === 3)).toMatchObject({ shotsAgainst: emptyNet ? 5 : 6, goalsAgainst: 0, saves: emptyNet ? 5 : 6 })
+    expect(state.goalieShotsAgainst).toEqual({ "1": 6, "3": emptyNet ? 5 : 6 })
+  })
+
+  it("does not use a substitution snapshot after an earlier-period shot correction", async () => {
+    state.homeAttendance.push(3)
+    state.homeGoalieId = 3
+    state.goalieChanges = [{ id: "swap", team: "home", period: 2, clock: "8:00", outGoalieId: 1, inGoalieId: 3,
+      shotSnapshot: { period: 2, clock: "8:00", opponentShots: [3, 2, 0] } }]
+    expect((await finalize()).status).toBe(400)
+    expectNoWrites()
+  })
+
   it("keeps goalie time segments and actual goals against with a valid explicit allocation", async () => {
     splitHomeGoalies()
     state.goalieShotsAgainst = { "1": 2, "3": 10 }
@@ -406,6 +430,60 @@ describe("scorekeeper finalization", () => {
     expect(query.sql).toContain("FOR UPDATE")
     expect(query.sql).toContain("l.state =")
     expect(query.params).toContain(JSON.stringify(expectedState))
+  })
+
+  it("rebuilds a finalized goal as empty-net and back without changing the score or manufacturing saves", async () => {
+    expect((await finalize()).status).toBe(200)
+    const expectedState = completedGame()
+    const proposed = structuredClone(expectedState)
+    proposed.goals[0].flags = ["ENG"]
+    const corrected = await finalize(undefined, { expectedState, state: proposed })
+    expect(corrected.status).toBe(200)
+    expect(await corrected.json()).toMatchObject({ homeScore: 1, awayScore: 0 })
+    expect(rows("player_game_stats").find(row => row.playerId === 10)).toMatchObject({ goals: 1, points: 1, eng: 1 })
+    expect(rows("goalie_game_stats").find(row => row.playerId === 2)).toMatchObject({ goalsAgainst: 0, shotsAgainst: 14, saves: 14 })
+    expect(rows("goalie_game_stats").filter(row => row.playerId === 2)).toHaveLength(1)
+    const correctedState = structuredClone(state)
+    const reverse = structuredClone(state)
+    reverse.goals[0].flags = []
+    expect((await finalize(undefined, { expectedState: correctedState, state: reverse })).status).toBe(200)
+    expect(rows("goalie_game_stats").find(row => row.playerId === 2)).toMatchObject({ goalsAgainst: 1, shotsAgainst: 15, saves: 14 })
+    expect(rows("player_game_stats").find(row => row.playerId === 10)).toMatchObject({ goals: 1, eng: 0 })
+  })
+
+  it.each([false, true])("requires corrected explicit shots before rebuilding an empty-net correction (multiple goalies: %s)", async (multiple) => {
+    if (multiple) {
+      state.awayAttendance.push(3)
+      state.awayGoalieId = 3
+      state.goalieChanges = [{ id: "change", team: "away", period: 2, clock: "8:00", outGoalieId: 2, inGoalieId: 3 }]
+      state.goalieShotsAgainst = { "2": 5, "3": 10 }
+    } else state.goalieShotsAgainst = { "2": 15 }
+    const expectedState = completedGame()
+    const proposed = structuredClone(expectedState)
+    proposed.goals[0].flags = ["ENG"]
+    const response = await finalize(undefined, { expectedState, state: proposed })
+    expect(response.status).toBe(400)
+    expect((await response.json()).error).toContain("must total 14")
+    expectNoWrites()
+    expect(state).toEqual(expectedState)
+    proposed.goalieShotsAgainst = multiple ? { "2": 5, "3": 9 } : { "2": 14 }
+    expect((await finalize(undefined, { expectedState, state: proposed })).status).toBe(200)
+    expect(rows("goalie_game_stats").find(row => row.playerId === (multiple ? 3 : 2)))
+      .toMatchObject({ goalsAgainst: 0, shotsAgainst: multiple ? 9 : 14, saves: multiple ? 9 : 14 })
+  })
+
+  it.each([false, true])("rejects an empty-net correction if its original snapshot changed (claim race: %s)", async (race) => {
+    const expectedState = completedGame()
+    const proposed = structuredClone(expectedState)
+    proposed.goals[0].flags = ["ENG"]
+    if (race) casFails = true
+    else state.notes = "Another scorer corrected this game"
+    const response = await finalize(undefined, { expectedState, state: proposed })
+    expect(response.status).toBe(409)
+    expect(mocks.delete).not.toHaveBeenCalled()
+    expect(mocks.insert).not.toHaveBeenCalled()
+    expect(mocks.update).not.toHaveBeenCalled()
+    expect(state.goals[0].flags).toEqual([])
   })
 
   it("accepts a new goalie substitution and explicit allocation in the same proposed edit", async () => {

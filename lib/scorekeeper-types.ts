@@ -56,6 +56,8 @@ export interface GoalieChangeEvent {
   clock: string // "M:SS" countdown clock when change happened
   outGoalieId: number // goalie leaving the net
   inGoalieId: number // goalie entering the net
+  /** Opponent shot counters captured when this live substitution was recorded. */
+  shotSnapshot?: { period: number; clock: string; opponentShots: number[] }
 }
 
 export interface LiveGameState {
