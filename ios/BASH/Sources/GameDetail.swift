@@ -254,21 +254,41 @@ struct GameScreen: View {
         Section("Goalies") {
             if goalies.isEmpty {
                 Text("Goalie stats have not been posted yet.").font(.subheadline).foregroundStyle(.secondary)
+            } else {
+                HStack(spacing: 6) {
+                    Text("Player")
+                    Spacer(minLength: 4)
+                    goalieColumns(["SV", "SA", "GA", "SV%", "TOI"]).padding(.trailing, 22)
+                }.font(.caption2).foregroundStyle(.secondary)
             }
             ForEach(goalies) { goalie in
-                DisclosureGroup {
-                    LabeledContent("Saves / shots against", value: "\(goalie.saves) / \(goalie.shotsAgainst)")
-                    LabeledContent("Goals against", value: "\(goalie.goalsAgainst)")
-                    LabeledContent("Save percentage", value: goalie.savePercentage)
-                    LabeledContent("Time played", value: String(format: "%d:%02d", goalie.seconds / 60, goalie.seconds % 60))
-                    NavigationLink("Player history") {
-                        PlayerScreen(player: Skater(teamSlug: slug, id: goalie.id, name: goalie.name, team: team, gp: 1, goals: 0, assists: 0, points: 0))
-                    }
+                let time = String(format: "%d:%02d", goalie.seconds / 60, goalie.seconds % 60)
+                NavigationLink {
+                    PlayerScreen(player: Skater(teamSlug: slug, id: goalie.id, name: goalie.name, team: team, gp: 1, goals: 0, assists: 0, points: 0))
                 } label: {
-                    HStack { Text(goalie.name); Spacer(); Text("\(goalie.saves) saves").foregroundStyle(.secondary) }.font(.subheadline)
-                }.tint(.primary)
+                    HStack(spacing: 6) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(goalie.name).font(.caption.weight(.semibold))
+                            if goalie.isSub { Text("Sub").font(.caption2).foregroundStyle(.secondary) }
+                        }
+                        Spacer(minLength: 4)
+                        goalieColumns(["\(goalie.saves)", "\(goalie.shotsAgainst)", "\(goalie.goalsAgainst)", goalie.savePercentage, time])
+                    }.font(.caption).foregroundStyle(.primary)
+                }
+                .accessibilityIdentifier("goalie-stats-\(goalie.id)")
+                .accessibilityLabel("\(goalie.name), \(goalie.saves) saves, \(goalie.shotsAgainst) shots against, \(goalie.goalsAgainst) goals against, save percentage \(goalie.savePercentage), time played \(time)")
+                .alignmentGuide(.listRowSeparatorLeading) { _ in 0 }
             }
         }
+    }
+    private func goalieColumns(_ values: [String]) -> some View {
+        HStack(spacing: 3) {
+            ForEach(values.indices, id: \.self) { index in
+                Text(values[index]).monospacedDigit()
+                    .lineLimit(1).minimumScaleFactor(0.8)
+                    .frame(width: index < 3 ? 24 : 42, alignment: .trailing)
+            }
+        }.fixedSize(horizontal: true, vertical: false)
     }
     @ViewBuilder private var playsContent: some View {
         if let live {

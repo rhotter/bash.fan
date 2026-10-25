@@ -177,9 +177,12 @@ final class LeagueUITests: XCTestCase {
         }
         XCTAssertTrue(goalie.isHittable)
         capture("Skaters and goalies")
-        app.staticTexts["Eric Crawford"].tap()
-        app.swipeUp()
-        XCTAssertTrue(app.staticTexts["Save percentage"].waitForExistence(timeout: 5))
+        // The entire goalie breakdown is visible without expanding a disclosure.
+        XCTAssertTrue(app.staticTexts["SV%"].isHittable)
+        XCTAssertTrue(app.staticTexts["SA"].isHittable)
+        XCTAssertTrue(app.staticTexts["GA"].isHittable)
+        XCTAssertTrue(app.staticTexts["TOI"].isHittable)
+        XCTAssertTrue(app.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH 'goalie-stats-'")).firstMatch.isHittable)
         capture("Game goalie stats")
         app.buttons["gameTab-Summary"].tap()
         let firstGoal = app.staticTexts["Goal · Samuel Dobbs"]
