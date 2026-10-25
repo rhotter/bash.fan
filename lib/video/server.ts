@@ -3,6 +3,7 @@ import { sql } from "drizzle-orm"
 import { ZodError } from "zod"
 import { requireAdminSession } from "@/lib/admin-session"
 import { rawSql } from "@/lib/db"
+import { reviewSessionId } from "@/lib/video/review-access"
 
 export function digestToken(token: string) { return createHash("sha256").update(token).digest("hex") }
 export function tokenMatches(token: string, hash: string) {
@@ -10,8 +11,8 @@ export function tokenMatches(token: string, hash: string) {
   return timingSafeEqual(Buffer.from(digestToken(token), "hex"), Buffer.from(hash, "hex"))
 }
 export function fail(message: string, status = 400): never { throw Response.json({ error: message }, { status }) }
-export async function adminVideo() {
-  await requireAdminSession()
+export async function adminVideo(sessionId?: string) {
+  if (!sessionId || await reviewSessionId() !== sessionId) await requireAdminSession()
   if (process.env.VIDEO_ENABLED !== "1") fail("Video is not enabled in this environment", 503)
 }
 export async function cameraVideo(request: Request, id: string, side: string) {

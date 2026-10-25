@@ -1,9 +1,14 @@
 import { NextRequest, NextResponse } from "next/server"
 import { setSessionCookie } from "@/lib/admin-session"
+import { reviewPinMatches, setReviewCookie } from "@/lib/video/review-access"
 
 export async function POST(request: NextRequest) {
   try {
     const { pin } = await request.json()
+
+    if (process.env.VIDEO_ENABLED === "1" && process.env.VIDEO_REVIEW_SESSION_ID && reviewPinMatches(pin)) {
+      return setReviewCookie(NextResponse.json({ ok: true }))
+    }
 
     if (!pin || pin !== process.env.SCOREKEEPER_PIN) {
       return NextResponse.json({ error: "Invalid PIN" }, { status: 401 })

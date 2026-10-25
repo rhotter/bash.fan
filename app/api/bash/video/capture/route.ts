@@ -3,13 +3,17 @@ import { sql } from "drizzle-orm"
 import { z } from "zod"
 import { rawSql } from "@/lib/db"
 import { adminVideo, digestToken, fail, tokenMatches, videoHandler } from "@/lib/video/server"
+import { reviewSessionId } from "@/lib/video/review-access"
 export const runtime = "nodejs"
 
 export async function POST(request: Request) { return videoHandler(async () => {
-  await adminVideo()
+  const reviewId = await reviewSessionId()
+  await adminVideo(reviewId ?? undefined)
   const body = z.object({ side: z.enum(["left", "right"]), replace: z.boolean().default(false),
     sessionId: z.string().uuid().optional(), token: z.string().regex(/^[A-Za-z0-9_-]{43}$/).optional() }).parse(await request.json())
-  const [session] = await rawSql(sql`INSERT INTO video_sessions(id, title, capture_day)
+  const [session] = reviewId ? await rawSql(sql`INSERT INTO video_sessions(id, title)
+    VALUES (${reviewId}, 'App Review recording') ON CONFLICT(id) DO UPDATE SET id = EXCLUDED.id RETURNING id, ended_at`)
+    : await rawSql(sql`INSERT INTO video_sessions(id, title, capture_day)
     VALUES (${randomUUID()}, 'Rink recording', to_char(now() AT TIME ZONE 'America/Los_Angeles', 'YYYY-MM-DD'))
     ON CONFLICT(capture_day) DO UPDATE SET capture_day = EXCLUDED.capture_day RETURNING id, ended_at`)
   if (session.ended_at) fail("Today's recording has ended", 409)

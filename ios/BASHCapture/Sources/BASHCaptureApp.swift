@@ -143,6 +143,14 @@ struct CaptureHome: View {
             .buttonBorderShape(.capsule)
             .controlSize(.large)
             .disabled(camera.recording)
+            if let server = try? BASHService.server() {
+                HStack(spacing: 24) {
+                    Link("Privacy", destination: server.appending(path: "recorder/privacy"))
+                    Link("Support", destination: server.appending(path: "recorder/support"))
+                }
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+            }
         }
     }
 

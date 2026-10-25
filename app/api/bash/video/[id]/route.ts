@@ -8,8 +8,8 @@ import { readVideoDetail, sessionFor } from "@/lib/video/detail"
 export const runtime = "nodejs"
 type Context = { params: Promise<{ id: string }> }
 export async function GET(_request: Request, context: Context) { return videoHandler(async () => {
-  await adminVideo()
   const { id } = await context.params
+  await adminVideo(id)
   return Response.json(await readVideoDetail(id))
 }) }
 const operation = z.discriminatedUnion("action", [
@@ -22,8 +22,8 @@ const operation = z.discriminatedUnion("action", [
   z.object({ action: z.literal("end") }),
 ])
 export async function POST(request: Request, context: Context) { return videoHandler(async () => {
-  await adminVideo()
   const { id } = await context.params
+  await adminVideo(id)
   const session = await sessionFor(id)
   const body = operation.parse(await request.json())
   if (body.action === "pair") {
