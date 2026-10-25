@@ -75,9 +75,10 @@ struct CaptureHome: View {
                 }
                 Section {
                     Button { showSetup = true } label: {
-                        Label("Set up recording", systemImage: "video.fill")
+                        Text("Set up recording")
                             .fontWeight(.semibold)
-                            .frame(maxWidth: .infinity)
+                            .multilineTextAlignment(.center)
+                            .frame(maxWidth: .infinity, alignment: .center)
                             .padding(.vertical, 6)
                     }.buttonStyle(.borderedProminent).disabled(camera.recording)
                 }.listRowBackground(Color.clear).listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
