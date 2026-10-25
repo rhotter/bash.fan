@@ -61,9 +61,12 @@ export interface GoalieChangeEvent {
 }
 
 export interface LiveGameState {
+  /** Server revision used for compare-and-swap saves; absent legacy states start at zero. */
+  revision?: number
+  lastMutationId?: string
   /** Private wall-clock history for future video alignment. Absent on legacy games. */
   timing?: GameTiming
-  period: number // 0=pre-game, 1-3=regulation, 4=OT, 5=shootout
+  period: number // 0=pre-game, 1-3=regulation, 4=OT, 5+=additional playoff OT; regular-season shootout uses 5
   clockSeconds: number // countdown seconds remaining
   clockRunning: boolean
   clockStartedAt: number | null // Date.now() when clock was last started
@@ -88,7 +91,7 @@ export interface LiveGameState {
   awayGoalieId: number | null
   officials: { ref1: string; ref2: string; scorekeeper: string }
   notes: string
-  updatedAt: number // timestamp for merge resolution
+  updatedAt: number // device timestamp for local draft recovery, never write ordering
 }
 
 export interface RosterPlayer {
@@ -123,10 +126,11 @@ export function createInitialState(): LiveGameState {
   }
 }
 
-export function periodLabel(period: number): string {
+export function periodLabel(period: number, isPlayoff = false): string {
   if (period === 0) return "Pre-Game"
   if (period <= 3) return `P${period}`
   if (period === 4) return "OT"
+  if (isPlayoff) return `${period - 3}OT`
   if (period === 5) return "SO"
   return `P${period}`
 }
@@ -143,13 +147,13 @@ export function computeCurrentClock(state: LiveGameState): number {
   return Math.max(0, state.clockSeconds - elapsed)
 }
 
-export function computeScore(goals: GoalEvent[], homeSlug: string, awaySlug: string) {
+export function computeScore(goals: GoalEvent[], homeSlug: string, awaySlug: string, isPlayoff = false) {
   let home = 0
   let away = 0
   for (const g of goals) {
     // Shootout goals don't count in the score display during shootout
     // They're tracked separately. Only count regulation + OT goals.
-    if (g.period <= 4) {
+    if (isPlayoff || g.period <= 4) {
       if (g.team === homeSlug) home++
       else if (g.team === awaySlug) away++
     }
@@ -181,7 +185,7 @@ export function shotPeriodIndex(period: number): number {
 
 /** Convert period + clock seconds remaining to total elapsed game seconds. */
 export function clockToElapsed(period: number, clockSeconds: number, periodLength: number = 1200, otPeriodLength: number = 300): number {
-  const pLength = period <= 3 ? periodLength : period === 4 ? otPeriodLength : 0
+  const pLength = period <= 3 ? periodLength : otPeriodLength
   const elapsedInPeriod = pLength - clockSeconds
   let totalElapsed = 0
   for (let p = 1; p < period; p++) {
@@ -193,7 +197,7 @@ export function clockToElapsed(period: number, clockSeconds: number, periodLengt
 /** Convert a countdown clock "M:SS" to elapsed time "M:SS" for display. */
 export function clockToElapsedDisplay(clock: string, period: number, periodLength: number = 1200, otPeriodLength: number = 300): string {
   const remaining = parseClockString(clock)
-  const pLength = period <= 3 ? periodLength : period === 4 ? otPeriodLength : 0
+  const pLength = period <= 3 ? periodLength : otPeriodLength
   const elapsed = pLength - remaining
   const m = Math.max(0, Math.floor(elapsed / 60))
   const s = Math.max(0, Math.floor(elapsed % 60))
@@ -217,9 +221,10 @@ export function getActivePenalties(
   currentPeriod: number,
   currentClockSeconds: number,
   periodLength: number = 1200,
-  otPeriodLength: number = 300
+  otPeriodLength: number = 300,
+  isPlayoff = false
 ): ActivePenalty[] {
-  if (currentPeriod === 0 || currentPeriod === 5) return []
+  if (currentPeriod === 0 || (!isPlayoff && currentPeriod >= 5)) return []
   const currentElapsed = clockToElapsed(currentPeriod, currentClockSeconds, periodLength, otPeriodLength)
 
   return penalties
@@ -249,9 +254,10 @@ export function getPowerPlayState(
   homeSlug: string,
   awaySlug: string,
   periodLength: number = 1200,
-  otPeriodLength: number = 300
+  otPeriodLength: number = 300,
+  isPlayoff = false
 ): PowerPlayState {
-  const active = getActivePenalties(penalties, currentPeriod, currentClockSeconds, periodLength, otPeriodLength)
+  const active = getActivePenalties(penalties, currentPeriod, currentClockSeconds, periodLength, otPeriodLength, isPlayoff)
   const homePenalties = active.filter((ap) => ap.penalty.team === homeSlug).length
   const awayPenalties = active.filter((ap) => ap.penalty.team === awaySlug).length
 
@@ -276,10 +282,11 @@ export function findPenaltyToEnd(
   currentPeriod: number,
   currentClockSeconds: number,
   periodLength: number = 1200,
-  otPeriodLength: number = 300
+  otPeriodLength: number = 300,
+  isPlayoff = false
 ): { penaltyId: string; action: "end" | "halve" } | null {
   const currentElapsed = clockToElapsed(currentPeriod, currentClockSeconds, periodLength, otPeriodLength)
-  const opposingPenalties = getActivePenalties(penalties, currentPeriod, currentClockSeconds, periodLength, otPeriodLength)
+  const opposingPenalties = getActivePenalties(penalties, currentPeriod, currentClockSeconds, periodLength, otPeriodLength, isPlayoff)
     .filter((ap) => ap.penalty.team !== scoringTeam)
     .sort((a, b) => a.remainingSeconds - b.remainingSeconds) // earliest expiring first
 

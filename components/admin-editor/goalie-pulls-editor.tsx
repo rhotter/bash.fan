@@ -28,7 +28,8 @@ function safeSec(s: string): string {
   return isNaN(n) ? "00" : String(n).padStart(2, "0")
 }
 
-export function GoaliePullsEditor({ state, onChange, homeSlug, awaySlug, homeTeam, awayTeam }: {
+export function GoaliePullsEditor({ isPlayoff = false, state, onChange, homeSlug, awaySlug, homeTeam, awayTeam }: {
+  isPlayoff?: boolean
   state: LiveGameState
   onChange: (pulls: GoaliePullEvent[]) => void
   homeSlug: string; awaySlug: string
@@ -122,7 +123,7 @@ export function GoaliePullsEditor({ state, onChange, homeSlug, awaySlug, homeTea
               {pulls.map((p) => (
                 <tr key={p.id} className="border-t border-border/20 hover:bg-muted/50 cursor-pointer sm:cursor-default" onClick={() => openEdit(p)}>
                   <td className="py-1.5 pr-2">{p.team === homeSlug ? homeTeam : awayTeam}</td>
-                  <td className="py-1.5 px-2">{periodLabel(p.period)}</td>
+                  <td className="py-1.5 px-2">{periodLabel(p.period, isPlayoff)}</td>
                   <td className="py-1.5 px-2 tabular-nums font-mono">{p.pulledAt}</td>
                   <td className="py-1.5 px-2 tabular-nums font-mono">{p.returnedAt ?? "-"}</td>
                   <td className="py-1.5 pl-2 text-right hidden sm:table-cell" onClick={(e) => e.stopPropagation()}>
@@ -166,6 +167,9 @@ export function GoaliePullsEditor({ state, onChange, homeSlug, awaySlug, homeTea
                     <SelectItem value="2">P2</SelectItem>
                     <SelectItem value="3">P3</SelectItem>
                     <SelectItem value="4">OT</SelectItem>
+                    {isPlayoff && Array.from({ length: Math.max(0, state.period - 4) }, (_, i) => i + 5).map(p => (
+                      <SelectItem key={p} value={String(p)}>{periodLabel(p, true)}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </FieldLabel>

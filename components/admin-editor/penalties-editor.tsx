@@ -29,7 +29,8 @@ function safeSec(s: string): string {
   return isNaN(n) ? "00" : String(n).padStart(2, "0")
 }
 
-export function PenaltiesEditor({ state, onChange, homeSlug, awaySlug, homeTeam, awayTeam, homeRoster, awayRoster, nameById }: {
+export function PenaltiesEditor({ isPlayoff = false, state, onChange, homeSlug, awaySlug, homeTeam, awayTeam, homeRoster, awayRoster, nameById }: {
+  isPlayoff?: boolean
   state: LiveGameState
   onChange: (penalties: PenaltyEvent[]) => void
   homeSlug: string; awaySlug: string
@@ -128,7 +129,7 @@ export function PenaltiesEditor({ state, onChange, homeSlug, awaySlug, homeTeam,
             <tbody>
               {state.penalties.map((p) => (
                 <tr key={p.id} className="border-t border-border/20 hover:bg-muted/50 cursor-pointer sm:cursor-default" onClick={() => openEdit(p)}>
-                  <td className="py-1.5 pr-2">{periodLabel(p.period)}</td>
+                  <td className="py-1.5 pr-2">{periodLabel(p.period, isPlayoff)}</td>
                   <td className="py-1.5 px-2 tabular-nums font-mono">{p.clock}</td>
                   <td className="py-1.5 px-2">{p.team === homeSlug ? homeTeam : awayTeam}</td>
                   <td className="py-1.5 px-2 font-medium">{nameById(p.playerId) ?? `#${p.playerId}`}</td>
@@ -175,6 +176,9 @@ export function PenaltiesEditor({ state, onChange, homeSlug, awaySlug, homeTeam,
                     <SelectItem value="2">P2</SelectItem>
                     <SelectItem value="3">P3</SelectItem>
                     <SelectItem value="4">OT</SelectItem>
+                    {isPlayoff && Array.from({ length: Math.max(0, state.period - 4) }, (_, i) => i + 5).map(p => (
+                      <SelectItem key={p} value={String(p)}>{periodLabel(p, true)}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </FieldLabel>

@@ -1,7 +1,7 @@
 import { saveLiveStateSql, validateGameTiming } from "@/lib/scorekeeper-timing-db"
 import { NextResponse } from "next/server"
 import { db, schema, rawSql } from "@/lib/db"
-import { eq, and, ne, sql } from "drizzle-orm"
+import { eq, sql } from "drizzle-orm"
 import type { LiveGameState } from "@/lib/scorekeeper-types"
 import { getSession } from "@/lib/admin-session"
 import { validateShotArray } from "@/lib/goalie-shot-validation"
@@ -12,11 +12,6 @@ import { finalShotUpdateSql, planFinalShotCorrection, type FinalShotContext, typ
 async function validateAuth(request: Request): Promise<boolean> {
   const pin = request.headers.get("x-pin")
   if (pin && pin === process.env.SCOREKEEPER_PIN) return true
-  // Fallback: check query params (for sendBeacon)
-  const url = new URL(request.url)
-  const qpin = url.searchParams.get("pin")
-  if (qpin && qpin === process.env.SCOREKEEPER_PIN) return true
-  
   return await getSession()
 }
 
@@ -35,6 +30,8 @@ export async function PUT(
     const state: LiveGameState = { ...(body.state ?? body) }
     // Rebuild coordination is server-owned, never supplied by a client.
     delete state.finalizationPending
+    delete state.revision
+    delete state.lastMutationId
     const timingError = validateGameTiming(state)
     if (timingError) return NextResponse.json({ error: timingError }, { status: 422 })
 
@@ -45,7 +42,7 @@ export async function PUT(
     let homeScore = 0
     let awayScore = 0
     const gameRows = await db
-      .select({ homeTeam: schema.games.homeTeam, awayTeam: schema.games.awayTeam, status: schema.games.status, isForfeit: schema.games.isForfeit })
+      .select({ homeTeam: schema.games.homeTeam, awayTeam: schema.games.awayTeam, isPlayoff: schema.games.isPlayoff, status: schema.games.status, isForfeit: schema.games.isForfeit })
       .from(schema.games)
       .where(eq(schema.games.id, id))
     if (gameRows.length === 0) {
@@ -64,7 +61,7 @@ export async function PUT(
     const awaySlug = gameRows[0].awayTeam
 
     for (const goal of state.goals) {
-      if (goal.period <= 4) {
+      if (gameRows[0].isPlayoff || goal.period <= 4) {
         if (goal.team === homeSlug) homeScore++
         else if (goal.team === awaySlug) awayScore++
       }
@@ -78,24 +75,20 @@ export async function PUT(
       else if (awaySOGoals > homeSOGoals) awayScore++
     }
 
-    // A delayed autosave must not replace the state of a now-final game.
-    const savedRows = await rawSql(saveLiveStateSql(id, state, process.env.SCOREKEEPER_PIN || "unknown"))
-    if (!savedRows.length) return NextResponse.json({ error: "A newer state or final result has already been saved. Reload the game." }, { status: 409 })
-
-    // Set game to live once play starts (period >= 1), update scores
-    if (state.period >= 1) {
-      await db
-        .update(schema.games)
-        .set({ status: "live", homeScore, awayScore })
-        .where(and(eq(schema.games.id, id), ne(schema.games.status, "final"), eq(schema.games.isForfeit, false)))
-    } else {
-      await db
-        .update(schema.games)
-        .set({ homeScore, awayScore })
-        .where(and(eq(schema.games.id, id), ne(schema.games.status, "final"), eq(schema.games.isForfeit, false)))
+    const expectedRevision = body.expectedRevision ?? Number(request.headers.get("x-state-revision") ?? NaN)
+    const mutationId = body.mutationId ?? request.headers.get("x-mutation-id")
+    if (!Number.isSafeInteger(expectedRevision) || expectedRevision < 0 || expectedRevision >= Number.MAX_SAFE_INTEGER ||
+      typeof mutationId !== "string" || !/^[0-9a-f-]{36}$/i.test(mutationId)) {
+      return NextResponse.json({ error: "This scorekeeper needs to reload before saving. Your local draft is preserved." }, { status: 409 })
     }
-
-    return NextResponse.json({ ok: true, timingAckIds: state.timing?.entries.map(e => e.id) ?? [] })
+    if (gameRows[0].isPlayoff && state.shootout) {
+      return NextResponse.json({ error: "Playoff games use overtime, not a shootout" }, { status: 422 })
+    }
+    // The snapshot, timing journal, and public score commit together. Device
+    // timestamps never determine whether an editor may replace a saved revision.
+    const savedRows = await rawSql(saveLiveStateSql(id, state, expectedRevision, mutationId, { home: homeScore, away: awayScore }))
+    if (!savedRows.length) return NextResponse.json({ error: "Another editor saved this game. Your draft is preserved on this device. Reload the saved game before making further edits." }, { status: 409 })
+    return NextResponse.json({ ok: true, revision: Number(savedRows[0].revision), timingAckIds: state.timing?.entries.map(e => e.id) ?? [] })
   } catch (error) {
     console.error("Failed to update live state:", error)
     return NextResponse.json({ error: "Failed to update state" }, { status: 500 })
@@ -119,7 +112,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   try {
     const body = await request.json()
     const [context] = await rawSql(sql`
-      SELECT g.status, g.season_id AS "seasonId", se.game_length AS "gameLength", g.is_overtime AS "isOvertime", g.is_forfeit AS "isForfeit", g.home_team AS "homeTeam", g.away_team AS "awayTeam",
+      SELECT g.status, g.season_id AS "seasonId", se.game_length AS "gameLength", g.is_overtime AS "isOvertime", g.is_playoff AS "isPlayoff", g.is_forfeit AS "isForfeit", g.home_team AS "homeTeam", g.away_team AS "awayTeam",
         g.home_score AS "homeScore", g.away_score AS "awayScore", l.state,
         COALESCE((SELECT jsonb_agg(jsonb_build_object(
           'playerId', s.player_id, 'goalsAgainst', s.goals_against, 'shotsAgainst', s.shots_against,

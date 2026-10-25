@@ -15,12 +15,16 @@ describe.skipIf(process.env.RUN_TIMING_DB_TESTS !== "1")("append-only timing in 
   const entry = (entryId: string): GameTimingEntry => ({ id: entryId, kind: "goal", action: "add", capturedAt: 1800000000123,
     recordedAt: 1800000010000, source: "device", period: 1, clockSeconds: 1190, details: { eventId: "g1" } })
   let state: LiveGameState
-  const save = (s: LiveGameState) => { const q = dialect.sqlToQuery(saveLiveStateSql(id, s, "test")); return db.query(q.sql, q.params) }
+  const save = (s: LiveGameState, revision = 0, mutation = "00000000-0000-4000-8000-000000000001") => { const q = dialect.sqlToQuery(saveLiveStateSql(id, s, revision, mutation, { home: 0, away: 0 })); return db.query(q.sql, q.params) }
   beforeAll(async () => {
     const url = process.env.DATABASE_URL_DEV
     if (!url) throw new Error("DATABASE_URL_DEV required")
-    const prod = process.env.DATABASE_URL_PROD ?? process.env.PROD_URL
-    if (!prod || new URL(url).hostname.replace("-pooler", "") === new URL(prod).hostname.replace("-pooler", "")) throw new Error("Must verify a separate dev endpoint")
+    // Reject the known production endpoint without accepting a production
+    // connection string in this mutation test's environment.
+    const host = new URL(url).hostname.replace("-pooler", "")
+    if (!process.env.TEST_DATABASE_HOST || host !== process.env.TEST_DATABASE_HOST || host.includes("ep-frosty-shadow")) {
+      throw new Error("Must explicitly select a verified, non-production test endpoint")
+    }
     db = neon(url)
     const inserted = await db.query(`INSERT INTO games (id, season_id, date, time, home_team, away_team, status)
       SELECT $1, season_id, date, time, home_team, away_team, 'upcoming' FROM games LIMIT 1 RETURNING id`, [id])
@@ -57,15 +61,15 @@ describe.skipIf(process.env.RUN_TIMING_DB_TESTS !== "1")("append-only timing in 
   })
   it("rolls back the state write if event insertion fails", async () => {
     const invalid = { ...state, updatedAt: 102, notes: "must not persist", timing: { ...state.timing!, entries: [{ ...entry("bad"), details: null }] } }
-    await expect(save(invalid as unknown as LiveGameState)).rejects.toThrow()
+    await expect(save(invalid as unknown as LiveGameState, 1, randomUUID())).rejects.toThrow()
     const [stored] = await db.query("SELECT state FROM game_live WHERE game_id=$1", [id])
     expect(stored.state.updatedAt).toBe(100)
     expect(stored.state.notes).toBe("")
   })
   it("preserves the opening timestamp when older clients omit timing or propose a replacement", async () => {
     const { timing: _timing, ...old } = state
-    await save({ ...old, updatedAt: 103 })
-    await save({ ...state, updatedAt: 104, timing: { version: 1, firstPlayStartedAt: 999, entries: [] } })
+    await save({ ...old, updatedAt: 103 }, 1, randomUUID())
+    await save({ ...state, updatedAt: 104, timing: { version: 1, firstPlayStartedAt: 999, entries: [] } }, 2, randomUUID())
     const [stored] = await db.query("SELECT state FROM game_live WHERE game_id=$1", [id])
     expect(stored.state.timing.firstPlayStartedAt).toBe(1800000000000)
     expect(stored.state.timing.entries).toEqual([])

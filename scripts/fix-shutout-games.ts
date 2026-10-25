@@ -16,6 +16,9 @@ import "./env"
 import { rawSql } from "../lib/db"
 import { sql } from "drizzle-orm"
 
+if (!process.env.CRON_SECRET) throw new Error("CRON_SECRET is required for authenticated sync")
+const syncOptions = { headers: { Authorization: `Bearer ${process.env.CRON_SECRET}` } }
+
 const BASE_URL = process.argv.includes("--base-url")
   ? process.argv[process.argv.indexOf("--base-url") + 1]
   : "http://localhost:3000"
@@ -79,10 +82,10 @@ async function resyncSeasons(seasons: string[]) {
     try {
       const schedRes = await fetch(
         `${BASE_URL}/api/bash/sync?seasonId=${seasonId}&scheduleOnly=true`,
-        { method: "GET" }
+        { method: "GET", ...syncOptions }
       )
       const schedData = await schedRes.json()
-      if (!schedData.ok) throw new Error(schedData.error)
+      if (!schedData.ok || schedData.skipped) throw new Error(schedData.error || schedData.message)
       console.log(` ${schedData.schedule.gamesCreated} games`)
     } catch (err) {
       console.log(` FAILED: ${err}`)
@@ -97,10 +100,10 @@ async function resyncSeasons(seasons: string[]) {
       try {
         const boxRes = await fetch(
           `${BASE_URL}/api/bash/sync?seasonId=${seasonId}&boxscoreLimit=50`,
-          { method: "GET" }
+          { method: "GET", ...syncOptions }
         )
         const boxData = await boxRes.json()
-        if (!boxData.ok) throw new Error(boxData.error)
+        if (!boxData.ok || boxData.skipped) throw new Error(boxData.error || boxData.message)
         totalBoxscores += boxData.boxscoresSynced
         remaining = boxData.boxscoresRemaining
         console.log(` +${boxData.boxscoresSynced} boxscores (${remaining} remaining)`)

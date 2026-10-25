@@ -10,7 +10,7 @@ import { PATCH, PUT, POST } from "@/app/api/bash/scorekeeper/[id]/state/route"
 
 let context: FinalShotContext
 const correction = { homeShots: [9, 10, 10], awayShots: [14, 14, 15] }
-function request(body: unknown, method = "PATCH") { return new Request("https://bash.fan/api/bash/scorekeeper/g65/state", { method, body: JSON.stringify(body), headers: { "Content-Type": "application/json" } }) }
+function request(body: unknown, method = "PATCH") { return new Request("https://bash.fan/api/bash/scorekeeper/g65/state", { method, body: JSON.stringify(body), headers: { "Content-Type": "application/json", "x-state-revision": "0", "x-mutation-id": "00000000-0000-4000-8000-000000000001" } }) }
 const params = { params: Promise.resolve({ id: "g65" }) }
 
 beforeEach(() => {
@@ -93,7 +93,7 @@ describe("private timing persistence", () => {
   })
   it("passes device timing to the database and retains stored history for older clients that omit it", async () => {
     context.status = "live"
-    mocks.rawSql.mockReset().mockResolvedValue([{ game_id: "g65" }])
+    mocks.rawSql.mockReset().mockResolvedValue([{ game_id: "g65", revision: 1 }])
     const state = { ...createInitialState(), period: 1, timing: { version: 1, firstPlayStartedAt: 123, entries: [] } }
     expect((await PUT(request(state, "PUT"), params)).status).toBe(200)
     const query = new PgDialect().sqlToQuery(mocks.rawSql.mock.calls[0][0])
@@ -116,9 +116,9 @@ it("acknowledges a committed timing batch and never acknowledges a rejected snap
   const entry = { id: "entry-1", kind: "goal", action: "add", capturedAt: 1000, recordedAt: 2000,
     source: "device", period: 1, clockSeconds: 1100, details: { eventId: "goal-1" } }
   const state = { ...createInitialState(), period: 1, timing: { version: 1, entries: [entry] } }
-  mocks.rawSql.mockReset().mockResolvedValueOnce([{ game_id: "g65" }]).mockResolvedValueOnce([])
+  mocks.rawSql.mockReset().mockResolvedValueOnce([{ game_id: "g65", revision: 1 }]).mockResolvedValueOnce([])
   const committed = await PUT(request(state, "PUT"), params)
-  expect(await committed.json()).toEqual({ ok: true, timingAckIds: ["entry-1"] })
+  expect(await committed.json()).toEqual({ ok: true, revision: 1, timingAckIds: ["entry-1"] })
   const rejected = await PUT(request(state, "PUT"), params)
   expect(rejected.status).toBe(409)
   expect(await rejected.json()).not.toHaveProperty("timingAckIds")

@@ -1,3 +1,4 @@
+import { getSession } from "@/lib/admin-session"
 import { NextResponse } from "next/server"
 import { db, schema, rawSql } from "@/lib/db"
 import { sql, eq, and, count } from "drizzle-orm"
@@ -566,11 +567,20 @@ async function syncBoxscore(gameId: string, leagueId: string, seasonId: string) 
 }
 
 export async function GET(request: Request) {
+  const secret = process.env.CRON_SECRET
+  const cronAuthorized = !!secret && request.headers.get("authorization") === `Bearer ${secret}`
+  if (!cronAuthorized && !(await getSession())) {
+    return NextResponse.json({ ok: false, error: "Authentication required" }, { status: 401 })
+  }
   try {
     const { searchParams } = new URL(request.url)
     const seasonParam = searchParams.get("seasonId")
     const scheduleOnly = searchParams.get("scheduleOnly") === "true"
-    const boxscoreLimit = parseInt(searchParams.get("boxscoreLimit") || "0") || (scheduleOnly ? 0 : 999)
+    const requestedLimit = Number(searchParams.get("boxscoreLimit") ?? MAX_BOXSCORES_PER_SYNC)
+    if (!Number.isSafeInteger(requestedLimit) || requestedLimit < 0) {
+      return NextResponse.json({ ok: false, error: "Invalid boxscoreLimit" }, { status: 400 })
+    }
+    const boxscoreLimit = Math.min(requestedLimit, MAX_BOXSCORES_PER_SYNC)
 
     // If a specific season is requested, do a full sync for that season
     if (seasonParam) {
@@ -579,12 +589,15 @@ export async function GET(request: Request) {
         return NextResponse.json({ ok: false, error: `Unknown season: ${seasonParam}` }, { status: 400 })
       }
 
+      if (!season.enableSync) {
+        return NextResponse.json({ ok: true, skipped: true, message: `Sportability sync is disabled for ${season.id}` })
+      }
+
       // Full schedule sync (creates games from scratch)
       const scheduleResult = await syncFullSchedule(season.leagueId, season.id)
 
       // Sync boxscores — skip if scheduleOnly, limited for current season
-      const currentSeason = await getCurrentSeason()
-      const limit = scheduleOnly ? 0 : (season.id === currentSeason.id ? MAX_BOXSCORES_PER_SYNC : boxscoreLimit)
+      const limit = scheduleOnly ? 0 : boxscoreLimit
       let boxscoresSynced = 0
       let boxscoresRemaining = 0
 

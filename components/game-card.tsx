@@ -49,7 +49,7 @@ export function GameCard({ game, href, seriesText }: { game: BashGame; href?: st
           <div className="flex items-center gap-1.5">
             {isLive && liveClock ? (
               <span className="text-[10px] tabular-nums font-mono text-muted-foreground/70">
-                {periodLabel(liveClock.period)} {liveClock.clock}
+                {periodLabel(liveClock.period, game.isPlayoff)} {liveClock.clock}
               </span>
             ) : (
               <span className="text-[10px] text-muted-foreground/50">{formatGameTime(game.time)}</span>

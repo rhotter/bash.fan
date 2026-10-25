@@ -7,11 +7,11 @@ const order = (a: { period: number; clock: string }, b: { period: number; clock:
   a.period - b.period || parseClockString(b.clock) - parseClockString(a.clock)
 
 /** Shot totals recorded at every substitution establish the split; time played doesn't. */
-export function inferGoalieShots(state: LiveGameState, team: string, opponent: string, home: boolean): Record<string, number> | null {
+export function inferGoalieShots(state: LiveGameState, team: string, opponent: string, home: boolean, isPlayoff = false): Record<string, number> | null {
   const shots = home ? state.awayShots : state.homeShots
   const currentGoalie = home ? state.homeGoalieId : state.awayGoalieId
   if (currentGoalie == null || validateShotArray(shots, "Shots")) return null
-  const emptyNetGoals = state.goals.filter(g => g.team === opponent && g.period <= 4 && g.flags.includes("ENG"))
+  const emptyNetGoals = state.goals.filter(g => g.team === opponent && (isPlayoff || g.period <= 4) && g.flags.includes("ENG"))
   const changes = (state.goalieChanges ?? []).filter(c => c.team === team).sort(order)
   if (!changes.length) {
     const total = sum(shots) - emptyNetGoals.length
@@ -58,10 +58,10 @@ export function captureGoalieShotSnapshot(state: LiveGameState, change: GoalieCh
 
 /** Scorekeeper finalization derives known totals instead of exposing manual fields.
  * Existing allocations remain available for legacy games whose history is incomplete. */
-export function prepareScorekeeperFinalization(state: LiveGameState, homeSlug: string, awaySlug: string): LiveGameState {
+export function prepareScorekeeperFinalization(state: LiveGameState, homeSlug: string, awaySlug: string, isPlayoff = false): LiveGameState {
   const allocation = { ...state.goalieShotsAgainst }
   for (const [team, opponent, home] of [[homeSlug, awaySlug, true], [awaySlug, homeSlug, false]] as const) {
-    const inferred = inferGoalieShots(state, team, opponent, home)
+    const inferred = inferGoalieShots(state, team, opponent, home, isPlayoff)
     if (!(state.goalieChanges ?? []).some(change => change.team === team)) {
       const goalie = home ? state.homeGoalieId : state.awayGoalieId
       // The existing single-goalie server path already derives this total.
@@ -74,12 +74,12 @@ export function prepareScorekeeperFinalization(state: LiveGameState, homeSlug: s
 
 /** Preserve explicit admin allocations and validate them as usual. Fill only a
  * wholly unallocated team, using evidence captured by the live scorekeeper. */
-export function fillMissingGoalieShots(state: LiveGameState, homeSlug: string, awaySlug: string): void {
+export function fillMissingGoalieShots(state: LiveGameState, homeSlug: string, awaySlug: string, isPlayoff = false): void {
   if (state.goalieShotsAgainst !== undefined && (!state.goalieShotsAgainst ||
     typeof state.goalieShotsAgainst !== "object" || Array.isArray(state.goalieShotsAgainst))) return
   for (const [team, opponent, home] of [[homeSlug, awaySlug, true], [awaySlug, homeSlug, false]] as const) {
     if (!(state.goalieChanges ?? []).some(change => change.team === team)) continue
-    const inferred = inferGoalieShots(state, team, opponent, home)
+    const inferred = inferGoalieShots(state, team, opponent, home, isPlayoff)
     if (inferred && !Object.keys(inferred).some(id => state.goalieShotsAgainst?.[id] !== undefined)) {
       state.goalieShotsAgainst = { ...state.goalieShotsAgainst, ...inferred }
     }
