@@ -29,6 +29,7 @@ final class RecordingLibrary: ObservableObject {
             manifestLoaded = false
             self.error = "Recording library could not be loaded. Existing files have been preserved."
         }
+        if manifestLoaded { clearVerifiedFiles() }
     }
     private func persist() throws {
         guard manifestLoaded else { throw CaptureError.message("Recording library needs recovery before recording or uploading. Existing files have been preserved.") }
@@ -52,7 +53,9 @@ final class RecordingLibrary: ObservableObject {
         }
     }
     func uploadPending() async {
-        guard !uploading, pending > 0 else { return }
+        guard !uploading, manifestLoaded else { return }
+        clearVerifiedFiles()
+        guard pending > 0 else { return }
         uploading = true; error = nil
         defer { uploading = false }
         while let item = recordings.first(where: { !$0.uploaded && $0.duration != nil }) {
@@ -71,13 +74,26 @@ final class RecordingLibrary: ObservableObject {
                     let confirmation: UploadConfirmation = try await CaptureAPI.call(pairing, body: ["action": "complete", "segmentId": item.id])
                     guard confirmation.verified else { throw CaptureError.message("Upload has not been verified.") }
                 }
-                if let index = recordings.firstIndex(where: { $0.id == item.id }) { recordings[index].uploaded = true; try persist() }
+                if let index = recordings.firstIndex(where: { $0.id == item.id }) {
+                    recordings[index].uploaded = true
+                    // Commit the server verification before removing the local file.
+                    // If persistence fails, keep the file and retry server confirmation.
+                    do { try persist() }
+                    catch { recordings[index].uploaded = false; throw error }
+                    clearVerifiedFiles()
+                }
             } catch { self.error = error.localizedDescription; return }
         }
     }
-    func removeVerified() throws {
-        guard manifestLoaded else { throw CaptureError.message("Recording library needs recovery. Existing files have been preserved.") }
-        for item in recordings where item.uploaded && FileManager.default.fileExists(atPath: item.file.path) { try FileManager.default.removeItem(at: item.file) }
-        recordings.removeAll(where: { $0.uploaded }); try persist()
+    private func clearVerifiedFiles() {
+        guard manifestLoaded else { return }
+        let message = "Footage is saved to BASH. Freeing local storage will retry automatically."
+        do {
+            for item in recordings where item.uploaded && FileManager.default.fileExists(atPath: item.file.path) {
+                try FileManager.default.removeItem(at: item.file)
+            }
+            // Keep the small upload receipts, so a restart can safely retry cleanup.
+            if error == message { error = nil }
+        } catch { self.error = message }
     }
 }

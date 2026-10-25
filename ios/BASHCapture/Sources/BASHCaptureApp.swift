@@ -66,7 +66,7 @@ struct CaptureHome: View {
                                 else { Image(systemName: library.pending == 0 && library.error == nil ? "checkmark.icloud" : "icloud.and.arrow.up").foregroundStyle(BASHStyle.orange) }
                                 VStack(alignment: .leading, spacing: 3) {
                                     Text(library.uploading ? "Uploading to BASH" : library.error != nil ? "Upload needs attention" : library.pending > 0 ? "Waiting to upload" : "Saved to BASH").font(.subheadline.weight(.semibold))
-                                    Text(library.pending > 0 ? "\(library.pending) \(library.pending == 1 ? "clip" : "clips") remaining" : "Your footage stays on this iPhone too.").font(.caption).foregroundStyle(.secondary)
+                                    Text(library.pending > 0 ? "\(library.pending) \(library.pending == 1 ? "clip" : "clips") remaining" : library.error != nil ? "Check upload status." : "Uploaded clips cleared from this iPhone.").font(.caption).foregroundStyle(.secondary)
                                 }
                                 Spacer()
                                 Image(systemName: "chevron.right").font(.caption.weight(.semibold)).foregroundStyle(.tertiary)
@@ -126,7 +126,7 @@ struct CaptureHome: View {
             .navigationTitle("BASH Capture")
             .refreshable { await website.refresh(); await camera.refreshConfiguration(); await library.uploadPending() }
         }
-        .sheet(isPresented: $showUploads) { UploadStatusSheet(library: library, recording: camera.recording) }
+        .sheet(isPresented: $showUploads) { UploadStatusSheet(library: library) }
         .sheet(item: $selectedGame, onDismiss: {
             if openCameraAfterSetup { openCameraAfterSetup = false; showCamera = true }
         }) { game in
@@ -281,9 +281,7 @@ private extension View {
 
 struct UploadStatusSheet: View {
     @ObservedObject var library: RecordingLibrary
-    let recording: Bool
     @Environment(\.dismiss) private var dismiss
-    @State private var confirmCleanup = false
     var body: some View {
         NavigationStack {
             List {
@@ -293,17 +291,9 @@ struct UploadStatusSheet: View {
                     if library.uploading { ProgressView() }
                     if let error = library.error { Text(error).font(.callout).foregroundStyle(.red) }
                     if !library.uploading && library.pending > 0 { Button("Retry upload") { Task { await library.uploadPending() } } }
-                } footer: { Text("Keep BASH open while uploading. Your originals remain on this phone until you remove them.") }
-                if library.recordings.contains(where: { $0.uploaded }) {
-                    Section {
-                        Button("Remove uploaded copies from iPhone", role: .destructive) { confirmCleanup = true }.disabled(recording || library.uploading)
-                    }
-                }
+                } footer: { Text("Keep BASH open while uploading. Clips are automatically removed from this iPhone once BASH verifies the upload.") }
             }.navigationTitle("Uploads").navigationBarTitleDisplayMode(.inline)
                 .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
-                .confirmationDialog("Remove uploaded copies from this iPhone?", isPresented: $confirmCleanup, titleVisibility: .visible) {
-                    Button("Remove local copies", role: .destructive) { do { try library.removeVerified() } catch { library.error = error.localizedDescription } }
-                } message: { Text("Only footage already verified on BASH will be removed.") }
         }.presentationDetents([.medium, .large])
     }
 }
