@@ -25,6 +25,13 @@ struct BASHCaptureApp: App {
                         do { try await Task.sleep(for: .seconds(30)) } catch { break }
                     }
                 }
+                .task(id: phase) {
+                    guard phase == .active else { return }
+                    while !Task.isCancelled {
+                        if !website.busy && !camera.recording { await website.refresh() }
+                        do { try await Task.sleep(for: .seconds(60)) } catch { break }
+                    }
+                }
                 .onChange(of: camera.library.uploading) { _, _ in
                     UIApplication.shared.isIdleTimerDisabled = camera.recording || camera.library.uploading
                 }

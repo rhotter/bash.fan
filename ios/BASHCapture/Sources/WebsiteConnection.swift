@@ -24,7 +24,7 @@ final class WebsiteConnection: ObservableObject {
         try BASHService.server()
     }
     private func call<T: Decodable>(_ server: URL, _ path: String, body: [String: Any]? = nil) async throws -> T {
-        var request = URLRequest(url: server.appending(path: path)); request.timeoutInterval = 20
+        var request = URLRequest(url: server.appending(path: path), cachePolicy: .reloadIgnoringLocalCacheData); request.timeoutInterval = 20
         if let body { request.httpMethod = "POST"; request.httpBody = try JSONSerialization.data(withJSONObject: body); request.setValue("application/json", forHTTPHeaderField: "Content-Type") }
         let (data, response) = try await session.data(for: request)
         guard let response = response as? HTTPURLResponse, (200..<300).contains(response.statusCode) else {

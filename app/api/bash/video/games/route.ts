@@ -15,7 +15,9 @@ export async function GET() { return videoHandler(async () => {
     ORDER BY (g.status = 'live') DESC,
       (g.date >= to_char(now() AT TIME ZONE 'America/Los_Angeles', 'YYYY-MM-DD') AND g.status <> 'final') DESC,
       CASE WHEN g.date >= to_char(now() AT TIME ZONE 'America/Los_Angeles', 'YYYY-MM-DD') THEN g.date END ASC,
-      g.date DESC, g.time ASC LIMIT 100`)
+      g.date DESC,
+      CASE WHEN g.time ~* '^(([01]?[0-9]|2[0-3]):[0-5][0-9]|(0?[1-9]|1[0-2]):[0-5][0-9][[:space:]]*[ap]m)$'
+        THEN g.time::time END ASC NULLS LAST, g.id ASC LIMIT 100`)
   return Response.json({ games })
 }) }
 
