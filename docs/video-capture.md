@@ -52,7 +52,7 @@ The PIN is not saved; the operator cookie lives in an ephemeral URL session. Joi
 
 ## Capture, uploads, and failure behavior
 
-- Landscape rear wide camera; 4K HEVC at a fixed 30 fps, targeting 25 Mbps plus AAC audio. Test visual quality and actual dimensions on the selected phones.
+- Landscape rear 0.5× ultra-wide camera; 4K HEVC at a fixed 30 fps, targeting 25 Mbps plus AAC audio. Preview, local recording and livestream share this physical lens. Phones without an ultra-wide camera or 4K support on that lens cannot record; there is no silent 1× fallback. Test visual quality, framing and actual dimensions on the selected phones.
 - Independent 1080p H.264 live output, approximately 6 Mbps and 30 fps. A live connection failure does not stop a running local recording. Publishing reconnects automatically.
 - Local MP4 segments of approximately 60 seconds, with ten-second movie fragments for recovery. Segment rotation currently stops/starts the writer and may introduce a small gap; this is **not** a proven gapless recorder.
 - A manifest is saved before recording starts. Finalized segment duration is read from the actual media. Startup attempts to recover interrupted files without deleting them. Files are accessible in the Files app and Finder file sharing.

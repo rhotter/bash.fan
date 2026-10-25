@@ -60,18 +60,24 @@ final class CaptureController: ObservableObject {
         if prepared { await mixer.startRunning(); return }
         guard await AVCaptureDevice.requestAccess(for: .video), await AVCaptureDevice.requestAccess(for: .audio) else { error = "Allow camera and microphone access in Settings to record."; return }
         do {
-            guard let camera = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back) else { throw CaptureError.message("A physical iPhone rear camera is required.") }
+            let cameras = AVCaptureDevice.DiscoverySession(deviceTypes: [.builtInUltraWideCamera], mediaType: .video, position: .back)
+            guard let camera = cameras.devices.first else { throw CaptureError.message("Recording requires an iPhone with a rear 0.5× ultra-wide camera.") }
             let audio = AVAudioSession.sharedInstance()
             try audio.setCategory(.playAndRecord, mode: .videoRecording, options: [.defaultToSpeaker])
             try audio.setActive(true)
             try await mixer.attachVideo(camera)
             try await mixer.attachAudio(AVCaptureDevice.default(for: .audio))
             try await mixer.configuration { session in
-                guard session.canSetSessionPreset(.hd4K3840x2160) else { throw CaptureError.message("This camera cannot capture 4K.") }
+                guard session.canSetSessionPreset(.hd4K3840x2160) else { throw CaptureError.message("This iPhone’s 0.5× camera cannot capture 4K.") }
                 session.sessionPreset = .hd4K3840x2160
             }
             await mixer.setVideoOrientation(.landscapeRight)
             try await mixer.setFrameRate(Double(framesPerSecond))
+            // The physical ultra-wide lens is the Camera app's 0.5× view.
+            // AVFoundation uses 1.0 for this lens's full, uncropped field of view.
+            try camera.lockForConfiguration()
+            camera.videoZoomFactor = 1.0
+            camera.unlockForConfiguration()
             await recorder.setMovieFragmentInterval(10)
             await mixer.addOutput(recorder)
             var liveSettings = await stream.videoSettings

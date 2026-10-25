@@ -4,7 +4,7 @@ The mount is fixed at center rink, with overlapping views from two recent iPhone
 
 ## Capture setup
 
-Select the same website game on both phones, assign left/right, and use the same frame rate. Keep the lenses close together, include a useful overlap, and do not move the mount after calibration. We need a short recording from the actual rig to establish lens distortion, the overlap and whether the mount is stable enough. Different lens choices, zoom levels, stabilization behavior or a moved mount require recalibration. Locking focus, exposure and white balance is part of the capture work still to implement.
+Assign left/right on the phones; they join the same daily rink recording and the backend matches footage to scorekeeper timestamps. Both use the rear 0.5× ultra-wide camera at 30 fps. Keep the lenses close together, include a useful overlap, and do not move the mount after calibration. We need a short recording from the actual rig to establish lens distortion, the overlap and whether the mount is stable enough. Different lens choices, zoom levels, stabilization behavior or a moved mount require recalibration. Locking focus, exposure and white balance is part of the capture work still to implement.
 
 ## Synchronization
 
