@@ -1,6 +1,6 @@
 # Two-phone fusion
 
-The mount is fixed at center rink, with overlapping views from two recent iPhones. Capture remains native on each phone; a separate processor aligns and combines the images. R2 holds the originals. Cloudflare Stream handles delivery; it does not perform this stitching. The app still publishes independent left/right feeds. The website automatically displays one available feed in a single player, with no camera controls. A standalone fusion prototype now exists in `video-fusion/` (see its [README](../video-fusion/README.md)). It produces one wide panorama independently of downstream sports processing. It is not deployed or connected to the app or public player yet.
+The mount is fixed at center rink, with overlapping views from two recent iPhones. Capture remains native on each phone; a separate processor aligns and combines the images. R2 holds the originals. Cloudflare Stream handles delivery; it does not perform this stitching. The app still publishes independent left/right feeds. The game page displays the left and right cameras side by side, including on mobile, with individual fullscreen controls. These are separate feeds, not a synchronized fused panorama. A standalone fusion prototype now exists in `video-fusion/` (see its [README](../video-fusion/README.md)). It produces one wide panorama independently of downstream sports processing. It is not deployed or connected to the app or public player yet.
 
 ## Capture setup
 

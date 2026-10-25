@@ -76,7 +76,7 @@ export function LiveVideoPlayer({ url, label }: { url: string; label: string }) 
     <video ref={video} aria-label={label} controls playsInline muted className="h-full w-full"
       onPlaying={() => { setStatus(""); setFailed(false) }}
       onWaiting={() => setStatus("Buffering…")} />
-    {status && <div role="status" className="absolute inset-x-3 top-3 flex items-center justify-between gap-3 rounded-md bg-black/75 px-3 py-2 text-xs text-white">
+    {status && <div role="status" className="absolute inset-x-1 top-1 flex flex-wrap items-center justify-between gap-1 rounded-md bg-black/75 px-2 py-1 text-[10px] text-white sm:inset-x-3 sm:top-3 sm:gap-3 sm:px-3 sm:py-2 sm:text-xs">
       <span>{status}</span>
       {failed && <Button size="sm" variant="secondary" onClick={() => { setFailed(false); setStatus("Reconnecting…"); setAttempt(value => value + 1) }}>Retry playback</Button>}
     </div>}
