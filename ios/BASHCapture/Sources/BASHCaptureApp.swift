@@ -182,7 +182,7 @@ struct CapturePreview: UIViewRepresentable {
     }
     func makeCoordinator() -> Coordinator { Coordinator(mixer) }
     func makeUIView(context: Context) -> MTHKView {
-        let view = MTHKView(frame: .zero); view.videoGravity = .resizeAspect
+        let view = MTHKView(frame: .zero); view.videoGravity = .resizeAspectFill
         context.coordinator.attach = Task { await mixer.addOutput(view) }
         return view
     }
@@ -214,6 +214,7 @@ struct NativeCameraView: View {
                 ZStack {
                     Color.black.ignoresSafeArea()
                     CapturePreview(mixer: camera.mixer)
+                        .ignoresSafeArea()
                     VStack {
                         if correctlyOriented {
                             Spacer()
@@ -243,7 +244,7 @@ struct NativeCameraView: View {
                         }
                     }.padding()
                 }
-                .safeAreaInset(edge: .bottom) {
+                .overlay(alignment: .bottom) {
                     HStack(spacing: 28) {
                         Spacer()
                         Button {
@@ -261,10 +262,23 @@ struct NativeCameraView: View {
                     }.padding(.horizontal, 20).padding(.vertical, 12).padding(.bottom, 8)
                 }
             }
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) { Button("Close", systemImage: "xmark") { dismiss() }.disabled(camera.recording || camera.busy) }
+            .overlay(alignment: .topLeading) {
+                if !camera.recording {
+                    Button { dismiss() } label: {
+                        Image(systemName: "xmark")
+                            .font(.title3.weight(.semibold))
+                            .foregroundStyle(.white)
+                            .frame(width: 48, height: 48)
+                            .captureGlass()
+                    }
+                    .accessibilityLabel("Close camera")
+                    .disabled(camera.busy)
+                    .padding(16)
+                }
             }
+            .toolbar(.hidden, for: .navigationBar)
+            .statusBarHidden()
+            .persistentSystemOverlays(.hidden)
             .confirmationDialog("Stop recording this camera?", isPresented: $confirmStop, titleVisibility: .visible) { Button("Stop recording", role: .destructive) { Task { await camera.stop() } } }
             .task { await camera.refreshConfiguration(); await camera.prepare() }
             .onAppear {
