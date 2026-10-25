@@ -186,6 +186,11 @@ export async function POST(request: NextRequest, context: RouteContext) {
   const expectedPlayerCount = playerMoves.length
   const tradeNotes = notes ?? null
   const teamSlugsSqlList = sql.join(teamSlugs.map((slug) => sql`${slug}`), sql`, `)
+  const origTeamSlugs = Array.from(new Set(draftPicks.map((p) => p.draftPickOriginalTeamSlug)))
+  const origTeamsGuardSql =
+    origTeamSlugs.length > 0
+      ? sql`AND (SELECT count(*)::int FROM teams WHERE slug IN (${sql.join(origTeamSlugs.map((s) => sql`${s}`), sql`, `)})) = ${origTeamSlugs.length}`
+      : sql``
 
   // Execute atomic trade in single-statement data-modifying CTE via rawSql
   const tradeQuery = sql`
@@ -214,6 +219,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
       SELECT s.id AS season_id FROM locked_season s
       WHERE (SELECT count(*)::int FROM season_teams WHERE season_id = ${seasonId} AND team_slug IN (${teamSlugsSqlList})) = ${teamSlugs.length}
         AND (SELECT count(*)::int FROM locked_rosters) = ${expectedPlayerCount}
+        ${origTeamsGuardSql}
     ),
     updated_rosters AS (
       UPDATE player_seasons ps
@@ -242,7 +248,19 @@ export async function POST(request: NextRequest, context: RouteContext) {
     SELECT t.id AS "tradeId", t.traded_at AS "tradedAt" FROM inserted_trade t;
   `
 
-  const rows = await rawSql(tradeQuery)
+  let rows: unknown[]
+  try {
+    rows = await rawSql(tradeQuery)
+  } catch (err: unknown) {
+    const code = (err as { code?: string })?.code
+    if (code === "23503") {
+      return NextResponse.json(
+        { error: "Trade execution failed: invalid team or player reference" },
+        { status: 400 }
+      )
+    }
+    return NextResponse.json({ error: "Failed to execute trade" }, { status: 500 })
+  }
   const result = rows?.[0] as { tradeId: number; tradedAt: string } | undefined
 
   if (!result) {

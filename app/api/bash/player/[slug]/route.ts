@@ -487,8 +487,8 @@ export async function GET(
       .map((r) => ({
         seasonId: r.season_id,
         seasonName: seasonMap.get(r.season_id) ?? r.season_id,
-        teamName: r.team_name,
-        teamSlug: r.team_slug,
+        teamName: r.team_name ?? "",
+        teamSlug: r.team_slug ?? "",
         stats: buildSkaterStats(r),
       })).sort(compareSeasonsDesc)
     games = skaterGameRows.map((r) => {
@@ -524,8 +524,8 @@ export async function GET(
       .map((r) => ({
         seasonId: r.season_id,
         seasonName: seasonMap.get(r.season_id) ?? r.season_id,
-        teamName: r.team_name,
-        teamSlug: r.team_slug,
+        teamName: r.team_name ?? "",
+        teamSlug: r.team_slug ?? "",
         stats: buildGoalieStats(r, r.game_length),
       })).sort(compareSeasonsDesc)
     goalieGames = goalieGameRows.map((r) => {
@@ -555,8 +555,8 @@ export async function GET(
       .map((r) => ({
         seasonId: r.season_id,
         seasonName: seasonMap.get(r.season_id) ?? r.season_id,
-        teamName: r.team_name,
-        teamSlug: r.team_slug,
+        teamName: r.team_name ?? "",
+        teamSlug: r.team_slug ?? "",
         stats: buildSkaterStats(r),
       })).sort(compareSeasonsDesc)
     playoffGames = poSkaterGameRows.map((r) => {
@@ -589,8 +589,8 @@ export async function GET(
       .map((r) => ({
         seasonId: r.season_id,
         seasonName: seasonMap.get(r.season_id) ?? r.season_id,
-        teamName: r.team_name,
-        teamSlug: r.team_slug,
+        teamName: r.team_name ?? "",
+        teamSlug: r.team_slug ?? "",
         stats: buildGoalieStats(r, r.game_length),
       })).sort(compareSeasonsDesc)
     playoffGoalieGames = poGoalieGameRows.map((r) => {

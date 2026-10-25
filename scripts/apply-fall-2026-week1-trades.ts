@@ -156,13 +156,66 @@ export interface TradeStatus {
   allApplied: boolean
   trade1Reason?: string
   trade2Reason?: string
+  resolvedPlayerIds?: Week1PlayerIds
+}
+
+export interface Week1PlayerIds {
+  eddieParsons: number
+  loganTruman: number
+  jonnyCallan: number
+  leeJacobs: number
+  stephTryphonas: number
+  darrellDraper: number
+}
+
+export const DEFAULT_WEEK1_PLAYER_IDS: Week1PlayerIds = {
+  eddieParsons: 315,
+  loganTruman: 102,
+  jonnyCallan: 3640,
+  leeJacobs: 50003,
+  stephTryphonas: 61,
+  darrellDraper: 49983,
+}
+
+export async function resolveWeek1PlayerIds(
+  queryFn: (sql: string, params?: unknown[]) => Promise<any[]>,
+  seasonId: string
+): Promise<{ ids: Week1PlayerIds; rosterMap: Map<number, string> }> {
+  const rosters = await queryFn(
+    `SELECT ps.player_id, ps.team_slug, p.name AS player_name
+     FROM player_seasons ps
+     LEFT JOIN players p ON p.id = ps.player_id
+     WHERE ps.season_id = $1
+       AND (
+         ps.player_id IN (315, 102, 3640, 50003, 61, 49983)
+         OR LOWER(p.name) IN ('eddie parsons', 'logan truman', 'jonny callan', 'lee jacobs', 'steph tryphonas', 'darrell draper')
+       );`,
+    [seasonId]
+  )
+
+  const ids: Week1PlayerIds = { ...DEFAULT_WEEK1_PLAYER_IDS }
+  const rosterMap = new Map<number, string>()
+
+  for (const r of rosters ?? []) {
+    const pid = Number(r.player_id)
+    rosterMap.set(pid, r.team_slug)
+    const nameLower = typeof r.player_name === "string" ? r.player_name.trim().toLowerCase() : ""
+    if (nameLower === "eddie parsons") ids.eddieParsons = pid
+    else if (nameLower === "logan truman") ids.loganTruman = pid
+    else if (nameLower === "jonny callan") ids.jonnyCallan = pid
+    else if (nameLower === "lee jacobs") ids.leeJacobs = pid
+    else if (nameLower === "steph tryphonas") ids.stephTryphonas = pid
+    else if (nameLower === "darrell draper") ids.darrellDraper = pid
+  }
+
+  return { ids, rosterMap }
 }
 
 export async function checkTradeStatus(
   queryFn: (sql: string, params?: unknown[]) => Promise<any[]>,
   seasonId: string
 ): Promise<TradeStatus> {
-  // 1. Check season_trades
+  // 1. Check season_trades for the specific Week 1 trades
   const trades = await queryFn(
     `SELECT id, notes, team_slugs FROM season_trades WHERE season_id = $1;`,
     [seasonId]
@@ -173,43 +226,27 @@ export async function checkTradeStatus(
 
   for (const t of trades ?? []) {
     const notes = t.notes ?? ""
-    const slugs: string[] = Array.isArray(t.team_slugs)
-      ? t.team_slugs
-      : [t.team_a_slug, t.team_b_slug].filter(Boolean)
-    if (
-      (notes.includes("Eddie Parsons") && notes.includes("Logan Truman")) ||
-      (slugs.includes("reign") && slugs.includes("seals"))
-    ) {
+    if (notes.includes("Eddie Parsons") && notes.includes("Logan Truman")) {
       trade1InTrades = true
     }
-    if (
-      (notes.includes("Jonny Callan") && notes.includes("Darrell Draper")) ||
-      (slugs.includes("yetis") && slugs.includes("loons"))
-    ) {
+    if (notes.includes("Jonny Callan") && notes.includes("Darrell Draper")) {
       trade2InTrades = true
     }
   }
 
-  // 2. Check player_seasons for post-trade assignments
-  const rosters = await queryFn(
-    `SELECT player_id, team_slug FROM player_seasons WHERE season_id = $1 AND player_id IN (315, 102, 3640, 50003, 61, 49983);`,
-    [seasonId]
-  )
+  // 2. Check player_seasons for post-trade assignments (resolving IDs by name when available)
+  const { ids, rosterMap } = await resolveWeek1PlayerIds(queryFn, seasonId)
 
-  const rosterMap = new Map<number, string>()
-  for (const r of rosters ?? []) {
-    rosterMap.set(Number(r.player_id), r.team_slug)
-  }
+  // Trade 1 post-trade: Eddie Parsons on seals, Logan Truman on reign
+  const trade1InRosters =
+    rosterMap.get(ids.eddieParsons) === "seals" && rosterMap.get(ids.loganTruman) === "reign"
 
-  // Trade 1 post-trade: Eddie Parsons (315) on seals, Logan Truman (102) on reign
-  const trade1InRosters = rosterMap.get(315) === "seals" && rosterMap.get(102) === "reign"
-
-  // Trade 2 post-trade: Callan (3640) on loons, Jacobs (50003) on loons, Tryphonas (61) on yetis, Draper (49983) on yetis
+  // Trade 2 post-trade: Callan & Jacobs on loons, Tryphonas & Draper on yetis
   const trade2InRosters =
-    rosterMap.get(3640) === "loons" &&
-    rosterMap.get(50003) === "loons" &&
-    rosterMap.get(61) === "yetis" &&
-    rosterMap.get(49983) === "yetis"
+    rosterMap.get(ids.jonnyCallan) === "loons" &&
+    rosterMap.get(ids.leeJacobs) === "loons" &&
+    rosterMap.get(ids.stephTryphonas) === "yetis" &&
+    rosterMap.get(ids.darrellDraper) === "yetis"
 
   const trade1Applied = trade1InTrades || trade1InRosters
   const trade2Applied = trade2InTrades || trade2InRosters
@@ -220,6 +257,7 @@ export async function checkTradeStatus(
     allApplied: trade1Applied && trade2Applied,
     trade1Reason: trade1InTrades ? "in_season_trades" : trade1InRosters ? "in_player_seasons" : undefined,
     trade2Reason: trade2InTrades ? "in_season_trades" : trade2InRosters ? "in_player_seasons" : undefined,
+    resolvedPlayerIds: ids,
   }
 }
 
@@ -389,6 +427,18 @@ export async function executeWeek1Trades(
     }
   }
 
+  const ids = statusBefore.resolvedPlayerIds ?? DEFAULT_WEEK1_PLAYER_IDS
+  const trade1Def: TradeDefinition = {
+    ...FALL_2026_WEEK1_TRADE_1,
+    teamAPlayerIds: [ids.eddieParsons],
+    teamBPlayerIds: [ids.loganTruman],
+  }
+  const trade2Def: TradeDefinition = {
+    ...FALL_2026_WEEK1_TRADE_2,
+    teamAPlayerIds: [ids.jonnyCallan, ids.leeJacobs],
+    teamBPlayerIds: [ids.stephTryphonas, ids.darrellDraper],
+  }
+
   let trade1Executed = false
   let trade2Executed = false
 
@@ -396,10 +446,10 @@ export async function executeWeek1Trades(
   if (statusBefore.trade1Applied) {
     console.log(`Trade #1 already applied (${statusBefore.trade1Reason}), skipping.`)
   } else if (options.dryRun) {
-    console.log(`[DRY RUN] Would execute Trade #1: ${FALL_2026_WEEK1_TRADE_1.notes}`)
+    console.log(`[DRY RUN] Would execute Trade #1: ${trade1Def.notes}`)
   } else {
-    console.log(`Executing Trade #1: ${FALL_2026_WEEK1_TRADE_1.notes}`)
-    const res1 = await rSqlFn(buildTradeCte(seasonId, FALL_2026_WEEK1_TRADE_1))
+    console.log(`Executing Trade #1: ${trade1Def.notes}`)
+    const res1 = await rSqlFn(buildTradeCte(seasonId, trade1Def))
     if (!res1 || res1.length === 0) {
       throw new Error(
         `Trade #1 execution failed: preconditions not met or concurrent modification.`
@@ -413,10 +463,10 @@ export async function executeWeek1Trades(
   if (statusBefore.trade2Applied) {
     console.log(`Trade #2 already applied (${statusBefore.trade2Reason}), skipping.`)
   } else if (options.dryRun) {
-    console.log(`[DRY RUN] Would execute Trade #2: ${FALL_2026_WEEK1_TRADE_2.notes}`)
+    console.log(`[DRY RUN] Would execute Trade #2: ${trade2Def.notes}`)
   } else {
-    console.log(`Executing Trade #2: ${FALL_2026_WEEK1_TRADE_2.notes}`)
-    const res2 = await rSqlFn(buildTradeCte(seasonId, FALL_2026_WEEK1_TRADE_2))
+    console.log(`Executing Trade #2: ${trade2Def.notes}`)
+    const res2 = await rSqlFn(buildTradeCte(seasonId, trade2Def))
     if (!res2 || res2.length === 0) {
       throw new Error(
         `Trade #2 execution failed: preconditions not met or concurrent modification.`

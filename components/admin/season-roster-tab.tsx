@@ -559,6 +559,7 @@ export function SeasonRosterTab({ seasonId, seasonStatus, roster, teams, onRoste
                         onChange={(e) => {
                           setTradeTeamA(e.target.value)
                           setSelectedAPlayers([])
+                          setDraftPicks([])
                         }}
                         className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                       >
@@ -581,6 +582,7 @@ export function SeasonRosterTab({ seasonId, seasonStatus, roster, teams, onRoste
                         onChange={(e) => {
                           setTradeTeamB(e.target.value)
                           setSelectedBPlayers([])
+                          setDraftPicks([])
                         }}
                         className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                       >
