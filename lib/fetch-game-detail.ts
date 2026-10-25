@@ -1,7 +1,7 @@
 import { cache } from "react"
 import { formatSeasonName } from "@/lib/season-name"
-import { db, schema, rawSql } from "@/lib/db"
-import { sql, eq, asc } from "drizzle-orm"
+import { rawSql } from "@/lib/db"
+import { sql } from "drizzle-orm"
 
 export interface PlayerBoxScore {
   id: number
@@ -102,13 +102,19 @@ async function fetchGameDetailInternal(id: string): Promise<BashGameDetail | nul
           JOIN players p ON pgs.player_id = p.id
           WHERE pgs.game_id = ${gameId}
             AND (
-              EXISTS (
-                SELECT 1 FROM player_seasons ps
-                WHERE ps.player_id = p.id AND ps.season_id = ${seasonId} AND ps.team_slug = ${teamSlug}
-              )
-              OR EXISTS (
-                SELECT 1 FROM adhoc_game_rosters agr
-                WHERE agr.game_id = ${gameId} AND agr.player_id = p.id AND agr.team_side = ${teamSide}
+              pgs.team_slug = ${teamSlug}
+              OR (
+                pgs.team_slug IS NULL
+                AND (
+                  EXISTS (
+                    SELECT 1 FROM player_seasons ps
+                    WHERE ps.player_id = p.id AND ps.season_id = ${seasonId} AND ps.team_slug = ${teamSlug}
+                  )
+                  OR EXISTS (
+                    SELECT 1 FROM adhoc_game_rosters agr
+                    WHERE agr.game_id = ${gameId} AND agr.player_id = p.id AND agr.team_side = ${teamSide}
+                  )
+                )
               )
             )
           ORDER BY pgs.is_sub ASC, pgs.points DESC, pgs.goals DESC, p.name ASC
@@ -141,13 +147,19 @@ async function fetchGameDetailInternal(id: string): Promise<BashGameDetail | nul
           JOIN players p ON ggs.player_id = p.id
           WHERE ggs.game_id = ${gameId}
             AND (
-              EXISTS (
-                SELECT 1 FROM player_seasons ps
-                WHERE ps.player_id = p.id AND ps.season_id = ${seasonId} AND ps.team_slug = ${teamSlug}
-              )
-              OR EXISTS (
-                SELECT 1 FROM adhoc_game_rosters agr
-                WHERE agr.game_id = ${gameId} AND agr.player_id = p.id AND agr.team_side = ${teamSide}
+              ggs.team_slug = ${teamSlug}
+              OR (
+                ggs.team_slug IS NULL
+                AND (
+                  EXISTS (
+                    SELECT 1 FROM player_seasons ps
+                    WHERE ps.player_id = p.id AND ps.season_id = ${seasonId} AND ps.team_slug = ${teamSlug}
+                  )
+                  OR EXISTS (
+                    SELECT 1 FROM adhoc_game_rosters agr
+                    WHERE agr.game_id = ${gameId} AND agr.player_id = p.id AND agr.team_side = ${teamSide}
+                  )
+                )
               )
             )
         `)
@@ -167,24 +179,21 @@ async function fetchGameDetailInternal(id: string): Promise<BashGameDetail | nul
     }))
   }
 
-  // Officials — simple query using Drizzle query builder
-  const officialsPromise = db
-    .select({ name: schema.gameOfficials.name, role: schema.gameOfficials.role })
-    .from(schema.gameOfficials)
-    .where(eq(schema.gameOfficials.gameId, id))
-    .orderBy(asc(schema.gameOfficials.role), asc(schema.gameOfficials.name))
-
   const [homePlayers, awayPlayers, homeGoalies, awayGoalies, officialRows, seasonRows] = await Promise.all([
     getPlayerStats(id, game.home_team, game.season_id, 'home'),
     getPlayerStats(id, game.away_team, game.season_id, 'away'),
     getGoalieStats(id, game.home_team, game.season_id, 'home'),
     getGoalieStats(id, game.away_team, game.season_id, 'away'),
-    officialsPromise,
-    db.select({
-      name: schema.seasons.name,
-      defaultLocation: schema.seasons.defaultLocation,
-      gameLength: schema.seasons.gameLength,
-    }).from(schema.seasons).where(eq(schema.seasons.id, game.season_id)),
+    rawSql(sql`
+      SELECT name, role FROM game_officials
+      WHERE game_id = ${id}
+      ORDER BY role ASC, name ASC
+    `),
+    rawSql(sql`
+      SELECT name, default_location as "defaultLocation", game_length as "gameLength"
+      FROM seasons
+      WHERE id = ${game.season_id}
+    `),
   ])
   const seasonName = formatSeasonName(seasonRows.length > 0 ? seasonRows[0].name : game.season_id)
   const seasonLocation = seasonRows.length > 0 ? seasonRows[0].defaultLocation : null

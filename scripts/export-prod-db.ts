@@ -10,8 +10,8 @@
 import "./env";
 import { neon } from "@neondatabase/serverless";
 
-function parseArgs() {
-  const args = process.argv.slice(2);
+export function parseArgs(customArgs?: string[]) {
+  const args = customArgs ?? process.argv.slice(2);
   let devUrl =
     process.env.DEV_URL ||
     process.env.DEV_DATABASE_URL ||
@@ -45,23 +45,33 @@ Options:
   --seasons <list>              Comma-separated season IDs (default: 2025-2026, 2026-summer, bash-2026-2027)
   --help, -h                    Show this help message
       `);
+      if (customArgs) return { prodUrl: "", devUrl: "", seasons, help: true };
       process.exit(0);
     }
   }
 
   if (!prodUrl) {
+    if (customArgs) {
+      throw new Error("Missing production database URL. Provide via PROD_URL='...' or --from '<url>'.");
+    }
     console.error(
       "Error: Missing production database URL. Provide via PROD_URL='...' or --from '<url>'."
     );
     process.exit(1);
   }
   if (!devUrl) {
+    if (customArgs) {
+      throw new Error("Missing target dev database URL. Provide via DEV_URL='...', --to '<url>', or DATABASE_URL in .env.local.");
+    }
     console.error(
       "Error: Missing target dev database URL. Provide via DEV_URL='...', --to '<url>', or DATABASE_URL in .env.local."
     );
     process.exit(1);
   }
   if (prodUrl.trim() === devUrl.trim()) {
+    if (customArgs) {
+      throw new Error("Safety Error: Source (prod) and Target (dev) database URLs are identical! Aborting to prevent accidental data overwrite.");
+    }
     console.error(
       "Safety Error: Source (prod) and Target (dev) database URLs are identical! Aborting to prevent accidental data overwrite."
     );
@@ -377,11 +387,11 @@ async function main() {
         if (!devPlayerId) continue;
         await dev`
           INSERT INTO player_game_stats (
-            player_id, game_id, goals, assists, points, gwg, ppg, shg, eng, hat_tricks, pen, pim, is_sub
+            player_id, game_id, goals, assists, points, gwg, ppg, shg, eng, hat_tricks, pen, pim, is_sub, team_slug
           ) VALUES (
             ${devPlayerId}, ${stat.game_id}, ${stat.goals}, ${stat.assists}, ${stat.points},
             ${stat.gwg}, ${stat.ppg}, ${stat.shg}, ${stat.eng}, ${stat.hat_tricks},
-            ${stat.pen}, ${stat.pim}, ${stat.is_sub}
+            ${stat.pen}, ${stat.pim}, ${stat.is_sub}, ${stat.team_slug}
           )
           ON CONFLICT (player_id, game_id) DO NOTHING;
         `;
@@ -396,10 +406,10 @@ async function main() {
       if (!devPlayerId) continue;
       await dev`
         INSERT INTO goalie_game_stats (
-          player_id, game_id, seconds, goals_against, shots_against, saves, shutouts, goalie_assists, result, is_sub
+          player_id, game_id, seconds, goals_against, shots_against, saves, shutouts, goalie_assists, result, is_sub, team_slug
         ) VALUES (
           ${devPlayerId}, ${stat.game_id}, ${stat.seconds}, ${stat.goals_against}, ${stat.shots_against},
-          ${stat.saves}, ${stat.shutouts}, ${stat.goalie_assists}, ${stat.result}, ${stat.is_sub}
+          ${stat.saves}, ${stat.shutouts}, ${stat.goalie_assists}, ${stat.result}, ${stat.is_sub}, ${stat.team_slug}
         )
         ON CONFLICT (player_id, game_id) DO NOTHING;
       `;
@@ -433,8 +443,10 @@ async function main() {
     `;
   }
 
+  const { tradesCount, itemsCount } = await syncTrades(prod, dev, seasons, devIdByProdId);
+
   console.log(
-    `   Games: ${prodGames.length}, Officials: ${officialsCount}, Skater Stats: ${pgsCount}, Goalie Stats: ${ggsCount}, Awards: ${prodAwards.length}.`
+    `   Games: ${prodGames.length}, Officials: ${officialsCount}, Skater Stats: ${pgsCount}, Goalie Stats: ${ggsCount}, Awards: ${prodAwards.length}, Trades: ${tradesCount}, Trade Items: ${itemsCount}.`
   );
 
   // Synchronize games_gen_seq in dev DB with highest copied game ID
@@ -459,7 +471,79 @@ async function main() {
   console.log("\n=== Export & Sync Completed Successfully! ===");
 }
 
-main().catch((err) => {
-  console.error("Sync failed:", err);
-  process.exit(1);
-});
+export async function syncTrades(
+  prod: any,
+  dev: any,
+  seasons: string[],
+  devIdByProdId: Map<number, number>
+): Promise<{ tradesCount: number; itemsCount: number }> {
+  const prodTrades = await prod`SELECT * FROM season_trades WHERE season_id = ANY(${seasons}) ORDER BY id ASC;`;
+  await dev`DELETE FROM season_trades WHERE season_id = ANY(${seasons});`;
+
+  let itemsCount = 0;
+  if (prodTrades.length > 0) {
+    const tradeIds = prodTrades.map((t: any) => t.id);
+    const prodTradeItems = await prod`SELECT * FROM season_trade_items WHERE trade_id = ANY(${tradeIds}) ORDER BY id ASC;`;
+
+    for (const t of prodTrades) {
+      const teamSlugs = Array.isArray(t.team_slugs)
+        ? t.team_slugs
+        : [t.team_a_slug, t.team_b_slug].filter(Boolean);
+      await dev`
+        INSERT INTO season_trades (
+          id, season_id, team_slugs, notes, traded_at, created_at
+        ) VALUES (
+          ${t.id}, ${t.season_id}, ${teamSlugs}, ${t.notes}, ${t.traded_at}, ${t.created_at}
+        )
+        ON CONFLICT (id) DO UPDATE SET
+          season_id = EXCLUDED.season_id,
+          team_slugs = EXCLUDED.team_slugs,
+          notes = EXCLUDED.notes,
+          traded_at = EXCLUDED.traded_at,
+          created_at = EXCLUDED.created_at;
+      `;
+    }
+
+    for (const item of prodTradeItems) {
+      const devPlayerId = item.player_id != null ? (devIdByProdId.get(item.player_id) ?? item.player_id) : null;
+      await dev`
+        INSERT INTO season_trade_items (
+          id, trade_id, item_type, from_team_slug, to_team_slug, player_id,
+          draft_pick_round, draft_pick_original_team_slug, draft_pick_target_season
+        ) VALUES (
+          ${item.id}, ${item.trade_id}, ${item.item_type}, ${item.from_team_slug}, ${item.to_team_slug},
+          ${devPlayerId}, ${item.draft_pick_round}, ${item.draft_pick_original_team_slug}, ${item.draft_pick_target_season}
+        )
+        ON CONFLICT (id) DO UPDATE SET
+          trade_id = EXCLUDED.trade_id,
+          item_type = EXCLUDED.item_type,
+          from_team_slug = EXCLUDED.from_team_slug,
+          to_team_slug = EXCLUDED.to_team_slug,
+          player_id = EXCLUDED.player_id,
+          draft_pick_round = EXCLUDED.draft_pick_round,
+          draft_pick_original_team_slug = EXCLUDED.draft_pick_original_team_slug,
+          draft_pick_target_season = EXCLUDED.draft_pick_target_season;
+      `;
+      itemsCount++;
+    }
+  }
+
+  await dev`
+    SELECT setval('season_trades_id_seq', COALESCE((SELECT MAX(id) FROM season_trades), 1));
+  `;
+  await dev`
+    SELECT setval('season_trade_items_id_seq', COALESCE((SELECT MAX(id) FROM season_trade_items), 1));
+  `;
+
+  return { tradesCount: prodTrades.length, itemsCount };
+}
+
+if (
+  process.env.NODE_ENV !== "test" &&
+  (process.argv[1]?.includes("export-prod-db") || (typeof require !== "undefined" && require.main === module))
+) {
+  main().catch((err) => {
+    console.error("Sync failed:", err);
+    process.exit(1);
+  });
+}

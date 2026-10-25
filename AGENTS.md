@@ -73,6 +73,7 @@ Each page follows: async Server Component (data fetch via `React.cache` / `lib/c
 - `app/api/bash/` — REST API routes with Cache-Control headers
 - `app/api/bash/admin/banners/` — Admin banner management API (CRUD)
 - `app/api/bash/admin/seasons/[id]/draft/` — Draft management API (22 endpoints)
+- `app/api/bash/admin/seasons/[id]/trades/` — Mid-season player & future draft pick trade execution API (atomic single-statement CTE)
 - `lib/fetch-*.ts` — Server-side data fetching functions wrapped in `React.cache()`
 - `lib/fetch-player-query-group.ts` — Single-round-trip `MATERIALIZED` CTE batch runner for player detail stats
 - `lib/cached-page-data.ts` — Cross-request `unstable_cache` wrappers for public page snapshots
@@ -86,6 +87,7 @@ Each page follows: async Server Component (data fetch via `React.cache` / `lib/c
 - `lib/draft-banner-sync.ts` — Automated banner sync engine across draft lifecycle state transitions
 - `lib/draft-helpers.ts` — Snake/linear pick slot generation
 - `lib/draft-trade-resolver.ts` — Chain trade resolution engine
+- `lib/trade-helpers.ts` — Mid-season trade payload validation (2-team and N-team circular trades + future draft picks)
 - `lib/schedule-utils.ts` — Round-robin and playoff bracket generation, Berger tables, and simulated annealing equity optimizer (home/away, intra-day time slots)
 - `components/` — Page-level components (scores-tab, standings-tab, stats-tab, etc.)
 - `components/intent-link.tsx` — Link wrapper that prefetches full RSC payloads (`PrefetchKind.FULL`) on hover/focus/touch

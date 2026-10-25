@@ -134,11 +134,15 @@ export function finalShotUpdateSql(id: string, context: FinalShotContext, correc
       WHERE game_id IN (SELECT id FROM locked_game) FOR UPDATE
     ), locked_goalies AS MATERIALIZED (
       SELECT s.player_id, s.goals_against, s.shots_against, s.saves, s.seconds,
-        COALESCE((SELECT jsonb_agg(DISTINCT r.team_side) FROM adhoc_game_rosters r
-          WHERE r.game_id = g.id AND r.player_id = s.player_id),
-          (SELECT jsonb_agg(DISTINCT CASE WHEN ps.team_slug = g.home_team THEN 'home' ELSE 'away' END)
-            FROM player_seasons ps WHERE ps.player_id = s.player_id AND ps.season_id = g.season_id
-              AND ps.team_slug IN (g.home_team, g.away_team)), '[]'::jsonb) AS sides
+        CASE
+          WHEN s.team_slug = g.home_team THEN '["home"]'::jsonb
+          WHEN s.team_slug = g.away_team THEN '["away"]'::jsonb
+          ELSE COALESCE((SELECT jsonb_agg(DISTINCT r.team_side) FROM adhoc_game_rosters r
+            WHERE r.game_id = g.id AND r.player_id = s.player_id),
+            (SELECT jsonb_agg(DISTINCT CASE WHEN ps.team_slug = g.home_team THEN 'home' ELSE 'away' END)
+              FROM player_seasons ps WHERE ps.player_id = s.player_id AND ps.season_id = g.season_id
+                AND ps.team_slug IN (g.home_team, g.away_team)), '[]'::jsonb)
+        END AS sides
       FROM goalie_game_stats s JOIN locked_game g ON g.id = s.game_id
       WHERE s.game_id IN (SELECT game_id FROM locked_live) ORDER BY s.player_id FOR UPDATE OF s
     ), guard AS (

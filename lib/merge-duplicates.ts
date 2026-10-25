@@ -276,12 +276,36 @@ export async function mergeDuplicatePlayers() {
       await rawSql(sql`UPDATE player_seasons SET player_id = ${canonicalId} WHERE player_id = ${dupeId}`)
 
       await rawSql(sql`
+        UPDATE player_game_stats pgs_c
+        SET team_slug = COALESCE(pgs_c.team_slug, pgs_d.team_slug)
+        FROM player_game_stats pgs_d
+        WHERE pgs_c.player_id = ${canonicalId}
+          AND pgs_d.player_id = ${dupeId}
+          AND pgs_c.game_id = pgs_d.game_id
+      `)
+      await rawSql(sql`
         DELETE FROM player_game_stats
         WHERE player_id = ${dupeId}
           AND game_id IN (SELECT game_id FROM player_game_stats WHERE player_id = ${canonicalId})
       `)
       await rawSql(sql`UPDATE player_game_stats SET player_id = ${canonicalId} WHERE player_id = ${dupeId}`)
 
+      await rawSql(sql`
+        UPDATE goalie_game_stats ggs_c
+        SET team_slug = COALESCE(ggs_c.team_slug, ggs_d.team_slug)
+        FROM goalie_game_stats ggs_d
+        WHERE ggs_c.player_id = ${canonicalId}
+          AND ggs_d.player_id = ${dupeId}
+          AND ggs_c.game_id = ggs_d.game_id
+      `)
+      await rawSql(sql`
+        UPDATE goalie_game_stats ggs_d
+        SET team_slug = COALESCE(ggs_d.team_slug, ggs_c.team_slug)
+        FROM goalie_game_stats ggs_c
+        WHERE ggs_c.player_id = ${canonicalId}
+          AND ggs_d.player_id = ${dupeId}
+          AND ggs_c.game_id = ggs_d.game_id
+      `)
       await rawSql(sql`
         DELETE FROM goalie_game_stats d
         USING goalie_game_stats c
@@ -316,6 +340,7 @@ export async function mergeDuplicatePlayers() {
 
       await rawSql(sql`UPDATE draft_picks SET player_id = ${canonicalId} WHERE player_id = ${dupeId}`)
       await rawSql(sql`UPDATE draft_trade_items SET player_id = ${canonicalId} WHERE player_id = ${dupeId}`)
+      await rawSql(sql`UPDATE season_trade_items SET player_id = ${canonicalId} WHERE player_id = ${dupeId}`)
 
       await rawSql(sql`
         DELETE FROM adhoc_game_rosters
