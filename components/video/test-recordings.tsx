@@ -46,7 +46,7 @@ export function TestRecordings() {
   if (error) return <div role="alert" className="mt-8 space-y-3"><p>{error.message}</p><Button onClick={() => void mutate()}>Retry</Button></div>
   if (isLoading) return <p role="status" className="mt-8 text-muted-foreground">Loading recordings…</p>
   if (!data?.sessions.length) return <p className="mt-8 text-muted-foreground">No recordings yet. Open the iPhone app and start recording.</p>
-  const id = data.sessions.some(s => s.id === selected) ? selected : data.sessions[0].id
+  const id = data.sessions.some(s => s.id === selected) ? selected : (data.sessions.find(s => s.capture_day) ?? data.sessions[0]).id
   return <div className="mt-6 space-y-6">
     <div className="max-w-md space-y-2">
       <label htmlFor="recording-session" className="text-sm font-medium">Recording</label>
@@ -84,7 +84,7 @@ function Camera({ side, detail }: { side: CameraSide; detail: VideoDetail }) {
     <div className="relative aspect-video bg-black text-white">
       {error ? <div role="alert" className="absolute inset-0 flex flex-col items-center justify-center text-sm"><p>Video unavailable.</p><Button variant="secondary" className="mt-2" onClick={() => void mutate()}>Retry</Button></div>
         : data && choice ? choice === "live" ? <LiveVideoPlayer key={data.url} label={label} url={data.url} />
-          : <video key={data.url} src={data.url} aria-label={label} controls playsInline preload="metadata" className="h-full w-full" onEnded={() => {
+          : <video key={data.url} src={data.url} aria-label={label} controls playsInline preload="metadata" className="h-full w-full" onPlay={() => setSelected(choice ?? null)} onEnded={() => {
             const index = clips.findIndex(c => c.id === choice)
             if (clips[index + 1]) setSelected(clips[index + 1].id)
           }} />
