@@ -1,0 +1,13 @@
+.venv/
+__pycache__/
+.pytest_cache/
+*.egg-info/
+data/
+output/
+*.local.json
+.env*
+*.mp4
+*.mov
+*.mkv
+*.flv
+*.ts

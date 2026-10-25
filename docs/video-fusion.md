@@ -1,6 +1,6 @@
 # Two-phone fusion
 
-The mount is fixed at center rink, with overlapping views from two recent iPhones. Capture remains native on each phone; a separate processor aligns and combines the images. R2 holds the originals. Cloudflare Stream handles delivery; it does not perform this stitching. The app still publishes independent left/right feeds. The website automatically displays one available feed in a single player, with no camera controls. No fusion worker is implemented or deployed yet.
+The mount is fixed at center rink, with overlapping views from two recent iPhones. Capture remains native on each phone; a separate processor aligns and combines the images. R2 holds the originals. Cloudflare Stream handles delivery; it does not perform this stitching. The app still publishes independent left/right feeds. The website automatically displays one available feed in a single player, with no camera controls. A standalone fusion prototype now exists in `video-fusion/` (see its [README](../video-fusion/README.md)). It produces one wide panorama independently of downstream sports processing. It is not deployed or connected to the app or public player yet.
 
 ## Capture setup
 
@@ -17,12 +17,14 @@ Hardware genlock is an optional future path for suitable devices and accessories
 
 ## Image fusion
 
-Calibrate lens distortion and the relationship between the two views from the mounted cameras, then project them onto a common panorama. A plain homography is a useful prototype for distant/static features, but players and a puck at different depths can create parallax and double images at the seam. Validate the seam on moving play, compensate for exposure differences, and use a seam policy that avoids blending two displaced versions of a player. OpenCV supplies calibration and stitching primitives; it does not make an arbitrary rig seamless automatically. [OpenCV stitching overview](https://docs.opencv.org/4.10.0/d8/d19/tutorial_stitcher.html).
+The prototype uses fixed SIFT/RANSAC geometry, a narrow static blend, and one-time exposure matching. It rejects weak, unstable, or extreme calibrations. Its file/URL renderer selects frames by presentation time, can apply an audio-derived offset/drift mapping, and writes MP4 or publishes one encoded stream. It does not yet correct lens distortion or adapt the seam to moving subjects.
+
+For the final mounted-camera pipeline, calibrate lens distortion and the relationship between the two views from the mounted cameras, then project them onto a common panorama. A plain homography is a useful prototype for distant/static features, but players and a puck at different depths can create parallax and double images at the seam. Validate the seam on moving play, compensate for exposure differences, and use a seam policy that avoids blending two displaced versions of a player. OpenCV supplies calibration and stitching primitives; it does not make an arbitrary rig seamless automatically. [OpenCV stitching overview](https://docs.opencv.org/4.10.0/d8/d19/tutorial_stitcher.html).
 
 The first output should be a fixed wide panorama. Automatic puck tracking and a moving broadcast crop are separate later work. Preserve the original recordings so calibration and rendering can be improved without losing source footage.
 
 ## Live path
 
-The intended path is `two phones → ingest/processing machine → one fused output → Cloudflare Stream → game page`. The processor needs timestamp-aware ingest, a rolling buffer for unequal network delays, continuous alignment, and explicit handling when one camera disconnects. A rink-side computer is a practical first test host; cloud processing is an alternative whose compute and ingest costs still need measurement. Live stitching adds latency. Keep recording the 4K originals locally during network interruptions; the first live experiment can process 1080p feeds to reduce bandwidth and heat.
+The intended path is `two phones → ingest/processing machine → one fused output → Cloudflare Stream → game page`. The prototype has timestamp-aware decoding and a bounded audio buffer, but the deployed processor still needs a rolling network buffer for unequal network delays, continuous alignment, and explicit handling when one camera disconnects. A rink-side computer is a practical first test host; cloud processing is an alternative whose compute and ingest costs still need measurement. Live stitching adds latency. Keep recording the 4K originals locally during network interruptions; the first live experiment can process 1080p feeds to reduce bandwidth and heat.
 
 The current direct-to-Stream camera feeds are useful for testing capture and delivery, but are not this fused pipeline. Before enabling it for a Saturday, validate alignment and seams using actual mounted footage, then test reconnects and full two-hour capture, processing and playback.
