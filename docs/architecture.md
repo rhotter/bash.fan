@@ -29,9 +29,9 @@ The BASH Hockey repository is a full-stack Next.js application designed to displ
 - **Database**: Neon Postgres via **Drizzle ORM** (`drizzle-orm/neon-http`)
 - **Styling & UI**: Tailwind CSS v4, shadcn/ui (Radix UI primitives), `lucide-react` for icons
 - **Client Data Fetching**: SWR hooks for client-side caching and revalidation
-- **Deployment**: Vercel
+- **Deployment**: Vercel (Serverless functions pinned to `pdx1` in `vercel.json` to colocate with Neon Postgres)
 
-> **⚠️ Neon HTTP Driver Constraint:** The project uses the **stateless HTTP** driver (`@neondatabase/serverless` → `neon-http`), which **does not support `db.transaction()`**. All multi-step writes must use sequential `await db.*` calls. This is safe for admin operations on draft data but should be noted when writing new routes that modify multiple tables.
+> **⚠️ Neon HTTP Driver Constraint:** The project uses the **stateless HTTP** driver (`@neondatabase/serverless` → `neon-http`), which **does not support `db.transaction()`** and executes each query as an individual HTTP request. Multi-step writes must use idempotent sequential `await db.*` calls, while independent reads must be parallelized with `Promise.all()` or batched into a single SQL query using `MATERIALIZED` CTEs to avoid sequential HTTP waterfalls.
 
 ## Key Data Structures (Database Schema)
 
@@ -145,14 +145,23 @@ In-house seasons (e.g., Summer seasons, tournament exhibition games, live scorek
 
 During replication, the script performs automated dev orphan game pruning: any games present in the developer's target database for the synced season that no longer exist in production (e.g., from upstream schedule rebalancing or fixture deletions) are automatically pruned, cascading cleanly across dependent child rows in `game_officials`, `player_game_stats`, `goalie_game_stats`, `adhoc_game_rosters`, and `game_live`.
 
-### 2. Server-Side Data Fetching (`lib/fetch-*.ts`)
-The application heavily uses Next.js async Server Components. When a page loads, it fetches data using functions located in `lib/fetch-*.ts`, which execute Drizzle ORM queries against Neon Postgres. 
+### 2. Server-Side Data Fetching & Caching (`lib/fetch-*.ts`, `lib/cached-page-data.ts`)
+The application uses Next.js async Server Components backed by Drizzle ORM and `rawSql` queries against Neon Postgres (`pdx1`):
 
-- **`fetchBashData(season)`**: Found in `lib/fetch-bash-data.ts`, this is a crucial function that fetches all games for a season and dynamically computes the **Standings** in-memory based on wins (3 pts), OT wins (2 pts), OT losses (1 pt), and losses (0 pts).
-- **`fetchPlayerDetail(slug)`** / **`fetchTeamDetail(slug)`**: Functions that aggregate stats for specific entities using complex SQL joins.
+- **`fetchBashData(season)`** (`lib/fetch-bash-data.ts`): Fetches all games for a season and dynamically computes **Standings** in-memory based on wins (3 pts), OT wins (2 pts), OT losses (1 pt), and losses (0 pts). Skips `getCurrentSeason()` when an explicit `season` parameter is passed.
+- **`fetchTeamDetail(slug, season)`** (`lib/fetch-team-detail.ts`) & **`fetchGameDetail(id)`** (`lib/fetch-game-detail.ts`): Execute all independent season, roster, schedule, and standings queries in a single `Promise.all` wave and wrap the exported fetcher in React's `cache()` so `generateMetadata()` and the page component share a single read within a render pass.
+- **`fetchPlayerDetail(slug)`** (`lib/fetch-player-detail.ts`, `lib/fetch-player-query-group.ts`, `lib/player-slug-sql.ts`):
+  - **Wave 1 (Identity & Season Metadata)**: Runs `Promise.all([getCurrentSeason(), getAllSeasons(), rawSql(...)])` to fetch season metadata alongside player identity and all season/team memberships filtered in SQL via `playerSlugSql(p.name) = slug` (avoiding full-table `players` scans in Node and serial membership fallback queries).
+  - **Wave 2 (Batched Stat Sections)**: Once `player.id` and `playerSeasonId` are resolved, batches all 23 regular-season, playoff, exhibition, career, award, and Hall of Fame stat sections into a **single SQL query** via `fetchPlayerQueryGroup`, which materializes the player's `player_game_stats`, `goalie_game_stats`, and `player_season_stats` rows once (`WITH ... AS MATERIALIZED`) and projects each section with `json_agg`. This keeps `/player/[slug]` fast enough to run with `revalidate = 0` for always-fresh stats.
+- **Cross-Request Public Page Snapshots (`lib/cached-page-data.ts`)**: `fetchTeamPageData` and `fetchStatsPageData` wrap `fetchTeamDetail` and `fetchPlayerStats` in Next.js `unstable_cache` (30-second TTL, tagged `seasons` and `public-page-data`) to share snapshots across concurrent visitors while keeping API routes on their own freshness headers.
 
-### 3. Client-Side Hydration & Live Updates (`lib/hockey-data.ts`)
-While initial page loads are server-rendered, the application uses SWR hooks (e.g., `useBashData`) to maintain fresh data. The server passes `fallbackData` to the client, and SWR periodically polls the API (every 60-120s) to refresh the UI without full page reloads, ensuring live scores are updated seamlessly.
+### 3. Client-Side Hydration, Navigation & Static Asset Optimization
+- **SWR Hydration & Polling (`lib/hockey-data.ts`)**: Server Components pass `fallbackData` into SWR hooks (`useBashData`, `usePlayerStats`), which poll the API every 60–120s for live updates. When `fallbackData` is provided, `usePlayerStats` sets `revalidateOnMount: false` so the browser does not immediately re-fetch data the server just rendered.
+- **Speculative Full-Page Prefetching (`components/intent-link.tsx`)**: By default, Next.js App Router only prefetches partial static shells up to the nearest `loading.tsx` boundary for dynamic routes. `IntentLink` calls `router.prefetch(href, { kind: PrefetchKind.FULL })` on `onMouseEnter`, `onFocus`, and `onTouchStart` (and sets `prefetch={true}` on team links and stats/schedule rows). Highlighting a player in `PlayerSearchDialog` (`Cmd+K`) similarly prefetches `/player/[slug]` before selection.
+- **Persistent Root Header & Lazy Modals (`components/site-header.tsx`, `components/player-search.tsx`)**: `SiteHeader` is mounted once in `app/layout.tsx` outside page and `loading.tsx` boundaries so route transitions preserve the header DOM node and decoded BASH logo. `PlayerSearchDialog` is dynamically imported via `next/dynamic` only when the search modal is opened, keeping `cmdk` and dialog primitives out of the initial page bundle.
+- **Shallow View Toggles**: Client-side view switches whose data is already in memory (such as toggling Skaters vs. Goalies in `StatsTab`) update the URL via `window.history.replaceState` rather than `router.replace`, avoiding unnecessary RSC round-trips.
+- **Pre-Built Static WebP Logos (`scripts/optimize-logos.mjs`, `lib/optimized-logo.ts`)**: Build-time Sharp processing generates content-hashed `64px`, `128px`, and `256px` `.webp` variants for `/logo.png` and all `/team-logos/*.png` into `public/optimized-logos/` (mapped in `lib/optimized-logos.json`). `TeamLogo` and `SiteHeader` resolve small logos ($\le 128\text{px}$ display / $256\text{px}$ 2x) to these static CDN assets with `unoptimized` on `<Image>` and `Cache-Control: public, max-age=31536000, immutable`, eliminating on-demand `/_next/image` transformation overhead. Larger content images on `/about` and `/how-to` use standard Next.js Image Optimization with responsive `sizes`.
+- **Standardized Skeletons (`components/page-loading.tsx`, `components/loading-state.tsx`)**: Route-level `loading.tsx` boundaries render layout-matched skeletons for cold navigations, while inline action spinners standardize mutation feedback.
 
 ### 4. Schedule Generation (`lib/schedule-utils.ts`)
 Pure utility functions (no side effects, no DB calls) used by the admin wizards:
