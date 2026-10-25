@@ -25,13 +25,13 @@ struct TeamCircleBackground: View {
     var body: some View {
         ZStack {
             if reduceTransparency {
-                Circle().fill(TeamPalette.color(slug, lift: 0.30))
+                Circle().fill(TeamPalette.color(slug, lift: 0.12))
             } else {
                 Circle().fill(LinearGradient(stops: [
-                    .init(color: TeamPalette.color(slug, lift: 0.55), location: 0),
-                    .init(color: TeamPalette.color(slug, lift: 0.30), location: 0.40),
-                    .init(color: TeamPalette.color(slug, lift: 0.06), location: 0.78),
-                    .init(color: TeamPalette.color(slug, shade: 0.18), location: 1)
+                    .init(color: TeamPalette.color(slug, lift: 0.35), location: 0),
+                    .init(color: TeamPalette.color(slug, lift: 0.12), location: 0.40),
+                    .init(color: TeamPalette.color(slug, shade: 0.12), location: 0.78),
+                    .init(color: TeamPalette.color(slug, shade: 0.30), location: 1)
                 ], startPoint: .topLeading, endPoint: .bottomTrailing))
             }
         }
