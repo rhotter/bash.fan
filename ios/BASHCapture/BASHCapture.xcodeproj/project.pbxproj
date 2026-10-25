@@ -10,6 +10,7 @@
 		25388D5EFD3C12427128A578 /* BASHCaptureApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 041761C36897DFFA07EB77DB /* BASHCaptureApp.swift */; };
 		36A03FE22FF1B7AA5629BB0C /* HaishinKit in Frameworks */ = {isa = PBXBuildFile; productRef = D2DFC6A34BACA3E8EF4E2F28 /* HaishinKit */; };
 		4203E2330AC9A13DBBEF2228 /* WebsiteConnection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82D30FB13C6B78D5C2E0FE9F /* WebsiteConnection.swift */; };
+		6807273976AF3F74DB7DC56D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 6E1A5F38AD19B0596A9FC5CB /* Assets.xcassets */; };
 		7107F34BFC942F10297DE311 /* RecordingLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9EFEB8B5A9E9D9D5ABE3FD2C /* RecordingLibrary.swift */; };
 		817D2E1AB6FE40A3BCD53A67 /* RTMPHaishinKit in Frameworks */ = {isa = PBXBuildFile; productRef = 6A742E20A7F259EE89B9D2FF /* RTMPHaishinKit */; };
 		CEBE9070C2866C00A7266CD2 /* CaptureController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D21EF5541833AC0EE72D5F5 /* CaptureController.swift */; };
@@ -20,6 +21,7 @@
 		041761C36897DFFA07EB77DB /* BASHCaptureApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BASHCaptureApp.swift; sourceTree = "<group>"; };
 		0BE85F22E920C80114185E26 /* BASHCapture.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = BASHCapture.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		2D21EF5541833AC0EE72D5F5 /* CaptureController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureController.swift; sourceTree = "<group>"; };
+		6E1A5F38AD19B0596A9FC5CB /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		80BFDAD1E0BCAA6E56A4F352 /* CaptureAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureAPI.swift; sourceTree = "<group>"; };
 		82D30FB13C6B78D5C2E0FE9F /* WebsiteConnection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebsiteConnection.swift; sourceTree = "<group>"; };
 		9EFEB8B5A9E9D9D5ABE3FD2C /* RecordingLibrary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingLibrary.swift; sourceTree = "<group>"; };
@@ -41,6 +43,7 @@
 		00E995F6C0C5ADDDC623FBAD /* Sources */ = {
 			isa = PBXGroup;
 			children = (
+				6E1A5F38AD19B0596A9FC5CB /* Assets.xcassets */,
 				041761C36897DFFA07EB77DB /* BASHCaptureApp.swift */,
 				80BFDAD1E0BCAA6E56A4F352 /* CaptureAPI.swift */,
 				2D21EF5541833AC0EE72D5F5 /* CaptureController.swift */,
@@ -74,6 +77,7 @@
 			buildConfigurationList = B24D67642308F192F8C5B444 /* Build configuration list for PBXNativeTarget "BASHCapture" */;
 			buildPhases = (
 				7975D94643118F7AD11ADEFD /* Sources */,
+				51A96E4AA56EA0A107C35B1B /* Resources */,
 				A58D612AD59A0268A517062C /* Frameworks */,
 			);
 			buildRules = (
@@ -121,6 +125,17 @@
 			);
 		};
 /* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		51A96E4AA56EA0A107C35B1B /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				6807273976AF3F74DB7DC56D /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		7975D94643118F7AD11ADEFD /* Sources */ = {
@@ -198,6 +213,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				BASH_SERVER_URL = "https://bash.fan";
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Info.plist;
@@ -284,6 +300,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				BASH_SERVER_URL = "https://bash.fan";
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Info.plist;

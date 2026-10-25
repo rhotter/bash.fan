@@ -30,30 +30,33 @@ cd ios/BASHCapture
 xcodegen generate
 xcodebuild -project BASHCapture.xcodeproj -scheme BASHCapture \
   -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' \
-  -derivedDataPath /tmp/bash-capture-build CODE_SIGN_IDENTITY=- CODE_SIGNING_ALLOWED=YES build
+  -derivedDataPath /tmp/bash-capture-build BASH_SERVER_URL=http://localhost:3002 \
+  CODE_SIGN_IDENTITY=- CODE_SIGNING_ALLOWED=YES build
 ```
 
 Open the project in Xcode, select your Apple signing team and a physical iPhone, then run. Simulator builds check compilation and UI only; they cannot verify camera capture, encoding, heat, audio, or a two-hour session.
 
 Keep ad-hoc signing enabled for simulator runs: unsigned builds compile but cannot save the camera pairing in Keychain.
 
-Use an HTTPS dev URL accessible from the phone, or a trusted LAN hostname/address. A `localhost` website address points to the phone itself; physical phones need the computer’s LAN address or an accessible HTTPS server. Pairing credentials are stored in Keychain, never in the recording manifest. Game selection cannot replace the active session while recording.
+The service address is built into the app through `BASH_SERVER_URL`, defaulting to `https://bash.fan`. There is no server-address field or settings screen. Override the build setting for development as above; physical phones need an accessible HTTPS dev service or trusted LAN address, since localhost points to the phone itself. The video backend must be deployed before a default production build can connect. Pairing credentials are stored in Keychain, never in the recording manifest. Game selection cannot replace the active session while recording.
 
 The app uses native SwiftUI navigation, lists, forms, sheets, system typography and a full-screen camera. On iOS 26 its camera controls use Liquid Glass; earlier supported versions use system material. It follows the device's appearance outside the dark viewfinder. The web score pages keep the public BASH design.
 
-In **Games → Connection**, enter the website address and existing league operator PIN. The app reads the current-season schedule from `GET /api/bash/video/games`. The PIN is not saved; the operator cookie lives in an ephemeral URL session. Choose a game and a camera side on each phone. Both phones converge on the same open recording session through a database unique index, including concurrent joins. An active side cannot be silently reclaimed by another phone; the app asks for confirmation before replacing it. **End game recording** in the app closes the shared session after the local recording is stopped. **Livestream** provisions that camera's Stream input when joining a game. The saved camera pairing still works after operator sign-out.
+The home screen uses the BASH badge, orange accents, system typography and native iOS lists and sheets. Enter the league operator PIN, choose a game, then choose Left or Right and open the camera. The app remembers the phone’s side. There are no tabs, server fields, format settings, livestream toggles or playback library. A small upload status row opens progress, retry and verified-copy cleanup when footage exists.
+
+The app reads the current-season schedule from `GET /api/bash/video/games`. The PIN is not saved; the operator cookie lives in an ephemeral URL session. Both phones converge on the same open recording session through a database unique index, including concurrent joins. An active side cannot be silently reclaimed by another phone; the app asks for confirmation before replacing it. Joining automatically prepares the existing live output. Stop recording separately on each phone. Persisted camera credentials stay in Keychain; restoring the current camera requires a matching build service address. Historical uploads still use their original saved destination.
 
 ## Capture, uploads, and failure behavior
 
-- Landscape rear wide camera; 4K HEVC at 30 fps by default, selectable 60 fps when supported. Targets 25 Mbps at 30 fps / 40 Mbps at 60 fps, plus AAC audio. Test visual quality and actual dimensions on the selected phones.
+- Landscape rear wide camera; 4K HEVC at a fixed 30 fps, targeting 25 Mbps plus AAC audio. Test visual quality and actual dimensions on the selected phones.
 - Independent 1080p H.264 live output, approximately 6 Mbps and 30 fps. A live connection failure does not stop a running local recording. Publishing reconnects automatically.
 - Local MP4 segments of approximately 60 seconds, with ten-second movie fragments for recovery. Segment rotation currently stops/starts the writer and may introduce a small gap; this is **not** a proven gapless recorder.
 - A manifest is saved before recording starts. Finalized segment duration is read from the actual media. Startup attempts to recover interrupted files without deleting them. Files are accessible in the Files app and Finder file sharing.
-- Upload from the Library after recording. Files upload directly to R2, sequentially, with per-segment retries after app restart. V1 uploads require the app to remain open; there is no OS-background upload service or multipart resume within one segment yet.
+- Finalized clips upload automatically to R2 while recording and after stopping. The sequential queue also picks up clips finalized during an upload, retries pending clips every 30 seconds while the app is active, and resumes on launch/foreground. V1 uploads require the app to remain open; there is no OS-background upload service or multipart resume within one segment yet.
 - The server checks the object's byte length and content type before marking it verified. This is an upload-completeness check, not full media integrity or a checksum comparison. A verified retry does not overwrite the existing object.
 - Local files are never automatically deleted. The app offers explicit cleanup of verified copies. Unuploaded/recovery files remain on the phone.
 - Keep the app foreground while recording. The app prevents auto-lock and stops/finalizes when backgrounded or interrupted. It checks storage and critical thermal state between segments. These controls do not substitute for a full-duration hardware test.
-- Ending a session in the app tells connected phones to stop on their next check-in. An offline phone cannot receive that signal; stop it locally. Pending uploads remain allowed after session end.
+- The backend retains session-ending support; an ended session stops connected phones at their next check-in. There is no shared-session end control in the simplified app. Pending uploads remain allowed after session end.
 
 ## Replays and synchronization
 
@@ -88,3 +91,5 @@ On the `video` branch, the synthetic R2 fixture is linked only to development ga
 The native schedule was also verified in the iOS 26.1 simulator against the running dev website. A live API integration check on development game `g49` joined left/right concurrently, confirmed a shared session and matching game metadata, rejected a duplicate side with 409, and checked both authenticated clock responses. The explicitly titled **Native pairing · integration test** session was then ended. No media or Cloudflare inputs were created by that check. The unique open-game index was applied to the dev database only.
 
 The simplified game-page player was checked in the browser with the synthetic R2 clip: it loads directly without a separate watch button, renders frames, and plays through native controls. Camera/session selectors, camera labels, recording titles and standalone highlight buttons have been removed. The backend prioritizes sessions with a live feed, then sessions with uploaded video, so a newer empty setup does not hide available footage.
+
+The simplified iPhone flow was verified in the iOS 26.1 simulator: PIN sign-in to the build-configured dev service, schedule loading, Left/Right selection, and automatic upload of a 12-second synthetic clip through the camera API to R2. The server verified the upload and the app marked it saved without an upload-button action. This does not verify physical capture or sustained upload bandwidth. Native controls and restrained brand accents follow Apple’s [branding guidance](https://developer.apple.com/design/human-interface-guidelines/branding) and [Liquid Glass guidance](https://developer.apple.com/documentation/technologyoverviews/adopting-liquid-glass).

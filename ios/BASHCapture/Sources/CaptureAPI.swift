@@ -2,6 +2,12 @@ import Foundation
 import Security
 import CryptoKit
 
+enum BASHService {
+    static func server() throws -> URL {
+        try captureServerURL(Bundle.main.object(forInfoDictionaryKey: "BASHServerURL") as? String ?? "https://bash.fan")
+    }
+}
+
 func captureServerURL(_ text: String) throws -> URL {
     guard let url = URL(string: text.trimmingCharacters(in: .whitespacesAndNewlines)),
           let host = url.host, url.user == nil, url.password == nil, url.query == nil, url.fragment == nil,

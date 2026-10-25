@@ -11,7 +11,6 @@ private struct WebsiteError: LocalizedError {
 
 @MainActor
 final class WebsiteConnection: ObservableObject {
-    @Published var serverText = UserDefaults.standard.string(forKey: "captureWebsite") ?? "https://bash.fan"
     @Published private(set) var games: [CaptureGame] = []
     @Published private(set) var signedIn = false
     @Published private(set) var busy = false
@@ -22,7 +21,7 @@ final class WebsiteConnection: ObservableObject {
     private var authenticatedServer: URL?
 
     private func serverURL() throws -> URL {
-        try captureServerURL(serverText)
+        try BASHService.server()
     }
     private func call<T: Decodable>(_ server: URL, _ path: String, body: [String: Any]? = nil) async throws -> T {
         var request = URLRequest(url: server.appending(path: path)); request.timeoutInterval = 20
@@ -41,7 +40,6 @@ final class WebsiteConnection: ObservableObject {
             let server = try serverURL()
             let _: OKResponse = try await call(server, "api/bash/admin/login", body: ["pin": pin.trimmingCharacters(in: .whitespacesAndNewlines)])
             authenticatedServer = server; signedIn = true
-            UserDefaults.standard.set(server.absoluteString, forKey: "captureWebsite")
             // A schedule outage must not discard a successful operator login.
             await refresh()
         } catch { self.error = error.localizedDescription; signedIn = false }

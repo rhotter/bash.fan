@@ -52,10 +52,10 @@ final class RecordingLibrary: ObservableObject {
         }
     }
     func uploadPending() async {
-        guard !uploading else { return }
+        guard !uploading, pending > 0 else { return }
         uploading = true; error = nil
         defer { uploading = false }
-        for item in recordings where !item.uploaded && item.duration != nil {
+        while let item = recordings.first(where: { !$0.uploaded && $0.duration != nil }) {
             do {
                 guard let pairing = CameraKeychain.load(item.pairingKey) else { throw CaptureError.message("Pair this camera again to upload its recordings.") }
                 let bytes = try FileManager.default.attributesOfItem(atPath: item.file.path)[.size] as? Int ?? 0

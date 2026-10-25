@@ -15,6 +15,7 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: fan.bash.capture.dev
+        BASH_SERVER_URL: https://bash.fan
         SWIFT_VERSION: "6.0"
         TARGETED_DEVICE_FAMILY: "1"
         GENERATE_INFOPLIST_FILE: YES
@@ -26,6 +27,7 @@ targets:
     info:
       path: Info.plist
       properties:
+        BASHServerURL: $(BASH_SERVER_URL)
         UILaunchScreen: {}
         UIFileSharingEnabled: true
         LSSupportsOpeningDocumentsInPlace: true

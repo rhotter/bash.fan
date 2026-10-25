@@ -15,8 +15,8 @@ final class CaptureController: ObservableObject {
     @Published var busy = false
     @Published var error: String?
     @Published var status = "Pair this phone to a recording session"
-    @Published var framesPerSecond = 30
-    @Published var liveEnabled = true
+    let framesPerSecond = 30
+    let liveEnabled = true
     let library = RecordingLibrary()
     let mixer = MediaMixer(captureSessionMode: .single)
     private let connection = RTMPConnection()
@@ -31,7 +31,8 @@ final class CaptureController: ObservableObject {
     private var prepared = false
 
     init() {
-        if let key = UserDefaults.standard.string(forKey: "pairingKey") { pairing = CameraKeychain.load(key) }
+        if let key = UserDefaults.standard.string(forKey: "pairingKey"), let saved = CameraKeychain.load(key),
+           saved.server == (try? BASHService.server()) { pairing = saved }
         UIDevice.current.isBatteryMonitoringEnabled = true
     }
     func pair(_ link: String) async {
@@ -119,6 +120,7 @@ final class CaptureController: ObservableObject {
                         let free = try URL.documentsDirectory.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey]).volumeAvailableCapacityForImportantUsage ?? 0
                         guard free > 1_000_000_000, ProcessInfo.processInfo.thermalState != .critical else { throw CaptureError.message("Recording stopped: low storage or critical temperature.") }
                         try await beginSegment(pairing)
+                        Task { await library.uploadPending() }
                     } catch { self.error = error.localizedDescription; break }
                 }
                 do { try await finishSegment() } catch { self.error = "Could not finalize the last segment. Existing files are preserved." }
@@ -126,6 +128,7 @@ final class CaptureController: ObservableObject {
                 status = "Recording saved on this phone"
                 serviceTask?.cancel(); _ = try? await stream.close(); try? await connection.close(); streaming = false
                 await sendHeartbeat(pairing)
+                Task { await library.uploadPending() }
             }
             serviceTask = Task { [weak self] in
                 guard let self else { return }
