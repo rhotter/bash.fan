@@ -3,6 +3,31 @@ import SwiftUI
 import HaishinKit
 import RTMPHaishinKit
 
+enum RecordingQuality: String, CaseIterable, Identifiable {
+    case hd30, hd60, uhd30, uhd60
+    var id: String { rawValue }
+    var title: String {
+        switch self {
+        case .hd30: "1080p · 30 fps"
+        case .hd60: "1080p · 60 fps"
+        case .uhd30: "4K · 30 fps"
+        case .uhd60: "4K · 60 fps"
+        }
+    }
+    var is4K: Bool { self == .uhd30 || self == .uhd60 }
+    var fps: Int { self == .hd60 || self == .uhd60 ? 60 : 30 }
+    var width: Int { is4K ? 3840 : 1920 }
+    var height: Int { is4K ? 2160 : 1080 }
+    var bitRate: Int {
+        switch self {
+        case .hd30: 6_000_000
+        case .hd60: 10_000_000
+        case .uhd30: 24_000_000
+        case .uhd60: 40_000_000
+        }
+    }
+}
+
 @MainActor
 final class CaptureController: ObservableObject {
     @Published var pairing: Pairing?
@@ -15,7 +40,11 @@ final class CaptureController: ObservableObject {
     @Published var busy = false
     @Published var error: String?
     @Published var status = "Pair this phone to a recording session"
-    let framesPerSecond = 60
+    @Published var quality = RecordingQuality(rawValue: UserDefaults.standard.string(forKey: "recordingQuality") ?? "") ?? .uhd60 {
+        didSet { UserDefaults.standard.set(quality.rawValue, forKey: "recordingQuality") }
+    }
+    var framesPerSecond: Int { quality.fps }
+    private var preparedQuality: RecordingQuality?
     let liveEnabled = true
     let library = RecordingLibrary.shared
     let mixer = MediaMixer(captureSessionMode: .single)
@@ -57,7 +86,11 @@ final class CaptureController: ObservableObject {
         } catch { self.error = error.localizedDescription }
     }
     func prepare() async {
-        if prepared { await mixer.startRunning(); return }
+        guard !recording else { return }
+        if prepared && ready && preparedQuality == quality { await mixer.startRunning(); return }
+        ready = false
+        error = nil
+        if prepared { await mixer.stopRunning() }
         guard await AVCaptureDevice.requestAccess(for: .video), await AVCaptureDevice.requestAccess(for: .audio) else { error = "Allow camera and microphone access in Settings to record."; return }
         do {
             let cameras = AVCaptureDevice.DiscoverySession(deviceTypes: [.builtInUltraWideCamera], mediaType: .video, position: .back)
@@ -67,20 +100,20 @@ final class CaptureController: ObservableObject {
             try audio.setActive(true)
             try await mixer.attachVideo(camera)
             try await mixer.attachAudio(AVCaptureDevice.default(for: .audio))
+            let selectedQuality = quality
             try await mixer.configuration { session in
-                guard session.canSetSessionPreset(.hd4K3840x2160) else { throw CaptureError.message("This iPhone’s 0.5× camera cannot capture 4K.") }
-                session.sessionPreset = .hd4K3840x2160
+                let preset: AVCaptureSession.Preset = selectedQuality.is4K ? .hd4K3840x2160 : .hd1920x1080
+                guard session.canSetSessionPreset(preset) else { throw CaptureError.message("This iPhone’s 0.5× camera does not support \(selectedQuality.title). Choose another recording quality.") }
+                session.sessionPreset = preset
             }
             // Volume buttons up: device landscapeRight maps to capture landscapeLeft.
             await mixer.setVideoOrientation(.landscapeLeft)
-            // Select an actual 4K/60 format before asking the mixer for 60 fps;
-            // its automatic format search can otherwise fall back to a lower resolution.
             guard let format = camera.formats.first(where: { format in
                 let size = CMVideoFormatDescriptionGetDimensions(format.formatDescription)
-                return size.width == 3840 && size.height == 2160 && format.videoSupportedFrameRateRanges.contains {
-                    $0.minFrameRate <= Double(framesPerSecond) && $0.maxFrameRate >= Double(framesPerSecond)
+                return size.width == selectedQuality.width && size.height == selectedQuality.height && format.videoSupportedFrameRateRanges.contains {
+                    $0.minFrameRate <= Double(selectedQuality.fps) && $0.maxFrameRate >= Double(selectedQuality.fps)
                 }
-            }) else { throw CaptureError.message("This iPhone’s 0.5× camera does not support 4K at 60 fps.") }
+            }) else { throw CaptureError.message("This iPhone’s 0.5× camera does not support \(selectedQuality.title). Choose another recording quality.") }
             // The physical ultra-wide lens is the Camera app's 0.5× view.
             // AVFoundation uses 1.0 for this lens's full, uncropped field of view.
             try camera.lockForConfiguration()
@@ -89,18 +122,19 @@ final class CaptureController: ObservableObject {
             camera.unlockForConfiguration()
             try await mixer.setFrameRate(Double(framesPerSecond))
             await recorder.setMovieFragmentInterval(10)
-            await mixer.addOutput(recorder)
+            if !prepared { await mixer.addOutput(recorder) }
             var liveSettings = await stream.videoSettings
             liveSettings.videoSize = CGSize(width: 1920, height: 1080)
-            liveSettings.bitRate = 9_000_000
+            liveSettings.bitRate = framesPerSecond == 60 ? 9_000_000 : 5_000_000
             liveSettings.maxKeyFrameIntervalDuration = 2
             liveSettings.expectedFrameRate = Double(framesPerSecond)
-            // Capture is already fixed at 60 fps; do not discard frames in the live encoder.
+            // Keep the livestream at the selected capture frame rate.
             liveSettings.frameInterval = 0
             try await stream.setVideoSettings(liveSettings)
-            await mixer.addOutput(stream)
+            if !prepared { await mixer.addOutput(stream) }
             await mixer.startRunning()
-            prepared = true; ready = true
+            prepared = true; preparedQuality = quality; ready = true
+            interruptionTask?.cancel()
             interruptionTask = Task { [weak self] in
                 guard let self else { return }
                 for await interrupted in await mixer.isInterputted {
@@ -114,7 +148,7 @@ final class CaptureController: ObservableObject {
         await mixer.stopRunning()
     }
     func start() async {
-        guard let pairing, ready, !recording, !busy else { return }
+        guard let pairing, ready, preparedQuality == quality, !recording, !busy else { return }
         guard UIDevice.current.orientation == .landscapeRight else {
             error = "Rotate to landscape with the volume buttons facing up."
             return
@@ -133,7 +167,7 @@ final class CaptureController: ObservableObject {
                 throw CaptureError.message("Rotate to landscape with the volume buttons facing up.")
             }
             try await beginSegment(pairing)
-            recordingStartedAt = Date(); recording = true; status = "Recording 4K locally"; UIApplication.shared.isIdleTimerDisabled = true
+            recordingStartedAt = Date(); recording = true; status = "Recording \(quality.title) locally"; UIApplication.shared.isIdleTimerDisabled = true
             recordingTask = Task { [weak self] in
                 guard let self else { return }
                 while !Task.isCancelled {
@@ -181,8 +215,8 @@ final class CaptureController: ObservableObject {
         let item = try library.begin(pairing: pairing, startedAt: clockAnchor?.serverDate ?? Date(), clockAnchor: clockAnchor)
         current = item
         let settings: [AVMediaType: [String: any Sendable]] = [
-            .video: [AVVideoCodecKey: AVVideoCodecType.hevc, AVVideoWidthKey: 3840, AVVideoHeightKey: 2160,
-                     AVVideoCompressionPropertiesKey: [AVVideoAverageBitRateKey: 40_000_000, AVVideoExpectedSourceFrameRateKey: framesPerSecond, AVVideoMaxKeyFrameIntervalDurationKey: 2]],
+            .video: [AVVideoCodecKey: AVVideoCodecType.hevc, AVVideoWidthKey: quality.width, AVVideoHeightKey: quality.height,
+                     AVVideoCompressionPropertiesKey: [AVVideoAverageBitRateKey: quality.bitRate, AVVideoExpectedSourceFrameRateKey: framesPerSecond, AVVideoMaxKeyFrameIntervalDurationKey: 2]],
             .audio: [AVFormatIDKey: Int(kAudioFormatMPEG4AAC), AVSampleRateKey: 48000, AVNumberOfChannelsKey: 1, AVEncoderBitRateKey: 96000]
         ]
         try await recorder.startRecording(item.file, settings: settings)

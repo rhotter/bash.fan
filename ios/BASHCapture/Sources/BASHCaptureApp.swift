@@ -175,6 +175,14 @@ private struct RecordingSetupSheet: View {
                         }.pickerStyle(.segmented)
                     } header: { Text("Which side is this phone?") } footer: { Text("Facing the rink, choose this phone’s side of the mount.") }
                     Section {
+                        Picker("Recording quality", selection: $camera.quality) {
+                            ForEach(RecordingQuality.allCases) { quality in
+                                Text(quality.title).tag(quality)
+                            }
+                        }
+                        .disabled(website.busy || camera.recording)
+                    } footer: { Text("Lower quality uses less data and storage. Livestreams are up to 1080p.") }
+                    Section {
                         Button { connect() } label: {
                             HStack {
                                 Spacer()
