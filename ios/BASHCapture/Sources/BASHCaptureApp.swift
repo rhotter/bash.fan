@@ -255,7 +255,6 @@ struct NativeCameraView: View {
         }
     }
     var body: some View {
-        NavigationStack {
             GeometryReader { geometry in
                 // Device orientation is physical; layout alone cannot distinguish the two landscape directions.
                 let correctlyOriented = orientation == .landscapeRight && geometry.size.width > geometry.size.height
@@ -324,7 +323,7 @@ struct NativeCameraView: View {
                     .padding(16)
                 }
             }
-            .toolbar(.hidden, for: .navigationBar)
+            .ignoresSafeArea(.container, edges: .horizontal)
             .statusBarHidden()
             .persistentSystemOverlays(.hidden)
             .confirmationDialog("Stop recording this camera?", isPresented: $confirmStop, titleVisibility: .visible) { Button("Stop recording", role: .destructive) { Task { await camera.stop() } } }
@@ -342,7 +341,7 @@ struct NativeCameraView: View {
             }
             .onChange(of: phase) { _, next in if next == .active { Task { await camera.prepare() } } }
             .sensoryFeedback(.impact(weight: .medium), trigger: camera.recording)
-        }.preferredColorScheme(.dark)
+            .preferredColorScheme(.dark)
     }
 }
 
