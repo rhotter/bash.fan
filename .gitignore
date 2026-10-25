@@ -47,3 +47,9 @@ migrate.ts
 .agents/teamwork/
 TEST_*.md
 
+# iPhone capture build outputs and per-developer signing settings
+ios/**/DerivedData/
+ios/**/xcuserdata/
+ios/**/*.xcuserstate
+ios/**/Local.xcconfig
+

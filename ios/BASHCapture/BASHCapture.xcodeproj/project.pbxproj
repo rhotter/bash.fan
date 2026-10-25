@@ -1,0 +1,350 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		25388D5EFD3C12427128A578 /* BASHCaptureApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 041761C36897DFFA07EB77DB /* BASHCaptureApp.swift */; };
+		36A03FE22FF1B7AA5629BB0C /* HaishinKit in Frameworks */ = {isa = PBXBuildFile; productRef = D2DFC6A34BACA3E8EF4E2F28 /* HaishinKit */; };
+		7107F34BFC942F10297DE311 /* RecordingLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9EFEB8B5A9E9D9D5ABE3FD2C /* RecordingLibrary.swift */; };
+		817D2E1AB6FE40A3BCD53A67 /* RTMPHaishinKit in Frameworks */ = {isa = PBXBuildFile; productRef = 6A742E20A7F259EE89B9D2FF /* RTMPHaishinKit */; };
+		CEBE9070C2866C00A7266CD2 /* CaptureController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D21EF5541833AC0EE72D5F5 /* CaptureController.swift */; };
+		EBF969D5B11357BBE69E203F /* CaptureAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80BFDAD1E0BCAA6E56A4F352 /* CaptureAPI.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		041761C36897DFFA07EB77DB /* BASHCaptureApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BASHCaptureApp.swift; sourceTree = "<group>"; };
+		0BE85F22E920C80114185E26 /* BASHCapture.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = BASHCapture.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		2D21EF5541833AC0EE72D5F5 /* CaptureController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureController.swift; sourceTree = "<group>"; };
+		80BFDAD1E0BCAA6E56A4F352 /* CaptureAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureAPI.swift; sourceTree = "<group>"; };
+		9EFEB8B5A9E9D9D5ABE3FD2C /* RecordingLibrary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingLibrary.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		A58D612AD59A0268A517062C /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				36A03FE22FF1B7AA5629BB0C /* HaishinKit in Frameworks */,
+				817D2E1AB6FE40A3BCD53A67 /* RTMPHaishinKit in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		00E995F6C0C5ADDDC623FBAD /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				041761C36897DFFA07EB77DB /* BASHCaptureApp.swift */,
+				80BFDAD1E0BCAA6E56A4F352 /* CaptureAPI.swift */,
+				2D21EF5541833AC0EE72D5F5 /* CaptureController.swift */,
+				9EFEB8B5A9E9D9D5ABE3FD2C /* RecordingLibrary.swift */,
+			);
+			path = Sources;
+			sourceTree = "<group>";
+		};
+		3DE5FED321A32FD3F859CB7E /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				0BE85F22E920C80114185E26 /* BASHCapture.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		90C146B87EEE02329E02F91F = {
+			isa = PBXGroup;
+			children = (
+				00E995F6C0C5ADDDC623FBAD /* Sources */,
+				3DE5FED321A32FD3F859CB7E /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		AB8AD3AF696661FF14534A23 /* BASHCapture */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = B24D67642308F192F8C5B444 /* Build configuration list for PBXNativeTarget "BASHCapture" */;
+			buildPhases = (
+				7975D94643118F7AD11ADEFD /* Sources */,
+				A58D612AD59A0268A517062C /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = BASHCapture;
+			packageProductDependencies = (
+				D2DFC6A34BACA3E8EF4E2F28 /* HaishinKit */,
+				6A742E20A7F259EE89B9D2FF /* RTMPHaishinKit */,
+			);
+			productName = BASHCapture;
+			productReference = 0BE85F22E920C80114185E26 /* BASHCapture.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		33ABAD1B14AAF7A8AD8B45F9 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+				};
+			};
+			buildConfigurationList = D3FEB4781B9231A308C51016 /* Build configuration list for PBXProject "BASHCapture" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 90C146B87EEE02329E02F91F;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				7C2087A31C56A96DD679CB92 /* XCRemoteSwiftPackageReference "HaishinKit.swift" */,
+			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 3DE5FED321A32FD3F859CB7E /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				AB8AD3AF696661FF14534A23 /* BASHCapture */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXSourcesBuildPhase section */
+		7975D94643118F7AD11ADEFD /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				25388D5EFD3C12427128A578 /* BASHCaptureApp.swift in Sources */,
+				EBF969D5B11357BBE69E203F /* CaptureAPI.swift in Sources */,
+				CEBE9070C2866C00A7266CD2 /* CaptureController.swift in Sources */,
+				7107F34BFC942F10297DE311 /* RecordingLibrary.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		24B4A16D3337CC1BF040E93E /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		38F7896EE62288AA7A25F34A /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "BASH Capture";
+				INFOPLIST_KEY_NSCameraUsageDescription = "Record your BASH game from this camera.";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Connect to your BASH development dashboard on this network.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Record rink audio with your game video.";
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = fan.bash.capture.dev;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		47BEC78CC3782B95CAA70B6B /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		D54655F11CAEB13DFEDA394F /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "BASH Capture";
+				INFOPLIST_KEY_NSCameraUsageDescription = "Record your BASH game from this camera.";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Connect to your BASH development dashboard on this network.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Record rink audio with your game video.";
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = fan.bash.capture.dev;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		B24D67642308F192F8C5B444 /* Build configuration list for PBXNativeTarget "BASHCapture" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				38F7896EE62288AA7A25F34A /* Debug */,
+				D54655F11CAEB13DFEDA394F /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		D3FEB4781B9231A308C51016 /* Build configuration list for PBXProject "BASHCapture" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				47BEC78CC3782B95CAA70B6B /* Debug */,
+				24B4A16D3337CC1BF040E93E /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		7C2087A31C56A96DD679CB92 /* XCRemoteSwiftPackageReference "HaishinKit.swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/HaishinKit/HaishinKit.swift.git";
+			requirement = {
+				kind = exactVersion;
+				version = 2.2.5;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		6A742E20A7F259EE89B9D2FF /* RTMPHaishinKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 7C2087A31C56A96DD679CB92 /* XCRemoteSwiftPackageReference "HaishinKit.swift" */;
+			productName = RTMPHaishinKit;
+		};
+		D2DFC6A34BACA3E8EF4E2F28 /* HaishinKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 7C2087A31C56A96DD679CB92 /* XCRemoteSwiftPackageReference "HaishinKit.swift" */;
+			productName = HaishinKit;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = 33ABAD1B14AAF7A8AD8B45F9 /* Project object */;
+}

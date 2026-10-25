@@ -1,0 +1,42 @@
+name: BASHCapture
+options:
+  bundleIdPrefix: fan.bash
+  deploymentTarget:
+    iOS: "17.0"
+packages:
+  HaishinKit:
+    url: https://github.com/HaishinKit/HaishinKit.swift.git
+    exactVersion: 2.2.5
+targets:
+  BASHCapture:
+    type: application
+    platform: iOS
+    sources: [Sources]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: fan.bash.capture.dev
+        SWIFT_VERSION: "6.0"
+        TARGETED_DEVICE_FAMILY: "1"
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: BASH Capture
+        INFOPLIST_KEY_NSCameraUsageDescription: Record your BASH game from this camera.
+        INFOPLIST_KEY_NSMicrophoneUsageDescription: Record rink audio with your game video.
+        INFOPLIST_KEY_NSLocalNetworkUsageDescription: Connect to your BASH development dashboard on this network.
+        INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents: YES
+    info:
+      path: Info.plist
+      properties:
+        UILaunchScreen: {}
+        UIFileSharingEnabled: true
+        LSSupportsOpeningDocumentsInPlace: true
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationLandscapeRight]
+        CFBundleURLTypes:
+          - CFBundleURLName: fan.bash.capture
+            CFBundleURLSchemes: [bashcapture]
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+    dependencies:
+      - package: HaishinKit
+        product: HaishinKit
+      - package: HaishinKit
+        product: RTMPHaishinKit
