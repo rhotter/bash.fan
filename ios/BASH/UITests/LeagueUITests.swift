@@ -1,6 +1,35 @@
 import XCTest
 
 final class LeagueUITests: XCTestCase {
+    @MainActor func testOperatorMenuRequiresPasscode() throws {
+        let app = XCUIApplication()
+        app.launch()
+        XCTAssertTrue(app.buttons["operatorMenu"].waitForExistence(timeout: 15))
+        XCTAssertEqual(app.tabBars.buttons.count, 3)
+        app.buttons["operatorMenu"].tap()
+        XCTAssertTrue(app.buttons["Keep score"].exists)
+        XCTAssertTrue(app.buttons["Record game"].exists)
+        capture("Game tools menu")
+        app.buttons["Record game"].tap()
+        XCTAssertTrue(app.secureTextFields["adminPasscode"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["Continue"].isEnabled)
+        XCTAssertFalse(app.buttons["Open camera"].exists)
+        capture("Record game passcode")
+        app.buttons["Cancel"].tap()
+        app.buttons["operatorMenu"].tap()
+        app.buttons["Keep score"].tap()
+        XCTAssertTrue(app.secureTextFields["adminPasscode"].waitForExistence(timeout: 5))
+        capture("Keep score passcode")
+        app.buttons["Cancel"].tap()
+        let game = app.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH 'game-'" )).firstMatch
+        XCTAssertTrue(game.waitForExistence(timeout: 40))
+        game.tap()
+        XCTAssertTrue(app.buttons["operatorMenu"].waitForExistence(timeout: 10))
+        app.buttons["operatorMenu"].tap()
+        XCTAssertTrue(app.buttons["Share game"].exists)
+        capture("Game detail tools")
+    }
+
     @MainActor func testLiveLeagueNavigation() throws {
         let app = XCUIApplication()
         app.launch()

@@ -2,6 +2,27 @@ import SwiftUI
 import UserNotifications
 
 @MainActor final class NotificationRouter: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
+    static var cameraOrientation = false
+    static func setCameraOrientation(_ enabled: Bool) {
+        cameraOrientation = enabled
+        for scene in UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene }) {
+            scene.windows.first?.rootViewController?.setNeedsUpdateOfSupportedInterfaceOrientations()
+            var presented = scene.windows.first?.rootViewController?.presentedViewController
+            while let controller = presented {
+                controller.setNeedsUpdateOfSupportedInterfaceOrientations()
+                presented = controller.presentedViewController
+            }
+            scene.requestGeometryUpdate(.iOS(interfaceOrientations: enabled ? [.portrait, .landscapeLeft, .landscapeRight] : .portrait))
+        }
+    }
+    func application(_ application: UIApplication, supportedInterfaceOrientationsFor window: UIWindow?) -> UIInterfaceOrientationMask {
+        Self.cameraOrientation ? [.portrait, .landscapeLeft, .landscapeRight] : .portrait
+    }
+    func application(_ application: UIApplication, handleEventsForBackgroundURLSession identifier: String, completionHandler: @escaping () -> Void) {
+        guard identifier == BackgroundUploads.identifier else { completionHandler(); return }
+        _ = RecordingLibrary.shared
+        BackgroundUploads.shared.attachCompletionHandler(completionHandler)
+    }
     static let openGame = Notification.Name("BASHOpenGame")
     func application(_ application: UIApplication, didFinishLaunchingWithOptions options: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
         UNUserNotificationCenter.current().delegate = self
@@ -23,7 +44,33 @@ import UserNotifications
 @main struct BASHApp: App {
     @UIApplicationDelegateAdaptor(NotificationRouter.self) var delegate
     @State private var store = LeagueStore()
-    var body: some Scene { WindowGroup { LeagueRoot(store: store) } }
+    @StateObject private var camera = CaptureController()
+    @Environment(\.scenePhase) private var phase
+    var body: some Scene {
+        WindowGroup {
+            LeagueRoot(store: store).environmentObject(camera)
+                .task { await camera.library.recoverInterrupted() }
+                .onChange(of: camera.recording) { _, recording in UIApplication.shared.isIdleTimerDisabled = recording }
+                .onChange(of: phase) { _, next in
+                    if next == .background {
+                        let handoff = UploadHandoff()
+                        Task {
+                            defer { handoff.end() }
+                            await camera.stop()
+                            await camera.suspendPreview()
+                            await camera.library.uploadPending()
+                        }
+                    }
+                }
+                .task(id: phase) {
+                    guard phase == .active else { return }
+                    while !Task.isCancelled {
+                        await camera.library.uploadPending()
+                        do { try await Task.sleep(for: .seconds(30)) } catch { break }
+                    }
+                }
+        }
+    }
 }
 
 // Warm orange from the website, with quiet neutral surfaces around the data.
@@ -174,7 +221,7 @@ struct LeagueRoot: View {
             }
         }
         .background(LeagueStyle.background)
-        .leagueHeader("Scores")
+        .leagueHeader("Scores", operatorGames: weekGames)
     }
 
     @ViewBuilder private var statusSection: some View {
@@ -230,7 +277,7 @@ struct LeagueRoot: View {
 }
 
 private extension View {
-    func leagueHeader(_ title: String) -> some View {
+    func leagueHeader(_ title: String, operatorGames: [Game]? = nil) -> some View {
         self.navigationTitle(title)
             .toolbar(.hidden, for: .navigationBar)
             .safeAreaInset(edge: .top, spacing: 0) {
@@ -241,6 +288,7 @@ private extension View {
                         .accessibilityHidden(true)
                     Text(title).font(.system(size: 28, weight: .bold)).foregroundStyle(.primary)
                     Spacer()
+                    if let operatorGames { OperatorMenu(games: operatorGames) }
                 }
                 .padding(.horizontal, 12).padding(.top, 8).padding(.bottom, 12)
                 .background(LeagueStyle.background)

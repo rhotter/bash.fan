@@ -3,11 +3,23 @@ options:
   bundleIdPrefix: fan.bash
   deploymentTarget:
     iOS: "17.0"
+packages:
+  HaishinKit:
+    url: https://github.com/HaishinKit/HaishinKit.swift.git
+    exactVersion: 2.2.5
 targets:
   BASH:
     type: application
     platform: iOS
-    sources: [Sources]
+    sources:
+      - Sources
+      - path: ../BASHCapture/Sources
+        excludes: [Assets.xcassets]
+    dependencies:
+      - package: HaishinKit
+        product: HaishinKit
+      - package: HaishinKit
+        product: RTMPHaishinKit
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: fan.bash.league
@@ -15,6 +27,10 @@ targets:
         CODE_SIGN_STYLE: Automatic
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         SWIFT_VERSION: "6.0"
+        SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited) BASH_LEAGUE"
+        BASH_SERVER_URL: https://bash-git-video-raffi-hotters-projects.vercel.app
+        INFOPLIST_KEY_NSCameraUsageDescription: Record rink video with BASH Capture.
+        INFOPLIST_KEY_NSMicrophoneUsageDescription: Record rink audio with your video.
         TARGETED_DEVICE_FAMILY: "1"
         GENERATE_INFOPLIST_FILE: YES
         MARKETING_VERSION: "0.1"
@@ -23,9 +39,12 @@ targets:
     info:
       path: Info.plist
       properties:
+        BASHServerURL: $(BASH_SERVER_URL)
+        UIFileSharingEnabled: true
+        LSSupportsOpeningDocumentsInPlace: true
         UILaunchScreen: {}
         ITSAppUsesNonExemptEncryption: false
-        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
   BASHUITests:
     type: bundle.ui-testing
     platform: iOS

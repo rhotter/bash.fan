@@ -25,11 +25,24 @@ final class WebsiteConnection: ObservableObject {
     @Published var cameraConflict = false
     @Published var qualityMismatch: CameraQualityMismatch?
     // Operator cookies last only for this app session. The PIN is never saved.
-    private let session = URLSession(configuration: .ephemeral)
+    private let session: URLSession
     private var authenticatedServer: URL?
+    private let serverOverride: URL?
+    private let requiresAdmin: Bool
+
+    init(server: URL? = nil, requiresAdmin: Bool = false, session: URLSession? = nil) {
+        self.serverOverride = server
+        self.requiresAdmin = requiresAdmin
+        self.session = session ?? URLSession(configuration: .ephemeral)
+    }
+
+    var cookies: [HTTPCookie] {
+        guard signedIn, let authenticatedServer else { return [] }
+        return session.configuration.httpCookieStorage?.cookies(for: authenticatedServer) ?? []
+    }
 
     private func serverURL() throws -> URL {
-        try BASHService.server()
+        try serverOverride ?? BASHService.server()
     }
     private func call<T: Decodable>(_ server: URL, _ path: String, body: [String: Any]? = nil) async throws -> T {
         var request = URLRequest(url: server.appending(path: path), cachePolicy: .reloadIgnoringLocalCacheData); request.timeoutInterval = 20
@@ -47,8 +60,13 @@ final class WebsiteConnection: ObservableObject {
         do {
             let server = try serverURL()
             let _: OKResponse = try await call(server, "api/bash/admin/login", body: ["pin": pin.trimmingCharacters(in: .whitespacesAndNewlines)])
+            if requiresAdmin {
+                struct AdminResponse: Decodable { let isAdmin: Bool }
+                let admin: AdminResponse = try await call(server, "api/bash/admin/me")
+                guard admin.isAdmin else { throw CaptureError.message("An admin passcode is required.") }
+            }
             authenticatedServer = server; signedIn = true
-        } catch { self.error = error.localizedDescription; signedIn = false }
+        } catch { signOut(); self.error = error.localizedDescription }
     }
     func connect(side: String, camera: CaptureController, replace: Bool = false, allowQualityMismatch: Bool = false) async -> Bool {
         guard let server = authenticatedServer, !busy, !camera.recording else { return false }

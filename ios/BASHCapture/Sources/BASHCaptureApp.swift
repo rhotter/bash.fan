@@ -5,6 +5,7 @@ private enum BASHStyle {
     static let orange = Color(red: 0.83, green: 0.34, blue: 0.06)
 }
 
+#if !BASH_LEAGUE
 @main
 struct BASHCaptureApp: App {
     @UIApplicationDelegateAdaptor(CaptureAppDelegate.self) private var appDelegate
@@ -40,6 +41,8 @@ struct BASHCaptureApp: App {
         }
     }
 }
+
+#endif
 
 struct CaptureHome: View {
     @ObservedObject var camera: CaptureController

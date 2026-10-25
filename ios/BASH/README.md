@@ -14,6 +14,10 @@ xcodebuild -project ios/BASH/BASH.xcodeproj -scheme BASH \
 
 ## Current scope
 
+- The three-dot menu on Scores and game details contains Keep score and Record game. Both require a server-verified admin passcode; the admin passcode is not persisted. Keep score embeds the existing website scorekeeper in an isolated WebKit session for the selected game (or a chooser for the selected week from Scores). Recording remains independent of the selected game and shares BASH Capture's native camera, left/right pairing, quality matching, clock synchronization, streaming, segmented recording, and verified background uploads. Its compact setup includes an Uploads sheet; no fourth tab is added.
+- Camera orientation is enabled only while the full-screen camera is open. Backgrounding safely finishes recording and hands uploads to the background URL session; the app delegate receives completion events. The standalone Capture app remains independently buildable.
+- Scorekeeping uses the canonical public website. Recording currently uses `BASH_SERVER_URL`, matching BASH Capture's deployed video preview backend. The public website does not yet serve the capture endpoint. Change that build setting only when the video backend is deployed there; production scores and preview recording sessions are separate environments, so automatic footage association requires the scorekeeper and capture backend to use the same database.
+
 - Stats supports All time as an option in its existing season menu, without extra selectors. It uses the website API default of fall regular-season totals. This scope stays local to Stats; Scores and Standings keep their selected season. Team filtering is hidden for career totals, while name search, sorting, and player navigation remain available.
 
 - All team-logo circles share the same team-color gradient, border, padding, and shadow across Scores, Standings, Stats, team/player profiles, game logs, and play-by-play. The Yeti artwork retains a white interior within its blue ring.

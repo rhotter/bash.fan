@@ -185,7 +185,7 @@ struct GameScreen: View {
         }.tint(.primary).navigationTitle(current.dateLabel).navigationBarTitleDisplayMode(.inline)
             .toolbar(.visible, for: .navigationBar)
             .toolbar(.hidden, for: .tabBar)
-            .toolbar { ToolbarItem(placement: .topBarTrailing) { ShareLink(item: current.url) { Image(systemName: "square.and.arrow.up") } } }
+            .toolbar { ToolbarItem(placement: .topBarTrailing) { OperatorMenu(games: store.snapshot?.games ?? [], game: current) } }
             .task(id: phase) {
                 guard phase == .active else { return }
                 await load()

@@ -56,7 +56,10 @@ final class RecordingLibrary: ObservableObject {
     func recoverInterrupted() async {
         for item in recordings where item.duration == nil {
             do { try await finalize(item) }
-            catch { self.error = "An interrupted segment needs review in Files → BASH Capture. Completed segments are safe." }
+            catch {
+                let name = Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String ?? "BASH"
+                self.error = "An interrupted segment needs review in Files → \(name). Completed segments are safe."
+            }
         }
     }
     func uploadPending() async {
@@ -156,7 +159,11 @@ final class RecordingLibrary: ObservableObject {
 @MainActor
 final class BackgroundUploads: NSObject, URLSessionTaskDelegate {
     static let shared = BackgroundUploads()
+    #if BASH_LEAGUE
+    static let identifier = "fan.bash.league.recording-uploads"
+    #else
     static let identifier = "fan.bash.capture.recording-uploads"
+    #endif
     var completionHandler: (() -> Void)?
     private var pendingCallbacks = 0
     private var eventsFinished = false
