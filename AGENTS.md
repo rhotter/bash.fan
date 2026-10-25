@@ -1,6 +1,6 @@
 # AGENTS.md
 
-This file provides guidance to Codex (Codex.ai/code) when working with code in this repository.
+This file is the shared source of instructions for coding agents working in this repository.
 
 ## Project Overview
 
@@ -22,6 +22,10 @@ Bay Area Street Hockey (BASH) league stats website. Displays scores, standings, 
 - **UI:** shadcn/ui (Radix UI primitives) in `components/ui/`
 - **Client Data:** SWR hooks with server-side fallback data
 - **Icons:** lucide-react
+
+## Style Guide
+
+Prefer neutral theme tokens (`text-foreground`, `text-muted-foreground`, `bg-muted`, `border-border`) over brand/accent colors for ambient and informational UI; reserve `text-primary` and other strong colors for true CTAs, and avoid all-caps for titles.
 
 ## Architecture
 
@@ -52,6 +56,7 @@ Each page follows: async Server Component (data fetch + `generateMetadata`) → 
 - `lib/db/game-id.ts` — Collision-free sequential `g[n]` game ID generator backed by `games_gen_seq`
 - `lib/banner-helpers.ts` — Pure helper algorithms, countdown suffixes, and banner contract validators
 - `lib/draft-banner-sync.ts` — Automated banner sync engine across draft lifecycle state transitions
+- `lib/csv-utils.ts` — Shared CSV parser for Sportability exports
 - `lib/draft-helpers.ts` — Snake/linear pick slot generation
 - `lib/draft-trade-resolver.ts` — Chain trade resolution engine
 - `lib/schedule-utils.ts` — Round-robin and playoff bracket generation, Berger tables, and simulated annealing equity optimizer (home/away, intra-day time slots)
