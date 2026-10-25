@@ -3,7 +3,7 @@
 import Link from "next/link"
 import Image from "next/image"
 import { usePathname } from "next/navigation"
-import { CalendarDays, Trophy, ClipboardList, Shield, Megaphone } from "lucide-react"
+import { CalendarDays, Trophy, ClipboardList, Shield, Megaphone, Video } from "lucide-react"
 import {
   Sidebar,
   SidebarContent,
@@ -21,6 +21,7 @@ export const NAV_ITEMS = [
   { label: "Franchises", href: "/admin/franchises", icon: Shield },
   { label: "Registration", href: "/admin/registration", icon: ClipboardList },
   { label: "Banners", href: "/admin/banners", icon: Megaphone },
+  { label: "Video", href: "/video", icon: Video },
   { label: "Awards", href: "/admin/awards", icon: Trophy },
 ]
 

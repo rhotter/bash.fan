@@ -444,7 +444,7 @@ The existing "Add Game" button on the admin schedule tab needs to be updated to 
 A new section within the Edit Game modal or a dedicated modal, shown only when `gameType = 'exhibition'` or `gameType = 'tryout'`:
 
 - **Player search**: Autocomplete search across the full `players` table (not limited to season roster)
-- **Tabbed single-column layout on mobile**: `[Home]` / `[Away]` tabs at the top (using the existing tab-active/tab-inactive pattern from DESIGN.md), with a full-width player search and list below. Each tab shows only one team's roster. On desktop, a two-column layout (home left, away right) is acceptable.
+- **Tabbed single-column layout on mobile**: `[Home]` / `[Away]` tabs at the top (using the existing public-page segmented tab styling), with a full-width player search and list below. Each tab shows only one team's roster. On desktop, a two-column layout (home left, away right) is acceptable.
 - **Add/remove**: Click to add from search results, click X to remove from roster
 - **Persistence**: Saves to `adhoc_game_rosters` via the API above
 
