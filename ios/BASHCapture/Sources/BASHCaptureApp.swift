@@ -195,10 +195,19 @@ struct NativeCameraView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var phase
     @State private var confirmStop = false
+    @State private var orientation = UIDevice.current.orientation
+    private var rotationInstruction: String {
+        switch orientation {
+        case .landscapeLeft: return "Turn the phone 180°"
+        case .faceUp, .faceDown: return "Stand the phone upright"
+        default: return "Rotate your iPhone"
+        }
+    }
     var body: some View {
         NavigationStack {
             GeometryReader { geometry in
-                let landscape = geometry.size.width > geometry.size.height
+                // Device orientation is physical; layout alone cannot distinguish the two landscape directions.
+                let correctlyOriented = orientation == .landscapeRight && geometry.size.width > geometry.size.height
                 ZStack {
                     Color.black.ignoresSafeArea()
                     CapturePreview(mixer: camera.mixer)
@@ -223,14 +232,26 @@ struct NativeCameraView: View {
                         } else if let error = camera.error {
                             Text(error).font(.callout).multilineTextAlignment(.center).padding(12).background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
                         }
-                        if !landscape { Label("Rotate with the volume buttons facing up", systemImage: "rotate.right").font(.callout).padding(10) }
+                        if !correctlyOriented {
+                            VStack(spacing: 6) {
+                                Label(rotationInstruction, systemImage: "rotate.right").font(.headline)
+                                Text("Landscape, with the volume buttons facing up.").font(.callout)
+                                if camera.recording { Text("Still recording — return the phone to its mount position.").font(.caption) }
+                                else if orientation == .landscapeRight { Text("Turn off Portrait Orientation Lock if the screen stays upright.").font(.caption) }
+                            }
+                            .multilineTextAlignment(.center)
+                            .foregroundStyle(.yellow)
+                            .padding(12)
+                            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
+                            .accessibilityElement(children: .combine)
+                        }
                     }.padding()
                 }
                 .safeAreaInset(edge: .bottom) {
                     HStack(spacing: 28) {
                         VStack(alignment: .trailing, spacing: 3) {
                             Text(camera.pairing.map { "\($0.side.capitalized) camera" } ?? "Not paired").font(.subheadline.weight(.semibold))
-                            Text(camera.recording ? "Recording" : "Ready to record").font(.caption).foregroundStyle(.secondary)
+                            Text(camera.recording ? "Recording" : !correctlyOriented ? "Rotate to record" : camera.ready ? "Ready to record" : "Camera unavailable").font(.caption).foregroundStyle(.secondary)
                         }.frame(maxWidth: .infinity, alignment: .trailing)
                         Button {
                             if camera.recording { confirmStop = true } else { Task { await camera.start() } }
@@ -241,8 +262,8 @@ struct NativeCameraView: View {
                                 else { Circle().fill(.red).frame(width: 64, height: 64) }
                             }
                         }.buttonStyle(.plain).accessibilityLabel(camera.recording ? "Stop recording" : "Start recording")
-                            .disabled(camera.busy || !camera.ready || camera.pairing == nil || camera.configuration?.ended == true || (!landscape && !camera.recording))
-                            .opacity(camera.ready && landscape ? 1 : 0.45)
+                            .disabled(camera.busy || (!camera.recording && (!camera.ready || camera.pairing == nil || camera.configuration?.ended == true || !correctlyOriented)))
+                            .opacity(camera.recording || (camera.ready && correctlyOriented) ? 1 : 0.45)
                         VStack(alignment: .leading, spacing: 3) {
                             Text(library.uploading ? "Uploading" : library.pending > 0 ? "Upload queued" : "Auto upload").font(.subheadline.weight(.semibold))
                             Text(library.error != nil ? "Saved on iPhone · retry later" : "Keep BASH open").font(.caption).foregroundStyle(.secondary)
@@ -256,7 +277,17 @@ struct NativeCameraView: View {
             }
             .confirmationDialog("Stop recording this camera?", isPresented: $confirmStop, titleVisibility: .visible) { Button("Stop recording", role: .destructive) { Task { await camera.stop() } } }
             .task { await camera.refreshConfiguration(); await camera.prepare() }
-            .onDisappear { Task { await camera.suspendPreview() } }
+            .onAppear {
+                UIDevice.current.beginGeneratingDeviceOrientationNotifications()
+                orientation = UIDevice.current.orientation
+            }
+            .onReceive(NotificationCenter.default.publisher(for: UIDevice.orientationDidChangeNotification)) { _ in
+                orientation = UIDevice.current.orientation
+            }
+            .onDisappear {
+                UIDevice.current.endGeneratingDeviceOrientationNotifications()
+                Task { await camera.suspendPreview() }
+            }
             .onChange(of: phase) { _, next in if next == .active { Task { await camera.prepare() } } }
             .sensoryFeedback(.impact(weight: .medium), trigger: camera.recording)
         }.preferredColorScheme(.dark)

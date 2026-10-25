@@ -71,7 +71,8 @@ final class CaptureController: ObservableObject {
                 guard session.canSetSessionPreset(.hd4K3840x2160) else { throw CaptureError.message("This iPhone’s 0.5× camera cannot capture 4K.") }
                 session.sessionPreset = .hd4K3840x2160
             }
-            await mixer.setVideoOrientation(.landscapeRight)
+            // Volume buttons up: device landscapeRight maps to capture landscapeLeft.
+            await mixer.setVideoOrientation(.landscapeLeft)
             try await mixer.setFrameRate(Double(framesPerSecond))
             // The physical ultra-wide lens is the Camera app's 0.5× view.
             // AVFoundation uses 1.0 for this lens's full, uncropped field of view.
@@ -104,6 +105,10 @@ final class CaptureController: ObservableObject {
     }
     func start() async {
         guard let pairing, ready, !recording, !busy else { return }
+        guard UIDevice.current.orientation == .landscapeRight else {
+            error = "Rotate to landscape with the volume buttons facing up."
+            return
+        }
         busy = true; error = nil
         defer { busy = false }
         do {
@@ -114,6 +119,9 @@ final class CaptureController: ObservableObject {
             configuration = config
             clockAnchor = try await CaptureAPI.synchronize(pairing); clockChecked = true
             try await mixer.setFrameRate(Double(framesPerSecond))
+            guard UIDevice.current.orientation == .landscapeRight else {
+                throw CaptureError.message("Rotate to landscape with the volume buttons facing up.")
+            }
             try await beginSegment(pairing)
             recordingStartedAt = Date(); recording = true; status = "Recording 4K locally"; UIApplication.shared.isIdleTimerDisabled = true
             recordingTask = Task { [weak self] in
