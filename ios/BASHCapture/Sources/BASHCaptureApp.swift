@@ -7,6 +7,7 @@ private enum BASHStyle {
 
 @main
 struct BASHCaptureApp: App {
+    @UIApplicationDelegateAdaptor(CaptureAppDelegate.self) private var appDelegate
     @StateObject private var camera = CaptureController()
     @StateObject private var website = WebsiteConnection()
     @Environment(\.scenePhase) private var phase
@@ -15,7 +16,15 @@ struct BASHCaptureApp: App {
             CaptureHome(camera: camera, library: camera.library, website: website)
                 .tint(BASHStyle.orange)
                 .onChange(of: phase) { _, next in
-                    if next == .background { Task { await camera.stop(); await camera.suspendPreview() } }
+                    if next == .background {
+                        let handoff = UploadHandoff()
+                        Task {
+                            defer { handoff.end() }
+                            await camera.stop()
+                            await camera.suspendPreview()
+                            await camera.library.uploadPending()
+                        }
+                    }
                     if next == .active { Task { await camera.library.uploadPending() } }
                 }
                 .task(id: phase) {
@@ -25,11 +34,8 @@ struct BASHCaptureApp: App {
                         do { try await Task.sleep(for: .seconds(30)) } catch { break }
                     }
                 }
-                .onChange(of: camera.library.uploading) { _, _ in
-                    UIApplication.shared.isIdleTimerDisabled = camera.recording || camera.library.uploading
-                }
                 .onChange(of: camera.recording) { _, _ in
-                    UIApplication.shared.isIdleTimerDisabled = camera.recording || camera.library.uploading
+                    UIApplication.shared.isIdleTimerDisabled = camera.recording
                 }
         }
     }
@@ -213,26 +219,15 @@ struct NativeCameraView: View {
                     CapturePreview(mixer: camera.mixer)
                     VStack {
                         if correctlyOriented {
-                            VStack(spacing: 5) {
-                                Text("\(camera.pairing?.side.capitalized ?? "Rink") camera").font(.headline)
-                                HStack(spacing: 12) {
-                                    Label("4K · \(camera.framesPerSecond)", systemImage: "video")
-                                    if camera.streaming { Label("Live", systemImage: "dot.radiowaves.left.and.right").foregroundStyle(.red) }
-                                    if camera.recording, let start = camera.recordingStartedAt {
-                                        Text(start, style: .timer).monospacedDigit().foregroundStyle(.red)
-                                    }
-                                }.font(.caption.weight(.semibold))
-                            }.padding(.horizontal, 18).padding(.vertical, 10).captureGlass()
                             Spacer()
-                            if !camera.ready {
-                                VStack(spacing: 6) {
-                                    Text("Camera preview").font(.headline)
-                                    Text(camera.error ?? "Use a physical iPhone to record.").font(.callout).foregroundStyle(.secondary).multilineTextAlignment(.center)
-                                }.frame(maxWidth: 420)
-                                Spacer()
-                            } else if let error = camera.error {
-                                Text(error).font(.callout).multilineTextAlignment(.center).padding(12).background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
+                            if let error = camera.error {
+                                Text(error)
+                                    .font(.callout)
+                                    .multilineTextAlignment(.center)
+                                    .padding(12)
+                                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
                             }
+                            Spacer()
                         }
                         if !correctlyOriented {
                             Spacer()
@@ -253,10 +248,7 @@ struct NativeCameraView: View {
                 }
                 .safeAreaInset(edge: .bottom) {
                     HStack(spacing: 28) {
-                        VStack(alignment: .trailing, spacing: 3) {
-                            Text(camera.pairing.map { "\($0.side.capitalized) camera" } ?? "Not paired").font(.subheadline.weight(.semibold))
-                            Text(camera.recording ? "Recording" : !correctlyOriented ? "Rotate to record" : camera.ready ? "Ready to record" : "Camera unavailable").font(.caption).foregroundStyle(.secondary)
-                        }.frame(maxWidth: .infinity, alignment: .trailing)
+                        Spacer()
                         Button {
                             if camera.recording { confirmStop = true } else { Task { await camera.start() } }
                         } label: {
@@ -268,14 +260,11 @@ struct NativeCameraView: View {
                         }.buttonStyle(.plain).accessibilityLabel(camera.recording ? "Stop recording" : "Start recording")
                             .disabled(camera.busy || (!camera.recording && (!camera.ready || camera.pairing == nil || camera.configuration?.ended == true || !correctlyOriented)))
                             .opacity(camera.recording || (camera.ready && correctlyOriented) ? 1 : 0.45)
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text(library.uploading ? "Uploading" : library.pending > 0 ? "Upload queued" : "Auto upload").font(.subheadline.weight(.semibold))
-                            Text(library.error != nil ? "Saved on iPhone · retry later" : "Keep BASH open").font(.caption).foregroundStyle(.secondary)
-                        }.frame(maxWidth: .infinity, alignment: .leading)
-                    }.padding(.horizontal, 20).padding(.vertical, 12).captureGlass().padding(.horizontal).padding(.bottom, 8)
+                        Spacer()
+                    }.padding(.horizontal, 20).padding(.vertical, 12).padding(.bottom, 8)
                 }
             }
-            .navigationTitle("BASH Capture").navigationBarTitleDisplayMode(.inline)
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) { Button("Close", systemImage: "xmark") { dismiss() }.disabled(camera.recording || camera.busy) }
             }
@@ -317,7 +306,7 @@ struct UploadStatusSheet: View {
                     if library.uploading { ProgressView() }
                     if let error = library.error { Text(error).font(.callout).foregroundStyle(.red) }
                     if !library.uploading && library.pending > 0 { Button("Retry upload") { Task { await library.uploadPending() } } }
-                } footer: { Text("Keep BASH open while uploading. Clips are automatically removed from this iPhone once BASH verifies the upload.") }
+                } footer: { Text("Uploads can continue with BASH in the background. Reopen BASH if you force-quit it. Clips are removed after BASH verifies the upload.") }
             }.navigationTitle("Uploads").navigationBarTitleDisplayMode(.inline)
                 .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
         }.presentationDetents([.medium, .large])

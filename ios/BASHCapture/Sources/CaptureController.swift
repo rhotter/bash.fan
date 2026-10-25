@@ -17,7 +17,7 @@ final class CaptureController: ObservableObject {
     @Published var status = "Pair this phone to a recording session"
     let framesPerSecond = 60
     let liveEnabled = true
-    let library = RecordingLibrary()
+    let library = RecordingLibrary.shared
     let mixer = MediaMixer(captureSessionMode: .single)
     private let connection = RTMPConnection()
     private lazy var stream = RTMPStream(connection: connection)

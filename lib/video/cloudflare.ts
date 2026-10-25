@@ -15,7 +15,7 @@ function storage() {
 }
 export async function uploadUrl(key: string, bytes: number) {
   return getSignedUrl(storage(), new PutObjectCommand({ Bucket: process.env.R2_VIDEO_BUCKET, Key: key,
-    ContentType: "video/mp4", ContentLength: bytes }), { expiresIn: 3600 })
+    ContentType: "video/mp4", ContentLength: bytes }), { expiresIn: 24 * 60 * 60 })
 }
 export async function playbackUrl(key: string) {
   return getSignedUrl(storage(), new GetObjectCommand({ Bucket: process.env.R2_VIDEO_BUCKET, Key: key }), { expiresIn: 3600 })
