@@ -51,47 +51,37 @@ struct CaptureHome: View {
     @State private var cameraAfterSetup = false
 
     var body: some View {
-        NavigationStack {
-            List {
-                Section {
-                    HStack(spacing: 16) {
-                        Image("BASHBadge").resizable().scaledToFit().frame(width: 76, height: 76)
-                            .background {
-                                // Fill the badge interior without filling the transparent outer corners.
-                                Ellipse().fill(.white).padding(.horizontal, 8).padding(.vertical, 7)
-                            }
-                            .accessibilityHidden(true)
-                        Text("RINKSIDE").font(.caption.weight(.bold)).tracking(2).foregroundStyle(BASHStyle.orange)
-                    }.padding(.vertical, 12)
-                }.listRowBackground(Color.clear).listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
-
-                if library.uploading || library.pending > 0 || library.error != nil {
-                    Section {
-                        Button { showUploads = true } label: {
-                            HStack(spacing: 12) {
-                                if library.uploading { ProgressView() }
-                                else { Image(systemName: library.pending == 0 && library.error == nil ? "checkmark.icloud" : "icloud.and.arrow.up").foregroundStyle(BASHStyle.orange) }
-                                VStack(alignment: .leading, spacing: 3) {
-                                    Text(library.uploading ? "Uploading to BASH" : library.error != nil ? "Upload needs attention" : library.pending > 0 ? "Waiting to upload" : "Saved to BASH").font(.subheadline.weight(.semibold))
-                                    Text(library.pending > 0 ? "\(library.pending) \(library.pending == 1 ? "clip" : "clips") remaining" : library.error != nil ? "Check upload status." : "Uploaded clips cleared from this iPhone.").font(.caption).foregroundStyle(.secondary)
-                                }
-                                Spacer()
-                                Image(systemName: "chevron.right").font(.caption.weight(.semibold)).foregroundStyle(.tertiary)
-                            }.foregroundStyle(.primary)
-                        }.buttonStyle(.plain)
+        GeometryReader { geometry in
+            let landscape = geometry.size.width > geometry.size.height
+            ScrollView {
+                Group {
+                    if landscape {
+                        HStack(spacing: 48) {
+                            welcome(compact: true).frame(maxWidth: .infinity)
+                            homeActions.frame(maxWidth: 360)
+                        }
+                    } else {
+                        VStack(spacing: 24) {
+                            Spacer(minLength: 24)
+                            welcome(compact: false)
+                            Spacer(minLength: 48)
+                            homeActions
+                        }
                     }
                 }
-                Section {
-                    Button { showSetup = true } label: {
-                        Text("Set up recording")
-                            .fontWeight(.semibold)
-                            .multilineTextAlignment(.center)
-                            .frame(maxWidth: .infinity, alignment: .center)
-                            .padding(.vertical, 6)
-                    }.buttonStyle(.borderedProminent).disabled(camera.recording)
-                }.listRowBackground(Color.clear).listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
+                .frame(maxWidth: landscape ? 860 : 440)
+                .frame(minHeight: max(0, geometry.size.height - 48))
+                .frame(maxWidth: .infinity)
+                .padding(24)
             }
-            .navigationTitle("BASH Capture")
+            .background {
+                Color(uiColor: .systemGroupedBackground)
+                    .overlay {
+                        RadialGradient(colors: [BASHStyle.orange.opacity(0.12), .clear],
+                                       center: .top, startRadius: 0, endRadius: 500)
+                    }
+                    .ignoresSafeArea()
+            }
             .refreshable { await camera.refreshConfiguration(); await library.uploadPending() }
         }
         .sheet(isPresented: $showUploads) { UploadStatusSheet(library: library) }
@@ -103,6 +93,63 @@ struct CaptureHome: View {
         .fullScreenCover(isPresented: $showCamera) { NativeCameraView(camera: camera, library: library) }
         .task { await library.recoverInterrupted(); await camera.refreshConfiguration(); await library.uploadPending() }
     }
+
+    private func welcome(compact: Bool) -> some View {
+        VStack(spacing: 24) {
+            let size: CGFloat = compact ? 120 : 164
+            Image("BASHBadge")
+                .resizable().scaledToFit().frame(width: size, height: size)
+                .background {
+                    Ellipse().fill(.white)
+                        .padding(.horizontal, size * 8 / 76)
+                        .padding(.vertical, size * 7 / 76)
+                }
+                .shadow(color: .black.opacity(0.08), radius: 20, y: 8)
+                .accessibilityHidden(true)
+            Text("Welcome to BASH")
+                .font(.largeTitle.weight(.bold))
+                .multilineTextAlignment(.center)
+                .accessibilityAddTraits(.isHeader)
+        }
+    }
+
+    private var homeActions: some View {
+        VStack(spacing: 16) {
+            if library.uploading || library.pending > 0 || library.error != nil {
+                Button { showUploads = true } label: {
+                    HStack(spacing: 12) {
+                        if library.uploading { ProgressView() }
+                        else { Image(systemName: "icloud.and.arrow.up").foregroundStyle(BASHStyle.orange) }
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(library.error != nil ? "Upload needs attention" : library.uploading ? "Uploading to BASH" : "Waiting to upload")
+                                .font(.subheadline.weight(.semibold))
+                            if library.pending > 0 {
+                                Text("\(library.pending) \(library.pending == 1 ? "clip" : "clips") remaining")
+                                    .font(.caption).foregroundStyle(.secondary)
+                            }
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.right").font(.caption.weight(.semibold)).foregroundStyle(.tertiary)
+                    }
+                    .foregroundStyle(.primary)
+                    .padding(18)
+                    .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 20))
+                }.buttonStyle(.plain)
+            }
+            Button { showSetup = true } label: {
+                Text("Set up recording")
+                    .font(.headline)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: .infinity, minHeight: 36)
+                    .padding(.vertical, 6)
+            }
+            .buttonStyle(.borderedProminent)
+            .buttonBorderShape(.capsule)
+            .controlSize(.large)
+            .disabled(camera.recording)
+        }
+    }
+
 }
 
 private struct RecordingSetupSheet: View {
