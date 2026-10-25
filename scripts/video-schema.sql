@@ -4,6 +4,7 @@ CREATE TABLE IF NOT EXISTS video_sessions (
 );
 CREATE TABLE IF NOT EXISTS video_cameras (
   session_id text NOT NULL REFERENCES video_sessions(id), side text NOT NULL CHECK (side IN ('left','right')),
+  recording_quality text NOT NULL DEFAULT 'uhd60' CHECK (recording_quality IN ('hd30', 'hd60', 'uhd30', 'uhd60')),
   token_hash text, token_expires_at timestamptz, device_name text, last_seen_at timestamptz,
   recording boolean NOT NULL DEFAULT false, streaming boolean NOT NULL DEFAULT false,
   battery double precision, error text, stream_input_id text, offset_ms integer NOT NULL DEFAULT 0,

@@ -3,7 +3,7 @@ import SwiftUI
 import HaishinKit
 import RTMPHaishinKit
 
-enum RecordingQuality: String, CaseIterable, Identifiable {
+enum RecordingQuality: String, CaseIterable, Identifiable, Decodable {
     case hd30, hd60, uhd30, uhd60
     var id: String { rawValue }
     var title: String {

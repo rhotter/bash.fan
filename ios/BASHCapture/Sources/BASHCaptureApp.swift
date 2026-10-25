@@ -163,6 +163,7 @@ private struct RecordingSetupSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var pin = ""
     @AppStorage("captureSide") private var side = "left"
+    @State private var replaceRequested = false
 
     var body: some View {
         NavigationStack {
@@ -220,13 +221,27 @@ private struct RecordingSetupSheet: View {
             }
         }
         .interactiveDismissDisabled(website.busy)
+        .alert("Camera settings don’t match", isPresented: Binding(
+            get: { website.qualityMismatch != nil },
+            set: { if !$0 { website.qualityMismatch = nil } }
+        ), presenting: website.qualityMismatch) { mismatch in
+            Button("Match other camera") {
+                camera.quality = mismatch.quality
+                connect(replace: replaceRequested)
+            }
+            Button("Use my settings") { connect(replace: replaceRequested, allowQualityMismatch: true) }
+            Button("Cancel", role: .cancel) { website.qualityMismatch = nil }
+        } message: { mismatch in
+            Text("The \(mismatch.side) camera is set to \(mismatch.quality.title). This phone is set to \(camera.quality.title). Matching settings gives more consistent replays.")
+        }
         .confirmationDialog("Replace the \(side) camera?", isPresented: $website.cameraConflict, titleVisibility: .visible) {
             Button("Replace camera", role: .destructive) { connect(replace: true) }
         } message: { Text("Another phone is assigned to this side. Its unuploaded footage stays on that phone.") }
     }
-    private func connect(replace: Bool = false) {
+    private func connect(replace: Bool = false, allowQualityMismatch: Bool = false) {
+        replaceRequested = replace
         Task {
-            if await website.connect(side: side, camera: camera, replace: replace) {
+            if await website.connect(side: side, camera: camera, replace: replace, allowQualityMismatch: allowQualityMismatch) {
                 onReady(); dismiss()
             }
         }

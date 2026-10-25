@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 const mocks = vi.hoisted(() => ({ query: vi.fn(), admin: vi.fn() }))
+vi.mock("@/lib/video/review-access", () => ({ reviewSessionId: async () => undefined }))
 vi.mock("@/lib/db", () => ({ rawSql: mocks.query }))
 vi.mock("@/lib/admin-session", () => ({ requireAdminSession: mocks.admin }))
 import { POST } from "@/app/api/bash/video/capture/route"
@@ -34,4 +35,34 @@ describe("automatic camera joining", () => {
     expect((await POST(request({ side: "middle" }))).status).toBe(400)
     expect(mocks.query).not.toHaveBeenCalled()
   })
+  it("warns before claiming a mismatched camera position", async () => {
+    mocks.query.mockResolvedValueOnce([{ id }]).mockResolvedValueOnce([{ side: "left", recording_quality: "uhd60" }])
+    const response = await POST(request({ side: "right", quality: "hd30" }))
+    expect(await response.json()).toEqual({ qualityMismatch: { side: "left", quality: "uhd60" } })
+    expect(mocks.query).toHaveBeenCalledTimes(2)
+  })
+  it("allows a matching second camera", async () => {
+    mocks.query.mockResolvedValueOnce([{ id }]).mockResolvedValueOnce([{ side: "left", recording_quality: "hd60" }])
+      .mockResolvedValueOnce([]).mockResolvedValueOnce([{ side: "right" }])
+    expect((await POST(request({ side: "right", quality: "hd60" }))).status).toBe(201)
+  })
+  it("allows the first camera without a peer", async () => {
+    mocks.query.mockResolvedValueOnce([{ id }]).mockResolvedValueOnce([]).mockResolvedValueOnce([]).mockResolvedValueOnce([{ side: "left" }])
+    expect((await POST(request({ side: "left", quality: "hd30" }))).status).toBe(201)
+  })
+  it("allows an explicit mismatch override", async () => {
+    mocks.query.mockResolvedValueOnce([{ id }]).mockResolvedValueOnce([]).mockResolvedValueOnce([{ side: "right" }])
+    expect((await POST(request({ side: "right", quality: "hd30", allowQualityMismatch: true }))).status).toBe(201)
+  })
+  it("rechecks quality when an already paired phone changes its preset", async () => {
+    mocks.query.mockResolvedValueOnce([{ id }]).mockResolvedValueOnce([{ side: "right", recording_quality: "uhd30" }])
+    const response = await POST(request({ side: "left", sessionId: id, token, quality: "hd60" }))
+    expect(await response.json()).toMatchObject({ qualityMismatch: { quality: "uhd30" } })
+    expect(mocks.query).toHaveBeenCalledTimes(2)
+  })
+  it("rejects unsupported quality values", async () => {
+    expect((await POST(request({ side: "left", quality: "8k120" }))).status).toBe(400)
+    expect(mocks.query).not.toHaveBeenCalled()
+  })
+
 })

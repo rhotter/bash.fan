@@ -1,6 +1,15 @@
 import Foundation
 
-private struct ClaimResponse: Decodable { let sessionId: String; let side: String; let token: String }
+struct CameraQualityMismatch: Decodable {
+    let side: String
+    let quality: RecordingQuality
+}
+private struct ClaimResponse: Decodable {
+    let sessionId: String?
+    let side: String?
+    let token: String?
+    let qualityMismatch: CameraQualityMismatch?
+}
 private struct OKResponse: Decodable { let ok: Bool }
 private struct WebsiteError: LocalizedError {
     let status: Int
@@ -14,6 +23,7 @@ final class WebsiteConnection: ObservableObject {
     @Published private(set) var busy = false
     @Published var error: String?
     @Published var cameraConflict = false
+    @Published var qualityMismatch: CameraQualityMismatch?
     // Operator cookies last only for this app session. The PIN is never saved.
     private let session = URLSession(configuration: .ephemeral)
     private var authenticatedServer: URL?
@@ -40,17 +50,21 @@ final class WebsiteConnection: ObservableObject {
             authenticatedServer = server; signedIn = true
         } catch { self.error = error.localizedDescription; signedIn = false }
     }
-    func connect(side: String, camera: CaptureController, replace: Bool = false) async -> Bool {
+    func connect(side: String, camera: CaptureController, replace: Bool = false, allowQualityMismatch: Bool = false) async -> Bool {
         guard let server = authenticatedServer, !busy, !camera.recording else { return false }
-        busy = true; error = nil; cameraConflict = false; defer { busy = false }
+        busy = true; error = nil; cameraConflict = false; qualityMismatch = nil; defer { busy = false }
         do {
-            var body: [String: Any] = ["side": side, "replace": replace]
+            var body: [String: Any] = ["side": side, "replace": replace, "quality": camera.quality.rawValue, "allowQualityMismatch": allowQualityMismatch]
             if let current = camera.pairing, current.server == server, current.side == side {
                 body["sessionId"] = current.session; body["token"] = current.token
             }
             let claim: ClaimResponse = try await call(server, "api/bash/video/capture", body: body)
+            if let mismatch = claim.qualityMismatch { qualityMismatch = mismatch; return false }
+            guard let sessionId = claim.sessionId, let claimedSide = claim.side, let token = claim.token else {
+                throw CaptureError.message("Could not connect this camera.")
+            }
             var link = URLComponents(); link.scheme = "bashcapture"; link.host = "pair"
-            link.queryItems = [URLQueryItem(name: "server", value: server.absoluteString), URLQueryItem(name: "session", value: claim.sessionId), URLQueryItem(name: "side", value: claim.side), URLQueryItem(name: "token", value: claim.token)]
+            link.queryItems = [URLQueryItem(name: "server", value: server.absoluteString), URLQueryItem(name: "session", value: sessionId), URLQueryItem(name: "side", value: claimedSide), URLQueryItem(name: "token", value: token)]
             guard let url = link.url else { throw CaptureError.message("Could not connect this camera.") }
             let pairing = try Pairing(link: url.absoluteString)
             try CameraKeychain.save(pairing); camera.pairing = pairing; camera.configuration = nil

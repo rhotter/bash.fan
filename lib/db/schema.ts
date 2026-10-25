@@ -850,6 +850,7 @@ export const videoCameras = pgTable("video_cameras", {
   side: text("side").notNull(),
   tokenHash: text("token_hash"),
   tokenExpiresAt: timestamp("token_expires_at", { withTimezone: true }),
+  recordingQuality: text("recording_quality").notNull().default("uhd60"),
   deviceName: text("device_name"),
   lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
   recording: boolean("recording").notNull().default(false),
