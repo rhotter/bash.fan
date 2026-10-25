@@ -175,7 +175,7 @@ private struct RecordingSetupSheet: View {
                             HStack {
                                 Spacer()
                                 if website.busy { ProgressView().tint(.white) }
-                                else { Label("Open camera", systemImage: "video.fill").fontWeight(.semibold) }
+                                else { Label("Open camera", systemImage: "video.fill").fontWeight(.semibold).foregroundStyle(.white).tint(.white) }
                                 Spacer()
                             }.padding(.vertical, 6)
                         }.buttonStyle(.borderedProminent).disabled(website.busy || camera.recording)
