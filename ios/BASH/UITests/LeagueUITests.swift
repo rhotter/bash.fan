@@ -156,6 +156,8 @@ final class LeagueUITests: XCTestCase {
         XCTAssertFalse(app.staticTexts["Goals / shots"].exists)
         XCTAssertTrue(app.staticTexts["Shots on goal"].exists)
         XCTAssertFalse(app.buttons["gameTab-Plays"].exists)
+        XCTAssertTrue(app.tabBars.buttons["Scores"].isHittable)
+        XCTAssertTrue(app.tabBars.buttons["Stats"].isHittable)
         capture("Game summary")
         app.buttons["gameTab-Stats"].tap()
         XCTAssertTrue(app.segmentedControls["boxTeam"].waitForExistence(timeout: 5))
@@ -164,6 +166,8 @@ final class LeagueUITests: XCTestCase {
         capture("Game skater stats")
         app.staticTexts["Nicolas Peterson"].tap()
         XCTAssertTrue(app.staticTexts["Season history"].waitForExistence(timeout: 25))
+        XCTAssertTrue(app.tabBars.buttons["Standings"].isHittable)
+        capture("Player with tab bar")
         app.navigationBars.buttons.firstMatch.tap()
         XCTAssertFalse(app.segmentedControls["gameStatType"].exists)
         let goalie = app.staticTexts["Eric Crawford"]

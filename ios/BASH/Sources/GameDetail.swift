@@ -184,7 +184,7 @@ struct GameScreen: View {
                 .refreshable { await load(force: true) }
         }.tint(.primary).navigationTitle(current.dateLabel).navigationBarTitleDisplayMode(.inline)
             .toolbar(.visible, for: .navigationBar)
-            .toolbar(.hidden, for: .tabBar)
+            .toolbar(.visible, for: .tabBar)
             .toolbar { ToolbarItem(placement: .topBarTrailing) { OperatorMenu(games: store.snapshot?.games ?? [], game: current) } }
             .task(id: phase) {
                 guard phase == .active else { return }

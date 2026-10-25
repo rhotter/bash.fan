@@ -202,7 +202,7 @@ struct PlayerScreen: View {
         .tint(.primary)
         .navigationTitle("Player stats").navigationBarTitleDisplayMode(.inline)
         .toolbar(.visible, for: .navigationBar)
-        .toolbar(.hidden, for: .tabBar)
+        .toolbar(.visible, for: .tabBar)
         .onChange(of: playoffs) { selectedSeasonID = nil }
         .task(id: player.id) { await load() }
     }
