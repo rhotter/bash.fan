@@ -4,7 +4,7 @@ import { createContext, useContext, useRef, useState, type ReactNode } from "rea
 import useSWR from "swr"
 import { Play } from "lucide-react"
 import { LiveVideoPlayer } from "@/components/video/live-video-player"
-import { findReplay, type CameraSide, type GameVideoData, type VideoMarker } from "@/lib/video/types"
+import { findReplay, type CameraSide, type GameVideoData, type VideoEventKind, type VideoMarker } from "@/lib/video/types"
 
 async function read(url: string, body?: unknown) {
   const response = await fetch(url, body ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) } : undefined)
@@ -61,12 +61,16 @@ export function GameVideoProvider({ gameId, enabled, children }: { gameId: strin
     play, finishReplay: () => setReplay(null) }}>{children}</Context.Provider>
 }
 
-export function GoalReplayButton({ goalId }: { goalId: string }) {
+export function EventReplayButton({ eventId, kind }: { eventId: string; kind: VideoEventKind }) {
   const video = useContext(Context)
-  const marker = video?.data?.markers.find(m => m.goalId === goalId)
+  const marker = video?.data?.markers.find(m => (m.eventId === eventId && m.eventKind === kind)
+    || (kind === "goal" && m.goalId === eventId))
   const covered = marker && video?.data?.cameras.some(c => findReplay(video.data!.segments, c.side, Date.parse(marker.occurred_at), c.offset_ms))
-  if (!video || !marker || !covered) return null
-  return <button aria-label="Watch goal replay" title="Watch goal replay" disabled={video.busy} onClick={() => video.play(marker)} className="inline-flex shrink-0 items-center gap-1 rounded px-2 py-1 text-[10px] font-semibold text-primary hover:bg-muted disabled:opacity-50"><Play className="size-3" /><span className="hidden sm:inline">Replay</span></button>
+  if (!video?.enabled || !marker || !covered) return null
+  return <button type="button" aria-label={`Play ${kind} replay`} title={`Play ${kind} replay`} disabled={video.busy}
+    onClick={() => video.play(marker)} className="inline-flex size-8 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50">
+    <Play aria-hidden="true" className="size-3.5 fill-current" />
+  </button>
 }
 
 export function GameVideo() {

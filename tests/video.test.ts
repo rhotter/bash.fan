@@ -86,7 +86,24 @@ describe("replay alignment", () => {
       ])
     const response = await sessionDetail(new Request("http://localhost/api/bash/video/test-session"), { params: Promise.resolve({ id }) })
     expect(response.status).toBe(200)
-    expect((await response.json()).markers).toEqual([{ id: "original", label: "Goal · Period 1", occurred_at: original, source: "scorekeeper", goalId: "goal-1" }])
+    expect((await response.json()).markers).toEqual([{ id: "original", label: "Goal · Period 1", occurred_at: original, source: "scorekeeper", goalId: "goal-1", eventId: "goal-1", eventKind: "goal" }])
+  })
+  it("maps penalties independently of goals and ignores removed, edited or invalid observations", async () => {
+    const at = "2026-10-24T20:00:20.000Z"
+    const entry = (id: string, kind: string, action = "add", capturedAt = Date.parse(at)) => ({
+      id: `${kind}-${id}-${action}`, kind, action, capturedAt, period: 1, details: { eventId: id },
+    })
+    mocks.query.mockResolvedValueOnce([{ id, game_id: "g1" }])
+      .mockResolvedValueOnce([]).mockResolvedValueOnce([]).mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ state: { goals: [{ id: "shared" }], penalties: [{ id: "shared" }, { id: "invalid" }], timing: { entries: [
+        entry("shared", "goal"), entry("shared", "penalty"), entry("shared", "penalty", "edit"),
+        entry("removed", "penalty"), entry("invalid", "penalty", "add", NaN),
+      ] } } }]).mockResolvedValueOnce([{ name: null }])
+    const response = await sessionDetail(new Request("http://localhost/api/bash/video/test-session"), { params: Promise.resolve({ id }) })
+    const { markers } = await response.json()
+    expect(markers).toHaveLength(2)
+    expect(markers[0]).toMatchObject({ eventId: "shared", eventKind: "goal", goalId: "shared", occurred_at: at })
+    expect(markers[1]).toEqual({ id: "penalty-shared-add", label: "Penalty · Period 1", occurred_at: at, source: "scorekeeper", eventId: "shared", eventKind: "penalty" })
   })
   const segment: VideoSegment = { id: "one", side: "left", started_at: "2026-10-24T20:00:00Z", duration: 60, bytes: 100, uploaded_at: "2026-10-24T21:00:00Z" }
   it("applies a camera offset and replay lead-in", () => {

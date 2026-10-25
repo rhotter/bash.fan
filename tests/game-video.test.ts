@@ -32,13 +32,14 @@ describe("game-scoped viewing", () => {
     mocks.query.mockResolvedValueOnce([session])
     mocks.detail.mockResolvedValueOnce({ cameras: [{ side: "left", offset_ms: 0, streaming: true, last_seen_at: new Date().toISOString(), stream_input_id: "private-input", token_hash: "private-hash", device_name: "Private phone", error: "private-error" }],
       segments: [{ id: segmentId, side: "left", started_at: session.created_at, duration: 60, bytes: 100, uploaded_at: session.created_at, object_key: "private-key" }, { id: "pending", uploaded_at: null }],
-      markers: [{ id: "goal", label: "Goal", occurred_at: session.created_at, source: "scorekeeper", goalId: "goal-1", details: { private: true } }],
+      markers: [{ id: "goal", label: "Goal", occurred_at: session.created_at, source: "scorekeeper", goalId: "goal-1", details: { private: true } }, { id: "penalty", label: "Penalty", occurred_at: session.created_at, source: "scorekeeper", eventId: "penalty-1", eventKind: "penalty", details: { private: true } }],
     })
     const response = await GET(new Request("http://localhost/api/bash/game/g70/video"), context)
     const data = await response.json()
     expect(data.cameras).toEqual([{ side: "left", offset_ms: 0, live: true }])
     expect(data.segments).toHaveLength(1)
     expect(data.markers[0].goalId).toBe("goal-1")
+    expect(data.markers[1]).toEqual({ id: "penalty", label: "Penalty", occurred_at: session.created_at, source: "scorekeeper", eventId: "penalty-1", eventKind: "penalty" })
     expect(JSON.stringify(data)).not.toMatch(/private|Private|pending/)
   })
   it("does not grant playback for a recording from another game", async () => {

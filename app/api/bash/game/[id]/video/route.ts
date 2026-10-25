@@ -30,7 +30,8 @@ export async function GET(request: Request, context: Context) { return videoHand
       live: !!c.stream_input_id && c.streaming && !!c.last_seen_at && Date.now() - Date.parse(c.last_seen_at) < 25000 && !session.ended_at })),
     segments: detail.segments.filter(s => s.uploaded_at).map(s => ({ id: s.id, side: s.side,
       started_at: s.started_at, duration: s.duration, bytes: s.bytes, uploaded_at: s.uploaded_at })),
-    markers: detail.markers.map(m => ({ id: m.id, label: m.label, occurred_at: m.occurred_at, source: m.source, goalId: m.goalId })),
+    markers: detail.markers.map(m => ({ id: m.id, label: m.label, occurred_at: m.occurred_at, source: m.source,
+      eventId: m.eventId, eventKind: m.eventKind, goalId: m.goalId })),
   } satisfies GameVideoData)
 }) }
 

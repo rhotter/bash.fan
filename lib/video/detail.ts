@@ -20,23 +20,30 @@ export async function readVideoDetail(id: string): Promise<VideoDetail> {
   if (session.game_id) {
     const [live] = await rawSql(sql`SELECT state FROM game_live WHERE game_id = ${session.game_id}`)
     const state = live?.state as LiveGameState | undefined
-    const goals = new Set(state?.goals?.map(g => g.id) ?? [])
+    const events = {
+      goal: new Set(state?.goals?.map(g => g.id) ?? []),
+      penalty: new Set(state?.penalties?.map(p => p.id) ?? []),
+    }
     const entries: GameTimingEntry[] = [...(state?.timing?.entries ?? [])]
     // Support both the original JSON history and the append-only timing migration.
     const [timingTable] = await rawSql(sql`SELECT to_regclass('public.game_timing_events') AS name`)
     if (timingTable?.name) {
       const history = await rawSql(sql`SELECT entry_id, kind, action, captured_at, recorded_at, source, period, clock_seconds, details
-        FROM game_timing_events WHERE game_id = ${session.game_id} AND kind = 'goal' AND action = 'add' ORDER BY received_at`)
+        FROM game_timing_events WHERE game_id = ${session.game_id} AND kind IN ('goal', 'penalty') AND action = 'add' ORDER BY received_at`)
       entries.unshift(...history.map(e => ({ id: e.entry_id, kind: e.kind, action: e.action,
         capturedAt: Date.parse(e.captured_at), recordedAt: Date.parse(e.recorded_at), source: e.source,
         period: e.period, clockSeconds: e.clock_seconds, details: e.details } as GameTimingEntry)))
     }
     const seen = new Set<string>()
     for (const entry of entries) {
-      const eventId = String(entry.details.eventId)
-      if (entry.kind !== "goal" || entry.action !== "add" || !goals.has(eventId) || seen.has(eventId)) continue
-      seen.add(eventId)
-      markers.push({ id: entry.id, label: `Goal · Period ${entry.period}`, occurred_at: new Date(entry.capturedAt).toISOString(), source: "scorekeeper", goalId: eventId })
+      if (entry.kind !== "goal" && entry.kind !== "penalty") continue
+      const eventId = String(entry.details?.eventId)
+      const key = `${entry.kind}:${eventId}`
+      if (entry.action !== "add" || !events[entry.kind].has(eventId) || seen.has(key) || !Number.isFinite(entry.capturedAt)) continue
+      seen.add(key)
+      markers.push({ id: entry.id, label: `${entry.kind === "goal" ? "Goal" : "Penalty"} · Period ${entry.period}`,
+        occurred_at: new Date(entry.capturedAt).toISOString(), source: "scorekeeper", eventId, eventKind: entry.kind,
+        ...(entry.kind === "goal" ? { goalId: eventId } : {}) })
     }
   }
   markers.sort((a, b) => Date.parse(a.occurred_at) - Date.parse(b.occurred_at))

@@ -9,7 +9,11 @@ export interface VideoSegment {
   id: string; side: CameraSide; started_at: string; duration: number; bytes: number;
   uploaded_at: string | null; playbackUrl?: string;
 }
-export interface VideoMarker { id: string; label: string; occurred_at: string; source: string; goalId?: string }
+export type VideoEventKind = "goal" | "penalty"
+export interface VideoMarker {
+  id: string; label: string; occurred_at: string; source: string;
+  eventId?: string; eventKind?: VideoEventKind; goalId?: string;
+}
 export interface VideoDetail {
   session: VideoSession; cameras: VideoCamera[]; segments: VideoSegment[]; markers: VideoMarker[];
   configured: { r2: boolean; stream: boolean };

@@ -1,6 +1,6 @@
 # BASH Capture development
 
-The iPhone application is in `ios/BASHCapture`. Recording setup and camera management exist only in the iPhone app. Each existing score page, `/game/[id]`, provides viewing: livestreams, uploaded recordings and goal replays. Operators connect through the app using the existing league PIN. There is no standalone video page. This is a development implementation: R2 upload and retrieval and Stream ingest have been verified with synthetic footage. Short synthetic live playback now works in Chrome. Game-length playback and physical camera performance still require validation before a game.
+The iPhone application is in `ios/BASHCapture`. Recording setup and camera management exist only in the iPhone app. Each existing score page, `/game/[id]`, provides viewing: livestreams, uploaded recordings and event replays. Operators connect through the app using the existing league PIN. There is no standalone video page. This is a development implementation: R2 upload and retrieval and Stream ingest have been verified with synthetic footage. Short synthetic live playback now works in Chrome. Game-length playback and physical camera performance still require validation before a game.
 
 ## Run the dashboard
 
@@ -9,7 +9,7 @@ The iPhone application is in `ios/BASHCapture`. Recording setup and camera manag
 3. Run `VIDEO_ENABLED=1 DB_TARGET=dev pnpm dev --hostname 0.0.0.0 --port 3002`.
 4. Connect the iPhone app to this dev server with the existing league PIN, select a game, and choose a camera side. New recordings are automatically linked to that game. Open its score page on the website to watch.
 
-The dashboard uses the public BASH header/footer, max-w-6xl page width, compact typography, neutral selection pills, and shared theme tokens. The website has no recording setup, camera pairing, live provisioning or session-ending controls, including for administrators. Covered goals have replay buttons in the scoring summary. No simulated recording or stream status is displayed. The feature is disabled unless `VIDEO_ENABLED=1`.
+The dashboard uses the public BASH header/footer, max-w-6xl page width, compact typography, neutral selection pills, and shared theme tokens. The website has no recording setup, camera pairing, live provisioning or session-ending controls, including for administrators. Covered goals and penalties have play buttons beside their event rows. No simulated recording or stream status is displayed. The feature is disabled unless `VIDEO_ENABLED=1`.
 
 ## Cloudflare setup
 
@@ -61,9 +61,9 @@ Before capture, the phone samples the authenticated clock endpoint five times. T
 
 These remain recording-request timestamps, not measured first-frame timestamps. The clock estimate is not frame-accurate synchronization or an accuracy guarantee: first-frame latency, long-term clock drift, network asymmetry and scorekeeper reaction delay remain. Playback applies stored camera offsets (positive means camera timestamps are ahead of event timestamps); an in-app offset editor is not implemented yet. See [the fusion plan](video-fusion.md) for audio alignment, calibration and live processing.
 
-Manual highlight markers are stored in `video_markers`. For linked games, the backend reads original `add` observations from `game_timing_events` (when migrated), falling back to legacy `game_live.state.timing` entries, for goals still present in the game. Later scoring edits don't silently replace the original observation. It never exposes the entire private timing history publicly.
+Manual highlight markers are stored in `video_markers`. For linked games, the backend reads original `add` observations from `game_timing_events` (when migrated), falling back to legacy `game_live.state.timing` entries, for goals and penalties still present in the game. Later scoring edits don't silently replace the original observation. It never exposes the entire private timing history publicly.
 
-Selecting a covered goal replay seeks into the corresponding uploaded segment with up to ten seconds of lead-in. Missing coverage produces an explicit message rather than jumping to unrelated footage. Lead-in is currently bounded to that segment; continuous multi-segment playback and frame-accurate camera switching are future work. HEVC browser support varies; Safari is recommended for the dev replay view. A broadly compatible H.264/HLS viewing derivative remains to be added.
+Selecting a covered event replay seeks into the corresponding uploaded segment with up to ten seconds of lead-in. Events without timestamped footage have no play button. Lead-in is currently bounded to that segment; continuous multi-segment playback and frame-accurate camera switching are future work. HEVC browser support varies; Safari is recommended for the dev replay view. A broadly compatible H.264/HLS viewing derivative remains to be added.
 
 ## Camera fusion and Android
 
@@ -79,7 +79,7 @@ Cloudflare Stream is activated with 1,000 stored video minutes at $5/month, plus
 
 The initial development R2 and Stream credentials expire November 23, 2026. Renew the scoped credentials before testing after that date. Credentials belong only in the ignored server environment, not in this document or the iPhone application.
 
-`pnpm exec vitest run tests/video.test.ts tests/game-video.test.ts tests/video-games.test.ts` runs 27 tests covering authorization, expired credentials, upload verification, retry/id collisions, payload limits, replay gaps/offsets, game-scoped viewing, public metadata redaction, native game selection, camera claim isolation and clock responses. Run `pnpm exec tsc --noEmit` and the simulator build above. Before field use: verify two physical cameras, actual 4K dimensions, audio/video sync, stream disconnect/reconnect, R2 byte checks, interrupted uploads, app restart recovery, clock correction and full two-hour thermal/storage behavior.
+`pnpm exec vitest run tests/video.test.ts tests/game-video.test.ts tests/video-games.test.ts` runs 28 tests covering authorization, expired credentials, upload verification, retry/id collisions, payload limits, replay gaps/offsets, game-scoped viewing, public metadata redaction, native game selection, camera claim isolation and clock responses. Run `pnpm exec tsc --noEmit` and the simulator build above. Before field use: verify two physical cameras, actual 4K dimensions, audio/video sync, stream disconnect/reconnect, R2 byte checks, interrupted uploads, app restart recovery, clock correction and full two-hour thermal/storage behavior.
 
 The video layout was checked in Chrome and a narrow in-app browser viewport after switching to the public site shell. The standalone routes have been removed. Viewer metadata and signed playback are scoped to the game; admin APIs still require authentication. TypeScript, targeted ESLint, video tests, and the updated iOS simulator build passed.
 

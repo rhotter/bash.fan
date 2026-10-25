@@ -1,6 +1,6 @@
 "use client"
 
-import { GameVideo, GoalReplayButton } from "@/components/video/game-video"
+import { GameVideo, EventReplayButton } from "@/components/video/game-video"
 import { ErrorNotice } from "@/components/error-notice"
 import { LoadingState } from "@/components/loading-state"
 import { useState, useMemo, useEffect } from "react"
@@ -634,7 +634,7 @@ function EventLog({ state, homeSlug, awaySlug, homeTeam, awayTeam, playerNames, 
                           <span className="text-[9px] text-muted-foreground/60">{g.flags.join(", ")}</span>
                         )}
                       </div>
-                      <GoalReplayButton goalId={g.id} />
+                      <EventReplayButton eventId={g.id} kind="goal" />
                       {score && (
                         <span className="text-[11px] font-bold tabular-nums font-mono text-foreground shrink-0 w-10 text-right">
                           {score.away}-{score.home}
@@ -688,6 +688,7 @@ function PenaltyLog({ state, homeSlug, awaySlug: _awaySlug, homeTeam, awayTeam, 
                       <span className="text-muted-foreground"> — {p.infraction} ({p.minutes} min)</span>
                     </div>
                   </div>
+                  <EventReplayButton eventId={p.id} kind="penalty" />
                   <span className="text-[10px] text-muted-foreground/40 tabular-nums font-mono shrink-0 w-10 text-right">{clockToElapsedDisplay(p.clock, p.period)}</span>
                 </div>
               ))}
