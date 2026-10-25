@@ -229,6 +229,7 @@ private struct RecordingSetupSheet: View {
                 camera.quality = mismatch.quality
                 connect(replace: replaceRequested)
             }
+            .keyboardShortcut(.defaultAction)
             Button("Use my settings") { connect(replace: replaceRequested, allowQualityMismatch: true) }
             Button("Cancel", role: .cancel) { website.qualityMismatch = nil }
         } message: { mismatch in
