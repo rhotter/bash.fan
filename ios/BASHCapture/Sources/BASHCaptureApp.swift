@@ -39,10 +39,10 @@ struct CaptureHome: View {
     @ObservedObject var camera: CaptureController
     @ObservedObject var library: RecordingLibrary
     @ObservedObject var website: WebsiteConnection
-    @State private var pin = ""
     @State private var showUploads = false
+    @State private var showSetup = false
     @State private var showCamera = false
-    @AppStorage("captureSide") private var side = "left"
+    @State private var cameraAfterSetup = false
 
     var body: some View {
         NavigationStack {
@@ -57,7 +57,7 @@ struct CaptureHome: View {
                     }.padding(.vertical, 12)
                 }.listRowBackground(Color.clear).listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
 
-                if !library.recordings.isEmpty {
+                if library.uploading || library.pending > 0 || library.error != nil {
                     Section {
                         Button { showUploads = true } label: {
                             HStack(spacing: 12) {
@@ -73,6 +73,40 @@ struct CaptureHome: View {
                         }.buttonStyle(.plain)
                     }
                 }
+                Section {
+                    Button { showSetup = true } label: {
+                        Label("Set up recording", systemImage: "video.fill")
+                            .fontWeight(.semibold)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 6)
+                    }.buttonStyle(.borderedProminent).disabled(camera.recording)
+                }.listRowBackground(Color.clear).listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
+            }
+            .navigationTitle("BASH Capture")
+            .refreshable { await camera.refreshConfiguration(); await library.uploadPending() }
+        }
+        .sheet(isPresented: $showUploads) { UploadStatusSheet(library: library) }
+        .sheet(isPresented: $showSetup, onDismiss: {
+            if cameraAfterSetup { cameraAfterSetup = false; showCamera = true }
+        }) {
+            RecordingSetupSheet(camera: camera, website: website) { cameraAfterSetup = true }
+        }
+        .fullScreenCover(isPresented: $showCamera) { NativeCameraView(camera: camera, library: library) }
+        .task { await library.recoverInterrupted(); await camera.refreshConfiguration(); await library.uploadPending() }
+    }
+}
+
+private struct RecordingSetupSheet: View {
+    @ObservedObject var camera: CaptureController
+    @ObservedObject var website: WebsiteConnection
+    let onReady: () -> Void
+    @Environment(\.dismiss) private var dismiss
+    @State private var pin = ""
+    @AppStorage("captureSide") private var side = "left"
+
+    var body: some View {
+        NavigationStack {
+            Form {
                 if website.signedIn {
                     Section {
                         Picker("Camera position", selection: $side) {
@@ -109,18 +143,25 @@ struct CaptureHome: View {
                     }
                 }
             }
-            .navigationTitle("BASH Capture")
-            .refreshable { await camera.refreshConfiguration(); await library.uploadPending() }
+            .navigationTitle("Set up recording")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }.disabled(website.busy)
+                }
+            }
         }
-        .sheet(isPresented: $showUploads) { UploadStatusSheet(library: library) }
+        .interactiveDismissDisabled(website.busy)
         .confirmationDialog("Replace the \(side) camera?", isPresented: $website.cameraConflict, titleVisibility: .visible) {
             Button("Replace camera", role: .destructive) { connect(replace: true) }
         } message: { Text("Another phone is assigned to this side. Its unuploaded footage stays on that phone.") }
-        .fullScreenCover(isPresented: $showCamera) { NativeCameraView(camera: camera, library: library) }
-        .task { await library.recoverInterrupted(); await camera.refreshConfiguration(); await library.uploadPending() }
     }
     private func connect(replace: Bool = false) {
-        Task { if await website.connect(side: side, camera: camera, replace: replace) { showCamera = true } }
+        Task {
+            if await website.connect(side: side, camera: camera, replace: replace) {
+                onReady(); dismiss()
+            }
+        }
     }
     private func signIn() {
         guard !pin.isEmpty, !website.busy else { return }
