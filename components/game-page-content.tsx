@@ -47,7 +47,7 @@ export function GamePageContent({ initialDetail, initialLiveData, homeRoster, aw
   }
 
   return (
-    <GameVideoProvider key={game.id} gameId={game.id} gameTitle={`${game.awayTeam} at ${game.homeTeam}`} enabled={videoEnabled}>
+    <GameVideoProvider key={game.id} gameId={game.id} enabled={videoEnabled}>
     <GameDetail
       game={game}
       initialDetail={initialDetail}

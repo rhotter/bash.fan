@@ -21,7 +21,7 @@ export function LiveVideoPlayer({ url, label }: { url: string; label: string }) 
     const unavailable = () => {
       if (disposed) return
       setFailed(true)
-      setStatus("Stream unavailable. Check that the camera is broadcasting, then retry.")
+      setStatus("Video is temporarily unavailable.")
     }
     let started = false
     const play = () => {

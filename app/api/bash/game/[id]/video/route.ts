@@ -13,7 +13,11 @@ function enabled() { if (process.env.VIDEO_ENABLED !== "1") fail("Video is not e
 export async function GET(request: Request, context: Context) { return videoHandler(async () => {
   enabled()
   const { id } = await context.params
-  const sessions = await rawSql(sql`SELECT id, game_id, title, created_at, ended_at FROM video_sessions WHERE game_id = ${id} ORDER BY created_at DESC LIMIT 100`) as VideoSession[]
+  const sessions = await rawSql(sql`SELECT id, game_id, title, created_at, ended_at FROM video_sessions s WHERE game_id = ${id}
+    ORDER BY EXISTS (SELECT 1 FROM video_cameras c WHERE c.session_id = s.id AND s.ended_at IS NULL
+      AND c.stream_input_id IS NOT NULL AND c.streaming AND c.last_seen_at > now() - interval '25 seconds') DESC,
+      EXISTS (SELECT 1 FROM video_segments v WHERE v.session_id = s.id AND v.uploaded_at IS NOT NULL) DESC,
+      created_at DESC LIMIT 100`) as VideoSession[]
   const requested = new URL(request.url).searchParams.get("session")
   const session = requested ? sessions.find(s => s.id === requested) : sessions[0]
   if (requested && !session) fail("Recording not found for this game", 404)

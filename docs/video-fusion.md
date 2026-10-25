@@ -1,6 +1,6 @@
 # Two-phone fusion
 
-The mount is fixed at center rink, with overlapping views from two recent iPhones. Capture remains native on each phone; a separate processor aligns and combines the images. R2 holds the originals. Cloudflare Stream handles delivery; it does not perform this stitching. The current app and website still publish and play independent left/right views. No fusion worker is implemented or deployed yet.
+The mount is fixed at center rink, with overlapping views from two recent iPhones. Capture remains native on each phone; a separate processor aligns and combines the images. R2 holds the originals. Cloudflare Stream handles delivery; it does not perform this stitching. The app still publishes independent left/right feeds. The website automatically displays one available feed in a single player, with no camera controls. No fusion worker is implemented or deployed yet.
 
 ## Capture setup
 
