@@ -56,10 +56,7 @@ struct CaptureHome: View {
                 Section {
                     HStack(spacing: 16) {
                         Image("BASHBadge").resizable().scaledToFit().frame(width: 76, height: 76).accessibilityHidden(true)
-                        VStack(alignment: .leading, spacing: 5) {
-                            Text("RINKSIDE").font(.caption.weight(.bold)).tracking(2).foregroundStyle(BASHStyle.orange)
-                            Text("You record.\nWe’ll take it from here.").font(.title3.weight(.bold))
-                        }
+                        Text("RINKSIDE").font(.caption.weight(.bold)).tracking(2).foregroundStyle(BASHStyle.orange)
                     }.padding(.vertical, 12)
                 }.listRowBackground(Color.clear).listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
 

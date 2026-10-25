@@ -20,7 +20,7 @@ targets:
         CODE_SIGN_STYLE: Automatic
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         MARKETING_VERSION: "1.0"
-        CURRENT_PROJECT_VERSION: "1"
+        CURRENT_PROJECT_VERSION: "2"
         SWIFT_VERSION: "6.0"
         TARGETED_DEVICE_FAMILY: "1"
         GENERATE_INFOPLIST_FILE: YES
@@ -33,6 +33,8 @@ targets:
       path: Info.plist
       properties:
         BASHServerURL: $(BASH_SERVER_URL)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        CFBundleShortVersionString: $(MARKETING_VERSION)
         ITSAppUsesNonExemptEncryption: false
         UILaunchScreen: {}
         UIFileSharingEnabled: true
