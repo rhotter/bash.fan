@@ -102,7 +102,7 @@ struct CaptureHome: View {
                 .clipShape(Circle().inset(by: size * 0.084))
                 .shadow(color: .black.opacity(0.08), radius: 20, y: 8)
                 .accessibilityHidden(true)
-            Text("Welcome to BASH")
+            Text("BASH Video Recorder")
                 .font(.largeTitle.weight(.bold))
                 .multilineTextAlignment(.center)
                 .accessibilityAddTraits(.isHeader)
