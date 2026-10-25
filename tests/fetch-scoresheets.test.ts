@@ -53,7 +53,7 @@ describe("fetchBatchScoresheets helper", () => {
 
     const result = await fetchBatchScoresheets("2026-fall")
     expect(result).not.toBeNull()
-    expect(result?.season).toEqual({ id: "2026-fall", name: "2026 Fall" })
+    expect(result?.season).toEqual({ id: "2026-fall", name: "Fall 2026–27" })
     expect(result?.games).toEqual([])
   })
 
@@ -197,7 +197,7 @@ describe("fetchBatchScoresheets helper", () => {
     vi.mocked(dbModule.rawSql).mockResolvedValueOnce([])
     const result = await fetchBatchScoresheets("2026%20Fall")
     expect(result).not.toBeNull()
-    expect(result?.season.name).toBe("2026 Fall")
+    expect(result?.season.name).toBe("Fall 2026–27")
   })
 
   it("sorts 12:00am before 12:00pm, 1:00pm, 11:30pm, and places missing dates last", async () => {

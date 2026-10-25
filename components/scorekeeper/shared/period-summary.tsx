@@ -1,10 +1,10 @@
-import type { LiveGameState } from "@/lib/scorekeeper-types"
+import { type LiveGameState } from "@/lib/scorekeeper-types"
 
-export function PeriodSummary({ state, homeSlug, awaySlug, homeTeam, awayTeam }: {
-  state: LiveGameState; homeSlug: string; awaySlug: string; homeTeam: string; awayTeam: string
+export function PeriodSummary({ state, homeSlug, awaySlug, homeTeam, awayTeam, isPlayoff = false }: {
+  isPlayoff?: boolean; state: LiveGameState; homeSlug: string; awaySlug: string; homeTeam: string; awayTeam: string
 }) {
   const periods = Math.max(state.period, 3)
-  const periodHeaders = Array.from({ length: Math.min(periods, 5) }, (_, i) => {
+  const periodHeaders = Array.from({ length: Math.min(periods, isPlayoff ? 4 : 5) }, (_, i) => {
     const p = i + 1
     if (p <= 3) return `P${p}`
     if (p === 4) return "OT"
@@ -12,14 +12,15 @@ export function PeriodSummary({ state, homeSlug, awaySlug, homeTeam, awayTeam }:
   })
 
   const awayGoals = periodHeaders.map((_, i) =>
-    state.goals.filter((g) => g.team === awaySlug && g.period === i + 1).length
+    state.goals.filter((g) => g.team === awaySlug && (isPlayoff && i === 3 ? g.period >= 4 : g.period === i + 1)).length
   )
   const homeGoals = periodHeaders.map((_, i) =>
-    state.goals.filter((g) => g.team === homeSlug && g.period === i + 1).length
+    state.goals.filter((g) => g.team === homeSlug && (isPlayoff && i === 3 ? g.period >= 4 : g.period === i + 1)).length
   )
 
   return (
     <div className="overflow-x-auto">
+      {isPlayoff && periods > 4 && <p className="text-[10px] text-muted-foreground">OT totals include all overtime periods.</p>}
       <table className="w-full text-[11px]">
         <thead>
           <tr className="text-[9px] uppercase tracking-wider text-muted-foreground/50">
@@ -57,15 +58,15 @@ export function PeriodSummary({ state, homeSlug, awaySlug, homeTeam, awayTeam }:
           </tr>
           <tr className="border-t border-border/20">
             <td className="py-1.5 pr-2 text-muted-foreground">{awayTeam}</td>
-            {state.awayShots.slice(0, periodHeaders.length).map((s, i) => (
-              <td key={i} className="text-center tabular-nums font-mono py-1.5 px-2 text-muted-foreground">{s}</td>
+            {periodHeaders.map((_, i) => (
+              <td key={i} className="text-center tabular-nums font-mono py-1.5 px-2 text-muted-foreground">{state.awayShots[i] ?? "—"}</td>
             ))}
             <td className="text-center tabular-nums font-mono py-1.5 px-2 font-bold">{state.awayShots.reduce((a, b) => a + b, 0)}</td>
           </tr>
           <tr className="border-t border-border/20">
             <td className="py-1.5 pr-2 text-muted-foreground">{homeTeam}</td>
-            {state.homeShots.slice(0, periodHeaders.length).map((s, i) => (
-              <td key={i} className="text-center tabular-nums font-mono py-1.5 px-2 text-muted-foreground">{s}</td>
+            {periodHeaders.map((_, i) => (
+              <td key={i} className="text-center tabular-nums font-mono py-1.5 px-2 text-muted-foreground">{state.homeShots[i] ?? "—"}</td>
             ))}
             <td className="text-center tabular-nums font-mono py-1.5 px-2 font-bold">{state.homeShots.reduce((a, b) => a + b, 0)}</td>
           </tr>

@@ -108,6 +108,11 @@ export async function POST(
     if (proposed && !isDeepStrictEqual(withoutGameTiming(proposed.expectedState), withoutGameTiming(storedState))) {
       return NextResponse.json({ error: "Live scoring changed before finalization; reload and try again" }, { status: 409 })
     }
+    const expectedRevision = request.headers.get("x-state-revision")
+    if (!proposed && !retryingFailedFinalization && storedState.revision !== undefined &&
+      expectedRevision !== String(storedState.revision)) {
+      return NextResponse.json({ error: "Live scoring changed before finalization; reload and try again" }, { status: 409 })
+    }
     const correctionTime = Date.now()
     const state: AuditedState = proposed
       ? { ...withoutGameTiming(proposed.state), ...(storedState.timing ? { timing: storedState.timing } : {}), updatedAt: correctionTime }
@@ -170,7 +175,7 @@ export async function POST(
         !storedState.homeAttendance.includes(storedState.homeGoalieId) || !storedState.awayAttendance.includes(storedState.awayGoalieId)) {
         return NextResponse.json({ error: "The original live history is incomplete; only shot-only corrections can be saved safely" }, { status: 409 })
       }
-      if (!retryingFailedFinalization && !storedState.goals.some((goal) => goal.period <= 4)) {
+      if (!retryingFailedFinalization && !storedState.goals.some((goal) => (game.isPlayoff || goal.period <= 4))) {
         const homeSO = storedState.shootout?.homeAttempts.filter((attempt) => attempt.scored).length ?? 0
         const awaySO = storedState.shootout?.awayAttempts.filter((attempt) => attempt.scored).length ?? 0
         if ((game.homeScore ?? 0) !== Number(homeSO > awaySO) || (game.awayScore ?? 0) !== Number(awaySO > homeSO)) {
@@ -188,7 +193,7 @@ export async function POST(
       state.homeAttendance.length === 0 || state.awayAttendance.length === 0 ||
       !isPlayerId(state.homeGoalieId) || !isPlayerId(state.awayGoalieId) ||
       !state.homeAttendance.includes(state.homeGoalieId) || !state.awayAttendance.includes(state.awayGoalieId) ||
-      !Number.isInteger(state.period) || state.period < 1 || state.period > 5) {
+      !Number.isInteger(state.period) || state.period < 1 || state.period > (game.isPlayoff ? 100 : 5)) {
       return NextResponse.json({ error: incompleteError }, { status: incompleteStatus })
     }
     const attendance = [...state.homeAttendance, ...state.awayAttendance]
@@ -200,7 +205,7 @@ export async function POST(
       if (error) return NextResponse.json({ error }, { status: 400 })
     }
     if (state.goals.some((goal) => !goal || ![homeSlug, awaySlug].includes(goal.team) ||
-      !Number.isInteger(goal.period) || goal.period < 1 || goal.period > 5 ||
+      !Number.isInteger(goal.period) || goal.period < 1 || goal.period > (game.isPlayoff ? state.period : 5) ||
       typeof goal.clock !== "string" || !isPlayerId(goal.scorerId) || !Array.isArray(goal.flags))) {
       return NextResponse.json({ error: "Goal history contains an invalid event" }, { status: 400 })
     }
@@ -213,7 +218,7 @@ export async function POST(
     if (!Array.isArray(state.goalieChanges ?? []) || !Array.isArray(state.goaliePulls ?? []) ||
       (state.goalieChanges ?? []).some((change) => !change || ![homeSlug, awaySlug].includes(change.team) ||
         !isPlayerId(change.outGoalieId) || !isPlayerId(change.inGoalieId) ||
-        typeof change.clock !== "string" || !Number.isInteger(change.period) || change.period < 1 || change.period > 4 ||
+        typeof change.clock !== "string" || !Number.isInteger(change.period) || change.period < 1 || change.period > (game.isPlayoff ? state.period : 4) ||
         !(change.team === homeSlug ? state.homeAttendance : state.awayAttendance).includes(change.outGoalieId) ||
         !(change.team === homeSlug ? state.homeAttendance : state.awayAttendance).includes(change.inGoalieId))) {
       return NextResponse.json({ error: "Goalie substitution history is incomplete or invalid" }, { status: incompleteStatus })
@@ -224,18 +229,22 @@ export async function POST(
       state.penalties.some((penalty) => !penalty || !isPlayerId(penalty.playerId) || ![homeSlug, awaySlug].includes(penalty.team) ||
         !Number.isSafeInteger(penalty.minutes) || penalty.minutes < 0) ||
       (state.goaliePulls ?? []).some((pull) => !pull || ![homeSlug, awaySlug].includes(pull.team) ||
-        !Number.isInteger(pull.period) || pull.period < 1 || pull.period > 4 || typeof pull.pulledAt !== "string" ||
+        !Number.isInteger(pull.period) || pull.period < 1 || pull.period > (game.isPlayoff ? state.period : 4) || typeof pull.pulledAt !== "string" ||
         (pull.returnedAt != null && typeof pull.returnedAt !== "string")) ||
       (state.shootout != null && (!Array.isArray(state.shootout.homeAttempts) || !Array.isArray(state.shootout.awayAttempts) ||
         [...state.shootout.homeAttempts, ...state.shootout.awayAttempts].some((attempt) => !attempt || !isPlayerId(attempt.playerId) || typeof attempt.scored !== "boolean")))) {
       return NextResponse.json({ error: "Live scoring contains invalid officials, penalties, goalie pulls, or shootout data" }, { status: 400 })
     }
 
+    if (game.isPlayoff && state.shootout) {
+      return NextResponse.json({ error: "Playoff games use overtime, not a shootout" }, { status: 400 })
+    }
+
     // 3. Compute scores from goals (excluding period 5 shootout)
     let homeScore = 0
     let awayScore = 0
     for (const goal of state.goals) {
-      if (goal.period <= 4) {
+      if ((game.isPlayoff || goal.period <= 4)) {
         if (goal.team === homeSlug) homeScore++
         else if (goal.team === awaySlug) awayScore++
       }
@@ -253,7 +262,7 @@ export async function POST(
     // A result imported without its live events is not a blank scoresheet.
     // Reject the known destructive reset case, while allowing complete-looking
     // nonempty histories to correct goal events (and therefore the score).
-    if (!proposed && !retryingFailedFinalization && hasOfficialResult && !state.goals.some((goal) => goal.period <= 4) &&
+    if (!proposed && !retryingFailedFinalization && hasOfficialResult && !state.goals.some((goal) => (game.isPlayoff || goal.period <= 4)) &&
       (homeScore !== (game.homeScore ?? 0) || awayScore !== (game.awayScore ?? 0))) {
       return NextResponse.json({ error: "Live goal history does not match the official result; restore it before re-finalizing" }, { status: 409 })
     }
@@ -309,7 +318,7 @@ export async function POST(
 
     // Count goals & assists (exclude shootout goals in period 5)
     for (const goal of state.goals) {
-      if (goal.period >= 5) continue // shootout - don't count in stats
+      if (!game.isPlayoff && goal.period >= 5) continue // shootout - don't count in stats
 
       const scorer = getOrCreate(goal.scorerId)
       scorer.goals++
@@ -347,7 +356,7 @@ export async function POST(
       // Simplified: the (losingScore + 1)th goal by the winning team
       let count = 0
       for (const goal of state.goals) {
-        if (goal.team === winningTeam && goal.period <= 4) {
+        if (goal.team === winningTeam && (game.isPlayoff || goal.period <= 4)) {
           count++
           if (count === losingScore + 1) {
             gwgScorerId = goal.scorerId
@@ -360,7 +369,7 @@ export async function POST(
     // 7. Determine hat tricks
     const goalCounts = new Map<number, number>()
     for (const goal of state.goals) {
-      if (goal.period >= 5) continue
+      if (!game.isPlayoff && goal.period >= 5) continue
       goalCounts.set(goal.scorerId, (goalCounts.get(goal.scorerId) || 0) + 1)
     }
 
@@ -420,7 +429,7 @@ export async function POST(
       }
     }
 
-    fillMissingGoalieShots(state, homeSlug, awaySlug)
+    fillMissingGoalieShots(state, homeSlug, awaySlug, game.isPlayoff)
 
     // Helper: compute per-goalie stats for a team
     function computeTeamGoalieStats(
@@ -543,17 +552,17 @@ export async function POST(
 
     // Team SOG includes ENGs, but an empty-net goal is neither a shot faced
     // nor a save by a goalie. Never manufacture extra saves from ENG shots.
-    const homeEmptyNetGoals = state.goals.filter((g) => g.team === homeSlug && g.period <= 4 && g.flags.includes("ENG")).length
-    const awayEmptyNetGoals = state.goals.filter((g) => g.team === awaySlug && g.period <= 4 && g.flags.includes("ENG")).length
+    const homeEmptyNetGoals = state.goals.filter((g) => g.team === homeSlug && (game.isPlayoff || g.period <= 4) && g.flags.includes("ENG")).length
+    const awayEmptyNetGoals = state.goals.filter((g) => g.team === awaySlug && (game.isPlayoff || g.period <= 4) && g.flags.includes("ENG")).length
 
     const homeGoalieStats = computeTeamGoalieStats(
       homeSlug, state.homeAttendance,
-      state.goals.filter((g) => g.team === awaySlug && g.period <= 4 && !g.flags.includes("ENG")),
+      state.goals.filter((g) => g.team === awaySlug && (game.isPlayoff || g.period <= 4) && !g.flags.includes("ENG")),
       totalAwayShots - awayEmptyNetGoals, true
     )
     const awayGoalieStats = computeTeamGoalieStats(
       awaySlug, state.awayAttendance,
-      state.goals.filter((g) => g.team === homeSlug && g.period <= 4 && !g.flags.includes("ENG")),
+      state.goals.filter((g) => g.team === homeSlug && (game.isPlayoff || g.period <= 4) && !g.flags.includes("ENG")),
       totalHomeShots - homeEmptyNetGoals, false
     )
 
@@ -754,6 +763,7 @@ export async function POST(
         homeScore,
         awayScore,
         isOvertime,
+        hasShootout: isShootout,
         hasBoxscore: true,
         notes,
       })

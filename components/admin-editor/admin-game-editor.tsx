@@ -20,6 +20,7 @@ import { GoalieShotAllocation, type ShotAllocationGoalie } from "@/components/sc
 import { ShootoutEditor } from "./shootout-editor"
 
 interface AdminGameEditorProps {
+  isPlayoff?: boolean
   gameId: string
   state: LiveGameState
   pin: string
@@ -36,7 +37,7 @@ interface AdminGameEditorProps {
 }
 
 export function AdminGameEditor({
-  gameId, state: initialState, pin,
+  isPlayoff = false, gameId, state: initialState, pin,
   homeSlug, awaySlug, homeTeam, awayTeam,
   homeRoster, awayRoster, playerNames, savedGoalies,
   onClose, onSaved,
@@ -140,6 +141,7 @@ export function AdminGameEditor({
       {/* Editor sections */}
       <fieldset disabled={saving} className="space-y-8">
         <GoalsEditor
+          isPlayoff={isPlayoff}
           state={state}
           onChange={(goals) => updateState({ goals })}
           homeSlug={homeSlug} awaySlug={awaySlug}
@@ -149,6 +151,7 @@ export function AdminGameEditor({
         />
 
         <PenaltiesEditor
+          isPlayoff={isPlayoff}
           state={state}
           onChange={(penalties) => updateState({ penalties })}
           homeSlug={homeSlug} awaySlug={awaySlug}
@@ -175,6 +178,7 @@ export function AdminGameEditor({
         />
 
         <GoaliePullsEditor
+          isPlayoff={isPlayoff}
           state={state}
           onChange={(goaliePulls) => updateState({ goaliePulls })}
           homeSlug={homeSlug} awaySlug={awaySlug}
@@ -182,6 +186,7 @@ export function AdminGameEditor({
         />
 
         <GoalieChangesEditor
+          isPlayoff={isPlayoff}
           state={state}
           onChange={(goalieChanges) => updateState({ goalieChanges })}
           homeSlug={homeSlug} awaySlug={awaySlug}

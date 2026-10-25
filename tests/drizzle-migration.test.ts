@@ -9,10 +9,13 @@
  * 5. Performance: queries complete within acceptable timeframes
  */
 
-import { describe, it, expect } from "vitest"
+import { describe, it, expect, vi } from "vitest"
 import { db, rawSql, schema } from "@/lib/db"
 import { sql, eq, count } from "drizzle-orm"
 import { getCurrentSeason } from "@/lib/seasons"
+
+// Integration queries run outside Next's request/cache runtime.
+vi.mock("next/cache", () => ({ unstable_cache: (fn: unknown) => fn }))
 
 // ─── Connection & rawSql helper ──────────────────────────────────────────────
 

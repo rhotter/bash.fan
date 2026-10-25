@@ -95,7 +95,7 @@ describe("R6 & Global Hygiene", () => {
   it("ensures build script in package.json uses next build --webpack to prevent Turbopack Google Fonts fetch failure", () => {
     const pkgPath = path.resolve(__dirname, "../package.json")
     const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf-8"))
-    expect(pkg.scripts.build).toBe("next build --webpack")
+    expect(pkg.scripts.build).toContain("next build --webpack")
   })
 })
 

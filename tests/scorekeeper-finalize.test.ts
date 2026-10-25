@@ -20,6 +20,7 @@ import { POST } from "@/app/api/bash/scorekeeper/[id]/finalize/route"
 
 const dialect = new PgDialect()
 const state = createInitialState()
+let isPlayoff = false
 let isForfeit = false
 let officialGame = { status: "live", hasBoxscore: false, homeScore: null as number | null, awayScore: null as number | null }
 let forfeitDuringFinalization = false
@@ -58,6 +59,7 @@ beforeEach(() => {
     homeAttendance: [1, 10, 11], awayAttendance: [2, 20],
     homeShots: [5, 5, 5], awayShots: [4, 4, 4], goals: [goal()],
   })
+  isPlayoff = false
   isForfeit = false
   officialGame = { status: "live", hasBoxscore: false, homeScore: null, awayScore: null }
   delete state.goalieShotsAgainst
@@ -75,7 +77,7 @@ beforeEach(() => {
         leftJoin: () => query,
         where: async () => {
           if (name === "game_live") return [{ state: structuredClone(state) }]
-          if (name === "games") return [{ id: "g55", seasonId: "2026-summer", homeTeam: "home", awayTeam: "away", isPlayoff: false, isForfeit, gameLength: 45, ...officialGame }]
+          if (name === "games") return [{ id: "g55", seasonId: "2026-summer", homeTeam: "home", awayTeam: "away", isPlayoff, isForfeit, gameLength: 45, ...officialGame }]
           if (name === "players") return [1, 2, 3, 10, 11, 20].map((id) => ({ id }))
           if (name === "adhoc_game_rosters") return subIds.map((playerId) => ({ playerId, isSub: true }))
           throw new Error(`Unexpected select: ${name}`)
@@ -822,5 +824,29 @@ describe("private timing during finalization", () => {
       .map(v => JSON.parse(v)).find(v => v[0]?.kind === "goal")
     expect(entries).toHaveLength(1)
     expect(entries[0]).toMatchObject({ kind: "goal", action: "edit", source: "server", details: { eventId: "goal-1" } })
+  })
+})
+
+
+describe("multiple playoff overtimes", () => {
+  it.each([5, 6])("finalizes a period %i winner with correct player stats, goalie time, and goals against", async period => {
+    isPlayoff = true
+    state.period = period
+    state.clockSeconds = 600
+    state.homeShots = [5, 5, 5, 1]
+    state.awayShots = [4, 4, 4, 0]
+    state.goals = [goal({ period, clock: "10:00" })]
+    const res = await finalize()
+    expect(res.status).toBe(200)
+    expect(await res.json()).toMatchObject({ homeScore: 1, awayScore: 0, isOvertime: true })
+    expect(rows("player_game_stats").find(r => r.playerId === 10)).toMatchObject({ goals: 1, gwg: 1 })
+    expect(rows("goalie_game_stats").find(r => r.playerId === 2)).toMatchObject({ goalsAgainst: 1, shotsAgainst: 16, seconds: 2700 + (period - 4) * 900 + 300 })
+  })
+  it("rejects a shootout in a playoff game", async () => {
+    isPlayoff = true
+    state.period = 5
+    state.shootout = { homeAttempts: [{ playerId: 10, scored: true }], awayAttempts: [] }
+    expect((await finalize()).status).toBe(400)
+    expect(inserted).toEqual([])
   })
 })

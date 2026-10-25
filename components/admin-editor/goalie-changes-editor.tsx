@@ -28,7 +28,8 @@ function safeSec(s: string): string {
   return isNaN(n) ? "00" : String(n).padStart(2, "0")
 }
 
-export function GoalieChangesEditor({ state, onChange, homeSlug, awaySlug, homeTeam, awayTeam, homeRoster, awayRoster, nameById }: {
+export function GoalieChangesEditor({ isPlayoff = false, state, onChange, homeSlug, awaySlug, homeTeam, awayTeam, homeRoster, awayRoster, nameById }: {
+  isPlayoff?: boolean
   state: LiveGameState
   onChange: (changes: GoalieChangeEvent[]) => void
   homeSlug: string; awaySlug: string
@@ -139,7 +140,7 @@ export function GoalieChangesEditor({ state, onChange, homeSlug, awaySlug, homeT
               {changes.map((c) => (
                 <tr key={c.id} className="border-t border-border/20 hover:bg-muted/50 cursor-pointer sm:cursor-default" onClick={() => openEdit(c)}>
                   <td className="py-1.5 pr-2">{c.team === homeSlug ? homeTeam : awayTeam}</td>
-                  <td className="py-1.5 px-2">{periodLabel(c.period)}</td>
+                  <td className="py-1.5 px-2">{periodLabel(c.period, isPlayoff)}</td>
                   <td className="py-1.5 px-2 tabular-nums font-mono">{c.clock}</td>
                   <td className="py-1.5 px-2">{nameById(c.outGoalieId) ?? `#${c.outGoalieId}`}</td>
                   <td className="py-1.5 px-2">{nameById(c.inGoalieId) ?? `#${c.inGoalieId}`}</td>
@@ -184,6 +185,9 @@ export function GoalieChangesEditor({ state, onChange, homeSlug, awaySlug, homeT
                     <SelectItem value="2">P2</SelectItem>
                     <SelectItem value="3">P3</SelectItem>
                     <SelectItem value="4">OT</SelectItem>
+                    {isPlayoff && Array.from({ length: Math.max(0, state.period - 4) }, (_, i) => i + 5).map(p => (
+                      <SelectItem key={p} value={String(p)}>{periodLabel(p, true)}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </FieldLabel>

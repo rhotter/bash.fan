@@ -56,7 +56,7 @@ describe("offline finalization after reload", () => {
   it.each([false, true])("signs into a live game without autosaving or sending a beacon, then saves a real edit (local snapshot: %s)", async (newerLocal) => {
     const state = { ...createInitialState(), period: 1, updatedAt: 1234 }
     if (newerLocal) localStorage.setItem("bash-live-g55", JSON.stringify({ ...state, updatedAt: 9999, notes: "Unsynced local history" }))
-    const fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ok: true }) })
+    const fetch = vi.fn().mockImplementation(async (_url, options) => ({ ok: true, json: async () => ({ ok: true, revision: (options?.body ? JSON.parse(options.body).expectedRevision ?? 0 : 0) + 1 }) }))
     const beacon = vi.fn()
     Object.defineProperty(navigator, "sendBeacon", { configurable: true, value: beacon })
     vi.stubGlobal("fetch", fetch)
@@ -80,12 +80,12 @@ describe("offline finalization after reload", () => {
     })
     await act(async () => { await vi.advanceTimersByTimeAsync(600) })
     expect(fetch.mock.calls.map(([url]) => url)).toEqual(["/api/bash/admin/validate-pin", "/api/bash/scorekeeper/g55/state"])
-    expect(JSON.parse(fetch.mock.calls[1][1].body).notes).toBe("Intentional edit")
+    expect(JSON.parse(fetch.mock.calls[1][1].body).state.notes).toBe("Intentional edit")
   })
 
   it("defers an expired clock transition until authentication, then persists the advanced period", async () => {
     const state = { ...createInitialState(), period: 1, updatedAt: 1234, clockSeconds: 1, clockRunning: true, clockStartedAt: Date.now() }
-    const fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ok: true }) })
+    const fetch = vi.fn().mockImplementation(async (_url, options) => ({ ok: true, json: async () => ({ ok: true, revision: (options?.body ? JSON.parse(options.body).expectedRevision ?? 0 : 0) + 1 }) }))
     vi.stubGlobal("fetch", fetch)
     await act(async () => root.render(<ScorekeeperApp gameId="g55" date="2026-07-18" time="10:00" status="live"
       isPlayoff={false} homeSlug="home" awaySlug="away" homeTeam="Home" awayTeam="Away"
@@ -101,7 +101,7 @@ describe("offline finalization after reload", () => {
     await act(async () => input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })))
     await act(async () => { await vi.advanceTimersByTimeAsync(600) })
     expect(fetch.mock.calls.map(([url]) => url)).toEqual(["/api/bash/admin/validate-pin", "/api/bash/scorekeeper/g55/state"])
-    const saved = JSON.parse(fetch.mock.calls[1][1].body)
+    const saved = JSON.parse(fetch.mock.calls[1][1].body).state
     expect(saved.period).toBe(2)
     expect(saved.clockRunning).toBe(false)
     expect(JSON.parse(localStorage.getItem("bash-live-g55")!).period).toBe(2)
@@ -113,7 +113,7 @@ describe("offline finalization after reload", () => {
     const saved = newerLocal ? { ...state, updatedAt: 1235, homeShots: [5, 5, 5] } : state
     localStorage.setItem("bash-live-g55", JSON.stringify(saved))
     localStorage.setItem("bash-finalize-g55", "1")
-    const fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ok: true }) })
+    const fetch = vi.fn().mockImplementation(async (_url, options) => ({ ok: true, json: async () => ({ ok: true, revision: (options?.body ? JSON.parse(options.body).expectedRevision ?? 0 : 0) + 1 }) }))
     vi.stubGlobal("fetch", fetch)
     await act(async () => root.render(<ScorekeeperApp gameId="g55" date="2026-07-18" time="10:00" status="live"
       isPlayoff={false} homeSlug="home" awaySlug="away" homeTeam="Home" awayTeam="Away"
@@ -124,7 +124,7 @@ describe("offline finalization after reload", () => {
     expect(calls.map(([url]) => url)).toEqual([
       "/api/bash/scorekeeper/g55/state", "/api/bash/scorekeeper/g55/finalize",
     ])
-    expect(JSON.parse(calls[0][1].body).updatedAt).toBe(saved.updatedAt)
+    expect(JSON.parse(calls[0][1].body).state.updatedAt).toBe(saved.updatedAt)
     expect(calls[1][1].headers["x-state-updated-at"]).toBe(String(saved.updatedAt))
     expect(localStorage.getItem("bash-finalize-g55")).toBeNull()
   })
@@ -133,7 +133,7 @@ describe("offline finalization after reload", () => {
     const state = { ...createInitialState(), period: 3, clockSeconds: 0, updatedAt: 6789,
       homeGoalieId: 1, awayGoalieId: 2, homeAttendance: [1], awayAttendance: [2], homeShots: [3, 3, 3], awayShots: [4, 4, 4],
       finalizationPending: { attemptId: "failed-attempt", phase: "failed" as const } }
-    const fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ok: true }) })
+    const fetch = vi.fn().mockImplementation(async (_url, options) => ({ ok: true, json: async () => ({ ok: true, revision: (options?.body ? JSON.parse(options.body).expectedRevision ?? 0 : 0) + 1 }) }))
     vi.stubGlobal("fetch", fetch)
     await act(async () => root.render(<ScorekeeperApp gameId="g55" date="2026-07-18" time="10:00" status={status}
       isPlayoff={false} homeSlug="home" awaySlug="away" homeTeam="Home" awayTeam="Away"
@@ -171,7 +171,7 @@ describe("offline finalization after reload", () => {
 it("persists clock and shot timestamps from the scorekeeper without rendering timing metadata", async () => {
   const startedAt = Date.now()
   const state = { ...createInitialState(), period: 1, updatedAt: 1234 }
-  const fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ok: true }) })
+  const fetch = vi.fn().mockImplementation(async (_url, options) => ({ ok: true, json: async () => ({ ok: true, revision: (options?.body ? JSON.parse(options.body).expectedRevision ?? 0 : 0) + 1 }) }))
   vi.stubGlobal("fetch", fetch)
   await act(async () => root.render(<ScorekeeperApp gameId="g55" date="2026-07-18" time="10:00" status="live"
     isPlayoff={false} homeSlug="home" awaySlug="away" homeTeam="Home" awayTeam="Away"
@@ -181,7 +181,7 @@ it("persists clock and shot timestamps from the scorekeeper without rendering ti
   await act(async () => container.querySelector('.lucide-plus')!.closest('button')!.click())
   await act(async () => { await vi.advanceTimersByTimeAsync(600) })
   const requests = fetch.mock.calls.filter(([url]) => url === "/api/bash/scorekeeper/g55/state")
-  const saved = JSON.parse(requests.at(-1)![1].body)
+  const saved = JSON.parse(requests.at(-1)![1].body).state
   expect(saved.timing.firstPlayStartedAt).toBe(startedAt)
   expect(saved.timing.entries).toHaveLength(2)
   expect(saved.timing.entries[1]).toMatchObject({ kind: "shots", capturedAt: startedAt + 600, source: "device", details: { delta: 1 } })
