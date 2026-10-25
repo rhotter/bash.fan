@@ -35,7 +35,6 @@ struct TeamCircleBackground: View {
                 ], startPoint: .topLeading, endPoint: .bottomTrailing))
             }
         }
-        .overlay(Circle().strokeBorder(.white.opacity(0.95), lineWidth: 1.5))
         .shadow(color: .black.opacity(0.18), radius: 2, y: 1)
         .accessibilityHidden(true)
     }
