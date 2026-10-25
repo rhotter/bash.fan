@@ -43,6 +43,7 @@ import { AddPlayerModal } from "@/components/scorekeeper/add-player-modal"
 import { authenticateScorekeeper } from "@/lib/scorekeeper-login"
 import { captureGoalieShotSnapshot, prepareScorekeeperFinalization } from "@/lib/automatic-goalie-shots"
 import { SubBadge } from "@/components/scorekeeper/shared/sub-badge"
+import { TeamLogo } from "@/components/team-logo"
 
 /** Safe UUID helper — crypto.randomUUID() is unavailable in non-secure (HTTP) contexts on some mobile browsers */
 function uuid(): string {
@@ -1919,8 +1920,14 @@ export function ScorekeeperApp({
                   <SelectTrigger className="mt-1"><SelectValue placeholder="Select player" /></SelectTrigger>
                   <SelectContent>
                     {allAttending.map((pid) => (
-                      <SelectItem key={pid} value={pid.toString()}>
+                      <SelectItem key={pid} value={pid.toString()} textValue={nameById(pid)}>
                         <span className="inline-flex items-center">
+                          <TeamLogo
+                            slug={state.homeAttendance.includes(pid) ? homeSlug : awaySlug}
+                            name={state.homeAttendance.includes(pid) ? homeTeam : awayTeam}
+                            size={20}
+                            className="mr-2 shrink-0"
+                          />
                           {nameById(pid)}
                           {subPlayerIds.has(pid) && <SubBadge />}
                         </span>
