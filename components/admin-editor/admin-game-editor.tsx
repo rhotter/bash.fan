@@ -199,6 +199,8 @@ export function AdminGameEditor({
           state={state}
           onChange={(threeStars) => updateState({ threeStars })}
           homeRoster={homeRoster} awayRoster={awayRoster}
+          homeSlug={homeSlug} awaySlug={awaySlug}
+          homeTeam={homeTeam} awayTeam={awayTeam}
         />
 
         <ShootoutEditor

@@ -4,16 +4,19 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select"
 import type { LiveGameState, RosterPlayer } from "@/lib/scorekeeper-types"
+import { TeamLogo } from "@/components/team-logo"
 
-export function ThreeStarsEditor({ state, onChange, homeRoster, awayRoster }: {
+export function ThreeStarsEditor({ state, onChange, homeRoster, awayRoster, homeSlug, awaySlug, homeTeam, awayTeam }: {
   state: LiveGameState
   onChange: (stars: number[]) => void
   homeRoster: RosterPlayer[]; awayRoster: RosterPlayer[]
+  homeSlug: string; awaySlug: string
+  homeTeam: string; awayTeam: string
 }) {
   const stars = state.threeStars ?? [0, 0, 0]
   const allAttending = [
-    ...awayRoster.filter((p) => state.awayAttendance.includes(p.id)),
-    ...homeRoster.filter((p) => state.homeAttendance.includes(p.id)),
+    ...awayRoster.filter((p) => state.awayAttendance.includes(p.id)).map((p) => ({ ...p, teamSlug: awaySlug, teamName: awayTeam })),
+    ...homeRoster.filter((p) => state.homeAttendance.includes(p.id)).map((p) => ({ ...p, teamSlug: homeSlug, teamName: homeTeam })),
   ]
 
   const labels = ["1st Star", "2nd Star", "3rd Star"]
@@ -36,7 +39,12 @@ export function ThreeStarsEditor({ state, onChange, homeRoster, awayRoster }: {
               <SelectContent>
                 <SelectItem value="none">None</SelectItem>
                 {allAttending.map((p) => (
-                  <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>
+                  <SelectItem key={p.id} value={String(p.id)} textValue={p.name}>
+                    <span className="inline-flex items-center gap-2">
+                      <TeamLogo slug={p.teamSlug} name={p.teamName} size={20} className="shrink-0" />
+                      {p.name}
+                    </span>
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>

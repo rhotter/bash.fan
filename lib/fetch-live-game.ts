@@ -1,3 +1,4 @@
+import { withoutGameTiming } from "./scorekeeper-timing"
 import { rawSql } from "@/lib/db"
 import { sql } from "drizzle-orm"
 
@@ -69,7 +70,7 @@ export async function fetchLiveGameData(id: string): Promise<LiveGameData | null
   const subPlayerIds = subRows.map((r) => r.player_id as number)
 
   return {
-    state: row.state,
+    state: withoutGameTiming(row.state),
     homeScore: row.home_score,
     awayScore: row.away_score,
     status: row.status,

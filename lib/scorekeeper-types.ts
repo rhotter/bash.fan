@@ -1,3 +1,5 @@
+import type { GameTiming } from "./scorekeeper-timing"
+
 export interface GoalEvent {
   id: string
   team: string
@@ -54,9 +56,13 @@ export interface GoalieChangeEvent {
   clock: string // "M:SS" countdown clock when change happened
   outGoalieId: number // goalie leaving the net
   inGoalieId: number // goalie entering the net
+  /** Opponent shot counters captured when this live substitution was recorded. */
+  shotSnapshot?: { period: number; clock: string; opponentShots: number[] }
 }
 
 export interface LiveGameState {
+  /** Private wall-clock history for future video alignment. Absent on legacy games. */
+  timing?: GameTiming
   period: number // 0=pre-game, 1-3=regulation, 4=OT, 5=shootout
   clockSeconds: number // countdown seconds remaining
   clockRunning: boolean

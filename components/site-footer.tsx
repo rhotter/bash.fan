@@ -5,15 +5,16 @@ import { fetchApi as fetch, readApiJson } from "@/lib/api-errors"
 import { Suspense } from "react"
 import Link from "next/link"
 import useSWR from "swr"
+import type { PublicDraftStatus } from "@/lib/fetch-draft-status"
 import { SeasonSelector } from "@/components/season-selector"
 
 const fetcher = (url: string) => fetch(url).then((r) => readApiJson(r))
 
-export function SiteFooter() {
-  const { data: draftStatus } = useSWR<{ status: string | null; seasonSlug?: string }>(
+export function SiteFooter({ initialDraftStatus }: { initialDraftStatus: PublicDraftStatus }) {
+  const { data: draftStatus } = useSWR<PublicDraftStatus>(
     "/api/bash/draft-status",
     fetcher,
-    { revalidateOnFocus: false, dedupingInterval: 30000 }
+    { fallbackData: initialDraftStatus, revalidateOnFocus: false, dedupingInterval: 30000 }
   )
 
   const showDraftResults = draftStatus?.status === "completed"

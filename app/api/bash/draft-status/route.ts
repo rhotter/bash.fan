@@ -1,6 +1,4 @@
-import { db } from "@/lib/db"
-import * as schema from "@/lib/db/schema"
-import { sql, notInArray } from "drizzle-orm"
+import { fetchDraftStatus } from "@/lib/fetch-draft-status"
 import { NextResponse } from "next/server"
 
 /**
@@ -12,38 +10,13 @@ import { NextResponse } from "next/server"
  */
 export async function GET() {
   try {
-    // Find any non-draft (public) draft instance, prioritizing live > published > completed
-    const draft = await db
-      .select({
-        status: schema.draftInstances.status,
-        seasonId: schema.draftInstances.seasonId,
-        draftDate: schema.draftInstances.draftDate,
-      })
-      .from(schema.draftInstances)
-      .where(notInArray(schema.draftInstances.status, ["draft", "archived"]))
-      .orderBy(
-        sql`CASE ${schema.draftInstances.status}
-          WHEN 'live' THEN 0
-          WHEN 'published' THEN 1
-          WHEN 'completed' THEN 2
-          ELSE 3
-        END`
-      )
-      .limit(1)
-
-    if (!draft.length) {
-      return NextResponse.json({ status: null }, {
-        headers: { "Cache-Control": "public, s-maxage=60, stale-while-revalidate=120" },
-      })
-    }
-
-    const { status, seasonId, draftDate } = draft[0]
+    const draftStatus = await fetchDraftStatus()
 
     return NextResponse.json(
-      { status, seasonSlug: seasonId, draftDate: draftDate?.toISOString() ?? null },
+      draftStatus,
       {
         headers: {
-          "Cache-Control": status === "live"
+          "Cache-Control": draftStatus.status === "live"
             ? "public, s-maxage=5, stale-while-revalidate=10"
             : "public, s-maxage=60, stale-while-revalidate=120",
         },

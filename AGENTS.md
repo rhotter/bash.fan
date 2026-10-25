@@ -48,7 +48,7 @@ Each page follows: async Server Component (data fetch + `generateMetadata`) → 
 - `app/api/bash/admin/seasons/[id]/draft/` — Draft management API (22 endpoints)
 - `lib/fetch-*.ts` — Server-side data fetching functions (raw SQL queries)
 - `lib/hockey-data.ts` — SWR hooks for client-side data
-- `lib/db/schema.ts` — Drizzle ORM schema (42 tables)
+- `lib/db/schema.ts` — Drizzle ORM schema (43 tables)
 - `lib/db/game-id.ts` — Collision-free sequential `g[n]` game ID generator backed by `games_gen_seq`
 - `lib/banner-helpers.ts` — Pure helper algorithms, countdown suffixes, and banner contract validators
 - `lib/draft-banner-sync.ts` — Automated banner sync engine across draft lifecycle state transitions
