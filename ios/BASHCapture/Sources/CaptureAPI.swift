@@ -23,7 +23,7 @@ struct Pairing: Codable, Sendable {
     var endpoint: URL { server.appending(path: "api/bash/video/camera/\(session)/\(side)") }
 
     init(link: String) throws {
-        guard let components = URLComponents(string: link.trimmingCharacters(in: .whitespacesAndNewlines)), components.scheme == "bashcapture", components.host == "pair" else { throw CaptureError.message("Paste a camera setup link from the BASH dashboard.") }
+        guard let components = URLComponents(string: link.trimmingCharacters(in: .whitespacesAndNewlines)), components.scheme == "bashcapture", components.host == "pair" else { throw CaptureError.message("Invalid camera setup link. Select your game in the app to connect.") }
         let items = components.queryItems ?? []
         func value(_ name: String) -> String? { items.first { $0.name == name }?.value }
         guard let raw = value("server"),

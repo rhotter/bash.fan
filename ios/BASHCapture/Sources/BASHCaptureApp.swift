@@ -98,7 +98,6 @@ struct ConnectionSheet: View {
     @ObservedObject var website: WebsiteConnection
     @Environment(\.dismiss) private var dismiss
     @State private var pin = ""
-    @State private var setupLink = ""
     var body: some View {
         NavigationStack {
             Form {
@@ -114,10 +113,6 @@ struct ConnectionSheet: View {
                         }.disabled(pin.isEmpty || website.busy)
                     }
                 } header: { Text("BASH website") } footer: { Text("Uses the same game schedule and operator PIN as the website. Your PIN is never saved.") }
-                Section {
-                    TextField("Camera setup link", text: $setupLink, axis: .vertical).textInputAutocapitalization(.never).autocorrectionDisabled()
-                    Button("Pair with setup link") { Task { await camera.pair(setupLink); if camera.error == nil { setupLink = ""; dismiss() } } }.disabled(setupLink.isEmpty || camera.busy || camera.recording)
-                } header: { Text("Or pair from the website") } footer: { Text("Open a game's score page, choose Record this game, and copy its camera setup link.") }
                 if let error = website.error ?? camera.error { Section { Text(error).foregroundStyle(.red) } }
             }.navigationTitle("Connection").navigationBarTitleDisplayMode(.inline)
                 .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
@@ -132,6 +127,7 @@ struct GameSetupSheet: View {
     let onConnected: () -> Void
     @Environment(\.dismiss) private var dismiss
     @State private var side = "left"
+    @State private var confirmEnd = false
     var body: some View {
         NavigationStack {
             Form {
@@ -148,10 +144,19 @@ struct GameSetupSheet: View {
                     Button { Task { if await website.choose(game, side: side, camera: camera) { onConnected() } } } label: {
                         if website.busy { ProgressView() } else { Label("Open camera", systemImage: "video") }
                     }.disabled(website.busy || camera.recording)
+                    if camera.configuration?.game?.id == game.id && camera.configuration?.ended == false {
+                        Button("End game recording", role: .destructive) { confirmEnd = true }.disabled(website.busy || camera.recording)
+                    }
                 }
                 if let error = website.error { Section { Text(error).foregroundStyle(.red) } }
             }.navigationTitle("Record game").navigationBarTitleDisplayMode(.inline)
                 .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } } }
+                .confirmationDialog("Replace the \(side) camera?", isPresented: $website.cameraConflict, titleVisibility: .visible) {
+                    Button("Replace camera", role: .destructive) { Task { if await website.choose(game, side: side, camera: camera, replace: true) { onConnected() } } }
+                } message: { Text("The previous phone will lose its connection. Stop it first; its saved recordings stay on that phone.") }
+                .confirmationDialog("End recording for both cameras?", isPresented: $confirmEnd, titleVisibility: .visible) {
+                    Button("End game recording", role: .destructive) { Task { if await website.endRecording(camera: camera) { dismiss() } } }
+                } message: { Text("Connected cameras stop at their next check-in. Stop offline cameras on the phones. Saved recordings can still upload.") }
         }
     }
 }

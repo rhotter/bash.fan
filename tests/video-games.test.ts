@@ -13,7 +13,7 @@ const context = { params: Promise.resolve({ id: "session", side: "left" }) }
 const token = "a".repeat(43)
 const camera = { title: "Game", game_id: "g70", token_hash: digestToken(token), token_expires_at: new Date(Date.now() + 86400000).toISOString() }
 const game = { id: "g70", date: "2026-10-24", time: "9:00 AM", status: "upcoming", location: "Rink", homeTeam: "Home", awayTeam: "Away" }
-function claim(side = "left") { return new Request("http://localhost/api/bash/video/games", { method: "POST", body: JSON.stringify({ gameId: "g70", side }) }) }
+function claim(side = "left", replace = false) { return new Request("http://localhost/api/bash/video/games", { method: "POST", body: JSON.stringify({ gameId: "g70", side, replace }) }) }
 function device(body?: object) { return new Request("http://localhost/api/bash/video/camera/session/left", { method: body ? "POST" : "GET", headers: { Authorization: `Bearer ${token}` }, ...(body ? { body: JSON.stringify(body) } : {}) }) }
 const query = (i: number) => new PgDialect().sqlToQuery(mocks.query.mock.calls[i][0])
 
@@ -23,6 +23,7 @@ describe("native game selection", () => {
     mocks.admin.mockRejectedValue(new Response("Unauthorized", { status: 401 }))
     expect((await GET()).status).toBe(401)
     expect((await POST(claim())).status).toBe(401)
+    expect((await POST(claim("left", true))).status).toBe(401)
     expect(mocks.query).not.toHaveBeenCalled()
   })
   it("returns the current league schedule without caching authenticated data", async () => {
@@ -40,14 +41,22 @@ describe("native game selection", () => {
     expect(result).toMatchObject({ sessionId: "shared-session", side: "right" })
     expect(result.token).toMatch(/^[A-Za-z0-9_-]{43}$/)
     expect(query(1).sql).toContain("ON CONFLICT (game_id) WHERE ended_at IS NULL")
-    expect(query(2).params).toEqual(["shared-session", "right", digestToken(result.token)])
+    expect(query(2).params).toEqual(["shared-session", "right", digestToken(result.token), false])
   })
   it("does not rotate another phone's active credential", async () => {
     mocks.query.mockResolvedValueOnce([{ id: "g70", home: "Home", away: "Away" }]).mockResolvedValueOnce([{ id: "shared-session" }]).mockResolvedValueOnce([])
     const response = await POST(claim())
     expect(response.status).toBe(409)
     expect(query(2).sql).toContain("WHERE video_cameras.token_hash IS NULL OR video_cameras.token_expires_at <= now()")
+    expect(query(2).params.at(-1)).toBe(false)
     expect(await response.json()).not.toHaveProperty("token")
+  })
+  it("allows an authenticated operator to explicitly replace a camera from the app", async () => {
+    mocks.query.mockResolvedValueOnce([{ id: "g70", home: "Home", away: "Away" }]).mockResolvedValueOnce([{ id: "shared-session" }]).mockResolvedValueOnce([{ side: "left" }])
+    const response = await POST(claim("left", true))
+    expect(response.status).toBe(201)
+    const result = await response.json()
+    expect(query(2).params).toEqual(["shared-session", "left", digestToken(result.token), true])
   })
   it("rejects missing games and invalid camera positions before creating sessions", async () => {
     expect((await POST(claim("middle"))).status).toBe(400)

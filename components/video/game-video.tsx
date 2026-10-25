@@ -1,15 +1,12 @@
 "use client"
 
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react"
-import dynamic from "next/dynamic"
 import useSWR from "swr"
-import { Camera, Play, Radio } from "lucide-react"
-import { useAdmin } from "@/lib/admin-context"
+import { Play, Radio } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { LiveVideoPlayer } from "@/components/video/live-video-player"
 import { findReplay, type CameraSide, type GameVideoData, type VideoMarker } from "@/lib/video/types"
 
-const RecordingControls = dynamic(() => import("./game-recording-controls").then(m => m.GameRecordingControls))
 async function read(url: string, body?: unknown) {
   const response = await fetch(url, body ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) } : undefined)
   const data = await response.json()
@@ -76,8 +73,6 @@ export function GoalReplayButton({ goalId }: { goalId: string }) {
 
 export function GameVideo() {
   const context = useContext(Context)
-  const { isAdmin } = useAdmin()
-  const [showSetup, setShowSetup] = useState(false)
   const section = useRef<HTMLElement>(null)
   const playback = context?.playback
   useEffect(() => {
@@ -85,7 +80,7 @@ export function GameVideo() {
   }, [playback])
   if (!context?.enabled) return null
   const { data, side, busy, error } = context
-  if (!data?.session && !isAdmin) return null
+  if (!data?.session) return null
   const live = data?.cameras.find(c => c.side === side)?.live
   return <section ref={section} id="game-video" aria-label="Game video" className="mt-4 space-y-3 rounded-lg border border-border/60 p-3">
     <div className="flex flex-wrap items-center gap-2">
@@ -93,7 +88,6 @@ export function GameVideo() {
       {data && data.sessions.length > 1 && <select aria-label="Game recording" value={data.session?.id ?? ""} onChange={e => context.selectSession(e.target.value)} className="h-8 max-w-56 rounded-md border bg-background px-2 text-xs">{data.sessions.map(s => <option key={s.id} value={s.id}>{s.title}</option>)}</select>}
       {!!data?.segments.length && <Button size="sm" variant="outline" disabled={busy} onClick={() => context.play()}><Play className="size-3" /> Watch recording</Button>}
       {live && <Button size="sm" variant="outline" disabled={busy} onClick={context.watchLive}><Radio className="size-3 text-red-600" /> Watch live</Button>}
-      {isAdmin && <Button size="sm" variant="ghost" aria-expanded={showSetup} onClick={() => setShowSetup(!showSetup)}><Camera className="size-3" /> Record this game</Button>}
     </div>
     {error && <p role="alert" className="text-xs text-destructive">{error} <button className="underline" onClick={context.refresh}>Retry</button></p>}
     {data?.session && <div className="flex flex-wrap items-center gap-2">
@@ -107,7 +101,6 @@ export function GameVideo() {
       <p className="px-3 py-2 text-xs text-white/70">{playback.label} · {side} camera</p>
     </div>}
     {!!data?.markers.filter(m => !m.goalId).length && <div className="flex flex-wrap gap-2">{data.markers.filter(m => !m.goalId).map(m => <Button key={m.id} size="sm" variant="ghost" disabled={busy} onClick={() => context.play(m)}><Play className="size-3" />{m.label}</Button>)}</div>}
-    {showSetup && isAdmin && <div className="border-t border-border/60 pt-3"><RecordingControls gameId={context.gameId} gameTitle={context.gameTitle} onChange={context.refresh} /></div>}
   </section>
 }
 

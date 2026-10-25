@@ -21,7 +21,7 @@ export async function GET() { return videoHandler(async () => {
 
 export async function POST(request: Request) { return videoHandler(async () => {
   await adminVideo()
-  const { gameId, side } = z.object({ gameId: z.string().min(1).max(100), side: z.enum(["left", "right"]) }).parse(await request.json())
+  const { gameId, side, replace } = z.object({ gameId: z.string().min(1).max(100), side: z.enum(["left", "right"]), replace: z.boolean().default(false) }).parse(await request.json())
   const [game] = await rawSql(sql`SELECT g.id, home.name AS home, away.name AS away FROM games g
     JOIN teams home ON home.slug = g.home_team JOIN teams away ON away.slug = g.away_team WHERE g.id = ${gameId}`)
   if (!game) fail("Game not found", 404)
@@ -34,8 +34,8 @@ export async function POST(request: Request) { return videoHandler(async () => {
   const claimed = await rawSql(sql`INSERT INTO video_cameras (session_id, side, token_hash, token_expires_at)
     VALUES (${session.id}, ${side}, ${digestToken(token)}, now() + interval '7 days')
     ON CONFLICT (session_id, side) DO UPDATE SET token_hash = EXCLUDED.token_hash, token_expires_at = EXCLUDED.token_expires_at
-    WHERE video_cameras.token_hash IS NULL OR video_cameras.token_expires_at <= now()
+    WHERE video_cameras.token_hash IS NULL OR video_cameras.token_expires_at <= now() OR ${replace}
     RETURNING side`)
-  if (!claimed.length) fail("That camera is already paired. Choose the other side, or use Pair again on the game's website page to replace it.", 409)
+  if (!claimed.length) fail("That camera is already paired. Choose the other side, or replace the camera in the app.", 409)
   return Response.json({ sessionId: session.id, side, token }, { status: 201 })
 }) }
