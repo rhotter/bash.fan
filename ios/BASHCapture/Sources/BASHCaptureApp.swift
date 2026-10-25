@@ -55,7 +55,12 @@ struct CaptureHome: View {
             List {
                 Section {
                     HStack(spacing: 16) {
-                        Image("BASHBadge").resizable().scaledToFit().frame(width: 76, height: 76).accessibilityHidden(true)
+                        Image("BASHBadge").resizable().scaledToFit().frame(width: 76, height: 76)
+                            .background {
+                                // Fill the badge interior without filling the transparent outer corners.
+                                Ellipse().fill(.white).padding(.horizontal, 8).padding(.vertical, 7)
+                            }
+                            .accessibilityHidden(true)
                         Text("RINKSIDE").font(.caption.weight(.bold)).tracking(2).foregroundStyle(BASHStyle.orange)
                     }.padding(.vertical, 12)
                 }.listRowBackground(Color.clear).listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
