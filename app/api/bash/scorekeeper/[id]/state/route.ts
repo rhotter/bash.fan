@@ -1,9 +1,11 @@
+import { saveLiveStateSql, validateGameTiming } from "@/lib/scorekeeper-timing-db"
 import { NextResponse } from "next/server"
 import { db, schema, rawSql } from "@/lib/db"
 import { eq, and, ne, sql } from "drizzle-orm"
 import type { LiveGameState } from "@/lib/scorekeeper-types"
 import { getSession } from "@/lib/admin-session"
 import { validateShotArray } from "@/lib/goalie-shot-validation"
+import { withoutGameTiming } from "@/lib/scorekeeper-timing"
 import { isDeepStrictEqual } from "node:util"
 import { finalShotUpdateSql, planFinalShotCorrection, type FinalShotContext, type ShotCorrection } from "@/lib/final-game-shots"
 
@@ -33,6 +35,8 @@ export async function PUT(
     const state: LiveGameState = { ...(body.state ?? body) }
     // Rebuild coordination is server-owned, never supplied by a client.
     delete state.finalizationPending
+    const timingError = validateGameTiming(state)
+    if (timingError) return NextResponse.json({ error: timingError }, { status: 422 })
 
     const shotError = validateShotArray(state.homeShots, "Home shots") || validateShotArray(state.awayShots, "Away shots")
     if (shotError) return NextResponse.json({ error: shotError }, { status: 422 })
@@ -75,16 +79,7 @@ export async function PUT(
     }
 
     // A delayed autosave must not replace the state of a now-final game.
-    const savedRows = await rawSql(sql`
-      INSERT INTO game_live (game_id, state, pin_hash)
-      SELECT ${id}, ${JSON.stringify(state)}::jsonb, ${process.env.SCOREKEEPER_PIN || "unknown"}
-      WHERE EXISTS (SELECT 1 FROM games WHERE id = ${id} AND status <> 'final' AND NOT is_forfeit)
-      ON CONFLICT (game_id) DO UPDATE SET state = EXCLUDED.state, updated_at = NOW()
-      WHERE NOT (game_live.state ? 'finalizationPending')
-        AND COALESCE((game_live.state->>'updatedAt')::bigint, 0) <= ${state.updatedAt}
-        AND EXISTS (SELECT 1 FROM games WHERE id = ${id} AND status <> 'final' AND NOT is_forfeit)
-      RETURNING game_id
-    `)
+    const savedRows = await rawSql(saveLiveStateSql(id, state, process.env.SCOREKEEPER_PIN || "unknown"))
     if (!savedRows.length) return NextResponse.json({ error: "A newer state or final result has already been saved. Reload the game." }, { status: 409 })
 
     // Set game to live once play starts (period >= 1), update scores
@@ -100,7 +95,7 @@ export async function PUT(
         .where(and(eq(schema.games.id, id), ne(schema.games.status, "final"), eq(schema.games.isForfeit, false)))
     }
 
-    return NextResponse.json({ ok: true })
+    return NextResponse.json({ ok: true, timingAckIds: state.timing?.entries.map(e => e.id) ?? [] })
   } catch (error) {
     console.error("Failed to update live state:", error)
     return NextResponse.json({ error: "Failed to update state" }, { status: 500 })
@@ -138,7 +133,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       FROM games g JOIN game_live l ON l.game_id = g.id LEFT JOIN seasons se ON se.id = g.season_id WHERE g.id = ${id}
     `) as FinalShotContext[]
     if (!context) return NextResponse.json({ error: "Game or saved live state not found" }, { status: 404 })
-    if (!body.expectedState || !isDeepStrictEqual(body.expectedState, context.state)) {
+    if (!body.expectedState || !isDeepStrictEqual(withoutGameTiming(body.expectedState), withoutGameTiming(context.state))) {
       return NextResponse.json({ error: "Game changed since you opened it. Reload before saving shot corrections." }, { status: 409 })
     }
     // PATCH allows only these fields. Goals, scores, attendance, goalie time,

@@ -1,3 +1,5 @@
+import { insertGameTimingSql, validateGameTiming } from "@/lib/scorekeeper-timing-db"
+import { compactGameTiming, recordGameTiming, withoutGameTiming } from "@/lib/scorekeeper-timing"
 import { NextResponse } from "next/server"
 import { db, schema, rawSql } from "@/lib/db"
 import { and, eq, inArray, sql } from "drizzle-orm"
@@ -77,6 +79,8 @@ export async function POST(
           !body.expectedState || typeof body.expectedState !== "object" || Array.isArray(body.expectedState)) {
           return NextResponse.json({ error: "Proposed edits require state and expectedState snapshots" }, { status: 400 })
         }
+        const timingError = validateGameTiming(body.state)
+        if (timingError) return NextResponse.json({ error: timingError }, { status: 422 })
         proposed = body
       } catch {
         return NextResponse.json({ error: "Invalid finalization request JSON" }, { status: 400 })
@@ -100,10 +104,13 @@ export async function POST(
     if (pendingFinalization && !retryingFailedFinalization) {
       return NextResponse.json({ error: "Finalization is already in progress; reload before retrying. If it remains blocked, administrator review is required" }, { status: 409 })
     }
-    if (proposed && !isDeepStrictEqual(proposed.expectedState, storedState)) {
+    if (proposed && !isDeepStrictEqual(withoutGameTiming(proposed.expectedState), withoutGameTiming(storedState))) {
       return NextResponse.json({ error: "Live scoring changed before finalization; reload and try again" }, { status: 409 })
     }
-    const state: AuditedState = proposed ? { ...proposed.state, updatedAt: Date.now() } : { ...storedState }
+    const correctionTime = Date.now()
+    const state: AuditedState = proposed
+      ? { ...withoutGameTiming(proposed.state), ...(storedState.timing ? { timing: storedState.timing } : {}), updatedAt: correctionTime }
+      : { ...storedState }
     // Never trust a client-supplied claim, including a forged failed marker.
     // Retry provenance comes exclusively from the stored server-owned marker.
     delete state.finalizationPending
@@ -597,8 +604,13 @@ export async function POST(
     // must claim the exact snapshot before any statistics or placeholder writes.
     // The claim prevents overlapping rebuilds and shot-only corrections, but
     // does not make the following sequential writes atomic.
+    const pendingTiming = proposed?.state.timing?.entries ?? []
+    const timedState = proposed && !pendingTiming.length ? recordGameTiming(storedState, state, {
+      at: correctionTime, id: randomUUID(), periodLength: 0, source: "server",
+    }) : state
+    const entriesToSave = pendingTiming.length ? pendingTiming : (timedState.timing?.entries ?? [])
     const runningState: LiveGameState = {
-      ...state,
+      ...compactGameTiming(timedState),
       updatedAt: Date.now(),
       finalizationPending: { attemptId: randomUUID(), phase: "running" },
     }
@@ -612,13 +624,15 @@ export async function POST(
           AND home_score IS NOT DISTINCT FROM ${game.homeScore}::integer
           AND away_score IS NOT DISTINCT FROM ${game.awayScore}::integer
         FOR UPDATE
-      )
+      ), saved_state AS (
       UPDATE game_live l SET state = (${JSON.stringify(runningState)}::jsonb - 'shotCorrections') ||
         CASE WHEN l.state ? 'shotCorrections'
           THEN jsonb_build_object('shotCorrections', l.state->'shotCorrections') ELSE '{}'::jsonb END,
         updated_at = NOW()
       WHERE l.game_id IN (SELECT id FROM eligible_game) AND l.state = ${JSON.stringify(storedState)}::jsonb
-      RETURNING l.state
+      RETURNING l.game_id, l.state
+      ), saved_timing AS (${insertGameTimingSql(entriesToSave, sql` saved_state `)})
+      SELECT state FROM saved_state
     `)
     if (!savedRows.length) {
       return NextResponse.json({ error: "Game changed while saving; reload before finalizing" }, { status: 409 })

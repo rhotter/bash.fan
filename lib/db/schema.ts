@@ -3,6 +3,7 @@ import {
   text,
   boolean,
   integer,
+  doublePrecision,
   serial,
   jsonb,
   timestamp,
@@ -309,6 +310,24 @@ export const gameLive = pgTable(
   },
   (t) => [index("idx_game_live_updated").on(t.updatedAt)]
 )
+
+// Private, append-only observations for video alignment. Retries deduplicate by game + entry ID.
+export const gameTimingEvents = pgTable("game_timing_events", {
+  gameId: text("game_id").notNull().references(() => games.id, { onDelete: "cascade" }),
+  entryId: text("entry_id").notNull(),
+  kind: text("kind").notNull(),
+  action: text("action").notNull(),
+  capturedAt: timestamp("captured_at", { withTimezone: true }).notNull(),
+  recordedAt: timestamp("recorded_at", { withTimezone: true }).notNull(),
+  receivedAt: timestamp("received_at", { withTimezone: true }).notNull().defaultNow(),
+  source: text("source").notNull(),
+  period: integer("period").notNull(),
+  clockSeconds: doublePrecision("clock_seconds").notNull(),
+  details: jsonb("details").notNull(),
+}, (t) => [
+  primaryKey({ columns: [t.gameId, t.entryId] }),
+  index("idx_game_timing_events_capture").on(t.gameId, t.capturedAt),
+])
 
 // ─── Auth (NextAuth Drizzle Adapter) ────────────────────────────────────────
 // Tables: users, accounts, sessions, verification_tokens — match the

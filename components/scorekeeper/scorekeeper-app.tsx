@@ -29,6 +29,7 @@ import {
   saveToLocalStorage, loadFromLocalStorage, clearLocalStorage,
   createSyncManager, type SyncStatus,
 } from "@/lib/scorekeeper-sync"
+import { captureGameTime, recordGameTiming, type TimingCapture } from "@/lib/scorekeeper-timing"
 import { INFRACTIONS } from "@/components/scorekeeper/shared/constants"
 import { FieldLabel } from "@/components/scorekeeper/shared/field-label"
 import { AttendanceList } from "@/components/scorekeeper/shared/attendance-list"
@@ -382,13 +383,14 @@ export function ScorekeeperApp({
   }, [pendingFinalize, authenticated, finalized, gameId, pin])
 
   // ─── Helpers ─────────────────────────────────────────────────────────────
-  const updateState = useCallback((updater: (prev: LiveGameState) => LiveGameState) => {
+  const updateState = useCallback((updater: (prev: LiveGameState) => LiveGameState, capture?: TimingCapture) => {
+    const at = Date.now()
+    const id = uuid()
     setState((prev) => {
-      const next = updater(prev)
-      next.updatedAt = Date.now()
-      return next
+      const next = recordGameTiming(prev, updater(prev), { at, id, periodLength: defaultPeriodLength, capture })
+      return { ...next, updatedAt: at }
     })
-  }, [])
+  }, [defaultPeriodLength])
 
   const currentClockString = (): string => {
     const secs = computeCurrentClock(state)
@@ -668,6 +670,7 @@ export function ScorekeeperApp({
   }
 
   // ─── Goal Entry ─────────────────────────────────────────────────────────
+  const [eventCapture, setEventCapture] = useState<TimingCapture | undefined>()
   const [capturedClock, setCapturedClock] = useState("")
   const [capturedPeriod, setCapturedPeriod] = useState(0)
   const [clockMinutes, setClockMinutes] = useState("")
@@ -695,6 +698,7 @@ export function ScorekeeperApp({
   }
 
   function openGoalDrawer(team: string) {
+    setEventCapture(captureGameTime(state, Date.now()))
     const clock = pauseClockNow()
     setCapturedClock(clock)
     setElapsedPartsFromCountdown(clock, state.period)
@@ -789,12 +793,13 @@ export function ScorekeeperApp({
         }
 
         return next
-      })
+      }, eventCapture)
     }
     setGoalDrawerOpen(false)
   }
 
   function openPenaltyDrawer(team: string) {
+    setEventCapture(captureGameTime(state, Date.now()))
     const clock = pauseClockNow()
     setCapturedClock(clock)
     setElapsedPartsFromCountdown(clock, state.period)
@@ -845,7 +850,7 @@ export function ScorekeeperApp({
       updateState((prev) => ({
         ...prev,
         penalties: [...prev.penalties, penalty],
-      }))
+      }), eventCapture)
     }
     setPenaltyDrawerOpen(false)
   }

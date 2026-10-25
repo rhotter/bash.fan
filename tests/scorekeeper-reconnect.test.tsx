@@ -167,3 +167,25 @@ describe("offline finalization after reload", () => {
   })
 
 })
+
+it("persists clock and shot timestamps from the scorekeeper without rendering timing metadata", async () => {
+  const startedAt = Date.now()
+  const state = { ...createInitialState(), period: 1, updatedAt: 1234 }
+  const fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ok: true }) })
+  vi.stubGlobal("fetch", fetch)
+  await act(async () => root.render(<ScorekeeperApp gameId="g55" date="2026-07-18" time="10:00" status="live"
+    isPlayoff={false} homeSlug="home" awaySlug="away" homeTeam="Home" awayTeam="Away"
+    homeRoster={[]} awayRoster={[]} existingState={state} initialAuthenticated />))
+  await act(async () => container.querySelector('.lucide-play')!.closest('button')!.click())
+  await act(async () => { await vi.advanceTimersByTimeAsync(600) })
+  await act(async () => container.querySelector('.lucide-plus')!.closest('button')!.click())
+  await act(async () => { await vi.advanceTimersByTimeAsync(600) })
+  const requests = fetch.mock.calls.filter(([url]) => url === "/api/bash/scorekeeper/g55/state")
+  const saved = JSON.parse(requests.at(-1)![1].body)
+  expect(saved.timing.firstPlayStartedAt).toBe(startedAt)
+  expect(saved.timing.entries).toHaveLength(2)
+  expect(saved.timing.entries[1]).toMatchObject({ kind: "shots", capturedAt: startedAt + 600, source: "device", details: { delta: 1 } })
+  expect(JSON.parse(localStorage.getItem("bash-live-g55")!).timing).toEqual(saved.timing)
+  expect(container.textContent).not.toContain("capturedAt")
+  expect(container.textContent).not.toContain(String(startedAt))
+})

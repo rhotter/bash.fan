@@ -1,3 +1,5 @@
+import type { GameTiming } from "./scorekeeper-timing"
+
 export interface GoalEvent {
   id: string
   team: string
@@ -57,6 +59,8 @@ export interface GoalieChangeEvent {
 }
 
 export interface LiveGameState {
+  /** Private wall-clock history for future video alignment. Absent on legacy games. */
+  timing?: GameTiming
   period: number // 0=pre-game, 1-3=regulation, 4=OT, 5=shootout
   clockSeconds: number // countdown seconds remaining
   clockRunning: boolean

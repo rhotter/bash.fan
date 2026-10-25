@@ -80,3 +80,46 @@ describe("scorekeeper shot-only API", () => {
     expect(mocks.update).not.toHaveBeenCalled()
   })
 })
+
+describe("private timing persistence", () => {
+  it("accepts a public expected snapshot for shot corrections while using full stored state for the atomic write", async () => {
+    context.state.timing = { version: 1, firstPlayStartedAt: 123, entries: [] }
+    mocks.rawSql.mockReset().mockResolvedValueOnce([context]).mockResolvedValue([{ game_id: "g65", updatedGoalies: 2 }])
+    const { timing: _timing, ...publicState } = context.state
+    const response = await PATCH(request({ ...correction, expectedState: publicState }), params)
+    expect(response.status).toBe(200)
+    const query = new PgDialect().sqlToQuery(mocks.rawSql.mock.calls[1][0])
+    expect(query.params.some(value => typeof value === "string" && value.includes('"firstPlayStartedAt":123'))).toBe(true)
+  })
+  it("passes device timing to the database and retains stored history for older clients that omit it", async () => {
+    context.status = "live"
+    mocks.rawSql.mockReset().mockResolvedValue([{ game_id: "g65" }])
+    const state = { ...createInitialState(), period: 1, timing: { version: 1, firstPlayStartedAt: 123, entries: [] } }
+    expect((await PUT(request(state, "PUT"), params)).status).toBe(200)
+    const query = new PgDialect().sqlToQuery(mocks.rawSql.mock.calls[0][0])
+    expect(query.params.some(value => typeof value === "string" && value.includes('"firstPlayStartedAt":123'))).toBe(true)
+    expect(query.sql).toContain("INSERT INTO game_timing_events")
+    expect(query.sql).toContain("ON CONFLICT (game_id, entry_id) DO NOTHING")
+  })
+})
+
+it("rejects malformed timing before writing state or journal entries", async () => {
+  context.status = "live"
+  const state = { ...createInitialState(), timing: { version: 1, entries: [{ id: "bad", capturedAt: "yesterday" }] } }
+  expect((await PUT(request(state, "PUT"), params)).status).toBe(422)
+  expect(mocks.rawSql).not.toHaveBeenCalled()
+  expect(mocks.update).not.toHaveBeenCalled()
+})
+
+it("acknowledges a committed timing batch and never acknowledges a rejected snapshot", async () => {
+  context.status = "live"
+  const entry = { id: "entry-1", kind: "goal", action: "add", capturedAt: 1000, recordedAt: 2000,
+    source: "device", period: 1, clockSeconds: 1100, details: { eventId: "goal-1" } }
+  const state = { ...createInitialState(), period: 1, timing: { version: 1, entries: [entry] } }
+  mocks.rawSql.mockReset().mockResolvedValueOnce([{ game_id: "g65" }]).mockResolvedValueOnce([])
+  const committed = await PUT(request(state, "PUT"), params)
+  expect(await committed.json()).toEqual({ ok: true, timingAckIds: ["entry-1"] })
+  const rejected = await PUT(request(state, "PUT"), params)
+  expect(rejected.status).toBe(409)
+  expect(await rejected.json()).not.toHaveProperty("timingAckIds")
+})

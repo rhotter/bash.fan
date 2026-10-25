@@ -720,3 +720,29 @@ describe("scorekeeper finalization", () => {
     expect(mocks.insert).not.toHaveBeenCalled()
   })
 })
+
+describe("private timing during finalization", () => {
+  it("retains the original timestamps when finalizing the scorekeeper snapshot", async () => {
+    const timing = { version: 1 as const, firstPlayStartedAt: 123, entries: [] }
+    state.timing = timing
+    const response = await finalize()
+    expect(response.status).toBe(200)
+    expect(state.timing).toMatchObject(timing)
+  })
+  it("accepts public editor snapshots, preserves private history and timestamps corrections as server actions", async () => {
+    officialGame = { status: "final", hasBoxscore: true, homeScore: 1, awayScore: 0 }
+    state.timing = { version: 1, firstPlayStartedAt: 123, entries: [] }
+    const { timing: _timing, ...expectedState } = structuredClone(state)
+    const proposal = { ...expectedState, goals: [{ ...expectedState.goals[0], clock: "8:00" }] }
+    const response = await finalize(undefined, { expectedState, state: proposal })
+    expect(response.status).toBe(200)
+    expect(state.timing?.firstPlayStartedAt).toBe(123)
+    expect(state.timing?.entries).toHaveLength(0)
+    const claim = dialect.sqlToQuery(mocks.rawSql.mock.calls[0][0])
+    expect(claim.sql).toContain("INSERT INTO game_timing_events")
+    const entries = claim.params.filter((v): v is string => typeof v === "string" && v.startsWith("[{"))
+      .map(v => JSON.parse(v)).find(v => v[0]?.kind === "goal")
+    expect(entries).toHaveLength(1)
+    expect(entries[0]).toMatchObject({ kind: "goal", action: "edit", source: "server", details: { eventId: "goal-1" } })
+  })
+})
