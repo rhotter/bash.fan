@@ -374,7 +374,9 @@ struct TeamLogo: View {
     private var asset: String? {
         guard let slug = slug?.lowercased() else { return nil }
         let keys = ["bashers", "bash", "dangleberries", "landsharks", "loons", "regretzkys", "reign", "rinkrats", "rink-rats", "seals", "yetis", "last-licks", "licks", "coxswain-bawls-hockey-club", "team-usa", "team-canada", "dolo-minions", "lazy-skater-dangle", "money-shots", "mitch-a-palooza"]
-        return keys.first { slug.contains($0) }
+        guard let key = keys.first(where: { slug.contains($0) }) else { return nil }
+        // Alternate team slugs share one bundled logo.
+        return ["rink-rats": "rinkrats", "licks": "last-licks"][key] ?? key
     }
     var body: some View {
         Group {
