@@ -2,6 +2,8 @@
 
 The BASH TestFlight GitHub Actions workflow runs for iOS app changes pushed to `main` or `video`, and supports manual runs. Website-only changes do not deploy the app. It regenerates the Xcode project, runs unit tests, archives, uploads, waits for Apple processing, and distributes to **BASH Internal**. Live API UI tests are run locally rather than blocking releases on changing league fixtures.
 
+To reduce release time, CI caches Swift package sources and compiles the unit tests while the simulator boots. It then runs those compiled tests before archiving and uploading. All unit tests remain required; app and test binaries are rebuilt for each revision.
+
 Build numbers are the greater of the next TestFlight build and `CURRENT_PROJECT_VERSION` in `project.yml`. Uploads are serialized across branches. GitHub may replace an older pending run with a newer push; the running upload is never canceled.
 
 Signing credentials were configured on October 25, 2026. The CI distribution certificate and provisioning profile expire on October 26, 2027; renew both repository secrets before then.
