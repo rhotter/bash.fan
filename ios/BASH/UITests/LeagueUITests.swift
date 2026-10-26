@@ -72,7 +72,7 @@ final class LeagueUITests: XCTestCase {
         capture("Reviewer - \(tool) unlocked")
         app.buttons["Done"].firstMatch.tap()
         XCTAssertTrue(passcode.waitForExistence(timeout: 5))
-        XCTAssertEqual(passcode.value as? String, "Admin passcode")
+        XCTAssertEqual(passcode.value as? String, tool == "Scorekeeper" ? "Scorekeeper passcode" : "Admin passcode")
         app.buttons["Cancel"].tap()
         XCTAssertTrue(menu.waitForExistence(timeout: 5))
         app.terminate()

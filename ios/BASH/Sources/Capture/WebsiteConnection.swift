@@ -59,7 +59,7 @@ final class WebsiteConnection: ObservableObject {
         guard !busy else { return }; busy = true; error = nil; defer { busy = false }
         do {
             let server = try serverURL()
-            let _: OKResponse = try await call(server, "api/bash/admin/login", body: ["pin": pin.trimmingCharacters(in: .whitespacesAndNewlines)])
+            let _: OKResponse = try await call(server, requiresAdmin ? "api/bash/admin/login" : "api/bash/scorekeeper/login", body: ["pin": pin.trimmingCharacters(in: .whitespacesAndNewlines)])
             if requiresAdmin {
                 struct AdminResponse: Decodable { let isAdmin: Bool }
                 let admin: AdminResponse = try await call(server, "api/bash/admin/me")
