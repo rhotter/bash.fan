@@ -163,11 +163,6 @@ struct GameAlertsScreen: View {
                         .accessibilityIdentifier("alertKind-\(kind.rawValue)")
                     }
                 } header: { Text("Alert types") }
-                footer: {
-                    Text(selectedKinds.isEmpty
-                         ? "All alerts are off. Your team selections will be kept."
-                         : "Choose alerts for your selected teams and games. Changes are saved when you tap Done.")
-                }
                 if let game, game.status != "final" {
                     Section("This game") {
                         selection("\(game.awayTeam) at \(game.homeTeam)", selected: selectedGames.contains(game.id)) {
