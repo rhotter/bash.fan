@@ -1,3 +1,4 @@
+vi.mock("next/server", async importOriginal => ({ ...await importOriginal<typeof import("next/server")>(), after: vi.fn() }))
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { PgDialect } from "drizzle-orm/pg-core"
 import { createInitialState } from "@/lib/scorekeeper-types"

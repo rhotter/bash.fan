@@ -1,3 +1,5 @@
+import { after } from "next/server"
+import { dispatchGameAlerts } from "@/lib/push/dispatch"
 import { saveLiveStateSql, validateGameTiming } from "@/lib/scorekeeper-timing-db"
 import { NextResponse } from "next/server"
 import { db, schema, rawSql } from "@/lib/db"
@@ -88,6 +90,7 @@ export async function PUT(
     // timestamps never determine whether an editor may replace a saved revision.
     const savedRows = await rawSql(saveLiveStateSql(id, state, expectedRevision, mutationId, { home: homeScore, away: awayScore }))
     if (!savedRows.length) return NextResponse.json({ error: "Another editor saved this game. Your draft is preserved on this device. Reload the saved game before making further edits." }, { status: 409 })
+    after(() => dispatchGameAlerts().catch(error => console.error("Game alert dispatch failed", error)))
     return NextResponse.json({ ok: true, revision: Number(savedRows[0].revision), timingAckIds: state.timing?.entries.map(e => e.id) ?? [] })
   } catch (error) {
     console.error("Failed to update live state:", error)
