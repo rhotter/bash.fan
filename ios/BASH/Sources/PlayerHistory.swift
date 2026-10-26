@@ -99,6 +99,10 @@ actor PlayerCareerCache {
 struct PlayerScreen: View {
     let player: Skater
     @Bindable var store: LeagueStore
+    var prefersGoalieStats = false
+    @ScaledMetric(relativeTo: .subheadline) private var historyNameWidth = 144.0
+    @ScaledMetric(relativeTo: .subheadline) private var historyValueWidth = 38.0
+    @ScaledMetric(relativeTo: .subheadline) private var historyRateWidth = 58.0
     @State private var career: PlayerCareer?
     @State private var error: String?
     @State private var loading = false
@@ -127,42 +131,12 @@ struct PlayerScreen: View {
                             Text("Playoffs").tag(true)
                         }.pickerStyle(.segmented).accessibilityIdentifier("careerCompetition")
                     }
-                    if !seasons.isEmpty {
-                        VStack(alignment: .leading, spacing: 10) {
-                            ScrollView(.horizontal) {
-                                VStack(spacing: 0) {
-                                    historyRow("Season / team", values: ["GP", "G", "A", "PTS", "P/G", "PIM"], header: true)
-                                    ForEach(seasons) { season in
-                                        Divider()
-                                        historyRow(season.seasonName, subtitle: season.teamName, slug: season.teamSlug,
-                                            values: skaterValues(season.stats))
-                                            .accessibilityIdentifier("career-season-\(season.id)")
-                                    }
-                                    if let total = playoffs ? career.playoffAllTimeStats : career.allTimeStats, total.gp > 0 {
-                                        Divider()
-                                        historyRow("Career", subtitle: "Fall seasons only", values: skaterValues(total), header: true)
-                                    }
-                                }
-                            }.background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16))
-                            Text("GP games · G goals · A assists · PTS points · P/G points per game · PIM penalty minutes")
-                                .font(.caption2).foregroundStyle(.secondary)
-                        }
-                    }
-                    if !goalieSeasons.isEmpty {
-                        VStack(alignment: .leading, spacing: 10) {
-                            Text("Goalie stats").font(.title3.bold())
-                            ScrollView(.horizontal) {
-                                VStack(spacing: 0) {
-                                    historyRow("Season / team", values: ["GP", "W", "L", "GAA", "SV%", "SO"], header: true)
-                                    ForEach(goalieSeasons) { season in
-                                        Divider()
-                                        historyRow(season.seasonName, subtitle: season.teamName, slug: season.teamSlug,
-                                            values: ["\(season.stats.gp)", "\(season.stats.wins)", "\(season.stats.losses)", season.stats.gaa, season.stats.savePercentage, "\(season.stats.shutouts)"])
-                                    }
-                                }
-                            }.background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16))
-                            Text("GAA goals against average · SV% save percentage · SO shutouts").font(.caption2).foregroundStyle(.secondary)
-                        }
+                    if prefersGoalieStats {
+                        goalieHistory
+                        skaterHistory(career)
+                    } else {
+                        skaterHistory(career)
+                        goalieHistory
                     }
                     if seasons.isEmpty && goalieSeasons.isEmpty {
                         ContentUnavailableView("No recorded stats", systemImage: "chart.bar", description: Text("No \(playoffs ? "playoff" : "regular-season") history is available for this player."))
@@ -190,6 +164,50 @@ struct PlayerScreen: View {
             }
         }
     }
+    @ViewBuilder private func skaterHistory(_ career: PlayerCareer) -> some View {
+        if !seasons.isEmpty {
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Skater stats").font(.title3.bold()).accessibilityIdentifier("skaterHistoryTitle")
+                ScrollView(.horizontal) {
+                    VStack(spacing: 0) {
+                        historyRow("Season / team", values: ["GP", "G", "A", "PTS", "P/G", "PIM"], header: true)
+                        ForEach(seasons) { season in
+                            Divider()
+                            historyRow(season.seasonName, subtitle: season.teamName, slug: season.teamSlug,
+                                values: skaterValues(season.stats))
+                                .accessibilityIdentifier("career-season-\(season.id)")
+                        }
+                        if let total = playoffs ? career.playoffAllTimeStats : career.allTimeStats, total.gp > 0 {
+                            Divider()
+                            historyRow("Career", subtitle: "Fall seasons only", values: skaterValues(total), header: true)
+                        }
+                    }
+                }.background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16))
+                Text("GP games · G goals · A assists · PTS points · P/G points per game · PIM penalty minutes")
+                    .font(.caption2).foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    @ViewBuilder private var goalieHistory: some View {
+        if !goalieSeasons.isEmpty {
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Goalie stats").font(.title3.bold()).accessibilityIdentifier("goalieHistoryTitle")
+                ScrollView(.horizontal) {
+                    VStack(spacing: 0) {
+                        historyRow("Season / team", values: ["GP", "W", "L", "GAA", "SV%", "SO"], header: true)
+                        ForEach(goalieSeasons) { season in
+                            Divider()
+                            historyRow(season.seasonName, subtitle: season.teamName, slug: season.teamSlug,
+                                values: ["\(season.stats.gp)", "\(season.stats.wins)", "\(season.stats.losses)", season.stats.gaa, season.stats.savePercentage, "\(season.stats.shutouts)"])
+                        }
+                    }
+                }.background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16))
+                Text("GAA goals against average · SV% save percentage · SO shutouts").font(.caption2).foregroundStyle(.secondary)
+            }
+        }
+    }
+
     @ViewBuilder private func gameLog(_ career: PlayerCareer) -> some View {
         let games = ((career.games ?? []) + (career.playoffGames ?? [])).sorted { $0.date > $1.date }
         let goalies = ((career.goalieGames ?? []) + (career.playoffGoalieGames ?? [])).sorted { $0.date > $1.date }
@@ -203,10 +221,18 @@ struct PlayerScreen: View {
                 Text("No games recorded this season.")
                     .font(.subheadline).foregroundStyle(.secondary).padding(.vertical, 8)
             }
-            if !games.isEmpty { gameLogTable(games, goalie: false) }
-            if !goalies.isEmpty {
-                Text("Goalies").font(.subheadline.weight(.semibold))
-                gameLogTable(goalies, goalie: true)
+            if prefersGoalieStats {
+                if !goalies.isEmpty { gameLogTable(goalies, goalie: true) }
+                if !games.isEmpty {
+                    Text("Skaters").font(.subheadline.weight(.semibold))
+                    gameLogTable(games, goalie: false)
+                }
+            } else {
+                if !games.isEmpty { gameLogTable(games, goalie: false) }
+                if !goalies.isEmpty {
+                    Text("Goalies").font(.subheadline.weight(.semibold))
+                    gameLogTable(goalies, goalie: true)
+                }
             }
         }
     }
@@ -254,12 +280,12 @@ struct PlayerScreen: View {
                 if let slug { TeamLogo(slug: slug, size: 24) }
                 VStack(alignment: .leading, spacing: 3) {
                     Text(title).font(.subheadline.weight(header ? .semibold : .regular))
-                    if let subtitle { Text(subtitle).font(.caption2).foregroundStyle(.secondary) }
+                    if let subtitle { Text(subtitle).font(.caption2).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
                 }
-            }.frame(width: 144, alignment: .leading)
+            }.frame(width: historyNameWidth, alignment: .leading)
             ForEach(Array(values.enumerated()), id: \.offset) { index, value in
                 Text(value).font(.subheadline.weight(header || index == 3 ? .semibold : .regular))
-                    .monospacedDigit().frame(width: index == 4 ? 58 : 38, alignment: .center)
+                    .monospacedDigit().frame(width: index == 4 ? historyRateWidth : historyValueWidth, alignment: .center)
             }
         }.padding(.horizontal, 12).padding(.vertical, header ? 12 : 10)
             .accessibilityElement(children: .combine)

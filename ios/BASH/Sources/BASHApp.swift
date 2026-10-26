@@ -257,6 +257,8 @@ private struct NativeRefreshControl: UIViewRepresentable {
 struct LeagueRoot: View {
     @Bindable var store: LeagueStore
     @Environment(\.scenePhase) private var phase
+    @Environment(\.dynamicTypeSize) private var typeSize
+    @ScaledMetric(relativeTo: .subheadline) private var weekLabelHeight = 20.0
     @State private var openedGame: Game?
     @State private var selectedWeek: String?
     @State private var selectedGame: Game?
@@ -328,7 +330,8 @@ struct LeagueRoot: View {
                     ForEach(weeks) { week in
                         Button { selectedWeek = week.id } label: {
                             Text(week.label).font(.subheadline.weight(.semibold))
-                                .padding(.horizontal, 12).frame(minHeight: 44)
+                                .fixedSize(horizontal: true, vertical: false)
+                                .padding(.horizontal, 12).frame(minHeight: weekLabelHeight + 24)
                                 .foregroundStyle(week.id == activeWeek?.id ? Color.white : Color.primary)
                                 .background(week.id == activeWeek?.id ? LeagueStyle.orange : Color.clear, in: Capsule())
                         }
@@ -340,7 +343,7 @@ struct LeagueRoot: View {
                     }
                 }.padding(.horizontal, 12).padding(.bottom, 10)
             }
-            .frame(height: 54)
+            .frame(height: weekLabelHeight + 34)
             .scrollBounceBehavior(.basedOnSize, axes: .vertical)
             .onChange(of: activeWeek?.id, initial: true) {
                 if let id = activeWeek?.id {
@@ -435,30 +438,51 @@ struct LeagueRoot: View {
                     LoadingPlaceholder(title: "Loading standings…", rows: 6)
                 } else {
                 VStack(spacing: 0) {
-                    HStack(spacing: 10) {
-                        Text("Team"); Spacer(); statColumn("PTS")
-                    }.font(.caption.weight(.semibold)).foregroundStyle(.secondary)
-                        .padding(.horizontal, 12).padding(.vertical, 12)
-                    Divider()
+                    if !typeSize.isAccessibilitySize {
+                        HStack(spacing: 10) {
+                            Text("Team"); Spacer(); statColumn("PTS")
+                        }.font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                            .padding(.horizontal, 12).padding(.vertical, 12)
+                        Divider()
+                    }
                     ForEach(Array((store.snapshot?.standings ?? []).enumerated()), id: \.element.id) { rank, team in
                         Button { selectedTeam = team } label: {
-                            HStack(spacing: 10) {
-                                Text("\(rank + 1)")
-                                    .font(.caption.weight(.medium))
-                                    .foregroundStyle(.secondary)
-                                    .frame(minWidth: 16, alignment: .leading)
-                                TeamLogo(slug: team.slug, size: 30)
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text(team.team).font(.subheadline.weight(.semibold)).foregroundStyle(.primary)
-                                    Text("\(team.gp) GP · \(team.w)–\(team.otw)–\(team.otl)–\(team.l) · \(team.gd > 0 ? "+" : "")\(team.gd) DIF")
-                                        .font(.caption2).foregroundStyle(.secondary)
-                                        .lineLimit(1)
-                                        .minimumScaleFactor(0.85)
-                                        .accessibilityLabel("\(team.gp) games played, \(team.w) wins, \(team.otw) overtime wins, \(team.otl) overtime losses, \(team.l) losses, goal difference \(team.gd)")
+                            if typeSize.isAccessibilitySize {
+                                VStack(alignment: .leading, spacing: 8) {
+                                    HStack {
+                                        Text("Rank \(rank + 1)").font(.caption).foregroundStyle(.secondary)
+                                        Spacer()
+                                        TeamLogo(slug: team.slug, size: 30)
+                                    }
+                                    Text(team.team).font(.headline)
+                                    Text("\(team.pts) points").font(.subheadline.weight(.semibold))
+                                    Text("\(team.gp) games played").font(.caption)
+                                    Text("\(team.w) W · \(team.otw) OTW · \(team.otl) OTL · \(team.l) L").font(.caption)
+                                    Text("Goal difference: \(team.gd > 0 ? "+" : "")\(team.gd)").font(.caption)
                                 }
-                                Spacer(minLength: 8)
-                                statColumn("\(team.pts)").fontWeight(.semibold).foregroundStyle(.primary)
-                            }.font(.subheadline).monospacedDigit().padding(.horizontal, 12).padding(.vertical, 10)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .foregroundStyle(.primary)
+                                .padding(12)
+                            } else {
+                                HStack(spacing: 10) {
+                                    Text("\(rank + 1)")
+                                        .font(.caption.weight(.medium))
+                                        .foregroundStyle(.secondary)
+                                        .frame(minWidth: 16, alignment: .leading)
+                                    TeamLogo(slug: team.slug, size: 30)
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text(team.team).font(.subheadline.weight(.semibold)).foregroundStyle(.primary)
+                                        Text("\(team.gp) GP · \(team.w)–\(team.otw)–\(team.otl)–\(team.l) · \(team.gd > 0 ? "+" : "")\(team.gd) DIF")
+                                            .font(.caption2).foregroundStyle(.secondary)
+                                            .lineLimit(1)
+                                            .minimumScaleFactor(0.85)
+                                            .accessibilityLabel("\(team.gp) games played, \(team.w) wins, \(team.otw) overtime wins, \(team.otl) overtime losses, \(team.l) losses, goal difference \(team.gd)")
+                                    }
+                                    Spacer(minLength: 8)
+                                    statColumn("\(team.pts)").fontWeight(.semibold).foregroundStyle(.primary)
+                                }.font(.subheadline).monospacedDigit().padding(.horizontal, 12).padding(.vertical, 10)
+                            }
                         }.buttonStyle(.plain)
                         if rank < (store.snapshot?.standings.count ?? 0) - 1 { Divider() }
                     }
@@ -511,12 +535,16 @@ private struct LeagueHeader: View {
     var searching = false
 
     var body: some View {
-        Text(title)
+        HStack(spacing: 8) {
+            Color.clear.frame(width: 44, height: 44).accessibilityHidden(true)
+            Text(title)
             .font(.headline)
             .foregroundStyle(.primary)
+            .fixedSize(horizontal: false, vertical: true)
+            .multilineTextAlignment(.center)
             .frame(maxWidth: .infinity)
-            .frame(height: 44)
-            .overlay(alignment: .trailing) {
+            ZStack {
+                Color.clear.frame(width: 44, height: 44).accessibilityHidden(true)
                 if let operatorGames { OperatorMenu(games: operatorGames) }
                 if let searchAction {
                     Button(action: searchAction) {
@@ -532,6 +560,8 @@ private struct LeagueHeader: View {
                     .accessibilityIdentifier("statsSearchButton")
                 }
             }
+        }
+            .frame(minHeight: 44)
             .padding(.horizontal, 12).padding(.top, 8).padding(.bottom, 12)
         .background(LeagueStyle.background)
     }
@@ -588,24 +618,33 @@ struct GameRow: View {
     }
     var body: some View {
         VStack(spacing: 10) {
-            HStack(alignment: .center, spacing: 6) {
-                side(game.awayTeam, slug: game.awaySlug)
-                VStack(spacing: 5) {
+            if typeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: 16) {
                     Text(status).font(.caption.weight(.semibold))
                         .foregroundStyle(game.status == "live" ? LeagueStyle.orange : .secondary)
-                    if game.status == "upcoming" {
-                        Text("vs").font(.title3.weight(.medium)).foregroundStyle(.tertiary)
-                    } else {
-                        HStack(spacing: 10) {
-                            Text(game.awayScore.map(String.init) ?? "–")
-                                .foregroundStyle((game.awayScore ?? 0) >= (game.homeScore ?? 0) ? Color.primary : Color.secondary)
-                            Text("–").foregroundStyle(.tertiary).font(.title3)
-                            Text(game.homeScore.map(String.init) ?? "–")
-                                .foregroundStyle((game.homeScore ?? 0) >= (game.awayScore ?? 0) ? Color.primary : Color.secondary)
-                        }.font(.system(.largeTitle, design: .rounded, weight: .bold)).monospacedDigit()
-                    }
-                }.frame(minWidth: 100).layoutPriority(1)
-                side(game.homeTeam, slug: game.homeSlug)
+                    accessibleSide(game.awayTeam, slug: game.awaySlug, score: game.awayScore)
+                    accessibleSide(game.homeTeam, slug: game.homeSlug, score: game.homeScore)
+                }.frame(maxWidth: .infinity, alignment: .leading)
+            } else {
+                HStack(alignment: .center, spacing: 6) {
+                    side(game.awayTeam, slug: game.awaySlug)
+                    VStack(spacing: 5) {
+                        Text(status).font(.caption.weight(.semibold))
+                            .foregroundStyle(game.status == "live" ? LeagueStyle.orange : .secondary)
+                        if game.status == "upcoming" {
+                            Text("vs").font(.title3.weight(.medium)).foregroundStyle(.tertiary)
+                        } else {
+                            HStack(spacing: 10) {
+                                Text(game.awayScore.map(String.init) ?? "–")
+                                    .foregroundStyle((game.awayScore ?? 0) >= (game.homeScore ?? 0) ? Color.primary : Color.secondary)
+                                Text("–").foregroundStyle(.tertiary).font(.title3)
+                                Text(game.homeScore.map(String.init) ?? "–")
+                                    .foregroundStyle((game.homeScore ?? 0) >= (game.awayScore ?? 0) ? Color.primary : Color.secondary)
+                            }.font(.system(.largeTitle, design: .rounded, weight: .bold)).monospacedDigit()
+                        }
+                    }.frame(minWidth: 100).layoutPriority(1)
+                    side(game.homeTeam, slug: game.homeSlug)
+                }
             }
             if game.isPlayoff { Text("Playoffs").font(.caption2).foregroundStyle(.secondary) }
         }
@@ -614,6 +653,18 @@ struct GameRow: View {
         .accessibilityElement(children: .ignore)
         .accessibilityIdentifier("game-\(game.id)")
         .accessibilityLabel("\(game.awayTeam), \(game.awayScore.map(String.init) ?? "no score"), at \(game.homeTeam), \(game.homeScore.map(String.init) ?? "no score"), \(status)")
+    }
+    private func accessibleSide(_ name: String, slug: String?, score: Int?) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                TeamLogo(slug: slug, size: 30)
+                if game.status != "upcoming" {
+                    Text(score.map(String.init) ?? "–").font(.title2.bold()).monospacedDigit()
+                }
+            }
+            Text(name).font(.subheadline.weight(.semibold))
+                .fixedSize(horizontal: false, vertical: true)
+        }.foregroundStyle(.primary)
     }
     private func side(_ name: String, slug: String?) -> some View {
         VStack(spacing: 6) {
@@ -645,7 +696,14 @@ struct TeamScreen: View {
             }
             Section("Games") {
                 ForEach((store.snapshot?.games ?? []).filter { $0.homeSlug == team.slug || $0.awaySlug == team.slug }) { game in
-                    NavigationLink { GameScreen(game: game, store: store) } label: { GameRow(game: game) }
+                    NavigationLink { GameScreen(game: game, store: store) } label: {
+                        VStack(alignment: .leading, spacing: 0) {
+                            Text(game.dateLabel).font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                                .padding(.horizontal, 12).padding(.top, 12)
+                                .accessibilityIdentifier("team-game-date-\(game.id)")
+                            GameRow(game: game)
+                        }
+                    }
                         .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 16))
                         .alignmentGuide(.listRowSeparatorLeading) { _ in 0 }
                         .alignmentGuide(.listRowSeparatorTrailing) { dimensions in dimensions.width + 16 }
@@ -708,7 +766,9 @@ private struct SeasonMenu: View {
         } label: {
             HStack(spacing: 6) {
                 Text(seasonName).font(.subheadline.weight(.medium))
-                Image(systemName: "chevron.down").font(.caption2.weight(.bold))
+                    .fixedSize(horizontal: false, vertical: true)
+                Image(systemName: "chevron.down").font(.system(size: 11, weight: .bold))
+                    .fixedSize()
             }.foregroundStyle(Color.primary).padding(.vertical, 10)
         }.tint(.primary).accessibilityLabel("Season: \(seasonName)")
             .accessibilityIdentifier("seasonPicker")
@@ -717,6 +777,7 @@ private struct SeasonMenu: View {
 }
 
 private struct StatsScreen: View {
+    @Environment(\.dynamicTypeSize) private var typeSize
     @State private var selectedPlayer: Skater?
     @Bindable var store: LeagueStore
     @State private var search = ""
@@ -765,6 +826,10 @@ private struct StatsScreen: View {
         Array(rankedPlayers.enumerated()).filter { $0.element.matchesPlayerSearch(search) }
     }
 
+    private var filterLayout: AnyLayout {
+        typeSize.isAccessibilitySize ? AnyLayout(VStackLayout(alignment: .leading, spacing: 16)) : AnyLayout(HStackLayout())
+    }
+
     private func rowSummary(_ player: Skater) -> String {
         if showGoalies, let goalie = statsGoalies.first(where: { $0.id == player.id }) {
             return "\(goalie.gp) GP · \(goalie.wins) W · \(GoalieMetric.gaa.display(goalie)) GAA · \(GoalieMetric.savePercentage.display(goalie)) SV%"
@@ -792,9 +857,16 @@ private struct StatsScreen: View {
                 // This content is a single List row. Lazy stacks change its measured
                 // height while scrolling, which can shift the list past the search bar.
                 VStack(alignment: .leading, spacing: 12) {
+                    if allTime {
+                        Text("Fall regular seasons only")
+                            .font(.caption).foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(.horizontal, 12)
+                            .accessibilityIdentifier("allTimeScope")
+                    }
                     if searching { NativePlayerSearch(text: $search, autofocus: true).frame(height: 44) }
                     if let error = statsError { Text(error).font(.footnote).foregroundStyle(.secondary) }
-                    HStack {
+                    filterLayout {
                         if !allTime { Menu {
                             Picker("Team", selection: $selectedTeam) {
                                 Text("All teams").tag("")
@@ -803,12 +875,14 @@ private struct StatsScreen: View {
                         } label: {
                             HStack(spacing: 6) {
                                 Text(selectedTeam.isEmpty ? "All teams" : selectedTeam)
-                                Image(systemName: "chevron.down").font(.caption2.weight(.bold))
+                                    .fixedSize(horizontal: false, vertical: true)
+                                    .multilineTextAlignment(.leading)
+                                Image(systemName: "chevron.down").font(.system(size: 11, weight: .bold)).fixedSize()
                             }.font(.subheadline.weight(.semibold)).foregroundStyle(.primary)
                         }.tint(.primary).accessibilityLabel("Team: \(selectedTeam.isEmpty ? "All teams" : selectedTeam)")
                             .accessibilityIdentifier("teamFilter")
                         }
-                        Spacer()
+                        if !typeSize.isAccessibilitySize { Spacer() }
                         Menu {
                             if showGoalies {
                                 Picker("Sort by", selection: $goalieMetric) {
@@ -822,7 +896,9 @@ private struct StatsScreen: View {
                         } label: {
                             HStack(spacing: 6) {
                                 Text(showGoalies ? goalieMetric.rawValue : statMetric.rawValue)
-                                Image(systemName: "chevron.down").font(.caption2.weight(.bold))
+                                    .fixedSize(horizontal: false, vertical: true)
+                                    .multilineTextAlignment(.leading)
+                                Image(systemName: "chevron.down").font(.system(size: 11, weight: .bold)).fixedSize()
                             }.font(.subheadline.weight(.semibold)).foregroundStyle(.primary)
                         }.tint(.primary).accessibilityLabel("Sort by: \(showGoalies ? goalieMetric.rawValue : statMetric.rawValue)")
                             .accessibilityIdentifier("statSort")
@@ -830,20 +906,37 @@ private struct StatsScreen: View {
                     VStack(spacing: 0) {
                         ForEach(rows, id: \.element.id) { rank, player in
                             Button { selectedPlayer = player } label: {
-                                HStack(spacing: 10) {
-                                    ListRank(rank: rank + 1, total: rankedPlayers.count)
-                                    TeamLogo(slug: player.teamSlug, size: 30)
-                                    VStack(alignment: .leading, spacing: 3) {
-                                        Text(player.name).font(.subheadline.weight(.semibold)).foregroundStyle(.primary)
-                                        Text(rowSummary(player))
-                                            .font(.caption).foregroundStyle(.secondary)
-                                            .fixedSize(horizontal: false, vertical: true)
+                                if typeSize.isAccessibilitySize {
+                                    VStack(alignment: .leading, spacing: 8) {
+                                        HStack {
+                                            Text("Rank \(rank + 1)").font(.caption).foregroundStyle(.secondary)
+                                            Spacer()
+                                            TeamLogo(slug: player.teamSlug, size: 30)
+                                        }
+                                        Text(player.name).font(.subheadline.weight(.semibold))
+                                        Text("\(showGoalies ? goalieMetric.rawValue : statMetric.rawValue): \(rowValue(player))")
+                                            .font(.subheadline.weight(.semibold)).monospacedDigit()
+                                        Text(rowSummary(player)).font(.caption).foregroundStyle(.secondary)
                                     }
-                                    Spacer(minLength: 8)
-                                    Text(rowValue(player)).font(.subheadline.weight(.semibold))
-                                        .foregroundStyle(.primary).monospacedDigit()
-                                }.padding(.horizontal, 12).padding(.vertical, 10)
-                                    .contentShape(Rectangle())
+                                    .fixedSize(horizontal: false, vertical: true)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .foregroundStyle(.primary).padding(12).contentShape(Rectangle())
+                                } else {
+                                    HStack(spacing: 10) {
+                                        ListRank(rank: rank + 1, total: rankedPlayers.count)
+                                        TeamLogo(slug: player.teamSlug, size: 30)
+                                        VStack(alignment: .leading, spacing: 3) {
+                                            Text(player.name).font(.subheadline.weight(.semibold)).foregroundStyle(.primary)
+                                            Text(rowSummary(player))
+                                                .font(.caption).foregroundStyle(.secondary)
+                                                .fixedSize(horizontal: false, vertical: true)
+                                        }
+                                        Spacer(minLength: 8)
+                                        Text(rowValue(player)).font(.subheadline.weight(.semibold))
+                                            .foregroundStyle(.primary).monospacedDigit()
+                                    }.padding(.horizontal, 12).padding(.vertical, 10)
+                                        .contentShape(Rectangle())
+                                }
                             }.buttonStyle(.plain).accessibilityIdentifier("player-\(player.id)")
                             if player.id != rows.last?.element.id { Divider() }
                         }
@@ -860,7 +953,7 @@ private struct StatsScreen: View {
                 if !searching { search = "" }
             }, searching: searching)
             .scrollDismissesKeyboard(.interactively)
-            .navigationDestination(optional: $selectedPlayer) { PlayerScreen(player: $0, store: store) }
+            .navigationDestination(optional: $selectedPlayer) { PlayerScreen(player: $0, store: store, prefersGoalieStats: showGoalies) }
             .task(id: allTime) { await loadAllTime() }
             .onChange(of: allTime) { selectedTeam = ""; updateRanking() }
             .task(id: Array(rankedPlayers.prefix(4).map(\.id))) {

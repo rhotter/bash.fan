@@ -209,7 +209,7 @@ struct GameScreen: View {
         }.tint(.primary).navigationTitle(current.dateLabel).navigationBarTitleDisplayMode(.inline)
             .toolbar(.visible, for: .navigationBar)
             .toolbar(.visible, for: .tabBar)
-            .toolbar { ToolbarItem(placement: .topBarTrailing) { OperatorMenu(games: store.snapshot?.games ?? [], game: current) } }
+            .toolbar { ToolbarItem(placement: .topBarTrailing) { OperatorMenu(games: store.snapshot?.games ?? [], game: current, inToolbar: true) } }
             .task(id: phase) {
                 guard phase == .active else { return }
                 await load()
@@ -299,7 +299,7 @@ struct GameScreen: View {
             ForEach(goalies) { goalie in
                 let time = String(format: "%d:%02d", goalie.seconds / 60, goalie.seconds % 60)
                 NavigationLink {
-                    PlayerScreen(player: Skater(teamSlug: slug, id: goalie.id, name: goalie.name, team: team, gp: 1, goals: 0, assists: 0, points: 0), store: store)
+                    PlayerScreen(player: Skater(teamSlug: slug, id: goalie.id, name: goalie.name, team: team, gp: 1, goals: 0, assists: 0, points: 0), store: store, prefersGoalieStats: true)
                 } label: {
                     HStack(spacing: 6) {
                         VStack(alignment: .leading, spacing: 2) {
