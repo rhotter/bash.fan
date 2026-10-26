@@ -151,15 +151,21 @@ private struct NativeRefreshControl: UIViewRepresentable {
         private let spinner = UIActivityIndicatorView(style: .medium)
         private var restingInset = UIEdgeInsets.zero
         private var restingY: CGFloat = 0
+        private var offsetObservation: NSKeyValueObservation?
+        private let refreshHeight: CGFloat = 60
         private weak var scroll: UIScrollView?
         private var task: Task<Void, Never>?
         init(action: @escaping @MainActor () async -> Void) {
             self.action = action
             super.init(frame: .zero)
             isUserInteractionEnabled = false
-            control.tintColor = .secondaryLabel
+            control.tintColor = .clear
             spinner.color = .secondaryLabel
             spinner.accessibilityLabel = "Refreshing"
+            spinner.accessibilityIdentifier = "refreshIndicator"
+            spinner.isAccessibilityElement = true
+            spinner.hidesWhenStopped = false
+            spinner.alpha = 0
             control.addTarget(self, action: #selector(refresh), for: .valueChanged)
         }
         required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
@@ -176,6 +182,12 @@ private struct NativeRefreshControl: UIViewRepresentable {
                     if scroll !== candidate {
                         restingInset = candidate.contentInset
                         restingY = -candidate.adjustedContentInset.top
+                        offsetObservation?.invalidate()
+                        spinner.removeFromSuperview()
+                        candidate.addSubview(spinner)
+                        offsetObservation = candidate.observe(\.contentOffset, options: [.new]) { [weak self] _, _ in
+                            MainActor.assumeIsolated { self?.updateIndicator() }
+                        }
                     }
                     scroll = candidate
                     if candidate.refreshControl !== control {
@@ -183,12 +195,27 @@ private struct NativeRefreshControl: UIViewRepresentable {
                         candidate.refreshControl = control
                         candidate.accessibilityValue = "Ready"
                     }
+                    updateIndicator()
                     return
                 }
                 parent = view.superview
             }
         }
+        private func updateIndicator() {
+            guard let scroll else { return }
+            // Use the same fixed-size glyph throughout the pull and request.
+            // Center it in the revealed space, relative to this list's inset.
+            let pull = max(0, restingY - scroll.contentOffset.y)
+            spinner.bounds = CGRect(x: 0, y: 0, width: 20, height: 20)
+            spinner.center = CGPoint(x: scroll.bounds.width / 2,
+                                     y: -restingInset.top - pull / 2)
+            spinner.alpha = min(1, pull / 20)
+            if pull > 0 { spinner.startAnimating() } else { spinner.stopAnimating() }
+            scroll.bringSubviewToFront(spinner)
+        }
         func detach() {
+            offsetObservation?.invalidate()
+            offsetObservation = nil
             task?.cancel()
             task = nil
             control.endRefreshing()
@@ -199,7 +226,7 @@ private struct NativeRefreshControl: UIViewRepresentable {
             scroll = nil
         }
         @objc private func refresh() {
-            guard task == nil else { control.endRefreshing(); return }
+            guard task == nil else { return }
             task = Task { @MainActor [weak self] in
                 guard let self, let scroll else { return }
                 scroll.accessibilityValue = "Refreshing"
@@ -209,23 +236,17 @@ private struct NativeRefreshControl: UIViewRepresentable {
                     try? await Task.sleep(for: .milliseconds(16))
                 }
                 guard !Task.isCancelled else { return }
-                control.tintColor = .clear
                 control.endRefreshing()
                 scroll.contentInset = restingInset
-                spinner.frame = CGRect(x: (scroll.bounds.width - 60) / 2, y: -60, width: 60, height: 60)
-                scroll.addSubview(spinner)
-                spinner.startAnimating()
-                scroll.contentInset.top += 60
-                scroll.setContentOffset(CGPoint(x: scroll.contentOffset.x, y: restingY - 60), animated: true)
+                scroll.contentInset.top += refreshHeight
+                scroll.setContentOffset(CGPoint(x: scroll.contentOffset.x, y: restingY - refreshHeight), animated: true)
                 await action()
+                guard !Task.isCancelled else { return }
                 let nearTop = scroll.contentOffset.y < restingY + 1
-                spinner.stopAnimating()
-                spinner.removeFromSuperview()
                 UIView.animate(withDuration: 0.25) { [self] in
                     scroll.contentInset = restingInset
                     if nearTop { scroll.contentOffset.y = restingY }
                 }
-                control.tintColor = .secondaryLabel
                 scroll.accessibilityValue = "Ready"
                 task = nil
             }

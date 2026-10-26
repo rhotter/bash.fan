@@ -142,6 +142,7 @@ final class LeagueUITests: XCTestCase {
                    withVelocity: XCUIGestureVelocity(rawValue: 300), thenHoldForDuration: 0.2)
         XCTAssertEqual(list.value as? String, "Refreshing")
         XCTAssertGreaterThan(game.frame.minY, originalY + 20)
+        assertRefreshIndicator(in: list, app: app)
         capture("Scores while refreshing")
         let finished = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == 'Ready'"), object: list)
         XCTAssertEqual(XCTWaiter.wait(for: [finished], timeout: 20), .completed)
@@ -165,12 +166,13 @@ final class LeagueUITests: XCTestCase {
             XCTAssertTrue(list.waitForExistence(timeout: 10))
             let season = app.buttons["seasonPicker"]
             let originalY = season.frame.minY
-            list.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.05))
+            list.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.4))
                 .press(forDuration: 0.1,
-                       thenDragTo: list.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.83)),
+                       thenDragTo: list.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.95)),
                        withVelocity: XCUIGestureVelocity(rawValue: 300), thenHoldForDuration: 0.2)
             XCTAssertEqual(list.value as? String, "Refreshing")
-            XCTAssertGreaterThan(season.frame.minY, originalY + 20, "Content must remain held below the spinner")
+            XCTAssertEqual(season.frame.minY, originalY, accuracy: 2, "The fixed header must not move during refresh")
+            assertRefreshIndicator(in: list, app: app)
             capture("\(tab) while refreshing")
             let finished = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == 'Ready'"), object: list)
             XCTAssertEqual(XCTWaiter.wait(for: [finished], timeout: 20), .completed)
@@ -180,6 +182,16 @@ final class LeagueUITests: XCTestCase {
             XCTAssertEqual(XCTWaiter.wait(for: [settled], timeout: 5), .completed)
             capture("\(tab) after pull-to-refresh")
         }
+    }
+
+    @MainActor private func assertRefreshIndicator(in list: XCUIElement, app: XCUIApplication) {
+        let indicator = app.activityIndicators["refreshIndicator"]
+        XCTAssertTrue(indicator.exists)
+        guard indicator.exists else { return }
+        XCTAssertEqual(indicator.frame.width, 20, accuracy: 1)
+        XCTAssertEqual(indicator.frame.height, 20, accuracy: 1)
+        XCTAssertEqual(indicator.frame.midX, list.frame.midX, accuracy: 1)
+        XCTAssertEqual(indicator.frame.midY, list.frame.minY + 30, accuracy: 2)
     }
 
     @MainActor func testNativeScorekeeper() throws {
