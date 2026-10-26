@@ -19,7 +19,7 @@ concurrency:
 
 jobs:
   deploy:
-    runs-on: macos-15-intel
+    runs-on: macos-15
     timeout-minutes: 90
     defaults:
       run:
@@ -58,10 +58,10 @@ jobs:
           brew install xcodegen
           xcodegen generate
       - name: Run unit tests
-        timeout-minutes: 15
+        timeout-minutes: 20
         run: |
           set -o pipefail
-          device=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; devices=json.load(sys.stdin)["devices"]; print(next(d["udid"] for runtime,ds in devices.items() if "iOS-26-1" in runtime for d in ds if d["name"].startswith("iPhone")))')
+          device=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; devices=json.load(sys.stdin)["devices"]; print(next(d["udid"] for runtime,ds in devices.items() if "iOS-18-5" in runtime for d in ds if d["name"].startswith("iPhone")))')
           xcrun simctl boot "$device"
           xcrun simctl bootstatus "$device" -b
           xcodebuild -project BASH.xcodeproj -scheme BASH -destination "platform=iOS Simulator,id=$device" -only-testing:BASHTests -parallel-testing-enabled NO test
