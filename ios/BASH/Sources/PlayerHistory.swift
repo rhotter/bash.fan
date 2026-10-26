@@ -103,11 +103,9 @@ struct PlayerScreen: View {
     @State private var error: String?
     @State private var loading = false
     @State private var playoffs = false
-    @State private var selectedSeasonID: String?
     @State private var selectedGameID: String?
     private var seasons: [CareerSeason] { (playoffs ? career?.playoffPerSeasonStats : career?.perSeasonStats) ?? [] }
     private var goalieSeasons: [CareerGoalieSeason] { (playoffs ? career?.playoffPerSeasonGoalieStats : career?.perSeasonGoalieStats) ?? [] }
-    private var selectedSeason: CareerSeason? { seasons.first { $0.id == selectedSeasonID } ?? seasons.first }
 
     var body: some View {
         RefreshScrollView(action: { await load(force: true) }) {
@@ -121,30 +119,6 @@ struct PlayerScreen: View {
                     Spacer(minLength: 0)
                 }.padding(.top, 4)
                 if let career {
-                    if let season = selectedSeason {
-                        VStack(alignment: .leading, spacing: 18) {
-                            HStack {
-                                Menu {
-                                    ForEach(seasons) { item in
-                                        Button("\(item.seasonName) · \(item.teamName)") { selectedSeasonID = item.id }
-                                    }
-                                } label: {
-                                    HStack(spacing: 6) {
-                                        Text(season.seasonName).font(.subheadline.weight(.semibold))
-                                        Image(systemName: "chevron.down").font(.caption.weight(.semibold))
-                                    }
-                                }.accessibilityIdentifier("playerSeasonPicker")
-                                Spacer()
-                                TeamLogo(slug: season.teamSlug, size: 24)
-                            }
-                            HStack(spacing: 0) {
-                                headline("Games played", "\(season.stats.gp)")
-                                headline("Goals", "\(season.stats.goals)")
-                                headline("Assists", "\(season.stats.assists)")
-                                headline("Points", "\(season.stats.points)")
-                            }
-                        }.padding(16).background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 18))
-                    }
                     gameLog(career)
                     VStack(alignment: .leading, spacing: 10) {
                         Text("Season history").font(.title3.bold())
@@ -160,10 +134,9 @@ struct PlayerScreen: View {
                                     historyRow("Season / team", values: ["GP", "G", "A", "PTS", "P/G", "PIM"], header: true)
                                     ForEach(seasons) { season in
                                         Divider()
-                                        Button { selectedSeasonID = season.id } label: {
-                                            historyRow(season.seasonName, subtitle: season.teamName, slug: season.teamSlug,
-                                                values: skaterValues(season.stats), selected: selectedSeason?.id == season.id)
-                                        }.buttonStyle(.plain).accessibilityIdentifier("career-season-\(season.id)")
+                                        historyRow(season.seasonName, subtitle: season.teamName, slug: season.teamSlug,
+                                            values: skaterValues(season.stats))
+                                            .accessibilityIdentifier("career-season-\(season.id)")
                                     }
                                     if let total = playoffs ? career.playoffAllTimeStats : career.allTimeStats, total.gp > 0 {
                                         Divider()
@@ -207,7 +180,6 @@ struct PlayerScreen: View {
         .navigationTitle("Player stats").navigationBarTitleDisplayMode(.inline)
         .toolbar(.visible, for: .navigationBar)
         .toolbar(.visible, for: .tabBar)
-        .onChange(of: playoffs) { selectedSeasonID = nil }
         .task(id: player.id) { await load() }
         .navigationDestination(isPresented: Binding(
             get: { selectedGameID != nil },
@@ -219,8 +191,8 @@ struct PlayerScreen: View {
         }
     }
     @ViewBuilder private func gameLog(_ career: PlayerCareer) -> some View {
-        let games = (playoffs ? career.playoffGames : career.games) ?? []
-        let goalies = (playoffs ? career.playoffGoalieGames : career.goalieGames) ?? []
+        let games = ((career.games ?? []) + (career.playoffGames ?? [])).sorted { $0.date > $1.date }
+        let goalies = ((career.goalieGames ?? []) + (career.playoffGoalieGames ?? [])).sorted { $0.date > $1.date }
         VStack(alignment: .leading, spacing: 10) {
             HStack {
                 Text("Game log").font(.title3.bold())
@@ -228,7 +200,7 @@ struct PlayerScreen: View {
                 Text("Current season").font(.caption).foregroundStyle(.secondary)
             }
             if games.isEmpty && goalies.isEmpty {
-                Text("No \(playoffs ? "playoff" : "regular-season") games recorded this season.")
+                Text("No games recorded this season.")
                     .font(.subheadline).foregroundStyle(.secondary).padding(.vertical, 8)
             }
             if !games.isEmpty { gameLogTable(games, goalie: false) }
@@ -273,21 +245,15 @@ struct PlayerScreen: View {
             }
         }
     }
-    private func headline(_ label: String, _ value: String) -> some View {
-        VStack(spacing: 5) {
-            Text(value).font(.system(.title, design: .rounded, weight: .bold)).monospacedDigit()
-            Text(label).font(.caption).foregroundStyle(.secondary)
-        }.frame(maxWidth: .infinity).accessibilityElement(children: .combine)
-    }
     private func skaterValues(_ stats: CareerStats) -> [String] {
         ["\(stats.gp)", "\(stats.goals)", "\(stats.assists)", "\(stats.points)", stats.ptsPg, "\(stats.pim)"]
     }
-    private func historyRow(_ title: String, subtitle: String? = nil, slug: String? = nil, values: [String], header: Bool = false, selected: Bool = false) -> some View {
+    private func historyRow(_ title: String, subtitle: String? = nil, slug: String? = nil, values: [String], header: Bool = false) -> some View {
         HStack(spacing: 0) {
             HStack(spacing: 8) {
                 if let slug { TeamLogo(slug: slug, size: 24) }
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(title).font(.subheadline.weight(header || selected ? .semibold : .regular))
+                    Text(title).font(.subheadline.weight(header ? .semibold : .regular))
                     if let subtitle { Text(subtitle).font(.caption2).foregroundStyle(.secondary) }
                 }
             }.frame(width: 144, alignment: .leading)

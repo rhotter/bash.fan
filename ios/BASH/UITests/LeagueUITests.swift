@@ -356,10 +356,7 @@ final class LeagueUITests: XCTestCase {
         XCTAssertTrue(app.descendants(matching: .any)["player-log-g205"].exists)
         XCTAssertFalse(app.staticTexts["Swipe for more stats"].exists)
         capture("Player history")
-        XCTAssertTrue(app.buttons["playerSeasonPicker"].exists)
-        app.buttons["playerSeasonPicker"].tap()
-        app.buttons["Summer 2026 · Dolo Minions"].tap()
-        capture("Selected season")
+        XCTAssertFalse(app.buttons["playerSeasonPicker"].exists)
         app.buttons["Playoffs"].tap()
         XCTAssertTrue(app.staticTexts["Summer 2026"].waitForExistence(timeout: 5))
         capture("Player playoffs")
@@ -415,8 +412,9 @@ final class LeagueUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Game log"].waitForExistence(timeout: 10))
         app.swipeDown()
         app.buttons["Playoffs"].tap()
-        XCTAssertTrue(app.staticTexts["No playoff games recorded this season."].exists)
-        XCTAssertFalse(app.descendants(matching: .any)["player-log-g205"].exists)
+        XCTAssertTrue(app.descendants(matching: .any)["player-log-g205"].exists)
+        XCTAssertFalse(app.staticTexts["Games played"].exists)
+        capture("Player playoff history with combined game log")
     }
     @MainActor func testTeamGameRowLayout() throws {
         let app = XCUIApplication()
