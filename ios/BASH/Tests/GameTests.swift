@@ -95,6 +95,16 @@ final class GameTests: XCTestCase {
         let live = try JSONDecoder().decode(GameLive.self, from: Data(json.utf8))
         XCTAssertEqual(live.orderedGoals.map(\.id), ["early", "late", "so"])
         XCTAssertEqual(live.events.map(\.id), ["penalty-p", "goal-early", "goal-late", "goal-so"])
+        XCTAssertEqual(live.summaryPeriods, [1, 2, 3, 4])
+        let emptyJSON = """
+        {"state":{"period":2,"goals":[],"penalties":[],"homeShots":[0,0,0],"awayShots":[0,0,0],"homeAttendance":[],"awayAttendance":[]},"playerNames":{},"homeScore":0,"awayScore":0,"status":"live","goalieIds":[],"subPlayerIds":[]}
+        """
+        let empty = try JSONDecoder().decode(GameLive.self, from: Data(emptyJSON.utf8))
+        XCTAssertEqual(empty.summaryPeriods, [1, 2])
+        let final = try JSONDecoder().decode(GameLive.self, from: Data(emptyJSON.replacingOccurrences(of: "\"live\"", with: "\"final\"").utf8))
+        XCTAssertEqual(final.summaryPeriods, [1, 2, 3])
+        let upcoming = try JSONDecoder().decode(GameLive.self, from: Data(emptyJSON.replacingOccurrences(of: "\"live\"", with: "\"upcoming\"").utf8))
+        XCTAssertTrue(upcoming.summaryPeriods.isEmpty)
         let players = live.skaters(home: true, slug: "home")
         XCTAssertEqual(players.map(\.id), [1, 2])
         XCTAssertEqual(players[0].goals, 1) // Shootout attempts do not count in skater totals.

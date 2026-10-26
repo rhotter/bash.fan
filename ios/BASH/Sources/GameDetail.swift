@@ -114,6 +114,14 @@ struct GameEvent: Identifiable {
     var team: String { goal?.team ?? penalty?.team ?? "" }
 }
 extension GameLive {
+    /// Include empty completed/current periods, but never future regulation periods in a live game.
+    /// Shootout attempts have their own summary rather than a timed period feed.
+    var summaryPeriods: [Int] {
+        guard status != "upcoming" else { return [] }
+        let lastEvent = (state.goals.map(\.period) + state.penalties.map(\.period)).max() ?? 1
+        let count = min(4, max(status == "final" ? 3 : 1, state.period, lastEvent))
+        return Array(1...count)
+    }
     var events: [GameEvent] {
         (state.goals.map { GameEvent(goal: $0, penalty: nil) } + state.penalties.map { GameEvent(goal: nil, penalty: $0) }).sorted {
             if $0.period != $1.period { return $0.period < $1.period }
@@ -292,29 +300,11 @@ struct GameScreen: View {
     }
     @ViewBuilder private var playsContent: some View {
         if let live {
-            let periods = Set(live.state.goals.map(\.period) + live.state.penalties.map(\.period)).sorted()
-            if periods.isEmpty { Text("No plays recorded yet.").foregroundStyle(.secondary) }
-            ForEach(periods, id: \.self) { period in
-                Section(periodLabel(period)) {
-                    ForEach(live.events.filter { $0.period == period }) { event in
-                        HStack(alignment: .center, spacing: 10) {
-                            Text(event.clock).font(.caption).monospacedDigit().foregroundStyle(.secondary).frame(width: 40, alignment: .leading)
-                            TeamLogo(slug: event.team, size: 26)
-                            VStack(alignment: .leading, spacing: 2) {
-                                if let goal = event.goal {
-                                    Text("Goal · \(live.name(goal.scorerId))").font(.subheadline.weight(.semibold))
-                                    let assists = [goal.assist1Id, goal.assist2Id].compactMap { $0 }.map { live.name($0) }
-                                    Text(assists.isEmpty ? "Unassisted" : assists.joined(separator: ", ")).font(.caption).foregroundStyle(.secondary)
-                                    if !goal.flags.isEmpty { Text(goal.flags.joined(separator: " · ")).font(.caption2).foregroundStyle(.secondary) }
-                                } else if let penalty = event.penalty {
-                                    Text(live.name(penalty.playerId)).font(.subheadline.weight(.semibold))
-                                    Text("\(penalty.infraction) · \(penalty.minutes) min").font(.caption).foregroundStyle(.secondary)
-                                }
-                            }
-                        }.listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
-                            .alignmentGuide(.listRowSeparatorLeading) { _ in 0 }
-                    }
-                }
+            if current.status == "upcoming" {
+                Text("The game has not started yet.").font(.subheadline).foregroundStyle(.secondary)
+            } else {
+                eventSummary(live, scoring: true)
+                eventSummary(live, scoring: false)
             }
             if let shootout = live.state.shootout, !shootout.homeAttempts.isEmpty || !shootout.awayAttempts.isEmpty {
                 Section("Shootout") {
@@ -326,6 +316,38 @@ struct GameScreen: View {
             ContentUnavailableView("No play-by-play", systemImage: "list.bullet.rectangle", description: Text("Recorded goals and penalties will appear here when available."))
         }
         if eventsError { Text("Couldn't refresh plays. Pull down to retry.").font(.caption).foregroundStyle(.secondary) }
+    }
+    private func eventSummary(_ live: GameLive, scoring: Bool) -> some View {
+        Section(scoring ? "Scoring summary" : "Penalty summary") {
+            ForEach(live.summaryPeriods, id: \.self) { period in
+                let events = live.events.filter { $0.period == period && (scoring ? $0.goal != nil : $0.penalty != nil) }
+                Text(periodLabel(period)).font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                    .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 4, trailing: 16))
+                if events.isEmpty {
+                    Text(scoring ? "No scoring" : "No penalties")
+                        .font(.subheadline).foregroundStyle(.secondary)
+                        .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 8, trailing: 16))
+                }
+                ForEach(events) { event in
+                    HStack(alignment: .center, spacing: 10) {
+                        Text(event.clock).font(.caption).monospacedDigit().foregroundStyle(.secondary).frame(width: 40, alignment: .leading)
+                        TeamLogo(slug: event.team, size: 26)
+                        VStack(alignment: .leading, spacing: 2) {
+                            if let goal = event.goal {
+                                Text("Goal · \(live.name(goal.scorerId))").font(.subheadline.weight(.semibold))
+                                let assists = [goal.assist1Id, goal.assist2Id].compactMap { $0 }.map { live.name($0) }
+                                Text(assists.isEmpty ? "Unassisted" : assists.joined(separator: ", ")).font(.caption).foregroundStyle(.secondary)
+                                if !goal.flags.isEmpty { Text(goal.flags.joined(separator: " · ")).font(.caption2).foregroundStyle(.secondary) }
+                            } else if let penalty = event.penalty {
+                                Text(live.name(penalty.playerId)).font(.subheadline.weight(.semibold))
+                                Text("\(penalty.infraction) · \(penalty.minutes) min").font(.caption).foregroundStyle(.secondary)
+                            }
+                        }
+                    }.listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
+                        .alignmentGuide(.listRowSeparatorLeading) { _ in 0 }
+                }
+            }
+        }
     }
     private func columns(_ values: [String]) -> some View {
         HStack(spacing: 6) { ForEach(Array(values.enumerated()), id: \.offset) { _, value in Text(value).frame(width: 28, alignment: .trailing) } }.monospacedDigit()

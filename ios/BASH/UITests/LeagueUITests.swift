@@ -191,8 +191,15 @@ final class LeagueUITests: XCTestCase {
             app.swipeUp()
         }
         XCTAssertTrue(firstGoal.isHittable)
+        capture("Scoring summary")
+        let penalty = app.staticTexts["Tripping · 2 min"]
+        for _ in 0..<5 {
+            if penalty.isHittable { break }
+            app.swipeUp()
+        }
         XCTAssertTrue(app.staticTexts["Tripping · 2 min"].exists)
-        capture("Game plays")
+        XCTAssertTrue(app.staticTexts["No penalties"].firstMatch.exists)
+        capture("Penalty summary")
         app.navigationBars.buttons.firstMatch.tap()
         XCTAssertTrue(app.tabBars.buttons["Scores"].waitForExistence(timeout: 5))
 
