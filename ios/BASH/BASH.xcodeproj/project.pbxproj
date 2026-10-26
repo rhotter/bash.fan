@@ -496,7 +496,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 0.1;
+				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = fan.bash.league;
 				SDKROOT = iphoneos;
 				SWIFT_VERSION = 6.0;
@@ -523,7 +523,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 0.1;
+				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = fan.bash.league;
 				SDKROOT = iphoneos;
 				SWIFT_VERSION = 6.0;
