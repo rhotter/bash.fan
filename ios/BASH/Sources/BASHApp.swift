@@ -28,6 +28,12 @@ import UserNotifications
         UNUserNotificationCenter.current().delegate = self
         return true
     }
+    func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
+        GameAlerts.shared.registered(deviceToken)
+    }
+    func application(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: Error) {
+        GameAlerts.shared.registrationFailed()
+    }
     nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse) async {
         if let id = response.notification.request.content.userInfo["gameID"] as? String {
             await MainActor.run {
@@ -103,9 +109,9 @@ struct LeagueRoot: View {
         .environment(\.symbolVariants, .none)
         .tint(.primary)
         .task {
-            // Following is deferred. Clear previously scheduled reminders while
-            // there is no visible preference control to manage them.
+            // Retire legacy local reminders; live alerts are delivered by APNs.
             await store.setReminders(false)
+            await GameAlerts.shared.refreshAuthorization()
             await store.refresh()
             openPendingGame()
         }
@@ -123,7 +129,7 @@ struct LeagueRoot: View {
             Task { await store.refresh() }
         }
         .onChange(of: phase) {
-            if phase == .active { Task { await store.refresh(); openPendingGame() } }
+            if phase == .active { Task { await GameAlerts.shared.refreshAuthorization(); await store.refresh(); openPendingGame() } }
         }
         .onReceive(NotificationCenter.default.publisher(for: NotificationRouter.openGame)) { _ in openPendingGame() }
         .sheet(item: $openedGame) { game in
@@ -135,10 +141,17 @@ struct LeagueRoot: View {
     }
 
     private func openPendingGame() {
-        guard let id = UserDefaults.standard.string(forKey: "pendingGame"),
-              let game = store.snapshot?.games.first(where: { $0.id == id }) else { return }
-        openedGame = game
-        UserDefaults.standard.removeObject(forKey: "pendingGame")
+        guard let id = UserDefaults.standard.string(forKey: "pendingGame") else { return }
+        if let game = store.snapshot?.games.first(where: { $0.id == id }) {
+            openedGame = game
+            UserDefaults.standard.removeObject(forKey: "pendingGame")
+        } else {
+            Task {
+                guard let game: Game = try? await LeagueAPI.fetch("/game/\(id)") else { return }
+                openedGame = game
+                UserDefaults.standard.removeObject(forKey: "pendingGame")
+            }
+        }
     }
 
     private var seasonPicker: some View { SeasonMenu(store: store) }

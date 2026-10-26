@@ -6,6 +6,10 @@
     {
       "path": "/api/bash/sync",
       "schedule": "0 0 * * *"
+    },
+    {
+      "path": "/api/bash/notifications/dispatch",
+      "schedule": "* * * * *"
     }
   ]
 }

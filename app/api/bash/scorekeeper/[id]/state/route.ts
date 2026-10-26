@@ -1,3 +1,5 @@
+import { after } from "next/server"
+import { dispatchGameAlerts } from "@/lib/push/dispatch"
 import { saveLiveStateSql, validateGameTiming } from "@/lib/scorekeeper-timing-db"
 import { NextResponse } from "next/server"
 import { db, schema, rawSql } from "@/lib/db"
@@ -95,6 +97,7 @@ export async function PUT(
         .where(and(eq(schema.games.id, id), ne(schema.games.status, "final"), eq(schema.games.isForfeit, false)))
     }
 
+    after(() => dispatchGameAlerts().catch(error => console.error("Game alert dispatch failed", error)))
     return NextResponse.json({ ok: true, timingAckIds: state.timing?.entries.map(e => e.id) ?? [] })
   } catch (error) {
     console.error("Failed to update live state:", error)

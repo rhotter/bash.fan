@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		0A86B4E21CD50F2BA027C72E /* GameDetail.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52ACE26F057E028385067236 /* GameDetail.swift */; };
+		10892EBDCEE271B0BE4BA436 /* GameAlertsUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EDA96DAC324111C18ABB61B1 /* GameAlertsUITests.swift */; };
 		149E1699EE1CAE56AF2B0C75 /* ScoreCardBackground.swift in Sources */ = {isa = PBXBuildFile; fileRef = 662C64D85BE6FD363C3581D3 /* ScoreCardBackground.swift */; };
 		2C471C9E41F5FA5C3FD769AA /* DetailCacheTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB857EE7D89D2A05A34DCCB0 /* DetailCacheTests.swift */; };
 		34733D2285A41B3F732E9ECC /* WebsiteConnection.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0C8AABD0957A1D2C3882305 /* WebsiteConnection.swift */; };
@@ -28,6 +29,7 @@
 		B0105F668FB4C85B29F3CCBF /* NativeScorekeeperTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5FF2103145FC904D6DB1225 /* NativeScorekeeperTests.swift */; };
 		C093315D113205FCE4457074 /* RecordingLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5116B5E11E01F3E5525A8DE /* RecordingLibrary.swift */; };
 		F2B1208EBAC886CECDA9E7EA /* NativeScorekeeper.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9F0304B777B7EDEA935F9D1 /* NativeScorekeeper.swift */; };
+		F511D484D0BB2DFCAC29381B /* GameAlerts.swift in Sources */ = {isa = PBXBuildFile; fileRef = C13DA21F98BB845FF0C32A01 /* GameAlerts.swift */; };
 		F52E2C4072904EB3420A359C /* OperatorTools.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4039A73077351F50AF7E2E87 /* OperatorTools.swift */; };
 /* End PBXBuildFile section */
 
@@ -62,6 +64,7 @@
 		88C2A3FA0E4C687A4DA58FAE /* DetailResponseCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DetailResponseCache.swift; sourceTree = "<group>"; };
 		904765BCCE7AB289BB8F4650 /* GameTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameTests.swift; sourceTree = "<group>"; };
 		B28834DA8ABAFE900240AFA9 /* PlayerHistory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerHistory.swift; sourceTree = "<group>"; };
+		C13DA21F98BB845FF0C32A01 /* GameAlerts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameAlerts.swift; sourceTree = "<group>"; };
 		C3D924346F3638F44EA3D5DE /* BASHTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = BASHTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		C5FF2103145FC904D6DB1225 /* NativeScorekeeperTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeScorekeeperTests.swift; sourceTree = "<group>"; };
 		D0C8AABD0957A1D2C3882305 /* WebsiteConnection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebsiteConnection.swift; sourceTree = "<group>"; };
@@ -69,6 +72,7 @@
 		D79F4D2DDA7D60577F134139 /* BASHCaptureApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BASHCaptureApp.swift; sourceTree = "<group>"; };
 		D9F0304B777B7EDEA935F9D1 /* NativeScorekeeper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeScorekeeper.swift; sourceTree = "<group>"; };
 		DB857EE7D89D2A05A34DCCB0 /* DetailCacheTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DetailCacheTests.swift; sourceTree = "<group>"; };
+		EDA96DAC324111C18ABB61B1 /* GameAlertsUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameAlertsUITests.swift; sourceTree = "<group>"; };
 		EE0F9E0250877E74DD47B04F /* CaptureAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureAPI.swift; sourceTree = "<group>"; };
 		F5116B5E11E01F3E5525A8DE /* RecordingLibrary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingLibrary.swift; sourceTree = "<group>"; };
 		F78C40951431C5D097AF5745 /* OperatorAccessTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OperatorAccessTests.swift; sourceTree = "<group>"; };
@@ -90,6 +94,7 @@
 		2134830CC4CE13636AF61C42 /* UITests */ = {
 			isa = PBXGroup;
 			children = (
+				EDA96DAC324111C18ABB61B1 /* GameAlertsUITests.swift */,
 				07FDC56F0407FD50B0F416C2 /* LeagueUITests.swift */,
 			);
 			path = UITests;
@@ -122,6 +127,7 @@
 				71A31660490BA4CF941A8532 /* Assets.xcassets */,
 				0EC877F5A9341250108252B4 /* BASHApp.swift */,
 				88C2A3FA0E4C687A4DA58FAE /* DetailResponseCache.swift */,
+				C13DA21F98BB845FF0C32A01 /* GameAlerts.swift */,
 				52ACE26F057E028385067236 /* GameDetail.swift */,
 				D5B5841D29973CEA288CD15A /* LeagueData.swift */,
 				79083B7C7ABD5B118F2B97C1 /* LoadingPlaceholder.swift */,
@@ -280,6 +286,7 @@
 				7BC1C475E3EDF28193024728 /* CaptureAPI.swift in Sources */,
 				7DC713ECA7ABE393BD97505D /* CaptureController.swift in Sources */,
 				599543D724067159EADD7412 /* DetailResponseCache.swift in Sources */,
+				F511D484D0BB2DFCAC29381B /* GameAlerts.swift in Sources */,
 				0A86B4E21CD50F2BA027C72E /* GameDetail.swift in Sources */,
 				4DC3E8F40AD8DD932BEA6969 /* LeagueData.swift in Sources */,
 				3C7038CB3FBEC3612DB1365D /* LoadingPlaceholder.swift in Sources */,
@@ -307,6 +314,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				10892EBDCEE271B0BE4BA436 /* GameAlertsUITests.swift in Sources */,
 				3556D4A65D5684C095A8F805 /* LeagueUITests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -467,6 +475,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				BASH_SERVER_URL = "https://bash-git-video-raffi-hotters-projects.vercel.app";
+				CODE_SIGN_ENTITLEMENTS = BASH.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 19;
@@ -494,6 +503,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				BASH_SERVER_URL = "https://bash-git-video-raffi-hotters-projects.vercel.app";
+				CODE_SIGN_ENTITLEMENTS = BASH.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 19;

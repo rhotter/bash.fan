@@ -1,0 +1,21 @@
+import XCTest
+
+final class GameAlertsUITests: XCTestCase {
+    @MainActor func testAlertsMenuAndTeams() {
+        let app = XCUIApplication()
+        app.launch()
+        let menu = app.buttons["operatorMenu"].firstMatch
+        XCTAssertTrue(menu.waitForExistence(timeout: 30))
+        menu.tap()
+        app.buttons["Game alerts"].tap()
+        XCTAssertTrue(app.navigationBars["Game alerts"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["Goals, puck drop and final scores"].exists)
+        XCTAssertTrue(app.buttons.matching(NSPredicate(format: "value == 'Not following'")).firstMatch.waitForExistence(timeout: 20))
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "BASH Game alerts team preferences"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+        app.buttons["Done"].tap()
+        XCTAssertTrue(app.tabBars.buttons["Scores"].isHittable)
+    }
+}

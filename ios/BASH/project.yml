@@ -15,6 +15,10 @@ targets:
       - Sources
       - path: ../BASHCapture/Sources
         excludes: [Assets.xcassets]
+    entitlements:
+      path: BASH.entitlements
+      properties:
+        aps-environment: development
     dependencies:
       - package: HaishinKit
         product: HaishinKit

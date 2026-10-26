@@ -16,8 +16,11 @@ struct OperatorMenu: View {
     let games: [Game]
     var game: Game?
     @State private var tool: OperatorTool?
+    @State private var showAlerts = false
     var body: some View {
         Menu {
+            Button { showAlerts = true } label: { Label("Game alerts", systemImage: "bell") }
+            Divider()
             Button { tool = .scorekeeper } label: { Label("Scorekeeper", systemImage: "pencil.and.list.clipboard") }
             Button { tool = .recorder } label: { Label("Record game", systemImage: "video") }
             if let game { ShareLink(item: game.url) { Label("Share game", systemImage: "square.and.arrow.up") } }
@@ -26,6 +29,7 @@ struct OperatorMenu: View {
         }
         .accessibilityLabel("Game tools")
         .accessibilityIdentifier("operatorMenu")
+        .sheet(isPresented: $showAlerts) { GameAlertsScreen(games: games, game: game) }
         .fullScreenCover(item: $tool) { tool in
             OperatorFlow(tool: tool, games: games, game: game)
         }
