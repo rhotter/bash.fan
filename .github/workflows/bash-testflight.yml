@@ -14,7 +14,7 @@ permissions:
 
 # Serialize across branches so two uploads never reserve the same build number.
 concurrency:
-  group: bash-testflight
+  group: ${{ github.ref_name == 'codex/app-store-release' && 'bash-appstore-release' || 'bash-testflight' }}
   cancel-in-progress: false
 
 jobs:
