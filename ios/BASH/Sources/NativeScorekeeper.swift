@@ -537,8 +537,13 @@ struct ScorekeeperScreen: View {
                     }
                 })) {
                     Text("Not selected").tag(0)
-                    ForEach(model.roster(false) + model.roster(true)) { Text($0.name).tag($0.id) }
-                }
+                    ForEach(model.roster(false) + model.roster(true)) { player in
+                        HStack(spacing: 10) {
+                            TeamLogo(slug: model.slug(model.roster(true).contains { $0.id == player.id }), size: 30)
+                            Text(player.name)
+                        }.tag(player.id)
+                    }
+                }.pickerStyle(.navigationLink)
             }
         }
         Section("Notes") {
@@ -704,8 +709,13 @@ private struct ScoringEventEditor: View {
     private func playerPicker(_ title: String, selection: Binding<Int>) -> some View {
         Picker(title, selection: selection) {
             Text(title.contains("assist") ? "None" : "Select player").tag(0)
-            ForEach(model.roster(home)) { Text($0.name).tag($0.id) }
-        }
+            ForEach(model.roster(home)) { player in
+                HStack(spacing: 10) {
+                    TeamLogo(slug: model.slug(home), size: 30)
+                    Text(player.name)
+                }.tag(player.id)
+            }
+        }.pickerStyle(.navigationLink)
     }
     private func submit() {
         var value = original ?? [:]

@@ -211,10 +211,21 @@ struct GameScreen: View {
             if let stars = live.state.threeStars, !stars.isEmpty {
                 Section("Three stars") {
                     ForEach(Array(stars.enumerated()), id: \.offset) { rank, id in
-                        HStack(spacing: 14) {
-                            Text("\(rank + 1)").font(.subheadline).foregroundStyle(.secondary).frame(width: 20)
-                            Text(live.name(id)).font(.subheadline.weight(.semibold))
+                        let star = starInfo(id, live: live)
+                        HStack(spacing: 10) {
+                            ZStack {
+                                Image(systemName: "star.fill").font(.system(size: 32)).foregroundStyle(LeagueStyle.orange)
+                                Text("\(rank + 1)").font(.system(size: 11, weight: .bold)).foregroundStyle(.white)
+                            }.frame(width: 34).accessibilityLabel("\(rank + 1) star")
+                            TeamLogo(slug: star.slug, size: 36)
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(live.name(id)).font(.subheadline.weight(.semibold))
+                                if let stats = star.stats {
+                                    Text(stats).font(.caption).foregroundStyle(.secondary).monospacedDigit()
+                                }
+                            }
                         }.padding(.vertical, 4).alignmentGuide(.listRowSeparatorLeading) { _ in 0 }
+                            .accessibilityElement(children: .combine).accessibilityIdentifier("game-star-\(rank + 1)")
                     }
                 }
             }
@@ -364,6 +375,23 @@ struct GameScreen: View {
                 .padding(.bottom, 4)
         }
     }
+    private func starInfo(_ id: Int, live: GameLive) -> (slug: String?, stats: String?) {
+        for home in [false, true] {
+            let slug = home ? current.homeSlug : current.awaySlug
+            let goalies = (home ? detail?.homeGoalies : detail?.awayGoalies) ?? []
+            if let goalie = goalies.first(where: { $0.id == id }) {
+                return (slug, "\(goalie.saves) SV · \(goalie.goalsAgainst) GA · \(goalie.savePercentage) SV%")
+            }
+            let players = current.status == "live" ? live.skaters(home: home, slug: slug) : ((home ? detail?.homePlayers : detail?.awayPlayers) ?? [])
+            if let player = players.first(where: { $0.id == id }) {
+                return (slug, "\(player.goals) G · \(player.assists) A · \(player.points) PTS")
+            }
+        }
+        let home = live.state.homeAttendance.contains(id)
+        let away = live.state.awayAttendance.contains(id)
+        let eventTeam = live.state.goals.first { $0.scorerId == id || $0.assist1Id == id || $0.assist2Id == id }?.team
+        return (home ? current.homeSlug : away ? current.awaySlug : eventTeam, nil)
+    }
     private func columns(_ values: [String]) -> some View {
         HStack(spacing: 6) { ForEach(Array(values.enumerated()), id: \.offset) { _, value in Text(value).frame(width: 28, alignment: .trailing) } }.monospacedDigit()
     }
@@ -381,7 +409,8 @@ struct GameScreen: View {
         }.padding(.vertical, 6)
     }
     private func periodRow(_ name: String, slug: String?, shots: [Int]?, count: Int, live: GameLive, total: Int?) -> some View {
-        HStack {
+        HStack(spacing: 6) {
+            TeamLogo(slug: slug, size: 26)
             Text(name).font(.subheadline.weight(.medium)).lineLimit(1).minimumScaleFactor(0.8)
             Spacer(minLength: 2)
             ForEach(1...count, id: \.self) { p in

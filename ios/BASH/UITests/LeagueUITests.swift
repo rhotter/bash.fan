@@ -204,6 +204,28 @@ final class LeagueUITests: XCTestCase {
         game?.tap()
         XCTAssertTrue(app.buttons["gameTab-Summary"].waitForExistence(timeout: 10))
     }
+    @MainActor func testGameStarsAndScoringLogos() throws {
+        let app = XCUIApplication()
+        app.launch()
+        let game = app.descendants(matching: .any)["game-g207"].firstMatch
+        XCTAssertTrue(game.waitForExistence(timeout: 40))
+        game.tap()
+        XCTAssertTrue(app.staticTexts["Scoring by period"].waitForExistence(timeout: 25))
+        capture("Team logos in period totals")
+        let star = app.descendants(matching: .any)["game-star-1"].firstMatch
+        for _ in 0..<5 {
+            if star.isHittable { break }
+            app.swipeUp()
+        }
+        XCTAssertTrue(star.isHittable)
+        XCTAssertTrue(star.label.contains("PTS") || star.label.contains("SV%"))
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.76))
+            .press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.46)))
+        capture("Three stars with team logos and game stats")
+        app.swipeUp()
+        capture("Team logos in scoring summary")
+    }
+
     @MainActor func testNativeGameBoxScore() throws {
         let app = XCUIApplication()
         app.launch()
