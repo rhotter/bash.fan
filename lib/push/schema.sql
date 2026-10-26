@@ -32,9 +32,8 @@ END $$;
 CREATE OR REPLACE FUNCTION bash_live_push_events() RETURNS trigger LANGUAGE plpgsql AS $$
 DECLARE prior jsonb; goal jsonb; match games%ROWTYPE;
 BEGIN
- -- INSERT establishes the baseline; never alert for history imported with a new live row.
- IF TG_OP='INSERT' THEN RETURN NEW; END IF;
- prior := OLD.state;
+ -- Native scoring may create the live row on its first save. Final/historical imports are excluded below.
+ IF TG_OP='INSERT' THEN prior := '{"period":0,"goals":[]}'::jsonb; ELSE prior := OLD.state; END IF;
  SELECT * INTO match FROM games WHERE id=NEW.game_id;
  IF match.is_forfeit OR match.date::date < (now() AT TIME ZONE 'America/Los_Angeles')::date-1
  OR match.date::date > (now() AT TIME ZONE 'America/Los_Angeles')::date+1 THEN RETURN NEW; END IF;
