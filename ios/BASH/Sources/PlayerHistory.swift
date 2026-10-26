@@ -259,7 +259,7 @@ struct PlayerScreen: View {
             }.frame(width: 144, alignment: .leading)
             ForEach(Array(values.enumerated()), id: \.offset) { index, value in
                 Text(value).font(.subheadline.weight(header || index == 3 ? .semibold : .regular))
-                    .monospacedDigit().frame(width: index == 4 ? 58 : 38, alignment: .trailing)
+                    .monospacedDigit().frame(width: index == 4 ? 58 : 38, alignment: .center)
             }
         }.padding(.horizontal, 12).padding(.vertical, header ? 12 : 10)
             .accessibilityElement(children: .combine)
