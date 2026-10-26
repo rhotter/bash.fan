@@ -703,7 +703,7 @@ private struct StatsScreen: View {
     }
     @State private var statMetric: StatMetric = .points
     @State private var selectedTeam = ""
-    private var teamNames: [String] { Array(Set(showGoalies ? statsGoalies.map { $0.team ?? "" } : statsPlayers.map(\.team))).filter { !$0.isEmpty }.sorted() }
+    private var teamNames: [String] { Array(Set(statsPlayers.map(\.team) + statsGoalies.compactMap(\.team))).filter { !$0.isEmpty }.sorted() }
     @State private var rankedPlayers: [Skater] = []
     private func updateRanking() {
         if showGoalies {
@@ -855,7 +855,7 @@ private struct StatsScreen: View {
             }
             .onChange(of: statsPlayers, initial: true) { updateRanking() }
             .onChange(of: statsGoalies) { updateRanking() }
-            .onChange(of: showGoalies) { selectedTeam = ""; updateRanking() }
+            .onChange(of: showGoalies) { updateRanking() }
             .onChange(of: goalieMetric) { updateRanking() }
             .onChange(of: statMetric) { updateRanking() }
             .onChange(of: selectedTeam) { updateRanking() }

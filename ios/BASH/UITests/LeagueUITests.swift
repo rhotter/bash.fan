@@ -97,6 +97,37 @@ final class LeagueUITests: XCTestCase {
         XCTAssertTrue(menu.waitForExistence(timeout: 5))
     }
 
+    @MainActor func testStatsTeamFilterPersistsAcrossPlayerTypes() throws {
+        let app = XCUIApplication()
+        app.launch()
+        app.tabBars.buttons["Stats"].tap()
+        let players = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'player-'"))
+        XCTAssertTrue(players.firstMatch.waitForExistence(timeout: 30))
+        let teamFilter = app.buttons["teamFilter"]
+        teamFilter.tap()
+        app.buttons["Yetis"].tap()
+        XCTAssertEqual(teamFilter.label, "Team: Yetis")
+        let skaterIDs = Set(players.allElementsBoundByIndex.map(\.identifier))
+        XCTAssertFalse(skaterIDs.isEmpty)
+        capture("Skaters filtered to Yetis")
+
+        app.segmentedControls["statsPlayerType"].buttons["Goalies"].tap()
+        XCTAssertEqual(teamFilter.label, "Team: Yetis")
+        XCTAssertTrue(players.firstMatch.waitForExistence(timeout: 10))
+        let goalieIDs = Set(players.allElementsBoundByIndex.map(\.identifier))
+        capture("Goalies still filtered to Yetis")
+        teamFilter.tap()
+        app.buttons["All teams"].tap()
+        XCTAssertGreaterThan(players.count, goalieIDs.count)
+        teamFilter.tap()
+        app.buttons["Yetis"].tap()
+        XCTAssertEqual(Set(players.allElementsBoundByIndex.map(\.identifier)), goalieIDs)
+
+        app.segmentedControls["statsPlayerType"].buttons["Skaters"].tap()
+        XCTAssertEqual(teamFilter.label, "Team: Yetis")
+        XCTAssertEqual(Set(players.allElementsBoundByIndex.map(\.identifier)), skaterIDs)
+    }
+
     @MainActor func testGoalieStatsSorting() throws {
         let app = XCUIApplication()
         app.launch()
