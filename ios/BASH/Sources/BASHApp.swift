@@ -443,7 +443,10 @@ struct LeagueRoot: View {
                     ForEach(Array((store.snapshot?.standings ?? []).enumerated()), id: \.element.id) { rank, team in
                         Button { selectedTeam = team } label: {
                             HStack(spacing: 10) {
-                                ListRank(rank: rank + 1, total: store.snapshot?.standings.count ?? 0)
+                                Text("\(rank + 1)")
+                                    .font(.caption.weight(.medium))
+                                    .foregroundStyle(.secondary)
+                                    .frame(minWidth: 16, alignment: .leading)
                                 TeamLogo(slug: team.slug, size: 30)
                                 VStack(alignment: .leading, spacing: 4) {
                                     Text(team.team).font(.subheadline.weight(.semibold)).foregroundStyle(.primary)
@@ -455,7 +458,7 @@ struct LeagueRoot: View {
                                 }
                                 Spacer(minLength: 8)
                                 statColumn("\(team.pts)").fontWeight(.semibold).foregroundStyle(.primary)
-                            }.font(.subheadline).monospacedDigit().padding(.horizontal, 12).padding(.vertical, 12)
+                            }.font(.subheadline).monospacedDigit().padding(.horizontal, 12).padding(.vertical, 10)
                         }.buttonStyle(.plain)
                         if rank < (store.snapshot?.standings.count ?? 0) - 1 { Divider() }
                     }
