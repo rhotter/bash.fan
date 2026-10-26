@@ -61,8 +61,9 @@ export async function POST(_request: NextRequest, context: RouteContext) {
       .where(eq(schema.draftTrades.draftId, draftId))
 
     // Rebuild trade inputs from stored trade items
-    // Each trade has exactly 2 items: the two sides of the swap
+    // Supports both 2-item pick swaps and 1-item prior-season pick transfers
     const tradeInputs: PreDraftTradeInput[] = []
+    const singleTransfers: Array<{ originalTeamSlug: string; round: number; toTeamSlug: string }> = []
     for (const trade of trades) {
       const items = await db
         .select()
@@ -80,11 +81,23 @@ export async function POST(_request: NextRequest, context: RouteContext) {
           teamBRound: items[1].round!,
           teamBOriginalOwner: items[1].fromTeamSlug,
         })
+      } else if (items.length === 1 && items[0].round) {
+        singleTransfers.push({
+          originalTeamSlug: items[0].fromTeamSlug,
+          round: items[0].round,
+          toTeamSlug: items[0].toTeamSlug,
+        })
       }
     }
 
     // Resolve the final ownership map
     const ownershipMap = resolvePreDraftTrades(teamSlugs, draft.rounds, tradeInputs)
+    for (const transfer of singleTransfers) {
+      const key = `${transfer.originalTeamSlug}::${transfer.round}`
+      if (ownershipMap.has(key) && teamSlugs.includes(transfer.toTeamSlug)) {
+        ownershipMap.set(key, transfer.toTeamSlug)
+      }
+    }
 
     // 3. Generate all pick slots
     const pickSlots = generatePickSlots(

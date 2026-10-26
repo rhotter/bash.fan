@@ -281,9 +281,9 @@ The overview acts as a mini-dashboard for this specific season, with inline prev
 - **Create Team**: Inline button opens a dialog to quickly create a new team (Name and auto-generated Team ID). It calls `POST /api/bash/admin/teams` and instantly assigns it to the season. New teams use a generic hockey stick SVG fallback if no image logo is mapped.
 
 #### Roster tab
-- Player assignments for this season (from `player_seasons`)
+- Player assignments for this season (from `player_seasons`), capped at ~25 visible rows with a sticky table header and an interactive `↔ N Trades ↓` jump badge.
 - Contextual Goalie Coverage Alert: Displays an amber warning banner if the number of primary goalies assigned is fewer than the number of teams.
-- Read-only for active/completed seasons
+- Editable for both `draft` and `active` seasons (inline player team/goalie/captain/rookie edits, **Add Player**, and **Record Mid-Season Trade** modal + **Season Trades** history table supporting 2-team and $N$-team player/pick swaps); read-only for `completed` seasons.
 
 #### Schedule tab
 - For active seasons: editable view of the current season schedule with the ability to make changes to scheduled games

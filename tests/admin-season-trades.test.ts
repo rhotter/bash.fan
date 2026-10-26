@@ -36,6 +36,7 @@ vi.mock("@/lib/db", async () => {
 })
 
 import { GET as getRoster } from "@/app/api/bash/admin/seasons/[id]/roster/route"
+import { DELETE as deleteTrade } from "@/app/api/bash/admin/seasons/[id]/trades/route"
 
 // Progressive loader: Check if trades route exists on disk
 let liveTradesRoute: {
@@ -505,6 +506,103 @@ describe("Admin Season Roster & Atomic Trades Routes", () => {
       expect(body.trades).toHaveLength(2)
       expect(body.trades[0].id).toBe(2)
       expect(body.trades[1].id).toBe(1)
+    })
+  })
+
+  describe("3. Undo Latest Trade Route (DELETE /api/bash/admin/seasons/[id]/trades)", () => {
+    function mockSelectChain(result: unknown[]) {
+      return {
+        from: () => ({
+          where: () => ({
+            limit: () => Promise.resolve(result),
+            orderBy: () => ({
+              limit: () => Promise.resolve(result),
+            }),
+          }),
+          leftJoin: () => ({
+            where: () => Promise.resolve(result),
+          }),
+        }),
+      }
+    }
+
+    it("rejects undo when tradeId is not the most recent trade in the season (409)", async () => {
+      mocks.getSession.mockResolvedValue(true)
+      mocks.select
+        .mockReturnValueOnce(mockSelectChain([{ id: "2026-2027", status: "active" }]))
+        .mockReturnValueOnce(mockSelectChain([{ id: 5, tradedAt: "2026-10-25T19:00:00Z" }]))
+
+      const req = new NextRequest("http://bash.fan/api/bash/admin/seasons/2026-2027/trades?tradeId=4", {
+        method: "DELETE",
+      })
+      const res = await deleteTrade(req, { params: Promise.resolve({ id: "2026-2027" }) })
+      expect(res.status).toBe(409)
+      const body = await res.json()
+      expect(body.error).toMatch(/Only the most recent trade/i)
+    })
+
+    it("rejects undo when a traded player has already played a game for their new team (409)", async () => {
+      mocks.getSession.mockResolvedValue(true)
+      mocks.select
+        .mockReturnValueOnce(mockSelectChain([{ id: "2026-2027", status: "active" }]))
+        .mockReturnValueOnce(mockSelectChain([{ id: 5, tradedAt: "2026-10-25T19:00:00Z" }]))
+        .mockReturnValueOnce(
+          mockSelectChain([
+            { playerId: 630, playerName: "Darrell Draper", fromTeamSlug: "loons", toTeamSlug: "yetis" },
+          ])
+        )
+        .mockReturnValueOnce({
+          from: () => ({
+            where: () => Promise.resolve([{ playerId: 630, teamSlug: "yetis" }]),
+          }),
+        })
+
+      mocks.rawSql.mockResolvedValueOnce([
+        { playerId: 630, playerName: "Darrell Draper", toTeamName: "Yetis" },
+      ])
+
+      const req = new NextRequest("http://bash.fan/api/bash/admin/seasons/2026-2027/trades?tradeId=5", {
+        method: "DELETE",
+      })
+      const res = await deleteTrade(req, { params: Promise.resolve({ id: "2026-2027" }) })
+      expect(res.status).toBe(409)
+      const body = await res.json()
+      expect(body.error).toContain("Darrell Draper has already played a game for Yetis")
+    })
+
+    it("undoes the latest trade atomically when no post-trade games were played (200)", async () => {
+      mocks.getSession.mockResolvedValue(true)
+      mocks.select
+        .mockReturnValueOnce(mockSelectChain([{ id: "2026-2027", status: "active" }]))
+        .mockReturnValueOnce(mockSelectChain([{ id: 5, tradedAt: "2026-10-25T19:00:00Z" }]))
+        .mockReturnValueOnce(
+          mockSelectChain([
+            { playerId: 630, playerName: "Darrell Draper", fromTeamSlug: "loons", toTeamSlug: "yetis" },
+          ])
+        )
+        .mockReturnValueOnce({
+          from: () => ({
+            where: () => Promise.resolve([{ playerId: 630, teamSlug: "yetis" }]),
+          }),
+        })
+
+      // 1st rawSql call: postTradeGameRows -> []
+      // 2nd rawSql call: undoQuery CTE -> [{ undoneTradeId: 5 }]
+      mocks.rawSql
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([{ undoneTradeId: 5 }])
+
+      const req = new NextRequest("http://bash.fan/api/bash/admin/seasons/2026-2027/trades?tradeId=5", {
+        method: "DELETE",
+      })
+      const res = await deleteTrade(req, { params: Promise.resolve({ id: "2026-2027" }) })
+      expect(res.status).toBe(200)
+      const body = await res.json()
+      expect(body.success).toBe(true)
+      expect(body.undoneTradeId).toBe(5)
+      expect(body.revertedPlayers).toEqual([
+        { playerId: 630, fromTeamSlug: "yetis", toTeamSlug: "loons" },
+      ])
     })
   })
 })

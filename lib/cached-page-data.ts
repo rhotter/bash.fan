@@ -9,7 +9,7 @@ const teamPageData = unstable_cache(fetchTeamDetail, ["team-page-data-v1"], {
   revalidate: 30,
   tags: ["seasons", "public-page-data"],
 })
-const statsPageData = unstable_cache(fetchPlayerStats, ["stats-page-data-v1"], {
+const statsPageData = unstable_cache(fetchPlayerStats, ["stats-page-data-v2"], {
   revalidate: 30,
   tags: ["seasons", "public-page-data"],
 })

@@ -75,7 +75,7 @@ A dedicated, interactive draft system for managing the BASH league draft process
 
 - **Draft Order & Pre-Draft Trades** (Step 4): After teams are defined, the commissioner sets the pick order and configures any trades that were agreed upon before the draft:
   - **Draft order**: Drag teams to set pick order (first pick → last pick). Per BASH Rule 204, last-place team picks first, champion picks last — but this is manually set for now (auto-calculation from standings is P2).
-  - **Pre-draft trades**: Configure pick swaps agreed upon before draft day (e.g., Team A trades their Round 3 pick to Team B for Team B's Round 5 pick). These are recorded in the `draftTrades` table and reflected on the board from the start.
+  - **Pre-draft trades**: Configure pick swaps agreed upon before draft day (e.g., Team A trades their Round 3 pick to Team B for Team B's Round 5 pick). These are recorded in the `draftTrades` table and reflected on the board from the start. For **Fall** seasons (`seasonType === "fall"`), future draft picks traded during the prior Fall season (`season_trade_items` with `item_type = 'draft_pick'` targeting that Fall season) are automatically imported as pre-draft trades when the Fall draft is created or started (Summer drafts never import Fall trades).
   - **Chain trades**: Trades are entered in order and support chain scenarios where a pick acquired in one trade is traded again in a subsequent trade. For example:
     - Trade 1: Team A trades Rd 1 pick ↔ Team B trades Rd 3 pick
     - Trade 2: Team B trades Rd 1 pick (acquired from Team A in Trade 1) ↔ Team C trades Rd 4 pick

@@ -275,3 +275,317 @@ export async function POST(request: NextRequest, context: RouteContext) {
     { status: 201 }
   )
 }
+
+export async function DELETE(request: NextRequest, context: RouteContext) {
+  const isAuthenticated = await getSession()
+  if (!isAuthenticated) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  }
+
+  const { id: seasonId } = await context.params
+  const url = new URL(request.url)
+  const queryTradeId = url.searchParams.get("tradeId")
+  let targetTradeId = queryTradeId ? Number(queryTradeId) : null
+
+  if (!targetTradeId) {
+    try {
+      const body = (await request.json()) as { tradeId?: number }
+      if (body?.tradeId) targetTradeId = Number(body.tradeId)
+    } catch {
+      // Optional JSON body when query param is omitted
+    }
+  }
+
+  // Verify season exists and is in active or draft status
+  const [season] = await db
+    .select({ id: schema.seasons.id, status: schema.seasons.status })
+    .from(schema.seasons)
+    .where(eq(schema.seasons.id, seasonId))
+    .limit(1)
+
+  if (!season) {
+    return NextResponse.json({ error: "Season not found" }, { status: 404 })
+  }
+
+  if (season.status === "completed") {
+    return NextResponse.json({ error: "Cannot undo trades for completed season" }, { status: 400 })
+  }
+
+  if (season.status !== "draft" && season.status !== "active") {
+    return NextResponse.json({ error: "Season must be in draft or active status to undo trades" }, { status: 400 })
+  }
+
+  // Find the most recent trade in this season
+  const [latestTrade] = await db
+    .select({
+      id: schema.seasonTrades.id,
+      tradedAt: schema.seasonTrades.tradedAt,
+    })
+    .from(schema.seasonTrades)
+    .where(eq(schema.seasonTrades.seasonId, seasonId))
+    .orderBy(desc(schema.seasonTrades.tradedAt), desc(schema.seasonTrades.id))
+    .limit(1)
+
+  if (!latestTrade) {
+    return NextResponse.json({ error: "No trades found for this season" }, { status: 404 })
+  }
+
+  if (targetTradeId !== null && (!Number.isInteger(targetTradeId) || targetTradeId !== latestTrade.id)) {
+    return NextResponse.json(
+      { error: "Only the most recent trade in this season can be undone" },
+      { status: 409 }
+    )
+  }
+
+  const resolvedTradeId = latestTrade.id
+
+  // Check player items in this trade for clear, actionable error messages before executing the atomic CTE
+  const playerItems = await db
+    .select({
+      playerId: schema.seasonTradeItems.playerId,
+      playerName: schema.players.name,
+      fromTeamSlug: schema.seasonTradeItems.fromTeamSlug,
+      toTeamSlug: schema.seasonTradeItems.toTeamSlug,
+    })
+    .from(schema.seasonTradeItems)
+    .leftJoin(schema.players, eq(schema.seasonTradeItems.playerId, schema.players.id))
+    .where(
+      and(
+        eq(schema.seasonTradeItems.tradeId, resolvedTradeId),
+        eq(schema.seasonTradeItems.itemType, "player")
+      )
+    )
+
+  const tradedPlayerIds = playerItems
+    .map((item) => item.playerId)
+    .filter((id): id is number => id !== null)
+
+  if (tradedPlayerIds.length > 0) {
+    const rosterRows = await db
+      .select({
+        playerId: schema.playerSeasons.playerId,
+        teamSlug: schema.playerSeasons.teamSlug,
+      })
+      .from(schema.playerSeasons)
+      .where(
+        and(
+          eq(schema.playerSeasons.seasonId, seasonId),
+          inArray(schema.playerSeasons.playerId, tradedPlayerIds)
+        )
+      )
+
+    const rosterMap = new Map(rosterRows.map((r) => [r.playerId, r.teamSlug]))
+    for (const item of playerItems) {
+      if (item.playerId === null) continue
+      const currentTeam = rosterMap.get(item.playerId)
+      if (currentTeam !== item.toTeamSlug) {
+        const displayName = item.playerName || `Player ${item.playerId}`
+        return NextResponse.json(
+          {
+            error: `Cannot undo trade: ${displayName} is no longer assigned to ${item.toTeamSlug}`,
+          },
+          { status: 409 }
+        )
+      }
+    }
+
+    // Check if any traded player has recorded game stats for their new team since the trade
+    const postTradeGameRows = await rawSql(sql`
+      WITH target_trade AS (
+        SELECT id, season_id, traded_at
+        FROM season_trades
+        WHERE id = ${resolvedTradeId} AND season_id = ${seasonId}
+      ),
+      traded_players AS (
+        SELECT
+          sti.player_id,
+          COALESCE(p.name, 'Player ' || sti.player_id::text) AS player_name,
+          sti.to_team_slug,
+          COALESCE(t.name, sti.to_team_slug) AS to_team_name,
+          EXISTS (
+            SELECT 1
+            FROM season_trade_items prior_sti
+            JOIN season_trades prior_st ON prior_st.id = prior_sti.trade_id
+            WHERE prior_st.season_id = ${seasonId}
+              AND prior_st.id <> ${resolvedTradeId}
+              AND prior_sti.item_type = 'player'
+              AND prior_sti.player_id = sti.player_id
+              AND prior_sti.from_team_slug = sti.to_team_slug
+          ) AS had_prior_stint_on_to_team
+        FROM season_trade_items sti
+        LEFT JOIN players p ON p.id = sti.player_id
+        LEFT JOIN teams t ON t.slug = sti.to_team_slug
+        WHERE sti.trade_id = ${resolvedTradeId}
+          AND sti.item_type = 'player'
+          AND sti.player_id IS NOT NULL
+      )
+      SELECT tp.player_id AS "playerId", tp.player_name AS "playerName", tp.to_team_name AS "toTeamName"
+      FROM traded_players tp
+      CROSS JOIN target_trade tt
+      WHERE EXISTS (
+        SELECT 1
+        FROM player_game_stats pgs
+        JOIN games g ON g.id = pgs.game_id
+        WHERE g.season_id = ${seasonId}
+          AND pgs.player_id = tp.player_id
+          AND pgs.team_slug = tp.to_team_slug
+          AND (
+            NOT tp.had_prior_stint_on_to_team
+            OR g.date >= to_char(tt.traded_at AT TIME ZONE 'America/Los_Angeles', 'YYYY-MM-DD')
+          )
+      )
+      OR EXISTS (
+        SELECT 1
+        FROM goalie_game_stats ggs
+        JOIN games g ON g.id = ggs.game_id
+        WHERE g.season_id = ${seasonId}
+          AND ggs.player_id = tp.player_id
+          AND ggs.team_slug = tp.to_team_slug
+          AND (
+            NOT tp.had_prior_stint_on_to_team
+            OR g.date >= to_char(tt.traded_at AT TIME ZONE 'America/Los_Angeles', 'YYYY-MM-DD')
+          )
+      )
+      LIMIT 1;
+    `)
+
+    const playedRow = postTradeGameRows?.[0] as
+      | { playerId: number; playerName: string; toTeamName: string }
+      | undefined
+    if (playedRow) {
+      return NextResponse.json(
+        {
+          error: `Cannot undo trade because ${playedRow.playerName} has already played a game for ${playedRow.toTeamName}. Record a new trade instead.`,
+        },
+        { status: 409 }
+      )
+    }
+  }
+
+  // Execute atomic undo in single-statement data-modifying CTE via rawSql
+  const undoQuery = sql`
+    WITH locked_season AS MATERIALIZED (
+      SELECT id FROM seasons
+      WHERE id = ${seasonId} AND status IN ('draft', 'active')
+      FOR UPDATE
+    ),
+    latest_trade AS MATERIALIZED (
+      SELECT id, season_id, traded_at
+      FROM season_trades
+      WHERE season_id = ${seasonId}
+      ORDER BY traded_at DESC, id DESC
+      LIMIT 1
+      FOR UPDATE
+    ),
+    player_items AS MATERIALIZED (
+      SELECT
+        sti.player_id,
+        sti.from_team_slug,
+        sti.to_team_slug,
+        EXISTS (
+          SELECT 1
+          FROM season_trade_items prior_sti
+          JOIN season_trades prior_st ON prior_st.id = prior_sti.trade_id
+          WHERE prior_st.season_id = ${seasonId}
+            AND prior_st.id <> ${resolvedTradeId}
+            AND prior_sti.item_type = 'player'
+            AND prior_sti.player_id = sti.player_id
+            AND prior_sti.from_team_slug = sti.to_team_slug
+        ) AS had_prior_stint_on_to_team
+      FROM season_trade_items sti
+      JOIN latest_trade lt ON lt.id = sti.trade_id
+      WHERE lt.id = ${resolvedTradeId}
+        AND sti.item_type = 'player'
+        AND sti.player_id IS NOT NULL
+    ),
+    locked_rosters AS MATERIALIZED (
+      SELECT ps.player_id, ps.season_id, ps.team_slug, pi.from_team_slug
+      FROM player_seasons ps
+      JOIN player_items pi
+        ON ps.player_id = pi.player_id AND ps.team_slug = pi.to_team_slug
+      WHERE ps.season_id = ${seasonId}
+      FOR UPDATE OF ps
+    ),
+    post_trade_games AS (
+      SELECT pi.player_id
+      FROM player_items pi
+      CROSS JOIN latest_trade lt
+      WHERE EXISTS (
+        SELECT 1
+        FROM player_game_stats pgs
+        JOIN games g ON g.id = pgs.game_id
+        WHERE g.season_id = ${seasonId}
+          AND pgs.player_id = pi.player_id
+          AND pgs.team_slug = pi.to_team_slug
+          AND (
+            NOT pi.had_prior_stint_on_to_team
+            OR g.date >= to_char(lt.traded_at AT TIME ZONE 'America/Los_Angeles', 'YYYY-MM-DD')
+          )
+      )
+      OR EXISTS (
+        SELECT 1
+        FROM goalie_game_stats ggs
+        JOIN games g ON g.id = ggs.game_id
+        WHERE g.season_id = ${seasonId}
+          AND ggs.player_id = pi.player_id
+          AND ggs.team_slug = pi.to_team_slug
+          AND (
+            NOT pi.had_prior_stint_on_to_team
+            OR g.date >= to_char(lt.traded_at AT TIME ZONE 'America/Los_Angeles', 'YYYY-MM-DD')
+          )
+      )
+    ),
+    guard AS (
+      SELECT s.id AS season_id, lt.id AS trade_id
+      FROM locked_season s
+      JOIN latest_trade lt ON lt.season_id = s.id
+      WHERE lt.id = ${resolvedTradeId}
+        AND (SELECT count(*)::int FROM locked_rosters) = (SELECT count(*)::int FROM player_items)
+        AND (SELECT count(*)::int FROM post_trade_games) = 0
+    ),
+    reverted_rosters AS (
+      UPDATE player_seasons ps
+      SET team_slug = lr.from_team_slug
+      FROM guard, locked_rosters lr
+      WHERE ps.season_id = guard.season_id
+        AND ps.player_id = lr.player_id
+        AND ps.team_slug = lr.team_slug
+      RETURNING ps.player_id, ps.team_slug
+    ),
+    deleted_trade AS (
+      DELETE FROM season_trades st
+      USING guard
+      WHERE st.id = guard.trade_id
+        AND (SELECT count(*)::int FROM reverted_rosters) = (SELECT count(*)::int FROM player_items)
+      RETURNING st.id
+    )
+    SELECT id AS "undoneTradeId" FROM deleted_trade;
+  `
+
+  let rows: unknown[]
+  try {
+    rows = await rawSql(undoQuery)
+  } catch {
+    return NextResponse.json({ error: "Failed to undo trade" }, { status: 500 })
+  }
+
+  const result = rows?.[0] as { undoneTradeId: number } | undefined
+  if (!result) {
+    return NextResponse.json(
+      { error: "Trade undo failed: preconditions not met or concurrent modification" },
+      { status: 409 }
+    )
+  }
+
+  return NextResponse.json({
+    success: true,
+    undoneTradeId: result.undoneTradeId,
+    revertedPlayers: playerItems
+      .filter((item): item is typeof item & { playerId: number } => item.playerId !== null)
+      .map((item) => ({
+        playerId: item.playerId,
+        fromTeamSlug: item.toTeamSlug,
+        toTeamSlug: item.fromTeamSlug,
+      })),
+  })
+}

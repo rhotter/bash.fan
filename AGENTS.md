@@ -81,13 +81,13 @@ Each page follows: async Server Component (data fetch via `React.cache` / `lib/c
 - `lib/optimized-logo.ts` & `lib/optimized-logos.json` — Static WebP logo manifest and resolver
 - `lib/api-errors.ts` & `lib/scorekeeper-login.ts` — Actionable API error helpers and side-effect-free scorekeeper PIN auth
 - `lib/hockey-data.ts` — SWR hooks for client-side data
-- `lib/db/schema.ts` — Drizzle ORM schema (43 tables)
+- `lib/db/schema.ts` — Drizzle ORM schema (45 tables)
 - `lib/db/game-id.ts` — Collision-free sequential `g[n]` game ID generator backed by `games_gen_seq`
 - `lib/banner-helpers.ts` — Pure helper algorithms, countdown suffixes, and banner contract validators
 - `lib/draft-banner-sync.ts` — Automated banner sync engine across draft lifecycle state transitions
 - `lib/draft-helpers.ts` — Snake/linear pick slot generation
 - `lib/draft-trade-resolver.ts` — Chain trade resolution engine
-- `lib/trade-helpers.ts` — Mid-season trade payload validation (2-team and N-team circular trades + future draft picks)
+- `lib/trade-helpers.ts` — Mid-season trade payload validation (2-team and N-team circular trades, Fall target season resolution, and round-based acquired pick provenance)
 - `lib/schedule-utils.ts` — Round-robin and playoff bracket generation, Berger tables, and simulated annealing equity optimizer (home/away, intra-day time slots)
 - `components/` — Page-level components (scores-tab, standings-tab, stats-tab, etc.)
 - `components/intent-link.tsx` — Link wrapper that prefetches full RSC payloads (`PrefetchKind.FULL`) on hover/focus/touch

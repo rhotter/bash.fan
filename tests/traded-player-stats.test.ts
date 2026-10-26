@@ -33,6 +33,7 @@ vi.mock("@/lib/seasons", async (importOriginal) => ({
 import { fetchGameDetail } from "@/lib/fetch-game-detail"
 import { fetchTeamDetail } from "@/lib/fetch-team-detail"
 import { fetchPlayerDetail } from "@/lib/fetch-player-detail"
+import { fetchPlayerStats } from "@/lib/fetch-player-stats"
 
 // Inspect live source files to verify feature query fragments
 function checkLiveFeatureSupport() {
@@ -537,5 +538,103 @@ describe("Traded Player Statistics & Query Integrity", () => {
         expect(calls.length).toBeGreaterThan(0)
       })
     }
+  })
+
+  describe("4. Season Leaderboard vs Team-Filtered Split Stats (fetchPlayerStats)", () => {
+    it("rolls up combined season totals for All Teams while preserving per-team split rows in skatersByTeam and goaliesByTeam", async () => {
+      mocks.statsOnly.mockResolvedValue(false)
+      mocks.rawSql.mockImplementation(async ({ sql }: Query) => {
+        if (sql.includes("FROM players p") && sql.includes("JOIN goalie_game_stats ggs")) {
+          return [
+            {
+              id: 176,
+              name: "Ian Hocking",
+              game_team: "No ReGretzkys",
+              game_team_slug: "no-regretzkys",
+              team: "Seals",
+              team_slug: "seals",
+              gp: 1,
+              seconds: 3600,
+              goals_against: 2,
+              shots_against: 31,
+              saves: 29,
+              shutouts: 0,
+              goalie_assists: 0,
+              game_length: 60,
+              save_pct: 29 / 31,
+              gaa: 2,
+              wins: 1,
+              losses: 0,
+            },
+            {
+              id: 176,
+              name: "Ian Hocking",
+              game_team: "Seals",
+              game_team_slug: "seals",
+              team: "Seals",
+              team_slug: "seals",
+              gp: 1,
+              seconds: 3600,
+              goals_against: 2,
+              shots_against: 15,
+              saves: 13,
+              shutouts: 0,
+              goalie_assists: 0,
+              game_length: 60,
+              save_pct: 13 / 15,
+              gaa: 2,
+              wins: 0,
+              losses: 1,
+            },
+            {
+              id: 176,
+              name: "Ian Hocking",
+              game_team: "Yetis",
+              game_team_slug: "yetis",
+              team: "Seals",
+              team_slug: "seals",
+              gp: 1,
+              seconds: 3600,
+              goals_against: 2,
+              shots_against: 13,
+              saves: 11,
+              shutouts: 0,
+              goalie_assists: 0,
+              game_length: 60,
+              save_pct: 11 / 13,
+              gaa: 2,
+              wins: 0,
+              losses: 1,
+            },
+          ]
+        }
+        return []
+      })
+
+      const res = await fetchPlayerStats("2026-2027")
+
+      // Combined season row for All Teams view
+      expect(res.goalies).toHaveLength(1)
+      expect(res.goalies[0]).toMatchObject({
+        id: 176,
+        name: "Ian Hocking",
+        team: "Seals",
+        teamSlug: "seals",
+        gp: 3,
+        wins: 1,
+        losses: 2,
+        saves: 53,
+        goalsAgainst: 6,
+        shotsAgainst: 59,
+      })
+
+      // Per-team split rows for Team Filter view (1 GP for each of the 3 teams)
+      expect(res.goaliesByTeam).toHaveLength(3)
+      expect(res.goaliesByTeam?.map((g) => ({ teamSlug: g.teamSlug, gp: g.gp, saves: g.saves }))).toEqual([
+        { teamSlug: "no-regretzkys", gp: 1, saves: 29 },
+        { teamSlug: "seals", gp: 1, saves: 13 },
+        { teamSlug: "yetis", gp: 1, saves: 11 },
+      ])
+    })
   })
 })

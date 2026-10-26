@@ -31,7 +31,7 @@ The BASH Hockey repository is a full-stack Next.js application designed to displ
 - **Client Data Fetching**: SWR hooks for client-side caching and revalidation
 - **Deployment**: Vercel (Serverless functions pinned to `pdx1` in `vercel.json` to colocate with Neon Postgres)
 
-> **⚠️ Neon HTTP Driver Constraint:** The project uses the **stateless HTTP** driver (`@neondatabase/serverless` → `neon-http`), which **does not support `db.transaction()`** and executes each query as an individual HTTP request. Multi-step writes must use idempotent sequential `await db.*` calls, while independent reads must be parallelized with `Promise.all()` or batched into a single SQL query using `MATERIALIZED` CTEs to avoid sequential HTTP waterfalls.
+> **⚠️ Neon HTTP Driver Constraint:** The project uses the **stateless HTTP** driver (`@neondatabase/serverless` → `neon-http`), which **does not support `db.transaction()`** and executes each query as an individual HTTP request. Multi-step writes must use idempotent sequential `await db.*` calls (or a single-statement data-modifying CTE via `rawSql()` when strict multi-table atomicity is required, as in `lib/final-game-shots.ts` and `app/api/bash/admin/seasons/[id]/trades/route.ts`), while independent reads must be parallelized with `Promise.all()` or batched into a single SQL query using `MATERIALIZED` CTEs to avoid sequential HTTP waterfalls.
 
 ## Key Data Structures (Database Schema)
 
@@ -51,8 +51,12 @@ erDiagram
     teams ||--o{ player_seasons : "rosters"
     players ||--o{ player_game_stats : "logs"
     games ||--o{ player_game_stats : "records"
+    teams ||--o{ player_game_stats : "team_slug"
     players ||--o{ goalie_game_stats : "logs"
     games ||--o{ goalie_game_stats : "records"
+    teams ||--o{ goalie_game_stats : "team_slug"
+    seasons ||--o{ season_trades : "records"
+    season_trades ||--o{ season_trade_items : "contains"
     players ||--o{ player_season_stats : "logs"
     seasons ||--o{ player_season_stats : "records"
     teams ||--o{ player_season_stats : "for"
@@ -89,13 +93,14 @@ The Drizzle schema (`lib/db/schema.ts`) defines the following table groups:
    - `game_live`: Stores real-time scorekeeping state for live updates.
    - `game_officials`: Records referees and linesmen for each game.
 
-3. **Players & Statistics**
+3. **Players, Statistics & Mid-Season Trades**
    - `players`: Global player identities.
-   - `player_seasons`: Links players to seasons and teams, tracking if they are a goalie, captain (`is_captain`), or rookie (`is_rookie`).
+   - `player_seasons`: Links players to seasons and their current active team (`team_slug`), tracking if they are a goalie, captain (`is_captain`), or rookie (`is_rookie`).
    - `adhoc_game_rosters`: Links players to exhibition and tryout games, allowing for ad-hoc team composition independent of season rosters.
-   - `player_game_stats`: Granular per-game stats for skaters (goals, assists, points, PIM, etc.).
-   - `goalie_game_stats`: Granular per-game stats for goalies (shots against, saves, shutouts).
+   - `player_game_stats`: Granular per-game stats for skaters (goals, assists, points, PIM, etc.) with game-day `team_slug` attribution so historical box scores, team stat tables, and player game logs remain permanently tied to the team the player represented in that game.
+   - `goalie_game_stats`: Granular per-game stats for goalies (shots against, saves, shutouts) with game-day `team_slug` attribution.
    - `player_season_stats`: Aggregated historical stats for seasons prior to detailed per-game data availability.
+   - `season_trades` & `season_trade_items`: Audit log for mid-season 2-team and $N$-team player swaps and future Fall draft pick trades, executed atomically via a single-statement data-modifying CTE (`app/api/bash/admin/seasons/[id]/trades/route.ts`).
 
 4. **Awards & History**
    - `player_awards`: Auto-computed and historical player awards.
@@ -149,7 +154,8 @@ During replication, the script performs automated dev orphan game pruning: any g
 The application uses Next.js async Server Components backed by Drizzle ORM and `rawSql` queries against Neon Postgres (`pdx1`):
 
 - **`fetchBashData(season)`** (`lib/fetch-bash-data.ts`): Fetches all games for a season and dynamically computes **Standings** in-memory based on wins (3 pts), OT wins (2 pts), OT losses (1 pt), and losses (0 pts). Skips `getCurrentSeason()` when an explicit `season` parameter is passed.
-- **`fetchTeamDetail(slug, season)`** (`lib/fetch-team-detail.ts`) & **`fetchGameDetail(id)`** (`lib/fetch-game-detail.ts`): Execute all independent season, roster, schedule, and standings queries in a single `Promise.all` wave and wrap the exported fetcher in React's `cache()` so `generateMetadata()` and the page component share a single read within a render pass.
+- **`fetchTeamDetail(slug, season)`** (`lib/fetch-team-detail.ts`) & **`fetchGameDetail(id)`** (`lib/fetch-game-detail.ts`): Execute all independent season, roster, schedule, and standings queries in a single `Promise.all` wave and wrap the exported fetcher in React's `cache()` so `generateMetadata()` and the page component share a single read within a render pass. `fetchTeamDetail` and `fetchGameDetail` attribute stats by each game row's stamped `team_slug` (`COALESCE(pgs.team_slug, ps.team_slug)`), preserving historical game box scores and per-team stat totals after mid-season trades.
+- **`fetchPlayerStats(season, playoff, seasonType, gameType)`** (`lib/fetch-player-stats.ts`): For single-season leaderboards, groups game stats by `(player_id, COALESCE(pgs.team_slug, ps.team_slug))` in a single query wave, returning both `skatersByTeam` / `goaliesByTeam` (per-team split rows used when filtering `/stats` by a specific team) and in-memory rolled-up `skaters` / `goalies` (combined season totals across all teams played for, used on `/stats` `All Teams`).
 - **`fetchPlayerDetail(slug)`** (`lib/fetch-player-detail.ts`, `lib/fetch-player-query-group.ts`, `lib/player-slug-sql.ts`):
   - **Wave 1 (Identity & Season Metadata)**: Runs `Promise.all([getCurrentSeason(), getAllSeasons(), rawSql(...)])` to fetch season metadata alongside player identity and all season/team memberships filtered in SQL via `playerSlugSql(p.name) = slug` (avoiding full-table `players` scans in Node and serial membership fallback queries).
   - **Wave 2 (Batched Stat Sections)**: Once `player.id` and `playerSeasonId` are resolved, batches all 23 regular-season, playoff, exhibition, career, award, and Hall of Fame stat sections into a **single SQL query** via `fetchPlayerQueryGroup`, which materializes the player's `player_game_stats`, `goalie_game_stats`, and `player_season_stats` rows once (`WITH ... AS MATERIALIZED`) and projects each section with `json_agg`. This keeps `/player/[slug]` fast enough to run with `revalidate = 0` for always-fresh stats.
@@ -205,7 +211,7 @@ Ensures accurate, non-alphabetical chronological ordering across all schedule an
 The draft system manages the entire lifecycle of a league draft:
 
 1. **Creation**: Admin creates a draft instance via a 5-step wizard (settings → player pool → teams & captains → draft order & pre-draft trades → review). Player pools can be imported from Sportability CSV exports using the shared `lib/csv-utils.ts` parser.
-2. **Pre-Draft Trades**: Pick swaps can be arranged before the draft starts. The `lib/draft-trade-resolver.ts` engine resolves chain trades (e.g., A→B→C pick ownership) when picks are generated.
+2. **Pre-Draft Trades**: Pick swaps can be arranged before the draft starts. For **Fall** drafts (`seasonType === "fall"`), any future draft picks traded during the prior Fall season (`season_trade_items` with `item_type = 'draft_pick'` matching `getTargetFallSeasonCandidates(seasonId)`) are automatically imported into `draft_trades` upon draft creation or start (while never applying to Summer drafts). The `lib/draft-trade-resolver.ts` engine resolves chain trades (e.g., A→B→C pick ownership) when picks are generated.
 3. **Live Draft**: Transitioning to `live` pre-generates all pick slots (`lib/draft-helpers.ts` handles snake/linear ordering). Keeper picks are auto-filled. The admin enters picks through a real-time board with player search, timer controls, and undo support.
 4. **Public Board**: `/draft/[season]` polls the public API (`/api/bash/draft/[season]`) every 3 seconds via SWR. Features include pick animations, NHL draft chime audio, position filtering, and a player card modal with career stats.
 5. **Post-Draft**: CSV export, JSON backup/restore, and roster push (upserts drafted players into `player_seasons` for the season).

@@ -495,6 +495,18 @@ describe("SeasonRosterTab UI: Active Season Roster Editing & Trades", () => {
         })
       }
 
+      // Click Review Trade to open confirmation summary
+      const reviewBtn = Array.from(document.querySelectorAll("button")).find((b) =>
+        b.textContent?.includes("Review Trade")
+      )!
+      expect(reviewBtn).toBeDefined()
+      await act(async () => {
+        reviewBtn.click()
+      })
+
+      expect(document.querySelector('[data-testid="trade-review-step"]')).not.toBeNull()
+      expect(document.body.textContent).toContain("Review Mid-Season Trade")
+
       // Click Execute Trade
       const executeBtn = Array.from(document.querySelectorAll("button")).find((b) =>
         b.textContent?.includes("Execute Trade")
@@ -511,6 +523,245 @@ describe("SeasonRosterTab UI: Active Season Roster Editing & Trades", () => {
       expect(body.teamASlug).toBe("loons")
       expect(body.teamBSlug).toBe("yetis")
       expect(toast.success).toHaveBeenCalledWith("Trade recorded successfully")
+    })
+
+    it("supports adding a 3rd team section and submitting an N-team circular trade with per-team players and picks", async () => {
+      const fetchMock = vi.fn(async (url: string, opts?: RequestInit) => {
+        if (url.endsWith("/trades") && opts?.method === "POST") {
+          return new Response(JSON.stringify({ success: true, tradeId: 102, tradedAt: new Date().toISOString() }), {
+            status: 201,
+          })
+        }
+        return new Response(JSON.stringify({ trades: [] }), { status: 200 })
+      })
+      vi.stubGlobal("fetch", fetchMock)
+
+      const onRosterChange = vi.fn()
+      await renderComponent({ seasonStatus: "active", onRosterChange })
+
+      // Open trade modal
+      const tradeBtn = Array.from(document.querySelectorAll("button")).find((b) =>
+        b.textContent?.includes("Record Trade")
+      )!
+      await act(async () => {
+        tradeBtn.click()
+      })
+
+      // Add a 3rd team section
+      const addTeamBtn = Array.from(document.querySelectorAll("button")).find((b) =>
+        b.textContent?.includes("Add Team to Trade")
+      )!
+      expect(addTeamBtn).toBeDefined()
+      await act(async () => {
+        addTeamBtn.click()
+      })
+
+      const teamASelect = document.querySelector<HTMLSelectElement>("#teamA")!
+      const teamBSelect = document.querySelector<HTMLSelectElement>("#teamB")!
+      const teamCSelect = document.querySelector<HTMLSelectElement>("#teamC")!
+      expect(teamCSelect).toBeDefined()
+
+      await act(async () => {
+        teamASelect.value = "loons"
+        teamASelect.dispatchEvent(new Event("change", { bubbles: true }))
+        teamBSelect.value = "yetis"
+        teamBSelect.dispatchEvent(new Event("change", { bubbles: true }))
+        teamCSelect.value = "rangers"
+        teamCSelect.dispatchEvent(new Event("change", { bubbles: true }))
+      })
+
+      // Select Darrell Draper (630) from Loons (defaults to Yetis)
+      const draperCheckbox = document.querySelector<HTMLInputElement>(
+        'div[data-testid="team-a-players"] input[type="checkbox"]'
+      )!
+      await act(async () => {
+        draperCheckbox.click()
+      })
+
+      // Select Jonny Callan (974) from Yetis and set destination to Rangers
+      const callanCheckbox = document.querySelector<HTMLInputElement>(
+        'div[data-testid="team-b-players"] input[type="checkbox"]'
+      )!
+      await act(async () => {
+        callanCheckbox.click()
+      })
+      const callanDestSelect = document.querySelector<HTMLSelectElement>(
+        'select[aria-label="Destination team for Jonny Callan"]'
+      )!
+      await act(async () => {
+        callanDestSelect.value = "rangers"
+        callanDestSelect.dispatchEvent(new Event("change", { bubbles: true }))
+      })
+
+      // Select Eddie Parsons (953) from Rangers (defaults to Loons)
+      const parsonsCheckbox = document.querySelector<HTMLInputElement>(
+        'div[data-testid="team-c-players"] input[type="checkbox"]'
+      )!
+      await act(async () => {
+        parsonsCheckbox.click()
+      })
+
+      // Review and execute trade
+      const reviewBtn = Array.from(document.querySelectorAll("button")).find((b) =>
+        b.textContent?.includes("Review Trade")
+      )!
+      await act(async () => {
+        reviewBtn.click()
+      })
+
+      const executeBtn = Array.from(document.querySelectorAll("button")).find((b) =>
+        b.textContent?.includes("Execute Trade")
+      )!
+      await act(async () => {
+        executeBtn.click()
+      })
+
+      const postCall = fetchMock.mock.calls.find(
+        ([url, opts]) => String(url).includes("/trades") && opts?.method === "POST"
+      )
+      expect(postCall).toBeDefined()
+      const body = JSON.parse(postCall![1]!.body as string)
+      expect(body.teamSlugs).toEqual(["loons", "yetis", "rangers"])
+      expect(body.playerMoves).toEqual([
+        { playerId: 630, fromTeamSlug: "loons", toTeamSlug: "yetis" },
+        { playerId: 974, fromTeamSlug: "yetis", toTeamSlug: "rangers" },
+        { playerId: 953, fromTeamSlug: "rangers", toTeamSlug: "loons" },
+      ])
+    })
+
+    it("only shows draft pick origin selector when DB trade history shows acquired pick(s) in that round", async () => {
+      // Simulate prior DB trades where Loons acquired Round 2 picks from Yetis and Rangers
+      const priorTradesWithPicks = [
+        {
+          id: 2,
+          seasonId: "2026-2027",
+          teamSlugs: ["rangers", "loons"],
+          tradedAt: "2026-10-13T19:00:00Z",
+          items: [
+            {
+              itemType: "draft_pick",
+              fromTeamSlug: "rangers",
+              toTeamSlug: "loons",
+              draftPickRound: 2,
+              draftPickOriginalTeamSlug: "rangers",
+              draftPickTargetSeason: "2027-summer",
+            },
+          ],
+        },
+        {
+          id: 1,
+          seasonId: "2026-2027",
+          teamSlugs: ["yetis", "loons"],
+          tradedAt: "2026-10-12T19:00:00Z",
+          items: [
+            {
+              itemType: "draft_pick",
+              fromTeamSlug: "yetis",
+              toTeamSlug: "loons",
+              draftPickRound: 2,
+              draftPickOriginalTeamSlug: "yetis",
+              draftPickTargetSeason: "2027-summer",
+            },
+          ],
+        },
+      ]
+
+      const fetchMock = vi.fn(async (url: string, opts?: RequestInit) => {
+        if (url.endsWith("/trades") && opts?.method === "POST") {
+          return new Response(JSON.stringify({ success: true, tradeId: 103, tradedAt: new Date().toISOString() }), {
+            status: 201,
+          })
+        }
+        return new Response(JSON.stringify({ trades: priorTradesWithPicks }), { status: 200 })
+      })
+      vi.stubGlobal("fetch", fetchMock)
+
+      await renderComponent({ seasonStatus: "active" })
+
+      // Open trade modal
+      const tradeBtn = Array.from(document.querySelectorAll("button")).find((b) =>
+        b.textContent?.includes("Record Trade")
+      )!
+      await act(async () => {
+        tradeBtn.click()
+      })
+
+      // Select Team A = Loons, Team B = Yetis
+      const teamASelect = document.querySelector<HTMLSelectElement>("#teamA")!
+      const teamBSelect = document.querySelector<HTMLSelectElement>("#teamB")!
+      await act(async () => {
+        teamASelect.value = "loons"
+        teamASelect.dispatchEvent(new Event("change", { bubbles: true }))
+        teamBSelect.value = "yetis"
+        teamBSelect.dispatchEvent(new Event("change", { bubbles: true }))
+      })
+
+      // Click Add Draft Pick in Loons's section (defaults to Round 2)
+      const addPickBtns = Array.from(document.querySelectorAll("button")).filter((b) =>
+        b.textContent?.includes("Add Draft Pick")
+      )
+      await act(async () => {
+        addPickBtns[0].click()
+      })
+
+      // Because Loons acquired Round 2 picks from Yetis and Rangers, origin selector must appear with all 3 options
+      const originSelect = document.querySelector<HTMLSelectElement>('select[data-testid="draft-pick-origin-select"]')!
+      expect(originSelect).not.toBeNull()
+      const optionValues = Array.from(originSelect.options).map((o) => o.value)
+      expect(optionValues).toEqual(["loons", "yetis", "rangers"])
+
+      // Switch Round to Round 3 (where Loons has NO acquired picks) -> origin selector disappears
+      const roundSelect = document.querySelector<HTMLSelectElement>(
+        'select[aria-label="Draft pick round for Loons"]'
+      )!
+      await act(async () => {
+        roundSelect.value = "3"
+        roundSelect.dispatchEvent(new Event("change", { bubbles: true }))
+      })
+      expect(document.querySelector('select[data-testid="draft-pick-origin-select"]')).toBeNull()
+
+      // Switch back to Round 2 and select the acquired Rangers Round 2 pick
+      await act(async () => {
+        roundSelect.value = "2"
+        roundSelect.dispatchEvent(new Event("change", { bubbles: true }))
+      })
+      const originSelectAgain = document.querySelector<HTMLSelectElement>(
+        'select[data-testid="draft-pick-origin-select"]'
+      )!
+      await act(async () => {
+        originSelectAgain.value = "rangers"
+        originSelectAgain.dispatchEvent(new Event("change", { bubbles: true }))
+      })
+
+      // Review and execute trade and verify originalTeamSlug === 'rangers'
+      const reviewBtn = Array.from(document.querySelectorAll("button")).find((b) =>
+        b.textContent?.includes("Review Trade")
+      )!
+      await act(async () => {
+        reviewBtn.click()
+      })
+
+      const executeBtn = Array.from(document.querySelectorAll("button")).find((b) =>
+        b.textContent?.includes("Execute Trade")
+      )!
+      await act(async () => {
+        executeBtn.click()
+      })
+
+      const postCall = fetchMock.mock.calls.find(
+        ([url, opts]) => String(url).includes("/trades") && opts?.method === "POST"
+      )
+      expect(postCall).toBeDefined()
+      const body = JSON.parse(postCall![1]!.body as string)
+      expect(body.draftPicks).toEqual([
+        {
+          fromTeamSlug: "loons",
+          toTeamSlug: "yetis",
+          round: 2,
+          originalTeamSlug: "rangers",
+          targetSeason: "2027-2028",
+        },
+      ])
     })
   })
 
@@ -536,6 +787,63 @@ describe("SeasonRosterTab UI: Active Season Roster Editing & Trades", () => {
       expect(document.body.textContent).toContain("Jonny Callan")
       expect(document.body.textContent).toContain("Round 2 Pick")
       expect(document.body.textContent).toContain("Week 1 Block Trade")
+    })
+
+    it("renders Undo button only on the most recent trade and calls DELETE on confirm", async () => {
+      const twoTrades = [
+        {
+          id: 2,
+          seasonId: "2026-2027",
+          teamSlugs: ["rangers", "yetis"],
+          tradedAt: "2026-10-15T19:00:00Z",
+          items: [
+            { itemType: "player", fromTeamSlug: "rangers", toTeamSlug: "yetis", playerId: 953, playerName: "Eddie Parsons" },
+          ],
+        },
+        ...mockTradesHistory,
+      ]
+
+      const fetchMock = vi.fn(async (url: string, opts?: RequestInit) => {
+        if (String(url).includes("/trades?tradeId=2") && opts?.method === "DELETE") {
+          return new Response(
+            JSON.stringify({
+              success: true,
+              undoneTradeId: 2,
+              revertedPlayers: [{ playerId: 953, fromTeamSlug: "yetis", toTeamSlug: "rangers" }],
+            }),
+            { status: 200 }
+          )
+        }
+        return new Response(JSON.stringify({ trades: twoTrades }), { status: 200 })
+      })
+      vi.stubGlobal("fetch", fetchMock)
+
+      await renderComponent({ seasonStatus: "active" })
+
+      const undoBtns = document.querySelectorAll('[data-testid="undo-latest-trade-btn"]')
+      expect(undoBtns).toHaveLength(1)
+      expect(undoBtns[0].getAttribute("aria-label")).toBe("Undo Trade #2")
+
+      await act(async () => {
+        ;(undoBtns[0] as HTMLButtonElement).click()
+      })
+
+      expect(document.body.textContent).toContain("Undo Trade #2?")
+
+      const confirmUndoBtn = Array.from(document.querySelectorAll("button")).find(
+        (b) => b.textContent?.trim() === "Undo Trade"
+      )!
+      expect(confirmUndoBtn).toBeDefined()
+
+      await act(async () => {
+        confirmUndoBtn.click()
+      })
+
+      const deleteCall = fetchMock.mock.calls.find(
+        ([url, opts]) => String(url).includes("/trades?tradeId=2") && opts?.method === "DELETE"
+      )
+      expect(deleteCall).toBeDefined()
+      expect(toast.success).toHaveBeenCalledWith("Trade undone successfully")
     })
   })
 })

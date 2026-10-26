@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
 import { db, schema } from "@/lib/db"
-import { eq, and } from "drizzle-orm"
+import { eq, and, inArray, asc } from "drizzle-orm"
 import { getSession } from "@/lib/admin-session"
+import { getTargetFallSeasonCandidates } from "@/lib/trade-helpers"
 
 interface RouteContext {
   params: Promise<{ id: string }>
@@ -202,10 +203,63 @@ export async function POST(request: NextRequest, context: RouteContext) {
     }
 
     // ── Pre-draft trades ────────────────────────────────────────────────────
-    // Store pick swaps agreed upon before draft day. Each trade references picks
-    // by their ORIGINAL slot owner (not current owner), enabling the sequential
-    // resolution engine to correctly handle chain trades where a pick acquired
-    // in one trade is subsequently traded again.
+    // 1. For Fall drafts ONLY (never Summer drafts), automatically pre-populate
+    //    traded draft picks from prior Fall season_trade_items targeting this season.
+    if (season.seasonType === "fall") {
+      const targetCandidates = getTargetFallSeasonCandidates(seasonId, season.seasonType)
+      if (targetCandidates.length > 0) {
+        const priorPickItems = await db
+          .select({
+            tradeId: schema.seasonTradeItems.tradeId,
+            fromTeamSlug: schema.seasonTradeItems.fromTeamSlug,
+            toTeamSlug: schema.seasonTradeItems.toTeamSlug,
+            round: schema.seasonTradeItems.draftPickRound,
+            originalTeamSlug: schema.seasonTradeItems.draftPickOriginalTeamSlug,
+            tradedAt: schema.seasonTrades.tradedAt,
+          })
+          .from(schema.seasonTradeItems)
+          .innerJoin(
+            schema.seasonTrades,
+            eq(schema.seasonTradeItems.tradeId, schema.seasonTrades.id)
+          )
+          .where(
+            and(
+              eq(schema.seasonTradeItems.itemType, "draft_pick"),
+              inArray(schema.seasonTradeItems.draftPickTargetSeason, targetCandidates)
+            )
+          )
+          .orderBy(
+            asc(schema.seasonTrades.tradedAt),
+            asc(schema.seasonTrades.id),
+            asc(schema.seasonTradeItems.id)
+          )
+
+        for (const item of priorPickItems) {
+          if (!item.round) continue
+          const origOwner = item.originalTeamSlug || item.fromTeamSlug
+          const via = origOwner !== item.fromTeamSlug ? ` (via ${origOwner})` : ""
+          const draftTradeId = `trade-${crypto.randomUUID()}`
+
+          await db.insert(schema.draftTrades).values({
+            id: draftTradeId,
+            draftId,
+            teamASlug: item.fromTeamSlug,
+            teamBSlug: item.toTeamSlug,
+            tradeType: "pre_draft_pick_swap",
+            description: `Prior season trade: ${item.fromTeamSlug} Rd ${item.round}${via} → ${item.toTeamSlug}`,
+          })
+
+          await db.insert(schema.draftTradeItems).values({
+            tradeId: draftTradeId,
+            fromTeamSlug: origOwner,
+            toTeamSlug: item.toTeamSlug,
+            round: item.round,
+          })
+        }
+      }
+    }
+
+    // 2. Store any additional pick swaps entered in the draft wizard.
     if (Array.isArray(preDraftTrades) && preDraftTrades.length > 0) {
       for (const trade of preDraftTrades) {
         const {

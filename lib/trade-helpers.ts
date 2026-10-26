@@ -64,6 +64,37 @@ export interface TradeValidationFailure {
 
 export type TradeValidationResult = TradeValidationSuccess | TradeValidationFailure
 
+/**
+ * Computes the next Fall season ID given a current season ID.
+ * E.g. "bash-2026-2027" -> "2027-2028", "2025-2026" -> "2026-2027", "2026-summer" -> "2026-2027".
+ */
+export function getNextFallSeasonId(seasonId: string): string {
+  const fallMatch = seasonId.match(/(\d{4})-(\d{4})/)
+  if (fallMatch) {
+    const startYear = Number(fallMatch[1])
+    return `${startYear + 1}-${startYear + 2}`
+  }
+  const summerMatch = seasonId.match(/(\d{4})-summer/i)
+  if (summerMatch) {
+    const year = Number(summerMatch[1])
+    return `${year}-${year + 1}`
+  }
+  return "2027-2028"
+}
+
+/**
+ * Returns candidate draft_pick_target_season strings that match a given Fall season ID.
+ * Returns an empty array for Summer seasons so Fall trades never apply to Summer drafts.
+ */
+export function getTargetFallSeasonCandidates(seasonId: string, seasonType?: string): string[] {
+  if (seasonType && seasonType !== "fall") return []
+  if (/summer/i.test(seasonId)) return []
+  const fallMatch = seasonId.match(/(\d{4})-(\d{4})/)
+  if (!fallMatch) return [seasonId]
+  const range = `${fallMatch[1]}-${fallMatch[2]}`
+  return Array.from(new Set([seasonId, range, `bash-${range}`]))
+}
+
 export function validateTradeInput(input: unknown): TradeValidationResult {
   if (!input || typeof input !== "object" || Array.isArray(input)) {
     return { valid: false, error: "Invalid trade payload: expected an object" }

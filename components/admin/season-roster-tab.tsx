@@ -2,7 +2,7 @@ import { fetchApi as fetch, readApiJson, errorMessage } from "@/lib/api-errors"
 import { useState, useCallback, useEffect } from "react"
 import { Spinner } from "@/components/ui/spinner"
 import { useRouter } from "next/navigation"
-import { Plus, Search, ArrowUpDown, AlertTriangle, ArrowLeftRight, Trash2 } from "lucide-react"
+import { Plus, Search, ArrowUpDown, AlertTriangle, ArrowLeftRight, ArrowDown, Trash2, Undo2 } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import {
@@ -44,7 +44,9 @@ import { Label } from "@/components/ui/label"
 import { toast } from "sonner"
 import { TeamLogo } from "@/components/team-logo"
 import { Badge } from "@/components/ui/badge"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { SportabilityImportModal } from "@/components/admin/sportability-import-modal"
+import { getNextFallSeasonId } from "@/lib/trade-helpers"
 
 interface RosterPlayer {
   playerId: number
@@ -87,12 +89,22 @@ interface SeasonTradeRecord {
 }
 
 interface TradePickRow {
-  from: string
   to: string
   round: number
   originalTeam: string
   targetSeason: string
 }
+
+interface TradeParticipantSection {
+  teamSlug: string
+  selectedPlayers: Record<number, string>
+  draftPicks: TradePickRow[]
+}
+
+const createInitialTradeSections = (): TradeParticipantSection[] => [
+  { teamSlug: "", selectedPlayers: {}, draftPicks: [] },
+  { teamSlug: "", selectedPlayers: {}, draftPicks: [] },
+]
 
 export function SeasonRosterTab({ seasonId, seasonStatus, roster, teams, onRosterChange }: SeasonRosterTabProps) {
   const router = useRouter()
@@ -267,24 +279,150 @@ export function SeasonRosterTab({ seasonId, seasonStatus, roster, teams, onRoste
 
   // Record Trade Modal State
   const [isTradeOpen, setIsTradeOpen] = useState(false)
+  const [isReviewingTrade, setIsReviewingTrade] = useState(false)
   const [isExecutingTrade, setIsExecutingTrade] = useState(false)
-  const [tradeTeamA, setTradeTeamA] = useState("")
-  const [tradeTeamB, setTradeTeamB] = useState("")
-  const [selectedAPlayers, setSelectedAPlayers] = useState<number[]>([])
-  const [selectedBPlayers, setSelectedBPlayers] = useState<number[]>([])
-  const [draftPicks, setDraftPicks] = useState<TradePickRow[]>([])
+  const [tradeSections, setTradeSections] = useState<TradeParticipantSection[]>(createInitialTradeSections)
   const [tradeNotes, setTradeNotes] = useState("")
 
-  const teamAPlayers = roster.filter((p) => p.teamSlug === tradeTeamA)
-  const teamBPlayers = roster.filter((p) => p.teamSlug === tradeTeamB)
+  const getOtherSelectedTeams = (excludeIdx: number, sections = tradeSections) =>
+    sections
+      .filter((s, idx) => idx !== excludeIdx && s.teamSlug.trim() !== "")
+      .map((s) => s.teamSlug)
+
+  const resolveDestinationTeam = (excludeIdx: number, preferredTo: string, sections = tradeSections) => {
+    const others = getOtherSelectedTeams(excludeIdx, sections)
+    if (others.length === 0) return ""
+    if (others.length === 1) return others[0]
+    return others.includes(preferredTo) ? preferredTo : others[0]
+  }
+
+  // Check season trade history from DB to find any Round `round` picks acquired by `teamSlug` from other teams
+  const getAcquiredPickOriginsForRound = (teamSlug: string, round: number): string[] => {
+    if (!teamSlug) return []
+    const chronologicalTrades = [...trades].reverse()
+    const holderByOrigin = new Map<string, string>()
+
+    for (const trade of chronologicalTrades) {
+      if (!trade.items) continue
+      for (const item of trade.items) {
+        if (item.itemType === "draft_pick" && Number(item.draftPickRound) === Number(round)) {
+          const originSlug = item.draftPickOriginalTeamSlug || item.fromTeamSlug
+          if (originSlug && item.toTeamSlug) {
+            holderByOrigin.set(originSlug, item.toTeamSlug)
+          }
+        }
+      }
+    }
+
+    const acquiredOrigins: string[] = []
+    for (const [originSlug, holderSlug] of holderByOrigin.entries()) {
+      if (holderSlug === teamSlug && originSlug !== teamSlug && !acquiredOrigins.includes(originSlug)) {
+        acquiredOrigins.push(originSlug)
+      }
+    }
+    return acquiredOrigins
+  }
+
+  // Assign chronological trade numbers (oldest = #1)
+  const chronologicalTradeIds = [...trades].reverse().map((tr) => tr.id)
+  const tradeNumberById = new Map<number, number>(
+    chronologicalTradeIds.map((id, i) => [id, i + 1])
+  )
+
+  // Helper to find which prior trade # a team acquired a specific (round, origSlug) pick from
+  const findSourceTradeNumber = (
+    currentTradeId: number | null,
+    holderSlug: string,
+    round: number | null | undefined,
+    origSlug: string | null | undefined
+  ): number | null => {
+    if (!round || !origSlug) return null
+    const chronologicalTrades = [...trades].reverse()
+    let foundTradeNum: number | null = null
+    for (const tr of chronologicalTrades) {
+      if (currentTradeId !== null && tr.id === currentTradeId) break
+      for (const it of tr.items || []) {
+        if (
+          it.itemType === "draft_pick" &&
+          Number(it.draftPickRound) === Number(round) &&
+          (it.draftPickOriginalTeamSlug || it.fromTeamSlug) === origSlug &&
+          it.toTeamSlug === holderSlug
+        ) {
+          foundTradeNum = tradeNumberById.get(tr.id) ?? null
+        }
+      }
+    }
+    return foundTradeNum
+  }
+
+  const activeSelectedTeams = tradeSections
+    .map((s) => s.teamSlug.trim())
+    .filter((slug) => slug.length > 0)
+  const hasValidTeamSelection =
+    activeSelectedTeams.length >= 2 &&
+    new Set(activeSelectedTeams).size === activeSelectedTeams.length
+
+  const buildPendingTradeMoves = () => {
+    const playerMoves: { playerId: number; fromTeamSlug: string; toTeamSlug: string }[] = []
+    const draftPickMoves: {
+      fromTeamSlug: string
+      toTeamSlug: string
+      round: number
+      originalTeamSlug: string
+      targetSeason: string
+    }[] = []
+
+    tradeSections.forEach((section, idx) => {
+      if (!section.teamSlug) return
+      Object.entries(section.selectedPlayers).forEach(([playerIdStr, preferredTo]) => {
+        const toTeamSlug = resolveDestinationTeam(idx, preferredTo)
+        if (toTeamSlug) {
+          playerMoves.push({
+            playerId: Number(playerIdStr),
+            fromTeamSlug: section.teamSlug,
+            toTeamSlug,
+          })
+        }
+      })
+      section.draftPicks.forEach((pick) => {
+        const toTeamSlug = resolveDestinationTeam(idx, pick.to)
+        if (toTeamSlug) {
+          draftPickMoves.push({
+            fromTeamSlug: section.teamSlug,
+            toTeamSlug,
+            round: pick.round,
+            originalTeamSlug: pick.originalTeam || section.teamSlug,
+            targetSeason: pick.targetSeason,
+          })
+        }
+      })
+    })
+
+    return { playerMoves, draftPickMoves }
+  }
+
+  const handleReviewTrade = () => {
+    if (!hasValidTeamSelection) {
+      toast.error("Please select at least two distinct teams")
+      return
+    }
+    const { playerMoves, draftPickMoves } = buildPendingTradeMoves()
+    if (playerMoves.length + draftPickMoves.length === 0) {
+      toast.error("Trade must include at least one player or draft pick")
+      return
+    }
+    setIsReviewingTrade(true)
+  }
 
   const handleRecordTrade = async () => {
-    if (!tradeTeamA || !tradeTeamB || tradeTeamA === tradeTeamB) {
-      toast.error("Please select two distinct teams")
+    if (!hasValidTeamSelection) {
+      toast.error("Please select at least two distinct teams")
       return
     }
 
-    const totalAssets = selectedAPlayers.length + selectedBPlayers.length + draftPicks.length
+    const { playerMoves, draftPickMoves } = buildPendingTradeMoves()
+
+    const totalAssets = playerMoves.length + draftPickMoves.length
     if (totalAssets === 0) {
       toast.error("Trade must include at least one player or draft pick")
       return
@@ -292,34 +430,26 @@ export function SeasonRosterTab({ seasonId, seasonStatus, roster, teams, onRoste
 
     setIsExecutingTrade(true)
     try {
-      const playerMoves = [
-        ...selectedAPlayers.map((playerId) => ({
-          playerId,
-          fromTeamSlug: tradeTeamA,
-          toTeamSlug: tradeTeamB,
-        })),
-        ...selectedBPlayers.map((playerId) => ({
-          playerId,
-          fromTeamSlug: tradeTeamB,
-          toTeamSlug: tradeTeamA,
-        })),
-      ]
+      const teamASlug = activeSelectedTeams[0]
+      const teamBSlug = activeSelectedTeams[1]
+      const teamAPlayerIds = playerMoves
+        .filter((m) => m.fromTeamSlug === teamASlug && m.toTeamSlug === teamBSlug)
+        .map((m) => m.playerId)
+      const teamBPlayerIds = playerMoves
+        .filter((m) => m.fromTeamSlug === teamBSlug && m.toTeamSlug === teamASlug)
+        .map((m) => m.playerId)
 
-      const payload = {
-        teamSlugs: [tradeTeamA, tradeTeamB],
-        teamASlug: tradeTeamA,
-        teamBSlug: tradeTeamB,
+      const payload: Record<string, unknown> = {
+        teamSlugs: activeSelectedTeams,
+        teamASlug,
+        teamBSlug,
         playerMoves,
-        teamAPlayerIds: selectedAPlayers,
-        teamBPlayerIds: selectedBPlayers,
-        draftPicks: draftPicks.map((p) => ({
-          fromTeamSlug: p.from,
-          toTeamSlug: p.to,
-          round: p.round,
-          originalTeamSlug: p.originalTeam,
-          targetSeason: p.targetSeason,
-        })),
+        draftPicks: draftPickMoves,
         notes: tradeNotes.trim() ? tradeNotes.trim() : undefined,
+      }
+      if (activeSelectedTeams.length === 2) {
+        payload.teamAPlayerIds = teamAPlayerIds
+        payload.teamBPlayerIds = teamBPlayerIds
       }
 
       const res = await fetch(`/api/bash/admin/seasons/${seasonId}/trades`, {
@@ -336,20 +466,16 @@ export function SeasonRosterTab({ seasonId, seasonStatus, roster, teams, onRoste
 
       toast.success("Trade recorded successfully")
       setIsTradeOpen(false)
-      setTradeTeamA("")
-      setTradeTeamB("")
-      setSelectedAPlayers([])
-      setSelectedBPlayers([])
-      setDraftPicks([])
+      setIsReviewingTrade(false)
+      setTradeSections(createInitialTradeSections())
       setTradeNotes("")
 
       // Update local roster immediately if onRosterChange provided
       if (onRosterChange) {
-        const updatedRoster = roster.map((p) => {
-          if (selectedAPlayers.includes(p.playerId)) return { ...p, teamSlug: tradeTeamB }
-          if (selectedBPlayers.includes(p.playerId)) return { ...p, teamSlug: tradeTeamA }
-          return p
-        })
+        const moveMap = new Map(playerMoves.map((m) => [m.playerId, m.toTeamSlug]))
+        const updatedRoster = roster.map((p) =>
+          moveMap.has(p.playerId) ? { ...p, teamSlug: moveMap.get(p.playerId)! } : p
+        )
         onRosterChange(updatedRoster)
       }
 
@@ -361,6 +487,50 @@ export function SeasonRosterTab({ seasonId, seasonStatus, roster, teams, onRoste
       else toast.error("An unknown error occurred")
     } finally {
       setIsExecutingTrade(false)
+    }
+  }
+
+  // Undo Latest Trade State
+  const [tradeToUndo, setTradeToUndo] = useState<SeasonTradeRecord | null>(null)
+  const [isUndoingTrade, setIsUndoingTrade] = useState(false)
+
+  const handleUndoTrade = async () => {
+    if (!tradeToUndo) return
+    setIsUndoingTrade(true)
+    try {
+      const res = await fetch(
+        `/api/bash/admin/seasons/${seasonId}/trades?tradeId=${tradeToUndo.id}`,
+        { method: "DELETE" }
+      )
+      const data = await readApiJson(res)
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to undo trade")
+      }
+
+      toast.success("Trade undone successfully")
+      setTradeToUndo(null)
+
+      if (onRosterChange && Array.isArray(data.revertedPlayers)) {
+        const revertMap = new Map<number, string>(
+          data.revertedPlayers.map((rp: { playerId: number; toTeamSlug: string }) => [
+            Number(rp.playerId),
+            rp.toTeamSlug,
+          ])
+        )
+        const updatedRoster = roster.map((p) =>
+          revertMap.has(p.playerId) ? { ...p, teamSlug: revertMap.get(p.playerId)! } : p
+        )
+        onRosterChange(updatedRoster)
+      }
+
+      await refreshRoster()
+      await fetchTrades()
+      router.refresh()
+    } catch (err: unknown) {
+      if (err instanceof Error) toast.error(err.message)
+      else toast.error("An unknown error occurred")
+    } finally {
+      setIsUndoingTrade(false)
     }
   }
 
@@ -432,16 +602,32 @@ export function SeasonRosterTab({ seasonId, seasonStatus, roster, teams, onRoste
   }
 
   return (
-    <div data-testid="season-roster-tab" className="space-y-6">
+    <div data-testid="season-roster-tab" className="space-y-6 min-w-0">
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
             <div className="space-y-1.5">
-              <CardTitle className="flex items-center gap-2">
+              <CardTitle className="flex items-center gap-2 flex-wrap">
                 Roster Management
                 <Badge variant="secondary" className="rounded-full">
                   {roster.length} Players
                 </Badge>
+                <button
+                  type="button"
+                  onClick={() =>
+                    document
+                      .getElementById("season-trades-section")
+                      ?.scrollIntoView({ behavior: "smooth" })
+                  }
+                  className="inline-flex items-center gap-1 rounded-full border border-border bg-muted/40 hover:bg-muted px-2.5 py-0.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                  title="Jump to Season Trades section below"
+                >
+                  <ArrowLeftRight className="h-3 w-3" />
+                  <span>
+                    {trades.length} {trades.length === 1 ? "Trade" : "Trades"}
+                  </span>
+                  <ArrowDown className="h-3 w-3" />
+                </button>
               </CardTitle>
               <CardDescription>
                 {canManageRoster
@@ -458,15 +644,6 @@ export function SeasonRosterTab({ seasonId, seasonStatus, roster, teams, onRoste
                     onImportComplete={refreshRoster}
                   />
                 )}
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setIsTradeOpen(true)}
-                  aria-label="Record Trade"
-                >
-                  <ArrowLeftRight className="h-4 w-4 mr-2" />
-                  Record Trade
-                </Button>
                 <Dialog open={isAddPlayerOpen} onOpenChange={setIsAddPlayerOpen}>
                   <DialogTrigger asChild>
                     <Button size="sm" aria-label="Add Player">
@@ -537,280 +714,690 @@ export function SeasonRosterTab({ seasonId, seasonStatus, roster, teams, onRoste
             )}
 
             {/* Record Trade Modal */}
-            <Dialog open={isTradeOpen} onOpenChange={setIsTradeOpen}>
-              <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <Dialog
+              open={isTradeOpen}
+              onOpenChange={(open) => {
+                setIsTradeOpen(open)
+                if (!open) setIsReviewingTrade(false)
+              }}
+            >
+              <DialogContent className="w-full max-w-2xl max-h-[90vh] overflow-y-auto overflow-x-hidden">
                 <DialogHeader>
                   <DialogTitle className="flex items-center gap-2">
                     <ArrowLeftRight className="h-5 w-5" />
-                    Record Mid-Season Trade
+                    {isReviewingTrade ? "Review Mid-Season Trade" : "Record Mid-Season Trade"}
                   </DialogTitle>
                   <DialogDescription>
-                    Exchange players and future draft picks between two teams for this season.
+                    {isReviewingTrade
+                      ? "Confirm the players and draft picks being traded before executing."
+                      : "Select participating teams and configure the players or future draft picks each team is trading away."}
                   </DialogDescription>
                 </DialogHeader>
 
-                <div className="space-y-4 py-4">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="teamA">Team A</Label>
-                      <select
-                        id="teamA"
-                        value={tradeTeamA}
-                        onChange={(e) => {
-                          setTradeTeamA(e.target.value)
-                          setSelectedAPlayers([])
-                          setDraftPicks([])
-                        }}
-                        className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                      >
-                        <option value="">Select Team A</option>
-                        {teams
-                          .filter((t) => t.teamSlug !== "tbd")
-                          .map((t) => (
-                            <option key={t.teamSlug} value={t.teamSlug}>
-                              {t.teamName}
-                            </option>
-                          ))}
-                      </select>
-                    </div>
+                {!isReviewingTrade ? (
+                  <>
+                    <div className="space-y-4 py-4">
+                      <div className="space-y-3">
+                        {tradeSections.map((section, sectionIdx) => {
+                          const letter = String.fromCharCode(65 + sectionIdx)
+                          const lowerLetter = String.fromCharCode(97 + sectionIdx)
+                          const selectId =
+                            sectionIdx === 0 ? "teamA" : sectionIdx === 1 ? "teamB" : `team${letter}`
+                          const sectionPlayers = section.teamSlug
+                            ? roster.filter((p) => p.teamSlug === section.teamSlug)
+                            : []
+                          const otherSelectedSlugs = getOtherSelectedTeams(sectionIdx)
+                          const selectedCount = Object.keys(section.selectedPlayers).length
 
-                    <div className="space-y-2">
-                      <Label htmlFor="teamB">Team B</Label>
-                      <select
-                        id="teamB"
-                        value={tradeTeamB}
-                        onChange={(e) => {
-                          setTradeTeamB(e.target.value)
-                          setSelectedBPlayers([])
-                          setDraftPicks([])
-                        }}
-                        className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                      >
-                        <option value="">Select Team B</option>
-                        {teams
-                          .filter((t) => t.teamSlug !== "tbd")
-                          .map((t) => (
-                            <option key={t.teamSlug} value={t.teamSlug}>
-                              {t.teamName}
-                            </option>
-                          ))}
-                      </select>
-                    </div>
-                  </div>
-
-                  {tradeTeamA && (
-                    <div data-testid="team-a-players" className="space-y-2 border rounded-md p-3">
-                      <h3 className="font-semibold text-sm">{getTeamName(tradeTeamA)} Players to Trade</h3>
-                      {teamAPlayers.length === 0 ? (
-                        <p className="text-xs text-muted-foreground">No players found on this team.</p>
-                      ) : (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                          {teamAPlayers.map((p) => (
-                            <label
-                              key={p.playerId}
-                              className="flex items-center gap-2 text-sm cursor-pointer hover:bg-muted/40 p-1.5 rounded border border-transparent hover:border-muted"
+                          return (
+                            <div
+                              key={sectionIdx}
+                              data-testid={`trade-team-section-${sectionIdx}`}
+                              className="rounded-lg border bg-muted/15 p-3.5 space-y-3"
                             >
-                              <input
-                                type="checkbox"
-                                checked={selectedAPlayers.includes(p.playerId)}
-                                onChange={(e) => {
-                                  if (e.target.checked) setSelectedAPlayers([...selectedAPlayers, p.playerId])
-                                  else setSelectedAPlayers(selectedAPlayers.filter((id) => id !== p.playerId))
-                                }}
-                                className="rounded"
-                              />
-                              <span className="font-medium">{p.playerName}</span>
-                              {p.isGoalie && (
-                                <Badge variant="outline" className="text-[10px] px-1 py-0">
-                                  Goalie
-                                </Badge>
-                              )}
-                            </label>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  )}
+                              {/* Team Header & Selector */}
+                              <div className="flex items-center justify-between gap-3">
+                                <div className="flex-1 space-y-1.5">
+                                  <Label htmlFor={selectId} className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                                    Team {letter}
+                                  </Label>
+                                  <div className="relative flex items-center">
+                                    {section.teamSlug && (
+                                      <div className="pointer-events-none absolute left-2.5 flex items-center">
+                                        <TeamLogo
+                                          slug={section.teamSlug}
+                                          name={getTeamName(section.teamSlug)}
+                                          size={20}
+                                        />
+                                      </div>
+                                    )}
+                                    <select
+                                      id={selectId}
+                                      value={section.teamSlug}
+                                      onChange={(e) => {
+                                        const nextSlug = e.target.value
+                                        setTradeSections((prev) =>
+                                          prev.map((item, i) =>
+                                            i === sectionIdx
+                                              ? { teamSlug: nextSlug, selectedPlayers: {}, draftPicks: [] }
+                                              : item
+                                          )
+                                        )
+                                      }}
+                                      className={`flex h-9 w-full rounded-md border border-input bg-background py-1 text-sm shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring ${
+                                        section.teamSlug ? "pl-9 pr-3" : "px-3"
+                                      }`}
+                                    >
+                                      <option value="">Select Team {letter}</option>
+                                      {teams
+                                        .filter((t) => t.teamSlug !== "tbd")
+                                        .map((t) => {
+                                          const usedByOther = tradeSections.some(
+                                            (other, idx) => idx !== sectionIdx && other.teamSlug === t.teamSlug
+                                          )
+                                          return (
+                                            <option key={t.teamSlug} value={t.teamSlug} disabled={usedByOther}>
+                                              {t.teamName}
+                                            </option>
+                                          )
+                                        })}
+                                    </select>
+                                  </div>
+                                </div>
 
-                  {tradeTeamB && (
-                    <div data-testid="team-b-players" className="space-y-2 border rounded-md p-3">
-                      <h3 className="font-semibold text-sm">{getTeamName(tradeTeamB)} Players to Trade</h3>
-                      {teamBPlayers.length === 0 ? (
-                        <p className="text-xs text-muted-foreground">No players found on this team.</p>
-                      ) : (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                          {teamBPlayers.map((p) => (
-                            <label
-                              key={p.playerId}
-                              className="flex items-center gap-2 text-sm cursor-pointer hover:bg-muted/40 p-1.5 rounded border border-transparent hover:border-muted"
-                            >
-                              <input
-                                type="checkbox"
-                                checked={selectedBPlayers.includes(p.playerId)}
-                                onChange={(e) => {
-                                  if (e.target.checked) setSelectedBPlayers([...selectedBPlayers, p.playerId])
-                                  else setSelectedBPlayers(selectedBPlayers.filter((id) => id !== p.playerId))
-                                }}
-                                className="rounded"
-                              />
-                              <span className="font-medium">{p.playerName}</span>
-                              {p.isGoalie && (
-                                <Badge variant="outline" className="text-[10px] px-1 py-0">
-                                  Goalie
-                                </Badge>
-                              )}
-                            </label>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  )}
+                                {tradeSections.length > 2 && (
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    aria-label={`Remove Team ${letter}`}
+                                    className="h-8 w-8 mt-5 text-muted-foreground hover:text-destructive"
+                                    onClick={() => {
+                                      setTradeSections((prev) => prev.filter((_, i) => i !== sectionIdx))
+                                    }}
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                )}
+                              </div>
 
-                  <div className="space-y-3 border rounded-md p-3">
-                    <div className="flex items-center justify-between">
-                      <Label className="font-semibold text-sm">Future Draft Picks</Label>
+                              {/* Team Trade Assets (Players + Draft Picks) */}
+                              {!section.teamSlug ? (
+                                <p className="text-xs text-muted-foreground italic">
+                                  Select a team above to add players or draft picks to trade.
+                                </p>
+                              ) : (
+                                <div className="space-y-3 pt-1">
+                                  {/* Players Asset Subsection */}
+                                  <div
+                                    data-testid={`team-${lowerLetter}-players`}
+                                    className="space-y-2 rounded-md border bg-background p-3"
+                                  >
+                                    <div className="flex items-center justify-between">
+                                      <h3 className="font-semibold text-xs text-foreground flex items-center gap-1.5">
+                                        <TeamLogo
+                                          slug={section.teamSlug}
+                                          name={getTeamName(section.teamSlug)}
+                                          size={16}
+                                        />
+                                        <span>{getTeamName(section.teamSlug)} Players to Trade</span>
+                                      </h3>
+                                      {selectedCount > 0 && (
+                                        <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                                          {selectedCount} selected
+                                        </Badge>
+                                      )}
+                                    </div>
+
+                                    {sectionPlayers.length === 0 ? (
+                                      <p className="text-xs text-muted-foreground">No players found on this team.</p>
+                                    ) : (
+                                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-h-44 overflow-y-auto pr-1">
+                                        {sectionPlayers.map((p) => {
+                                          const isChecked = Object.prototype.hasOwnProperty.call(
+                                            section.selectedPlayers,
+                                            p.playerId
+                                          )
+                                          const resolvedTo = resolveDestinationTeam(
+                                            sectionIdx,
+                                            section.selectedPlayers[p.playerId] || ""
+                                          )
+
+                                          return (
+                                            <div
+                                              key={p.playerId}
+                                              className={`flex items-center justify-between gap-2 text-sm p-1.5 rounded border transition-colors ${
+                                                isChecked
+                                                  ? "bg-muted/60 border-border"
+                                                  : "border-transparent hover:bg-muted/30"
+                                              }`}
+                                            >
+                                              <label className="flex items-center gap-2 cursor-pointer min-w-0 flex-1">
+                                                <input
+                                                  type="checkbox"
+                                                  checked={isChecked}
+                                                  onChange={(e) => {
+                                                    setTradeSections((prev) =>
+                                                      prev.map((item, i) => {
+                                                        if (i !== sectionIdx) return item
+                                                        const nextPlayers = { ...item.selectedPlayers }
+                                                        if (e.target.checked) {
+                                                          nextPlayers[p.playerId] = resolveDestinationTeam(
+                                                            sectionIdx,
+                                                            "",
+                                                            prev
+                                                          )
+                                                        } else {
+                                                          delete nextPlayers[p.playerId]
+                                                        }
+                                                        return { ...item, selectedPlayers: nextPlayers }
+                                                      })
+                                                    )
+                                                  }}
+                                                  className="rounded shrink-0"
+                                                />
+                                                <span className="font-medium truncate text-xs">{p.playerName}</span>
+                                                {p.isGoalie && (
+                                                  <Badge variant="outline" className="text-[10px] px-1 py-0 shrink-0">
+                                                    G
+                                                  </Badge>
+                                                )}
+                                              </label>
+
+                                              {isChecked && otherSelectedSlugs.length > 1 && (
+                                                <div className="inline-flex items-center gap-1 shrink-0">
+                                                  <span className="text-[11px] text-muted-foreground">→</span>
+                                                  {resolvedTo && (
+                                                    <TeamLogo
+                                                      slug={resolvedTo}
+                                                      name={getTeamName(resolvedTo)}
+                                                      size={14}
+                                                    />
+                                                  )}
+                                                  <select
+                                                    aria-label={`Destination team for ${p.playerName}`}
+                                                    value={resolvedTo}
+                                                    onChange={(e) => {
+                                                      const newDest = e.target.value
+                                                      setTradeSections((prev) =>
+                                                        prev.map((item, i) =>
+                                                          i === sectionIdx
+                                                            ? {
+                                                                ...item,
+                                                                selectedPlayers: {
+                                                                  ...item.selectedPlayers,
+                                                                  [p.playerId]: newDest,
+                                                                },
+                                                              }
+                                                            : item
+                                                        )
+                                                      )
+                                                    }}
+                                                    className="h-6 text-[11px] rounded border px-1 bg-background shrink-0"
+                                                  >
+                                                    {otherSelectedSlugs.map((slug) => (
+                                                      <option key={slug} value={slug}>
+                                                        {getTeamName(slug)}
+                                                      </option>
+                                                    ))}
+                                                  </select>
+                                                </div>
+                                              )}
+
+                                              {isChecked && otherSelectedSlugs.length === 1 && resolvedTo && (
+                                                <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground shrink-0">
+                                                  <span>→</span>
+                                                  <TeamLogo
+                                                    slug={resolvedTo}
+                                                    name={getTeamName(resolvedTo)}
+                                                    size={14}
+                                                  />
+                                                  <span>{getTeamName(resolvedTo)}</span>
+                                                </span>
+                                              )}
+                                            </div>
+                                          )
+                                        })}
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  {/* Draft Picks Asset Subsection */}
+                                  <div className="space-y-2 rounded-md border bg-background p-3">
+                                    <div className="flex items-center justify-between">
+                                      <span className="font-semibold text-xs text-foreground flex items-center gap-1.5">
+                                        <TeamLogo
+                                          slug={section.teamSlug}
+                                          name={getTeamName(section.teamSlug)}
+                                          size={16}
+                                        />
+                                        <span>{getTeamName(section.teamSlug)} Draft Picks to Trade</span>
+                                      </span>
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        className="h-7 text-xs px-2"
+                                        onClick={() => {
+                                          setTradeSections((prev) =>
+                                            prev.map((item, i) =>
+                                              i === sectionIdx
+                                                ? {
+                                                    ...item,
+                                                    draftPicks: [
+                                                      ...item.draftPicks,
+                                                      {
+                                                        to: resolveDestinationTeam(sectionIdx, "", prev),
+                                                        round: 2,
+                                                        originalTeam: item.teamSlug,
+                                                        targetSeason: getNextFallSeasonId(seasonId),
+                                                      },
+                                                    ],
+                                                  }
+                                                : item
+                                            )
+                                          )
+                                        }}
+                                      >
+                                        <Plus className="h-3 w-3 mr-1" />
+                                        Add Draft Pick
+                                      </Button>
+                                    </div>
+
+                                    {section.draftPicks.length === 0 ? (
+                                      <p className="text-xs text-muted-foreground">
+                                        No draft picks added from {getTeamName(section.teamSlug)}.
+                                      </p>
+                                    ) : (
+                                      <div className="space-y-2">
+                                        {section.draftPicks.map((pick, pickIdx) => {
+                                          const resolvedPickTo = resolveDestinationTeam(sectionIdx, pick.to)
+                                          const acquiredOrigins = getAcquiredPickOriginsForRound(
+                                            section.teamSlug,
+                                            pick.round
+                                          )
+                                          const availableOriginSlugs = [
+                                            section.teamSlug,
+                                            ...acquiredOrigins,
+                                          ]
+                                          const resolvedOrigin = availableOriginSlugs.includes(pick.originalTeam)
+                                            ? pick.originalTeam
+                                            : section.teamSlug
+
+                                          return (
+                                            <div
+                                              key={pickIdx}
+                                              data-testid="draft-pick-row"
+                                              className="flex flex-wrap items-center justify-between gap-2 bg-muted/30 p-2.5 rounded-md border text-xs min-w-0"
+                                            >
+                                              <div className="flex flex-wrap items-center gap-2 min-w-0">
+                                                <span className="font-medium text-muted-foreground">Round:</span>
+                                                <select
+                                                  aria-label={`Draft pick round for ${getTeamName(section.teamSlug)}`}
+                                                  value={pick.round}
+                                                  onChange={(e) => {
+                                                    const nextRound = Math.max(
+                                                      1,
+                                                      Math.min(20, parseInt(e.target.value, 10) || 1)
+                                                    )
+                                                    const nextAcquired = getAcquiredPickOriginsForRound(
+                                                      section.teamSlug,
+                                                      nextRound
+                                                    )
+                                                    setTradeSections((prev) =>
+                                                      prev.map((item, i) => {
+                                                        if (i !== sectionIdx) return item
+                                                        const nextPicks = [...item.draftPicks]
+                                                        const currentOrig = nextPicks[pickIdx].originalTeam
+                                                        const keepOrig =
+                                                          currentOrig === item.teamSlug ||
+                                                          nextAcquired.includes(currentOrig)
+                                                        nextPicks[pickIdx] = {
+                                                          ...nextPicks[pickIdx],
+                                                          round: nextRound,
+                                                          originalTeam: keepOrig ? currentOrig : item.teamSlug,
+                                                        }
+                                                        return { ...item, draftPicks: nextPicks }
+                                                      })
+                                                    )
+                                                  }}
+                                                  className="h-7 text-xs rounded border px-2 bg-background font-medium"
+                                                >
+                                                  {Array.from({ length: 15 }, (_, i) => i + 1).map((r) => (
+                                                    <option key={r} value={r}>
+                                                      Round {r}
+                                                    </option>
+                                                  ))}
+                                                </select>
+
+                                                {/* Only show 2nd option if team has acquired Round X pick(s) from another team in DB */}
+                                                {acquiredOrigins.length > 0 && (
+                                                  <select
+                                                    data-testid="draft-pick-origin-select"
+                                                    aria-label={`Select which Round ${pick.round} pick ${getTeamName(section.teamSlug)} is trading`}
+                                                    value={resolvedOrigin}
+                                                    onChange={(e) => {
+                                                      const newOrig = e.target.value
+                                                      setTradeSections((prev) =>
+                                                        prev.map((item, i) => {
+                                                          if (i !== sectionIdx) return item
+                                                          const nextPicks = [...item.draftPicks]
+                                                          nextPicks[pickIdx] = {
+                                                            ...nextPicks[pickIdx],
+                                                            originalTeam: newOrig,
+                                                          }
+                                                          return { ...item, draftPicks: nextPicks }
+                                                        })
+                                                      )
+                                                    }}
+                                                    className="h-7 text-xs rounded border px-2 bg-background min-w-0 max-w-full"
+                                                  >
+                                                    <option value={section.teamSlug}>
+                                                      Own Round {pick.round} Pick ({getTeamName(section.teamSlug)})
+                                                    </option>
+                                                    {acquiredOrigins.map((origSlug) => (
+                                                      <option key={origSlug} value={origSlug}>
+                                                        Acquired Round {pick.round} Pick (from {getTeamName(origSlug)})
+                                                      </option>
+                                                    ))}
+                                                  </select>
+                                                )}
+
+                                                {otherSelectedSlugs.length > 1 ? (
+                                                  <div className="flex items-center gap-1.5">
+                                                    <span className="text-muted-foreground">→</span>
+                                                    {resolvedPickTo && (
+                                                      <TeamLogo
+                                                        slug={resolvedPickTo}
+                                                        name={getTeamName(resolvedPickTo)}
+                                                        size={15}
+                                                      />
+                                                    )}
+                                                    <select
+                                                      aria-label={`Destination team for Round ${pick.round} pick`}
+                                                      value={resolvedPickTo}
+                                                      onChange={(e) => {
+                                                        const newTo = e.target.value
+                                                        setTradeSections((prev) =>
+                                                          prev.map((item, i) => {
+                                                            if (i !== sectionIdx) return item
+                                                            const nextPicks = [...item.draftPicks]
+                                                            nextPicks[pickIdx] = { ...nextPicks[pickIdx], to: newTo }
+                                                            return { ...item, draftPicks: nextPicks }
+                                                          })
+                                                        )
+                                                      }}
+                                                      className="h-7 text-xs rounded border px-2 bg-background"
+                                                    >
+                                                      {otherSelectedSlugs.map((slug) => (
+                                                        <option key={slug} value={slug}>
+                                                          {getTeamName(slug)}
+                                                        </option>
+                                                      ))}
+                                                    </select>
+                                                  </div>
+                                                ) : (
+                                                  resolvedPickTo && (
+                                                    <span className="inline-flex items-center gap-1 text-muted-foreground font-medium">
+                                                      <span>→</span>
+                                                      <TeamLogo
+                                                        slug={resolvedPickTo}
+                                                        name={getTeamName(resolvedPickTo)}
+                                                        size={15}
+                                                      />
+                                                      <span>{getTeamName(resolvedPickTo)}</span>
+                                                    </span>
+                                                  )
+                                                )}
+                                              </div>
+
+                                              <Button
+                                                type="button"
+                                                variant="ghost"
+                                                size="icon"
+                                                aria-label="Remove draft pick"
+                                                className="h-7 w-7 text-destructive hover:bg-destructive/10 shrink-0"
+                                                onClick={() => {
+                                                  setTradeSections((prev) =>
+                                                    prev.map((item, i) =>
+                                                      i === sectionIdx
+                                                        ? {
+                                                            ...item,
+                                                            draftPicks: item.draftPicks.filter(
+                                                              (_, idx) => idx !== pickIdx
+                                                            ),
+                                                          }
+                                                        : item
+                                                    )
+                                                  )
+                                                }}
+                                              >
+                                                <Trash2 className="h-3.5 w-3.5" />
+                                              </Button>
+                                            </div>
+                                          )
+                                        })}
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          )
+                        })}
+
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="w-full border-dashed"
+                          onClick={() => {
+                            setTradeSections((prev) => [
+                              ...prev,
+                              { teamSlug: "", selectedPlayers: {}, draftPicks: [] },
+                            ])
+                          }}
+                          disabled={tradeSections.length >= Math.max(2, teams.filter((t) => t.teamSlug !== "tbd").length)}
+                        >
+                          <Plus className="h-4 w-4 mr-1.5" />
+                          Add Team to Trade
+                        </Button>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="trade-notes">Notes</Label>
+                        <textarea
+                          id="trade-notes"
+                          value={tradeNotes}
+                          onChange={(e) => setTradeNotes(e.target.value)}
+                          placeholder="Trade context..."
+                          className="flex min-h-[60px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                        />
+                      </div>
+                    </div>
+
+                    <DialogFooter className="flex sm:justify-between w-full">
+                      <Button variant="outline" onClick={() => setIsTradeOpen(false)}>
+                        Cancel
+                      </Button>
+                      <Button
+                        onClick={handleReviewTrade}
+                        disabled={isExecutingTrade || !hasValidTeamSelection}
+                      >
+                        Review Trade
+                      </Button>
+                    </DialogFooter>
+                  </>
+                ) : (
+                  <>
+                    <div className="space-y-4 py-4" data-testid="trade-review-step">
+                      <div className="rounded-md border overflow-hidden">
+                        <Table aria-label="Trade Review Summary">
+                          <TableBody>
+                            {(() => {
+                              const { playerMoves, draftPickMoves } = buildPendingTradeMoves()
+                              return activeSelectedTeams.flatMap((teamSlug, teamIdx) => {
+                                const teamPlayerMoves = playerMoves.filter((m) => m.fromTeamSlug === teamSlug)
+                                const teamPickMoves = draftPickMoves.filter((m) => m.fromTeamSlug === teamSlug)
+                                const isLastTeam = teamIdx === activeSelectedTeams.length - 1
+
+                                return [
+                                  <TableRow
+                                    key={`header-${teamSlug}`}
+                                    className="bg-muted/40 hover:bg-muted/40 border-b border-border/60"
+                                  >
+                                    <TableCell colSpan={2} className="py-2.5 px-3">
+                                      <div className="flex items-center gap-2">
+                                        <TeamLogo slug={teamSlug} name={getTeamName(teamSlug)} size={22} />
+                                        <span className="font-semibold text-sm text-foreground">
+                                          {getTeamName(teamSlug)}
+                                        </span>
+                                      </div>
+                                    </TableCell>
+                                  </TableRow>,
+                                  <TableRow
+                                    key={`players-${teamSlug}`}
+                                    className="border-b border-border/40"
+                                  >
+                                    <TableCell className="w-[130px] text-xs font-medium text-muted-foreground align-top py-2.5 px-3 border-r border-border/40">
+                                      Players Sent
+                                    </TableCell>
+                                    <TableCell className="text-sm align-top py-2.5 px-3 whitespace-normal">
+                                      {teamPlayerMoves.length === 0 ? (
+                                        <span className="text-muted-foreground">—</span>
+                                      ) : (
+                                        <div className="flex flex-col gap-1.5">
+                                          {teamPlayerMoves.map((move) => {
+                                            const playerObj = roster.find((r) => r.playerId === move.playerId)
+                                            const pName = playerObj?.playerName || `Player ${move.playerId}`
+                                            return (
+                                              <div
+                                                key={move.playerId}
+                                                className="flex flex-wrap items-center gap-2"
+                                              >
+                                                <span className="font-medium text-foreground">{pName}</span>
+                                                {playerObj?.isGoalie && (
+                                                  <Badge
+                                                    variant="outline"
+                                                    className="text-[10px] px-1 py-0 shrink-0"
+                                                  >
+                                                    G
+                                                  </Badge>
+                                                )}
+                                                {move.toTeamSlug && (
+                                                  <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+                                                    <span>→</span>
+                                                    <TeamLogo
+                                                      slug={move.toTeamSlug}
+                                                      name={getTeamName(move.toTeamSlug)}
+                                                      size={16}
+                                                    />
+                                                    <span className="font-medium">
+                                                      {getTeamName(move.toTeamSlug)}
+                                                    </span>
+                                                  </span>
+                                                )}
+                                              </div>
+                                            )
+                                          })}
+                                        </div>
+                                      )}
+                                    </TableCell>
+                                  </TableRow>,
+                                  <TableRow
+                                    key={`picks-${teamSlug}`}
+                                    className={isLastTeam ? "border-b-0" : "border-b-2 border-border"}
+                                  >
+                                    <TableCell className="w-[130px] text-xs font-medium text-muted-foreground align-top py-2.5 px-3 border-r border-border/40">
+                                      Picks Sent
+                                    </TableCell>
+                                    <TableCell className="text-sm align-top py-2.5 px-3 whitespace-normal">
+                                      {teamPickMoves.length === 0 ? (
+                                        <span className="text-muted-foreground">—</span>
+                                      ) : (
+                                        <div className="flex flex-col gap-1.5">
+                                          {teamPickMoves.map((pick, pIdx) => {
+                                            const origSlug = pick.originalTeamSlug
+                                            const isAcquired = origSlug && origSlug !== pick.fromTeamSlug
+                                            const sourceTradeNum = isAcquired
+                                              ? findSourceTradeNumber(
+                                                  null,
+                                                  pick.fromTeamSlug,
+                                                  pick.round,
+                                                  origSlug
+                                                )
+                                              : null
+                                            const originNote = isAcquired
+                                              ? sourceTradeNum
+                                                ? ` (from ${getTeamName(origSlug)}, Trade #${sourceTradeNum})`
+                                                : ` (from ${getTeamName(origSlug)})`
+                                              : ""
+                                            const pickLabel = `Round ${pick.round} Pick${originNote}`
+
+                                            return (
+                                              <div
+                                                key={pIdx}
+                                                className="flex flex-wrap items-center gap-2"
+                                              >
+                                                <span className="font-medium text-foreground">
+                                                  {pickLabel}
+                                                </span>
+                                                {pick.toTeamSlug && (
+                                                  <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+                                                    <span>→</span>
+                                                    <TeamLogo
+                                                      slug={pick.toTeamSlug}
+                                                      name={getTeamName(pick.toTeamSlug)}
+                                                      size={16}
+                                                    />
+                                                    <span className="font-medium">
+                                                      {getTeamName(pick.toTeamSlug)}
+                                                    </span>
+                                                  </span>
+                                                )}
+                                              </div>
+                                            )
+                                          })}
+                                        </div>
+                                      )}
+                                    </TableCell>
+                                  </TableRow>,
+                                ]
+                              })
+                            })()}
+                          </TableBody>
+                        </Table>
+                      </div>
+
+                      <div className="rounded-md border bg-muted/15 p-3 space-y-1">
+                        <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                          Trade Notes
+                        </div>
+                        <p className="text-sm text-foreground whitespace-pre-wrap">
+                          {tradeNotes.trim() || <span className="text-muted-foreground">—</span>}
+                        </p>
+                      </div>
+                    </div>
+
+                    <DialogFooter className="flex sm:justify-between w-full">
                       <Button
                         type="button"
                         variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          setDraftPicks([
-                            ...draftPicks,
-                            {
-                              from: tradeTeamA || "team-a",
-                              to: tradeTeamB || "team-b",
-                              round: 2,
-                              originalTeam: tradeTeamA || "team-a",
-                              targetSeason: "2027-summer",
-                            },
-                          ])
-                        }}
-                        disabled={!tradeTeamA || !tradeTeamB}
+                        onClick={() => setIsReviewingTrade(false)}
+                        disabled={isExecutingTrade}
                       >
-                        <Plus className="h-3.5 w-3.5 mr-1" />
-                        Add Draft Pick
+                        Back
                       </Button>
-                    </div>
-                    {draftPicks.map((pick, idx) => (
-                      <div
-                        key={idx}
-                        data-testid="draft-pick-row"
-                        className="flex flex-wrap items-center gap-2 bg-muted/30 p-2 rounded-md border text-xs"
+                      <Button
+                        onClick={handleRecordTrade}
+                        disabled={isExecutingTrade || !hasValidTeamSelection}
                       >
-                        <span className="font-medium">
-                          {pick.from} → {pick.to} Round {pick.round}
-                        </span>
-                        <div className="flex items-center gap-1.5 ml-auto">
-                          <select
-                            value={pick.from}
-                            onChange={(e) => {
-                              const newPicks = [...draftPicks]
-                              newPicks[idx].from = e.target.value
-                              newPicks[idx].to = e.target.value === tradeTeamA ? tradeTeamB : tradeTeamA
-                              setDraftPicks(newPicks)
-                            }}
-                            className="h-7 text-xs rounded border px-1.5 bg-background"
-                          >
-                            <option value={tradeTeamA}>{getTeamName(tradeTeamA)}</option>
-                            <option value={tradeTeamB}>{getTeamName(tradeTeamB)}</option>
-                          </select>
-                          <span>→</span>
-                          <select
-                            value={pick.to}
-                            onChange={(e) => {
-                              const newPicks = [...draftPicks]
-                              newPicks[idx].to = e.target.value
-                              newPicks[idx].from = e.target.value === tradeTeamA ? tradeTeamB : tradeTeamA
-                              setDraftPicks(newPicks)
-                            }}
-                            className="h-7 text-xs rounded border px-1.5 bg-background"
-                          >
-                            <option value={tradeTeamB}>{getTeamName(tradeTeamB)}</option>
-                            <option value={tradeTeamA}>{getTeamName(tradeTeamA)}</option>
-                          </select>
-                          <span className="font-medium">Round:</span>
-                          <Input
-                            type="number"
-                            min={1}
-                            max={20}
-                            value={pick.round}
-                            onChange={(e) => {
-                              const val = parseInt(e.target.value) || 1
-                              const newPicks = [...draftPicks]
-                              newPicks[idx].round = Math.max(1, Math.min(20, val))
-                              setDraftPicks(newPicks)
-                            }}
-                            className="h-7 w-14 text-xs"
-                          />
-                          <span className="font-medium">Orig:</span>
-                          <select
-                            value={pick.originalTeam}
-                            onChange={(e) => {
-                              const newPicks = [...draftPicks]
-                              newPicks[idx].originalTeam = e.target.value
-                              setDraftPicks(newPicks)
-                            }}
-                            className="h-7 text-xs rounded border px-1.5 bg-background"
-                          >
-                            {teams
-                              .filter((t) => t.teamSlug !== "tbd")
-                              .map((t) => (
-                                <option key={t.teamSlug} value={t.teamSlug}>
-                                  {t.teamName}
-                                </option>
-                              ))}
-                          </select>
-                          <span className="font-medium">Season:</span>
-                          <Input
-                            value={pick.targetSeason}
-                            onChange={(e) => {
-                              const newPicks = [...draftPicks]
-                              newPicks[idx].targetSeason = e.target.value
-                              setDraftPicks(newPicks)
-                            }}
-                            placeholder="e.g. 2027-summer"
-                            className="h-7 w-28 text-xs"
-                          />
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7 text-destructive hover:bg-destructive/10"
-                            onClick={() => {
-                              setDraftPicks(draftPicks.filter((_, i) => i !== idx))
-                            }}
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="trade-notes">Notes</Label>
-                    <textarea
-                      id="trade-notes"
-                      value={tradeNotes}
-                      onChange={(e) => setTradeNotes(e.target.value)}
-                      placeholder="Trade context..."
-                      className="flex min-h-[60px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                    />
-                  </div>
-                </div>
-
-                <DialogFooter className="flex sm:justify-between w-full">
-                  <Button variant="outline" onClick={() => setIsTradeOpen(false)}>
-                    Cancel
-                  </Button>
-                  <Button
-                    onClick={handleRecordTrade}
-                    disabled={isExecutingTrade || !tradeTeamA || !tradeTeamB || tradeTeamA === tradeTeamB}
-                  >
-                    {isExecutingTrade ? <Spinner className="h-4 w-4 mr-2" /> : null}
-                    Execute Trade
-                  </Button>
-                </DialogFooter>
+                        {isExecutingTrade ? <Spinner className="h-4 w-4 mr-2" /> : null}
+                        Execute Trade
+                      </Button>
+                    </DialogFooter>
+                  </>
+                )}
               </DialogContent>
             </Dialog>
 
@@ -969,10 +1556,10 @@ export function SeasonRosterTab({ seasonId, seasonStatus, roster, teams, onRoste
             </div>
           </div>
 
-          {/* Dense Table */}
-          <div className="rounded-md border">
+          {/* Dense Table (capped at ~25 visible rows with sticky header) */}
+          <div className="rounded-md border [&_[data-slot=table-container]]:max-h-[1060px] [&_[data-slot=table-container]]:overflow-y-auto">
             <Table>
-              <TableHeader>
+              <TableHeader className="sticky top-0 z-10 bg-background">
                 <TableRow>
                   <TableHead className="w-[300px]">
                     <Button
@@ -1074,9 +1661,9 @@ export function SeasonRosterTab({ seasonId, seasonStatus, roster, teams, onRoste
       </Card>
 
       {/* Season Trades History Card */}
-      <Card>
+      <Card id="season-trades-section" className="scroll-mt-6">
         <CardHeader>
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-4">
             <div className="space-y-1.5">
               <CardTitle className="text-lg flex items-center gap-2">
                 <ArrowLeftRight className="h-5 w-5" />
@@ -1091,6 +1678,20 @@ export function SeasonRosterTab({ seasonId, seasonStatus, roster, teams, onRoste
                 Official trades recorded for this season.
               </CardDescription>
             </div>
+            {canManageRoster && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  fetchTrades()
+                  setIsTradeOpen(true)
+                }}
+                aria-label="Record Trade"
+              >
+                <ArrowLeftRight className="h-4 w-4 mr-2" />
+                Record Trade
+              </Button>
+            )}
           </div>
         </CardHeader>
         <CardContent>
@@ -1103,44 +1704,258 @@ export function SeasonRosterTab({ seasonId, seasonStatus, roster, teams, onRoste
               <Table aria-label="Trades Table">
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-[120px]">Date</TableHead>
-                    <TableHead className="w-[200px]">Teams</TableHead>
-                    <TableHead>Assets</TableHead>
-                    <TableHead className="w-[200px]">Notes</TableHead>
+                    <TableHead className="w-[95px]">Date</TableHead>
+                    <TableHead className="w-[155px]">Team</TableHead>
+                    <TableHead>Players Sent</TableHead>
+                    <TableHead>Picks Sent</TableHead>
+                    <TableHead className="w-[150px] max-w-[160px]">Notes</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {trades.map((t) => (
-                    <TableRow key={t.id}>
-                      <TableCell className="text-sm font-medium">
-                        {new Date(t.tradedAt).toLocaleDateString()}
-                      </TableCell>
-                      <TableCell>
-                        <span className="font-semibold text-sm">
-                          {(t.teamSlugs && t.teamSlugs.length > 0
-                            ? t.teamSlugs
-                            : [t.teamASlug, t.teamBSlug].filter(Boolean)
-                          ).join(" ↔ ")}
-                        </span>
-                      </TableCell>
-                      <TableCell className="text-sm">
-                        {t.items
-                          ?.map((item) =>
-                            item.itemType === "player"
-                              ? `${item.playerName || `Player ${item.playerId}`} (${item.fromTeamSlug} → ${item.toTeamSlug})`
-                              : `Round ${item.draftPickRound} Pick (${item.fromTeamSlug} → ${item.toTeamSlug})`
-                          )
-                          .join(", ") || "None"}
-                      </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
-                        {t.notes || "—"}
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {(() => {
+                    return trades.flatMap((t, tradeIdx) => {
+                      const participatingSlugs =
+                        t.teamSlugs && t.teamSlugs.length > 0
+                          ? t.teamSlugs
+                          : [t.teamASlug, t.teamBSlug].filter((s): s is string => Boolean(s))
+
+                      const allTeamSlugs = [...participatingSlugs]
+                      for (const item of t.items || []) {
+                        if (item.fromTeamSlug && !allTeamSlugs.includes(item.fromTeamSlug)) {
+                          allTeamSlugs.push(item.fromTeamSlug)
+                        }
+                      }
+
+                      const rowTeams = allTeamSlugs.length > 0 ? allTeamSlugs : [""]
+                      const isMultiTeam = rowTeams.length > 2
+                      const tradeNum = tradeNumberById.get(t.id)
+                      const isLatestTrade = tradeIdx === 0
+
+                      return rowTeams.map((teamSlug, subIdx) => {
+                        const isFirstRow = subIdx === 0
+                        const isLastRow = subIdx === rowTeams.length - 1
+                        const fallbackOtherSlug =
+                          rowTeams.find((s) => s && s !== teamSlug) || ""
+
+                        const teamPlayerItems = (t.items || []).filter(
+                          (item) => item.fromTeamSlug === teamSlug && item.itemType === "player"
+                        )
+                        const teamPickItems = (t.items || []).filter(
+                          (item) => item.fromTeamSlug === teamSlug && item.itemType === "draft_pick"
+                        )
+
+                        return (
+                          <TableRow
+                            key={`${t.id}-${teamSlug || subIdx}`}
+                            className={
+                              isLastRow
+                                ? "border-b-2 border-border"
+                                : "border-b border-border/50"
+                            }
+                          >
+                            {isFirstRow && (
+                              <TableCell
+                                rowSpan={rowTeams.length}
+                                className="text-xs font-medium align-top border-r border-border/40 py-2.5 whitespace-nowrap"
+                              >
+                                <div>{new Date(t.tradedAt).toLocaleDateString()}</div>
+                                {tradeNum != null && (
+                                  <div className="text-[11px] text-muted-foreground font-normal mt-0.5">
+                                    Trade #{tradeNum}
+                                  </div>
+                                )}
+                                {isLatestTrade && canManageRoster && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setTradeToUndo(t)}
+                                    data-testid="undo-latest-trade-btn"
+                                    aria-label={`Undo Trade #${tradeNum ?? 1}`}
+                                    className="mt-1.5 inline-flex items-center gap-1 rounded border border-border/70 bg-muted/30 hover:bg-destructive/10 hover:text-destructive hover:border-destructive/40 px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground transition-colors cursor-pointer"
+                                  >
+                                    <Undo2 className="h-3 w-3" />
+                                    <span>Undo</span>
+                                  </button>
+                                )}
+                              </TableCell>
+                            )}
+
+                            <TableCell className="align-middle whitespace-nowrap py-2">
+                              {isFirstRow && (
+                                <span className="sr-only">{participatingSlugs.join(" ↔ ")}</span>
+                              )}
+                              {teamSlug ? (
+                                <div className="flex items-center gap-2 whitespace-nowrap">
+                                  <TeamLogo slug={teamSlug} name={getTeamName(teamSlug)} size={22} />
+                                  <span className="font-semibold text-xs text-foreground">
+                                    {getTeamName(teamSlug)}
+                                  </span>
+                                </div>
+                              ) : (
+                                <span className="text-muted-foreground">—</span>
+                              )}
+                            </TableCell>
+
+                            <TableCell className="text-sm align-middle whitespace-normal py-2">
+                              {teamPlayerItems.length === 0 ? (
+                                <span className="text-muted-foreground">—</span>
+                              ) : (
+                                <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                                  {teamPlayerItems.map((item, idx) => {
+                                    const pName = item.playerName || `Player ${item.playerId}`
+                                    const toSlug = item.toTeamSlug || fallbackOtherSlug
+                                    const fullStatement = toSlug
+                                      ? `${getTeamName(teamSlug)} sends ${pName} to ${getTeamName(toSlug)}`
+                                      : `${getTeamName(teamSlug)} sends ${pName}`
+
+                                    return (
+                                      <Tooltip key={idx}>
+                                        <TooltipTrigger asChild>
+                                          <span className="inline-flex items-center gap-1.5 rounded px-1 -mx-1 py-0.5 hover:bg-muted/60 cursor-default transition-colors whitespace-nowrap">
+                                            <span>
+                                              {pName}
+                                              {!(isMultiTeam && toSlug) && idx < teamPlayerItems.length - 1 && (
+                                                <span className="text-muted-foreground">,</span>
+                                              )}
+                                            </span>
+                                            {isMultiTeam && toSlug && (
+                                              <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                                                <span>→</span>
+                                                <TeamLogo
+                                                  slug={toSlug}
+                                                  name={getTeamName(toSlug)}
+                                                  size={16}
+                                                />
+                                              </span>
+                                            )}
+                                          </span>
+                                        </TooltipTrigger>
+                                        <TooltipContent>{fullStatement}</TooltipContent>
+                                      </Tooltip>
+                                    )
+                                  })}
+                                </div>
+                              )}
+                            </TableCell>
+
+                            <TableCell className="text-sm align-middle whitespace-normal py-2">
+                              {teamPickItems.length === 0 ? (
+                                <span className="text-muted-foreground">—</span>
+                              ) : (
+                                <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                                  {teamPickItems.map((item, idx) => {
+                                    const origSlug = item.draftPickOriginalTeamSlug
+                                    const isAcquired = origSlug && origSlug !== item.fromTeamSlug
+                                    const sourceTradeNum = isAcquired
+                                      ? findSourceTradeNumber(
+                                          t.id,
+                                          item.fromTeamSlug,
+                                          item.draftPickRound,
+                                          origSlug
+                                        )
+                                      : null
+                                    const originNote = isAcquired
+                                      ? sourceTradeNum
+                                        ? ` (from ${getTeamName(origSlug)}, Trade #${sourceTradeNum})`
+                                        : ` (from ${getTeamName(origSlug)})`
+                                      : ""
+                                    const pickLabel = `Round ${item.draftPickRound} Pick${originNote}`
+                                    const toSlug = item.toTeamSlug || fallbackOtherSlug
+                                    const fullStatement = toSlug
+                                      ? `${getTeamName(teamSlug)} sends ${pickLabel} to ${getTeamName(toSlug)}`
+                                      : `${getTeamName(teamSlug)} sends ${pickLabel}`
+
+                                    return (
+                                      <Tooltip key={idx}>
+                                        <TooltipTrigger asChild>
+                                          <span className="inline-flex items-center gap-1.5 rounded px-1 -mx-1 py-0.5 hover:bg-muted/60 cursor-default transition-colors whitespace-nowrap">
+                                            <span>
+                                              {pickLabel}
+                                              {!(isMultiTeam && toSlug) && idx < teamPickItems.length - 1 && (
+                                                <span className="text-muted-foreground">,</span>
+                                              )}
+                                            </span>
+                                            {isMultiTeam && toSlug && (
+                                              <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                                                <span>→</span>
+                                                <TeamLogo
+                                                  slug={toSlug}
+                                                  name={getTeamName(toSlug)}
+                                                  size={16}
+                                                />
+                                              </span>
+                                            )}
+                                          </span>
+                                        </TooltipTrigger>
+                                        <TooltipContent>{fullStatement}</TooltipContent>
+                                      </Tooltip>
+                                    )
+                                  })}
+                                </div>
+                              )}
+                            </TableCell>
+
+                            {isFirstRow && (
+                              <TableCell
+                                rowSpan={rowTeams.length}
+                                className="text-xs text-muted-foreground align-top whitespace-normal border-l border-border/40 py-2.5 w-[150px] max-w-[160px]"
+                              >
+                                {t.notes ? (
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <span className="line-clamp-2 cursor-default leading-snug">
+                                        {t.notes}
+                                      </span>
+                                    </TooltipTrigger>
+                                    <TooltipContent className="max-w-xs">
+                                      {t.notes}
+                                    </TooltipContent>
+                                  </Tooltip>
+                                ) : (
+                                  "—"
+                                )}
+                              </TableCell>
+                            )}
+                          </TableRow>
+                        )
+                      })
+                    })
+                  })()}
                 </TableBody>
               </Table>
             </div>
           )}
+
+          <AlertDialog
+            open={tradeToUndo !== null}
+            onOpenChange={(open) => {
+              if (!open && !isUndoingTrade) setTradeToUndo(null)
+            }}
+          >
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>
+                  Undo Trade #{tradeToUndo ? tradeNumberById.get(tradeToUndo.id) ?? 1 : ""}?
+                </AlertDialogTitle>
+                <AlertDialogDescription>
+                  This will remove the most recent trade and revert all traded players back to their previous teams. Undoing is only permitted before any traded players have played a game for their new team.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel disabled={isUndoingTrade}>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={(e) => {
+                    e.preventDefault()
+                    handleUndoTrade()
+                  }}
+                  disabled={isUndoingTrade}
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                >
+                  {isUndoingTrade ? <Spinner className="h-4 w-4 mr-2" /> : null}
+                  Undo Trade
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </CardContent>
       </Card>
     </div>
