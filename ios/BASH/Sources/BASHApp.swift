@@ -97,6 +97,26 @@ enum LeagueStyle {
     static let card = Color(uiColor: .secondarySystemGroupedBackground)
 }
 
+// Size the whole column for the largest rank, including after search filters rows.
+private struct ListRank: View {
+    let rank: Int
+    let total: Int
+
+    var body: some View {
+        Text("\(max(99, total))")
+            .hidden()
+            .overlay(alignment: .trailing) { Text("\(rank)") }
+            .font(.caption.weight(.medium))
+            .monospacedDigit()
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
+            .fixedSize(horizontal: true, vertical: false)
+            .frame(minWidth: 20, alignment: .trailing)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("\(rank)")
+    }
+}
+
 struct LeagueRoot: View {
     @Bindable var store: LeagueStore
     @Environment(\.scenePhase) private var phase
@@ -288,7 +308,7 @@ struct LeagueRoot: View {
                     ForEach(Array((store.snapshot?.standings ?? []).enumerated()), id: \.element.id) { rank, team in
                         NavigationLink { TeamScreen(team: team, store: store) } label: {
                             HStack(spacing: 10) {
-                                Text("\(rank + 1)").font(.caption.weight(.medium)).foregroundStyle(.secondary).frame(width: 20)
+                                ListRank(rank: rank + 1, total: store.snapshot?.standings.count ?? 0)
                                 TeamLogo(slug: team.slug, size: 30)
                                 VStack(alignment: .leading, spacing: 4) {
                                     Text(team.team).font(.subheadline.weight(.semibold)).foregroundStyle(.primary)
@@ -623,7 +643,7 @@ private struct StatsScreen: View {
                     ForEach(rows, id: \.element.id) { rank, player in
                         NavigationLink { PlayerScreen(player: player) } label: {
                             HStack(spacing: 10) {
-                                Text("\(rank + 1)").font(.caption.weight(.medium)).foregroundStyle(.secondary).frame(width: 20)
+                                ListRank(rank: rank + 1, total: rankedPlayers.count)
                                 TeamLogo(slug: player.teamSlug, size: 30)
                                 VStack(alignment: .leading, spacing: 3) {
                                     Text(player.name).font(.subheadline.weight(.semibold)).foregroundStyle(.primary)
