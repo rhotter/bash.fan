@@ -1,10 +1,14 @@
 # Automatic TestFlight deployments
 
-The BASH TestFlight GitHub Actions workflow runs for iOS app changes pushed to `main` or `video`, and supports manual runs. Website-only changes do not deploy the app. It regenerates the Xcode project, runs unit tests, archives, uploads, waits for Apple processing, and distributes to **BASH Internal**. Live API UI tests are run locally rather than blocking releases on changing league fixtures.
+The BASH TestFlight GitHub Actions workflow automatically releases iOS changes pushed to `video`, the current native app release branch. Other branches can be released explicitly with a manual run. Website-only changes do not deploy the app.
 
-To reduce release time, CI caches Swift package sources and compiles the unit tests while the simulator boots. It then runs those compiled tests before archiving and uploading. All unit tests remain required; app and test binaries are rebuilt for each revision.
+Unit tests and signed release compilation run on separate macOS runners in parallel. Each caches its own DerivedData, including compiled dependencies and Swift packages. Unchanged tracked sources get stable Git timestamps so a fresh checkout can reuse compiler work; Xcode still rebuilds changed inputs. Release builds no longer force a clean. Cache keys include Xcode, runner architecture, project settings, dependency locks, and the commit; a new commit restores the closest compatible cache. The first run is cold and will take longer. Bump the cache version or delete the caches to force a rebuild.
 
-Build numbers are the greater of the next TestFlight build and `CURRENT_PROJECT_VERSION` in `project.yml`. Uploads are serialized across branches. GitHub may replace an older pending run with a newer push; the running upload is never canceled.
+New runs cancel superseded test/package jobs on the same branch. Upload waits for **both jobs to succeed** and uses a shared concurrency lock that never cancels an active upload. A stale push is skipped before uploading. Manual runs intentionally release the selected revision. Avoid concurrent manual releases from different branches; older build numbers are rejected if a newer build has already reached Apple.
+
+CI build numbers are `1000 + GITHUB_RUN_NUMBER`, allocated before compilation so parallel jobs do not race on Apple's latest build number. Re-running the same workflow uses the same number; after a successful upload, trigger a new run for a new release. The upload lane verifies Apple processing and availability in **BASH Internal**. Local `beta` remains available and selects the next Apple build number; coordinate local uploads with CI to avoid number collisions.
+
+Live API UI tests are run locally rather than blocking releases on changing league fixtures. All unit tests remain required. Compare Actions job timings on a cold run and a subsequent warm-cache run before claiming an improved release time.
 
 Signing credentials were configured on October 25, 2026. The CI distribution certificate and provisioning profile expire on October 26, 2027; renew both repository secrets before then.
 
