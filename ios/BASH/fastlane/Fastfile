@@ -37,6 +37,7 @@ platform :ios do
       api_key: api_key, app_identifier: "fan.bash.league",
       ipa: File.join(root, "build", "BASH.ipa"),
       groups: ["BASH Internal"], distribute_external: false,
+      submit_beta_review: false, notify_external_testers: false,
       skip_waiting_for_build_processing: false,
       changelog: "BASH update #{ENV.fetch('GITHUB_SHA', 'local')[0, 7]}"
     )
