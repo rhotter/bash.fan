@@ -208,6 +208,40 @@ final class LeagueUITests: XCTestCase {
         }
     }
 
+    @MainActor func testStatsPullKeepsSearchVisible() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["--slow-network"]
+        app.launch()
+        app.tabBars.buttons["Stats"].tap()
+        let list = app.collectionViews["statsList"]
+        app.buttons["statsSearchButton"].tap()
+        let search = app.searchFields["playerSearch"]
+        XCTAssertTrue(search.waitForExistence(timeout: 30))
+        XCTAssertTrue(app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'player-'")).firstMatch.waitForExistence(timeout: 40))
+        search.typeText("\n")
+        let originalY = search.frame.minY
+        for _ in 0..<2 {
+            // Exercise returning from the player rows before pulling at the top.
+            list.swipeUp()
+            list.swipeUp()
+            list.swipeDown()
+            list.swipeDown()
+            list.swipeDown()
+            list.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.4))
+                .press(forDuration: 0.1,
+                       thenDragTo: list.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.95)),
+                       withVelocity: XCUIGestureVelocity(rawValue: 300), thenHoldForDuration: 0.2)
+            let finished = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == 'Ready'"), object: list)
+            XCTAssertEqual(XCTWaiter.wait(for: [finished], timeout: 20), .completed)
+            let settled = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+                abs(search.frame.minY - originalY) < 2 && search.isHittable
+            }, object: nil)
+            XCTAssertEqual(XCTWaiter.wait(for: [settled], timeout: 5), .completed,
+                           "Pull-to-refresh must return to the search bar")
+            capture("Stats search after pull")
+        }
+    }
+
     @MainActor private func assertRefreshIndicator(in list: XCUIElement, app: XCUIApplication) {
         let indicator = app.activityIndicators["refreshIndicator"]
         XCTAssertTrue(indicator.exists)

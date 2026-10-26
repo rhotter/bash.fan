@@ -779,7 +779,9 @@ private struct StatsScreen: View {
     var body: some View {
         let rows = visiblePlayers
         RefreshScrollView(action: { if allTime { await loadAllTime(force: true) } else { await store.refresh() } }) {
-            LazyVStack(alignment: .leading, spacing: 12) {
+            // This content is a single List row. Lazy stacks change its measured
+            // height while scrolling, which can shift the list past the search bar.
+            VStack(alignment: .leading, spacing: 12) {
                 Picker("Player type", selection: $showGoalies) {
                     Text("Skaters").tag(false)
                     Text("Goalies").tag(true)
@@ -819,7 +821,7 @@ private struct StatsScreen: View {
                     }.tint(.primary).accessibilityLabel("Sort by: \(showGoalies ? goalieMetric.rawValue : statMetric.rawValue)")
                         .accessibilityIdentifier("statSort")
                 }.padding(.horizontal, 12).frame(minHeight: 44)
-                LazyVStack(spacing: 0) {
+                VStack(spacing: 0) {
                     ForEach(rows, id: \.element.id) { rank, player in
                         Button { selectedPlayer = player } label: {
                             HStack(spacing: 10) {
