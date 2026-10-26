@@ -34,7 +34,7 @@ export default async function ScorekeeperPage({ params }: { params: Promise<{ id
   const game = gameRows[0]
   const role = await getOperatorRole()
   if (role !== "admin" && !scorekeeperDateAllowed(game.date)) {
-    return <div className="mx-auto max-w-md p-6 text-sm text-muted-foreground">Scorekeeper edits are available on game day and the following day (Pacific time). <a className="underline" href="/admin">Sign in as an admin</a> for other corrections.</div>
+    return <div className="mx-auto max-w-md p-6 text-sm text-muted-foreground">Scorekeeper edits are available on game day and for seven days afterward (Pacific time). <a className="underline" href="/admin">Sign in as an admin</a> for other corrections.</div>
   }
   const isAdhocGame = game.game_type === 'exhibition' || game.game_type === 'tryout'
 

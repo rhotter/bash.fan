@@ -51,9 +51,9 @@ describe("operator roles and brute-force protection", () => {
   })
   it("lets existing sessions continue without the PIN limiter but checks scorekeeper dates", async () => {
     mocks.cookie.mockReturnValue({ value: createSessionToken("scorekeeper") })
-    mocks.rawSql.mockResolvedValue([{ date: "2026-10-25" }])
+    mocks.rawSql.mockResolvedValue([{ date: "2026-10-19" }])
     expect(await authorizeScorekeeper(request(), "g1")).toBeNull()
-    mocks.rawSql.mockResolvedValue([{ date: "2026-10-24" }])
+    mocks.rawSql.mockResolvedValue([{ date: "2026-10-18" }])
     expect((await authorizeScorekeeper(request(), "g1"))?.status).toBe(403)
     mocks.rawSql.mockResolvedValue([{ date: "2026-10-27" }])
     expect((await authorizeScorekeeper(request(), "g1"))?.status).toBe(403)
@@ -78,14 +78,14 @@ describe("operator roles and brute-force protection", () => {
 })
 describe("Pacific calendar edit window", () => {
   it.each([
-    ["2026-10-25", "2026-10-27T06:59:59Z", true],
-    ["2026-10-25", "2026-10-27T07:00:00Z", false],
+    ["2026-10-19", "2026-10-27T06:59:59Z", true],
+    ["2026-10-19", "2026-10-27T07:00:00Z", false],
     ["2026-10-26", "2026-10-26T06:59:59Z", false],
     ["2026-10-26", "2026-10-26T07:00:00Z", true],
-    ["2026-10-31", "2026-11-02T07:59:59Z", true],
-    ["2026-10-31", "2026-11-02T08:00:00Z", false],
-    ["2026-03-07", "2026-03-09T06:59:59Z", true],
-    ["2026-03-07", "2026-03-09T07:00:00Z", false],
+    ["2026-10-25", "2026-11-02T07:59:59Z", true],
+    ["2026-10-25", "2026-11-02T08:00:00Z", false],
+    ["2026-03-01", "2026-03-09T06:59:59Z", true],
+    ["2026-03-01", "2026-03-09T07:00:00Z", false],
     ["invalid", "2026-10-26T07:00:00Z", false],
   ])("%s at %s => %s", (date, now, expected) => {
     expect(scorekeeperDateAllowed(date, new Date(now))).toBe(expected)

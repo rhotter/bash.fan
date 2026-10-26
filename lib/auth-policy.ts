@@ -11,5 +11,5 @@ export function scorekeeperDateAllowed(gameDate: string, now = new Date()): bool
   if (!Number.isFinite(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== gameDate) return false
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Los_Angeles", year: "numeric", month: "2-digit", day: "2-digit" }).format(now)
   const days = (Date.parse(`${today}T00:00:00Z`) - Date.parse(`${gameDate}T00:00:00Z`)) / 86400000
-  return days === 0 || days === 1
+  return days >= 0 && days <= 7
 }

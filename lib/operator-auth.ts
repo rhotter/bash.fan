@@ -39,7 +39,7 @@ export async function authorizeScorekeeper(request: Request, gameId: string): Pr
   try {
     const [game] = await rawSql(sql`SELECT date FROM games WHERE id = ${gameId}`)
     if (!game) return denied("Game not found", 404)
-    if (!scorekeeperDateAllowed(game.date)) return denied("Scorekeeper edits are allowed only on game day and the following day (Pacific time). Ask an admin for other corrections.", 403)
+    if (!scorekeeperDateAllowed(game.date)) return denied("Scorekeeper edits are allowed only on game day and for seven days afterward (Pacific time). Ask an admin for other corrections.", 403)
     return null
   } catch {
     return denied("Could not verify this game's edit window. Please try again.", 503)
