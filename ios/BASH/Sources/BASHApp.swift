@@ -117,13 +117,15 @@ private struct ListRank: View {
     }
 }
 
-/// A shared native pull gesture with an explicitly retained loading inset.
+/// Let List own the refresh inset and scroll position throughout the gesture.
 struct RefreshScrollView<Content: View>: View {
     let action: @MainActor () async -> Void
     @ViewBuilder let content: () -> Content
+    @State private var isRefreshing = false
+
     var body: some View {
         List {
-            content().background(NativeRefreshControl(action: action))
+            content()
                 .listRowInsets(EdgeInsets())
                 .listRowSeparator(.hidden)
                 .listRowBackground(Color.clear)
@@ -133,123 +135,11 @@ struct RefreshScrollView<Content: View>: View {
         .scrollContentBackground(.hidden)
         .environment(\.defaultMinListRowHeight, 0)
         .scrollBounceBehavior(.always, axes: .vertical)
-    }
-}
-
-private struct NativeRefreshControl: UIViewRepresentable {
-    let action: @MainActor () async -> Void
-    func makeUIView(context: Context) -> Probe { Probe(action: action) }
-    func updateUIView(_ view: Probe, context: Context) {
-        view.action = action
-        view.scheduleAttachment()
-    }
-    static func dismantleUIView(_ view: Probe, coordinator: ()) { view.detach() }
-
-    final class Probe: UIView {
-        var action: @MainActor () async -> Void
-        private let control = UIRefreshControl()
-        private let spinner = UIActivityIndicatorView(style: .medium)
-        private var restingInset = UIEdgeInsets.zero
-        private var restingY: CGFloat = 0
-        private var offsetObservation: NSKeyValueObservation?
-        private let refreshHeight: CGFloat = 60
-        private weak var scroll: UIScrollView?
-        private var task: Task<Void, Never>?
-        init(action: @escaping @MainActor () async -> Void) {
-            self.action = action
-            super.init(frame: .zero)
-            isUserInteractionEnabled = false
-            control.tintColor = .clear
-            spinner.color = .secondaryLabel
-            spinner.accessibilityLabel = "Refreshing"
-            spinner.accessibilityIdentifier = "refreshIndicator"
-            spinner.isAccessibilityElement = true
-            spinner.hidesWhenStopped = false
-            spinner.alpha = 0
-            control.addTarget(self, action: #selector(refresh), for: .valueChanged)
-        }
-        required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
-        override func didMoveToWindow() { super.didMoveToWindow(); scheduleAttachment() }
-        override func layoutSubviews() { super.layoutSubviews(); scheduleAttachment() }
-        func scheduleAttachment() {
-            DispatchQueue.main.async { [weak self] in self?.attach() }
-        }
-        private func attach() {
-            guard window != nil else { return }
-            var parent = superview
-            while let view = parent {
-                if let candidate = view as? UIScrollView {
-                    if scroll !== candidate {
-                        restingInset = candidate.contentInset
-                        restingY = -candidate.adjustedContentInset.top
-                        offsetObservation?.invalidate()
-                        spinner.removeFromSuperview()
-                        candidate.addSubview(spinner)
-                        offsetObservation = candidate.observe(\.contentOffset, options: [.new]) { [weak self] _, _ in
-                            MainActor.assumeIsolated { self?.updateIndicator() }
-                        }
-                    }
-                    scroll = candidate
-                    if candidate.refreshControl !== control {
-                        candidate.alwaysBounceVertical = true
-                        candidate.refreshControl = control
-                        candidate.accessibilityValue = "Ready"
-                    }
-                    updateIndicator()
-                    return
-                }
-                parent = view.superview
-            }
-        }
-        private func updateIndicator() {
-            guard let scroll else { return }
-            // Use the same fixed-size glyph throughout the pull and request.
-            // Center it in the revealed space, relative to this list's inset.
-            let pull = max(0, restingY - scroll.contentOffset.y)
-            spinner.bounds = CGRect(x: 0, y: 0, width: 20, height: 20)
-            spinner.center = CGPoint(x: scroll.bounds.width / 2,
-                                     y: -restingInset.top - pull / 2)
-            spinner.alpha = min(1, pull / 20)
-            if pull > 0 { spinner.startAnimating() } else { spinner.stopAnimating() }
-            scroll.bringSubviewToFront(spinner)
-        }
-        func detach() {
-            offsetObservation?.invalidate()
-            offsetObservation = nil
-            task?.cancel()
-            task = nil
-            control.endRefreshing()
-            spinner.stopAnimating()
-            spinner.removeFromSuperview()
-            scroll?.contentInset = restingInset
-            if scroll?.refreshControl === control { scroll?.refreshControl = nil }
-            scroll = nil
-        }
-        @objc private func refresh() {
-            guard task == nil else { return }
-            task = Task { @MainActor [weak self] in
-                guard let self, let scroll else { return }
-                scroll.accessibilityValue = "Refreshing"
-                // SwiftUI resets the native refresh inset when the drag ends.
-                // Pin our own inset after release and retain it for the request.
-                while scroll.isDragging && !Task.isCancelled {
-                    try? await Task.sleep(for: .milliseconds(16))
-                }
-                guard !Task.isCancelled else { return }
-                control.endRefreshing()
-                scroll.contentInset = restingInset
-                scroll.contentInset.top += refreshHeight
-                scroll.setContentOffset(CGPoint(x: scroll.contentOffset.x, y: restingY - refreshHeight), animated: true)
-                await action()
-                guard !Task.isCancelled else { return }
-                let nearTop = scroll.contentOffset.y < restingY + 1
-                UIView.animate(withDuration: 0.25) { [self] in
-                    scroll.contentInset = restingInset
-                    if nearTop { scroll.contentOffset.y = restingY }
-                }
-                scroll.accessibilityValue = "Ready"
-                task = nil
-            }
+        .accessibilityValue(isRefreshing ? "Refreshing" : "Ready")
+        .refreshable {
+            isRefreshing = true
+            defer { isRefreshing = false }
+            await action()
         }
     }
 }
