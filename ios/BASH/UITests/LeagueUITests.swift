@@ -1,6 +1,20 @@
 import XCTest
 
 final class LeagueUITests: XCTestCase {
+    @MainActor func testGoalieStatsSorting() throws {
+        let app = XCUIApplication()
+        app.launch()
+        app.tabBars.buttons["Stats"].tap()
+        app.buttons["Goalies"].tap()
+        let player = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'player-'")).firstMatch
+        XCTAssertTrue(player.waitForExistence(timeout: 30))
+        XCTAssertTrue(app.buttons["statSort"].label.contains("Save percentage"))
+        app.buttons["statSort"].tap()
+        app.buttons["Goals against average"].tap()
+        XCTAssertTrue(app.buttons["statSort"].label.contains("Goals against average"))
+        capture("Goalie stats sorted by GAA")
+    }
+
     @MainActor func testSwipeWeeksAndGameTabs() throws {
         let app = XCUIApplication()
         app.launch()

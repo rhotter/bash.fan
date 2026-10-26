@@ -2,6 +2,19 @@ import XCTest
 @testable import BASH
 
 final class GameTests: XCTestCase {
+    func testGoalieDecodingAndRanking() throws {
+        let json = #"{"skaters":[],"goalies":[{"id":2,"name":"Zoe","team":null,"teamSlug":null,"gp":4,"wins":3,"losses":1,"savePercentage":0.920,"gaa":1.5,"shutouts":1,"saves":92,"goalsAgainst":8,"shotsAgainst":100,"goalieAssists":2},{"id":1,"name":"Amy","team":"A","teamSlug":"a","gp":5,"wins":4,"losses":1,"savePercentage":0.900,"gaa":2.0,"shutouts":0,"saves":90,"goalsAgainst":10,"shotsAgainst":100,"goalieAssists":0}]}"#
+        let snapshot = try JSONDecoder().decode(PlayerSnapshot.self, from: Data(json.utf8))
+        XCTAssertEqual(GoalieMetric.savePercentage.sorted(snapshot.goalies).map(\.id), [2, 1])
+        XCTAssertEqual(GoalieMetric.gaa.sorted(snapshot.goalies).map(\.id), [2, 1])
+        XCTAssertEqual(GoalieMetric.wins.sorted(snapshot.goalies).map(\.id), [1, 2])
+        XCTAssertEqual(GoalieMetric.losses.sorted(snapshot.goalies).map(\.id), [1, 2])
+        XCTAssertEqual(GoalieMetric.savePercentage.display(snapshot.goalies[0]), "0.920")
+        XCTAssertEqual(GoalieMetric.gaa.display(snapshot.goalies[0]), "1.50")
+        XCTAssertEqual(snapshot.goalies[0].player.team, "")
+        XCTAssertTrue(snapshot.goalies[0].player.matchesPlayerSearch("zo"))
+    }
+
     func testHistoricalPlayerWithoutTeam() throws {
         let json = #"{"id":148859,"name":"Unknown Player #148859","team":null,"teamSlug":null,"gp":3,"goals":1,"assists":2,"points":3}"#
         let player = try JSONDecoder().decode(Skater.self, from: Data(json.utf8))

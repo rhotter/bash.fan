@@ -82,7 +82,63 @@ struct LeagueSnapshot: Codable {
     let standings: [Standing]
     let lastUpdated: String
 }
-struct PlayerSnapshot: Codable { let skaters: [Skater] }
+struct Goalie: Codable, Identifiable, Equatable {
+    let id: Int
+    let name: String
+    let team: String?
+    let teamSlug: String?
+    let gp: Int
+    let wins: Int
+    let losses: Int
+    let savePercentage: Double
+    let gaa: Double
+    let shutouts: Int
+    let saves: Int
+    let goalsAgainst: Int
+    let shotsAgainst: Int
+    let goalieAssists: Int
+
+    var player: Skater {
+        Skater(teamSlug: teamSlug, id: id, name: name, team: team ?? "", gp: gp, goals: 0, assists: goalieAssists, points: goalieAssists)
+    }
+}
+
+enum GoalieMetric: String, CaseIterable, Identifiable {
+    case savePercentage = "Save percentage", gaa = "Goals against average", wins = "Wins"
+    case losses = "Losses", gamesPlayed = "Games played", shutouts = "Shutouts"
+    case saves = "Saves", goalsAgainst = "Goals against", shotsAgainst = "Shots against", assists = "Assists"
+    var id: String { rawValue }
+    func value(_ goalie: Goalie) -> Double {
+        switch self {
+        case .savePercentage: goalie.savePercentage
+        case .gaa: goalie.gaa
+        case .wins: Double(goalie.wins)
+        case .losses: Double(goalie.losses)
+        case .gamesPlayed: Double(goalie.gp)
+        case .shutouts: Double(goalie.shutouts)
+        case .saves: Double(goalie.saves)
+        case .goalsAgainst: Double(goalie.goalsAgainst)
+        case .shotsAgainst: Double(goalie.shotsAgainst)
+        case .assists: Double(goalie.goalieAssists)
+        }
+    }
+    func display(_ goalie: Goalie) -> String {
+        switch self {
+        case .savePercentage: String(format: "%.3f", value(goalie))
+        case .gaa: String(format: "%.2f", value(goalie))
+        default: String(Int(value(goalie)))
+        }
+    }
+    func sorted(_ goalies: [Goalie]) -> [Goalie] {
+        goalies.sorted {
+            if value($0) != value($1) { return self == .gaa ? value($0) < value($1) : value($0) > value($1) }
+            let comparison = $0.name.localizedStandardCompare($1.name)
+            return comparison == .orderedSame ? $0.id < $1.id : comparison == .orderedAscending
+        }
+    }
+}
+
+struct PlayerSnapshot: Codable { let skaters: [Skater]; let goalies: [Goalie] }
 struct Season: Decodable, Identifiable {
     let id: String
     let name: String
@@ -120,6 +176,7 @@ final class LeagueStore {
     }
     private(set) var weeks: [GameWeek] = []
     var players: [Skater] = []
+    var goalies: [Goalie] = []
     var seasons: [Season] = []
     var selectedSeason = ""
     var loading = false
@@ -175,6 +232,7 @@ final class LeagueStore {
             let result = try await playerResult
             guard request == generation else { return }
             players = result.skaters
+            goalies = result.goalies
             playerError = nil
         } catch {
             guard request == generation else { return }

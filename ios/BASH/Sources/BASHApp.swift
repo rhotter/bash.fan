@@ -505,6 +505,10 @@ private struct StatsScreen: View {
     @Bindable var store: LeagueStore
     @State private var search = ""
     @State private var allTime = false
+    @State private var showGoalies = false
+    @State private var goalieMetric: GoalieMetric = .savePercentage
+    @State private var allTimeGoalies: [Goalie] = []
+    private var statsGoalies: [Goalie] { allTime ? allTimeGoalies : store.goalies }
     @State private var allTimePlayers: [Skater] = []
     @State private var allTimeLoading = false
     @State private var allTimeError: String?
@@ -516,10 +520,12 @@ private struct StatsScreen: View {
         allTimeLoading = true
         allTimeError = nil
         allTimePlayers = []
+        allTimeGoalies = []
         do {
             let result: PlayerSnapshot = try await LeagueAPI.fetch("/players", season: "all", maxAge: force ? 0 : 120)
             try Task.checkCancellation()
             allTimePlayers = result.skaters
+            allTimeGoalies = result.goalies
             allTimeLoading = false
         } catch {
             guard !Task.isCancelled else { return }
@@ -529,13 +535,28 @@ private struct StatsScreen: View {
     }
     @State private var statMetric: StatMetric = .points
     @State private var selectedTeam = ""
-    private var teamNames: [String] { Array(Set(statsPlayers.map(\.team))).filter { !$0.isEmpty }.sorted() }
+    private var teamNames: [String] { Array(Set(showGoalies ? statsGoalies.map { $0.team ?? "" } : statsPlayers.map(\.team))).filter { !$0.isEmpty }.sorted() }
     @State private var rankedPlayers: [Skater] = []
     private func updateRanking() {
-        rankedPlayers = statMetric.sorted(statsPlayers.filter { allTime || selectedTeam.isEmpty || $0.team == selectedTeam })
+        if showGoalies {
+            rankedPlayers = goalieMetric.sorted(statsGoalies.filter { allTime || selectedTeam.isEmpty || $0.team == selectedTeam }).map(\.player)
+        } else {
+            rankedPlayers = statMetric.sorted(statsPlayers.filter { allTime || selectedTeam.isEmpty || $0.team == selectedTeam })
+        }
     }
     private var visiblePlayers: [(offset: Int, element: Skater)] {
         Array(rankedPlayers.enumerated()).filter { $0.element.matchesPlayerSearch(search) }
+    }
+
+    private func rowSummary(_ player: Skater) -> String {
+        if showGoalies, let goalie = statsGoalies.first(where: { $0.id == player.id }) {
+            return "\(goalie.gp) GP · \(goalie.wins) W · \(GoalieMetric.gaa.display(goalie)) GAA · \(GoalieMetric.savePercentage.display(goalie)) SV%"
+        }
+        return "\(player.goals) Goals · \(player.assists) Assists · \(player.points) Points"
+    }
+    private func rowValue(_ player: Skater) -> String {
+        if showGoalies, let goalie = statsGoalies.first(where: { $0.id == player.id }) { return goalieMetric.display(goalie) }
+        return statMetric.display(player)
     }
 
     var body: some View {
@@ -543,6 +564,10 @@ private struct StatsScreen: View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 12) {
                 HStack { SeasonMenu(store: store, allowsAllTime: true, allTime: $allTime); Spacer() }
+                Picker("Player type", selection: $showGoalies) {
+                    Text("Skaters").tag(false)
+                    Text("Goalies").tag(true)
+                }.pickerStyle(.segmented).accessibilityIdentifier("statsPlayerType")
                 NativePlayerSearch(text: $search).frame(height: 44)
                 if let error = statsError { Text(error).font(.footnote).foregroundStyle(.secondary) }
                 HStack {
@@ -561,15 +586,21 @@ private struct StatsScreen: View {
                     }
                     Spacer()
                     Menu {
-                        Picker("Sort by", selection: $statMetric) {
-                            ForEach(StatMetric.allCases) { Text($0.rawValue).tag($0) }
+                        if showGoalies {
+                            Picker("Sort by", selection: $goalieMetric) {
+                                ForEach(GoalieMetric.allCases) { Text($0.rawValue).tag($0) }
+                            }
+                        } else {
+                            Picker("Sort by", selection: $statMetric) {
+                                ForEach(StatMetric.allCases) { Text($0.rawValue).tag($0) }
+                            }
                         }
                     } label: {
                         HStack(spacing: 6) {
-                            Text(statMetric.rawValue)
+                            Text(showGoalies ? goalieMetric.rawValue : statMetric.rawValue)
                             Image(systemName: "chevron.down").font(.caption2.weight(.bold))
                         }.font(.subheadline.weight(.semibold)).foregroundStyle(.primary)
-                    }.tint(.primary).accessibilityLabel("Sort by: \(statMetric.rawValue)")
+                    }.tint(.primary).accessibilityLabel("Sort by: \(showGoalies ? goalieMetric.rawValue : statMetric.rawValue)")
                         .accessibilityIdentifier("statSort")
                 }.padding(.horizontal, 12).frame(minHeight: 44)
                 LazyVStack(spacing: 0) {
@@ -580,12 +611,12 @@ private struct StatsScreen: View {
                                 TeamLogo(slug: player.teamSlug, size: 30)
                                 VStack(alignment: .leading, spacing: 3) {
                                     Text(player.name).font(.subheadline.weight(.semibold)).foregroundStyle(.primary)
-                                    Text("\(player.goals) Goals · \(player.assists) Assists · \(player.points) Points")
+                                    Text(rowSummary(player))
                                         .font(.caption).foregroundStyle(.secondary)
                                         .fixedSize(horizontal: false, vertical: true)
                                 }
                                 Spacer(minLength: 8)
-                                Text(statMetric.display(player)).font(.subheadline.weight(.semibold))
+                                Text(rowValue(player)).font(.subheadline.weight(.semibold))
                                     .foregroundStyle(.primary).monospacedDigit()
                             }.padding(.horizontal, 12).padding(.vertical, 12)
                                 .contentShape(Rectangle())
@@ -593,8 +624,8 @@ private struct StatsScreen: View {
                         if player.id != rows.last?.element.id { Divider() }
                     }
                 }.background(LeagueStyle.card, in: RoundedRectangle(cornerRadius: 18))
-                if statsPlayers.isEmpty && statsLoading && statsError == nil { LoadingPlaceholder(title: "Loading stats…", rows: 6) }
-                if rows.isEmpty && !statsLoading && (!search.isEmpty || !selectedTeam.isEmpty) {
+                if rankedPlayers.isEmpty && statsLoading && statsError == nil { LoadingPlaceholder(title: "Loading stats…", rows: 6) }
+                if rows.isEmpty && !statsLoading && statsError == nil {
                     ContentUnavailableView("No matching players", systemImage: "magnifyingglass", description: Text("Try a different player name or change the team filter."))
                 }
             }.padding(.horizontal, 12).padding(.vertical, 12)
@@ -611,6 +642,9 @@ private struct StatsScreen: View {
                 }
             }
             .onChange(of: statsPlayers, initial: true) { updateRanking() }
+            .onChange(of: statsGoalies) { updateRanking() }
+            .onChange(of: showGoalies) { selectedTeam = ""; updateRanking() }
+            .onChange(of: goalieMetric) { updateRanking() }
             .onChange(of: statMetric) { updateRanking() }
             .onChange(of: selectedTeam) { updateRanking() }
             .onChange(of: store.selectedSeason) { selectedTeam = "" }
