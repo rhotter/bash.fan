@@ -83,6 +83,7 @@ private struct OperatorFlow: View {
     @State private var selectedGame: Game?
     @StateObject private var website: WebsiteConnection
     @State private var pin = ""
+    @FocusState private var passcodeFocused: Bool
     @State private var showDemo = false
     @Environment(\.dismiss) private var dismiss
     init(tool: OperatorTool, games: [Game], game: Game?) {
@@ -104,6 +105,7 @@ private struct OperatorFlow: View {
                             VStack(alignment: .leading, spacing: 10) {
                                 Text("Passcode").font(.subheadline.weight(.medium))
                                 SecureField("Admin passcode", text: $pin)
+                                    .focused($passcodeFocused)
                                     .textContentType(.password).submitLabel(.go)
                                     .textInputAutocapitalization(.never).autocorrectionDisabled()
                                     .padding(16)
@@ -136,6 +138,7 @@ private struct OperatorFlow: View {
                     .navigationTitle(tool.title).navigationBarTitleDisplayMode(.inline)
                     .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() }.disabled(website.busy) } }
                 }
+                .task { passcodeFocused = true }
             } else if tool == .recorder {
                 LeagueRecorderScreen(website: website)
             } else if let selectedGame {

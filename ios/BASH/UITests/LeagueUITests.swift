@@ -37,10 +37,10 @@ final class LeagueUITests: XCTestCase {
         app.buttons[tool].tap()
         let passcode = app.secureTextFields["adminPasscode"]
         XCTAssertTrue(passcode.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
         XCTAssertFalse(app.buttons["Try demo"].exists)
         XCTAssertFalse(app.buttons["Continue"].isEnabled)
         capture("Reviewer - \(tool) passcode")
-        passcode.tap()
         passcode.typeText("BASH-REVIEW-2026")
         app.buttons["Continue"].tap()
         let destination = tool == "Scorekeeper" ? app.buttons["recordGoal"] : app.buttons["Open camera"]
