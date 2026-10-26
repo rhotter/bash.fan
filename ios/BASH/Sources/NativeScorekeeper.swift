@@ -499,7 +499,7 @@ struct ScorekeeperScreen: View {
                 if model.payload != nil && (settingUp || (finishing && model.editable)) { workflowAction }
             }
         }
-        .tint(Color.primary)
+        .tint(LeagueStyle.orange)
         .interactiveDismissDisabled(model.dirty || model.busy || closing)
         .task { model.setSyncActive(true); await model.load() }
         .onDisappear { model.setSyncActive(false) }
@@ -526,7 +526,7 @@ struct ScorekeeperScreen: View {
                         .navigationTitle(sheet == "rosters" ? "Rosters" : "Game details")
                         .navigationBarTitleDisplayMode(.inline)
                         .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { self.sheet = nil } } }
-                    }.tint(Color.primary)
+                    }.tint(LeagueStyle.orange)
                 }
             }
         }
@@ -774,7 +774,8 @@ struct ScorekeeperScreen: View {
                         Spacer()
                         Text("P\(Int(play["period"]?.number ?? 1)) · \(play["clock"]?.text ?? "")").font(.caption).monospacedDigit().foregroundStyle(.secondary)
                     }.foregroundStyle(.primary)
-                }.swipeActions { Button("Delete", role: .destructive) { model.remove(collection, id: play.idString) } }
+                }.tint(Color.primary)
+                    .swipeActions { Button("Delete", role: .destructive) { model.remove(collection, id: play.idString) } }
             }
         }
     }
@@ -803,7 +804,7 @@ struct ScorekeeperScreen: View {
                     }
                 })) {
                     HStack { Text(player.name); if model.payload?.subPlayerIds.contains(player.id) == true { Text("Sub").font(.caption).foregroundStyle(.secondary) } }
-                }.tint(Color.primary)
+                }.tint(LeagueStyle.orange)
             }
             Button("Add substitute") { sheet = "player" }.disabled(model.final)
         } header: { Text("Attendance · \(model.ids(home ? "homeAttendance" : "awayAttendance").count) present") }
@@ -983,7 +984,7 @@ private struct ScoringEventEditor: View {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) { Button(original == nil ? "Add" : "Save") { submit() }.disabled(!valid).accessibilityIdentifier("saveScoringEvent") }
             }
-        }.tint(Color.primary)
+        }.tint(LeagueStyle.orange)
         .onAppear {
             let clock = original?["clock"]?.text.split(separator: ":").compactMap { Int($0) }
             let value = clock?.count == 2 ? clock![0] * 60 + clock![1] : model.clock()
@@ -1042,7 +1043,7 @@ private struct ScoringClockEditor: View {
                         }.disabled(minutes * 60 + seconds > (period >= 4 && model.payload?.isPlayoff != true ? 300 : model.payload?.periodLength ?? 1200))
                     }
                 }
-        }.tint(Color.primary).onAppear { period = max(1, model.period); minutes = model.clock() / 60; seconds = model.clock() % 60 }
+        }.tint(LeagueStyle.orange).onAppear { period = max(1, model.period); minutes = model.clock() / 60; seconds = model.clock() % 60 }
     }
 }
 
@@ -1080,7 +1081,7 @@ private struct ScoringAddPlayer: View {
                         }.disabled(busy || name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                     }
                 }
-        }.tint(Color.primary).interactiveDismissDisabled(busy)
+        }.tint(LeagueStyle.orange).interactiveDismissDisabled(busy)
     }
 }
 
@@ -1112,7 +1113,7 @@ private struct ScoringShootout: View {
                     }
                 }
             }.navigationTitle("Shootout").toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
-        }.tint(Color.primary)
+        }.tint(LeagueStyle.orange)
     }
     private func add(_ scored: Bool) {
         model.change("shootout") { state in
