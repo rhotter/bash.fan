@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Team/franchise colors from the website's season-team records (October 2026).
+/// Team/franchise hues from the website, tuned for small logo backgrounds.
 /// Unknown teams retain a neutral surface rather than guessing from their artwork.
 private enum TeamPalette {
     private static let colors: [(String, UInt32)] = [
@@ -10,7 +10,7 @@ private enum TeamPalette {
         ("dangleberries", 0x227EFD), ("dolo-minions", 0x080808),
         ("money-shots", 0x00A010), ("regretzkys", 0xF11616),
         ("landsharks", 0x252525), ("land-sharks", 0x000000),
-        ("rink-rats", 0x0038FF), ("rinkrats", 0x0038FF),
+        ("rink-rats", 0x365DA6), ("rinkrats", 0x365DA6),
         ("team-canada", 0xE60000), ("team-usa", 0x0004DB),
         ("team-dark", 0x303030), ("team-light", 0xD1D1D1),
         ("cherry-bomb", 0xF82020), ("red-army", 0xF82020), ("red-leafs", 0xF82020),
