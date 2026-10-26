@@ -98,11 +98,13 @@ actor PlayerCareerCache {
 
 struct PlayerScreen: View {
     let player: Skater
+    @Bindable var store: LeagueStore
     @State private var career: PlayerCareer?
     @State private var error: String?
     @State private var loading = false
     @State private var playoffs = false
     @State private var selectedSeasonID: String?
+    @State private var selectedGameID: String?
     private var seasons: [CareerSeason] { (playoffs ? career?.playoffPerSeasonStats : career?.perSeasonStats) ?? [] }
     private var goalieSeasons: [CareerGoalieSeason] { (playoffs ? career?.playoffPerSeasonGoalieStats : career?.perSeasonGoalieStats) ?? [] }
     private var selectedSeason: CareerSeason? { seasons.first { $0.id == selectedSeasonID } ?? seasons.first }
@@ -207,6 +209,14 @@ struct PlayerScreen: View {
         .toolbar(.visible, for: .tabBar)
         .onChange(of: playoffs) { selectedSeasonID = nil }
         .task(id: player.id) { await load() }
+        .navigationDestination(isPresented: Binding(
+            get: { selectedGameID != nil },
+            set: { if !$0 { selectedGameID = nil } }
+        )) {
+            if let selectedGameID {
+                PlayerLogGameScreen(gameID: selectedGameID, store: store)
+            }
+        }
     }
     @ViewBuilder private func gameLog(_ career: PlayerCareer) -> some View {
         let games = (playoffs ? career.playoffGames : career.games) ?? []
@@ -237,19 +247,22 @@ struct PlayerScreen: View {
             }.font(.caption).foregroundStyle(.secondary).padding(12)
             ForEach(games) { game in
                 Divider()
-                HStack(spacing: 6) {
-                    HStack(spacing: 8) {
-                        TeamLogo(slug: game.opponentSlug, size: 24)
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text(game.opponent).font(.subheadline.weight(.medium))
-                            Text("\(game.dateLabel) · \(game.isHome ? "Home" : "Away")").font(.caption2).foregroundStyle(.secondary)
-                        }
-                    }.frame(maxWidth: .infinity, alignment: .leading)
-                    Text(game.score).font(.caption.weight(.medium)).monospacedDigit().frame(width: 62, alignment: .trailing)
-                    logNumbers(goalie ? [game.saves.map(String.init) ?? "–", game.goalsAgainst.map(String.init) ?? "–", game.savePercentage ?? "–"] : [game.goals.map(String.init) ?? "–", game.assists.map(String.init) ?? "–", game.points.map(String.init) ?? "–"], goalie: goalie)
-                        .font(.subheadline)
-                }.padding(12).accessibilityElement(children: .combine)
-                    .accessibilityIdentifier("player-log-\(game.id)")
+                Button { selectedGameID = game.id } label: {
+                    HStack(spacing: 6) {
+                        HStack(spacing: 8) {
+                            TeamLogo(slug: game.opponentSlug, size: 24)
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(game.opponent).font(.subheadline.weight(.medium))
+                                Text("\(game.dateLabel) · \(game.isHome ? "Home" : "Away")").font(.caption2).foregroundStyle(.secondary)
+                            }
+                        }.frame(maxWidth: .infinity, alignment: .leading)
+                        Text(game.score).font(.caption.weight(.medium)).monospacedDigit().frame(width: 62, alignment: .trailing)
+                        logNumbers(goalie ? [game.saves.map(String.init) ?? "–", game.goalsAgainst.map(String.init) ?? "–", game.savePercentage ?? "–"] : [game.goals.map(String.init) ?? "–", game.assists.map(String.init) ?? "–", game.points.map(String.init) ?? "–"], goalie: goalie)
+                            .font(.subheadline)
+                    }.padding(12).contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("player-log-\(game.id)")
             }
         }.background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16))
     }
@@ -293,5 +306,41 @@ struct PlayerScreen: View {
         do { career = try await PlayerCareerCache.shared.load(slug: player.slug, force: force) }
         catch is CancellationError { }
         catch { self.error = "Couldn't load career stats. Please try again." }
+    }
+}
+
+// Resolve by ID so logs still open when browsing a different Scores season.
+private struct PlayerLogGameScreen: View {
+    let gameID: String
+    @Bindable var store: LeagueStore
+    @State private var game: Game?
+    @State private var failed = false
+
+    var body: some View {
+        Group {
+            if let game = game ?? store.snapshot?.games.first(where: { $0.id == gameID }) {
+                GameScreen(game: game, store: store)
+            } else if failed {
+                ContentUnavailableView {
+                    Label("Couldn't load game", systemImage: "exclamationmark.triangle")
+                } actions: {
+                    Button("Try again") { Task { await load() } }
+                }
+            } else {
+                ProgressView("Loading game")
+            }
+        }
+        .task { await load() }
+    }
+
+    private func load() async {
+        guard game == nil, store.snapshot?.games.contains(where: { $0.id == gameID }) != true else { return }
+        failed = false
+        do {
+            game = try await LeagueAPI.fetch("/game/\(gameID)", maxAge: 45)
+        } catch is CancellationError {
+        } catch {
+            failed = true
+        }
     }
 }

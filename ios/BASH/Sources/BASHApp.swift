@@ -798,7 +798,7 @@ private struct StatsScreen: View {
         }.accessibilityIdentifier("statsList")
             .background(LeagueStyle.background).leagueHeader("Stats")
             .scrollDismissesKeyboard(.interactively)
-            .navigationDestination(optional: $selectedPlayer) { PlayerScreen(player: $0) }
+            .navigationDestination(optional: $selectedPlayer) { PlayerScreen(player: $0, store: store) }
             .task(id: allTime) { await loadAllTime() }
             .onChange(of: allTime) { selectedTeam = ""; updateRanking() }
             .task(id: Array(rankedPlayers.prefix(4).map(\.id))) {

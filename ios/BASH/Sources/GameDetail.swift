@@ -273,7 +273,7 @@ struct GameScreen: View {
             } else {
                 HStack { Text("Player"); Spacer(); columns(["G", "A", "PTS", "PIM"]).padding(.trailing, 22) }.font(.caption).foregroundStyle(.secondary)
                 ForEach(skaters) { player in
-                    NavigationLink { PlayerScreen(player: player.player(team: team, slug: slug)) } label: {
+                    NavigationLink { PlayerScreen(player: player.player(team: team, slug: slug), store: store) } label: {
                         HStack(spacing: 6) {
                             VStack(alignment: .leading, spacing: 3) {
                                 Text(player.name).font(.subheadline.weight(.semibold))
@@ -299,7 +299,7 @@ struct GameScreen: View {
             ForEach(goalies) { goalie in
                 let time = String(format: "%d:%02d", goalie.seconds / 60, goalie.seconds % 60)
                 NavigationLink {
-                    PlayerScreen(player: Skater(teamSlug: slug, id: goalie.id, name: goalie.name, team: team, gp: 1, goals: 0, assists: 0, points: 0))
+                    PlayerScreen(player: Skater(teamSlug: slug, id: goalie.id, name: goalie.name, team: team, gp: 1, goals: 0, assists: 0, points: 0), store: store)
                 } label: {
                     HStack(spacing: 6) {
                         VStack(alignment: .leading, spacing: 2) {

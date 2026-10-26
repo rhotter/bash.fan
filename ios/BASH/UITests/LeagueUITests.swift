@@ -338,6 +338,16 @@ final class LeagueUITests: XCTestCase {
         XCTAssertTrue(app.descendants(matching: .any)["player-log-g205"].exists)
         XCTAssertFalse(app.staticTexts["Swipe for more stats"].exists)
         capture("Player game log")
+        let log = app.buttons["player-log-g205"]
+        for _ in 0..<5 where !log.isHittable { app.swipeUp() }
+        XCTAssertTrue(log.isHittable)
+        log.tap()
+        XCTAssertTrue(app.buttons["gameTab-Summary"].waitForExistence(timeout: 25))
+        XCTAssertTrue(app.staticTexts["Scoring by period"].waitForExistence(timeout: 25))
+        capture("Game opened from player log")
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        XCTAssertTrue(app.staticTexts["Game log"].waitForExistence(timeout: 10))
+        app.swipeDown()
         app.buttons["Playoffs"].tap()
         XCTAssertTrue(app.staticTexts["No playoff games recorded this season."].exists)
         XCTAssertFalse(app.descendants(matching: .any)["player-log-g205"].exists)
