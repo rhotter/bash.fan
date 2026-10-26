@@ -726,7 +726,6 @@ struct ScorekeeperScreen: View {
                 }
             } else if model.clock(at: context.date) == 0 {
                 Section(model.period == 4 ? "Overtime complete" : "Period \(model.period) complete") {
-                    Text("Check the shots and recorded plays before continuing.").font(.footnote).foregroundStyle(.secondary)
                     if model.period < 3 {
                         Button("Start period \(model.period + 1)") { model.setPeriod(model.period + 1) }
                     } else if model.score(false) != model.score(true) {
