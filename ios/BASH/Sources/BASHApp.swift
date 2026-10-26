@@ -923,7 +923,7 @@ private struct StatsScreen: View {
                                     .foregroundStyle(.primary).padding(12).contentShape(Rectangle())
                                 } else {
                                     HStack(spacing: 10) {
-                                        ListRank(rank: rank + 1, total: rankedPlayers.count)
+                                        ListRank(rank: rank + 1, total: max(statsPlayers.count, statsGoalies.count))
                                         TeamLogo(slug: player.teamSlug, size: 30)
                                         VStack(alignment: .leading, spacing: 3) {
                                             Text(player.name).font(.subheadline.weight(.semibold)).foregroundStyle(.primary)
