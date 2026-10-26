@@ -682,7 +682,11 @@ struct ScorekeeperScreen: View {
         Section {
             teamPicker
             HStack(spacing: 12) {
-                Button { event = nil; model.pause(); sheet = "goal" } label: { Label("Goal", systemImage: "plus.circle.fill").frame(maxWidth: .infinity) }
+                Button { event = nil; model.pause(); sheet = "goal" } label: {
+                    Label { Text("Goal") } icon: {
+                        Image(systemName: "plus.circle.fill").symbolRenderingMode(.monochrome).foregroundStyle(.white)
+                    }.frame(maxWidth: .infinity)
+                }
                     .buttonStyle(.borderedProminent).tint(LeagueStyle.orange).accessibilityIdentifier("recordGoal")
                 Button { event = nil; model.pause(); sheet = "penalty" } label: { Label("Penalty", systemImage: "flag").frame(maxWidth: .infinity) }.buttonStyle(.bordered)
             }.controlSize(.large).disabled(model.period == 0 || model.period == 5)
