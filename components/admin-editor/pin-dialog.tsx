@@ -25,12 +25,12 @@ export function PinDialog({ open, onOpenChange, onSuccess }: {
     setLoading(true)
     setError("")
     try {
-      const res = await fetch("/api/bash/admin/validate-pin", {
-        method: "POST", headers: { "x-pin": pin.trim() },
+      const res = await fetch("/api/bash/admin/login", {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ pin: pin.trim() }),
       })
-      if (!res.ok) {
-        const data = await readApiJson(res)
-        throw new Error(res.status === 401 ? "Invalid PIN. Please try again." : data.error)
+      const data = await readApiJson(res)
+      if (!res.ok || data.role !== "admin") {
+        throw new Error(res.ok ? "An admin passcode is required." : res.status === 401 ? "Invalid passcode. Please try again." : data.error)
       }
       onSuccess(pin.trim())
       setPin("")
@@ -45,13 +45,13 @@ export function PinDialog({ open, onOpenChange, onSuccess }: {
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-xs">
         <DialogHeader>
-          <DialogTitle className="text-sm">Admin Authentication</DialogTitle>
-          <DialogDescription className="sr-only">Enter your PIN to authenticate.</DialogDescription>
+          <DialogTitle className="text-sm">Admin authentication</DialogTitle>
+          <DialogDescription className="sr-only">Enter your admin passcode to authenticate.</DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-3">
           <Input
             type="password"
-            placeholder="Enter PIN"
+            placeholder="Admin passcode"
             value={pin}
             onChange={(e) => setPin(e.target.value)}
             autoFocus

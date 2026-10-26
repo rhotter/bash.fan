@@ -1,8 +1,9 @@
 import { rawSql } from "@/lib/db"
+import { scorekeeperDateAllowed } from "@/lib/auth-policy"
 import { sql } from "drizzle-orm"
 import { ScorekeeperApp } from "@/components/scorekeeper/scorekeeper-app"
 import type { RosterPlayer } from "@/lib/scorekeeper-types"
-import { getSession } from "@/lib/admin-session"
+import { getOperatorRole } from "@/lib/admin-session"
 
 export const dynamic = "force-dynamic"
 
@@ -31,6 +32,10 @@ export default async function ScorekeeperPage({ params }: { params: Promise<{ id
   }
 
   const game = gameRows[0]
+  const role = await getOperatorRole()
+  if (role !== "admin" && !scorekeeperDateAllowed(game.date)) {
+    return <div className="mx-auto max-w-md p-6 text-sm text-muted-foreground">Scorekeeper edits are available on game day and the following day (Pacific time). <a className="underline" href="/admin">Sign in as an admin</a> for other corrections.</div>
+  }
   const isAdhocGame = game.game_type === 'exhibition' || game.game_type === 'tryout'
 
   // Get rosters — exhibition/tryout games use adhoc_game_rosters as source of truth;
@@ -93,7 +98,7 @@ export default async function ScorekeeperPage({ params }: { params: Promise<{ id
       awayRoster={awayRoster}
       initialSubPlayerIds={initialSubPlayerIds}
       existingState={liveRows.length > 0 ? liveRows[0].state : null}
-      initialAuthenticated={await getSession()}
+      initialAuthenticated={role !== null}
       defaultPeriodLength={defaultPeriodLength}
     />
     </>

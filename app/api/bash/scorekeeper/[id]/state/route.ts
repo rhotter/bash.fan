@@ -5,27 +5,19 @@ import { NextResponse } from "next/server"
 import { db, schema, rawSql } from "@/lib/db"
 import { eq, sql } from "drizzle-orm"
 import type { LiveGameState } from "@/lib/scorekeeper-types"
-import { getSession } from "@/lib/admin-session"
+import { authorizeScorekeeper } from "@/lib/operator-auth"
 import { validateShotArray } from "@/lib/goalie-shot-validation"
 import { withoutGameTiming } from "@/lib/scorekeeper-timing"
 import { isDeepStrictEqual } from "node:util"
 import { finalShotUpdateSql, planFinalShotCorrection, type FinalShotContext, type ShotCorrection } from "@/lib/final-game-shots"
 
-async function validateAuth(request: Request): Promise<boolean> {
-  const pin = request.headers.get("x-pin")
-  if (pin && pin === process.env.SCOREKEEPER_PIN) return true
-  return await getSession()
-}
-
 export async function PUT(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  if (!(await validateAuth(request))) {
-    return NextResponse.json({ error: "Invalid PIN or session" }, { status: 401 })
-  }
-
   const { id } = await params
+  const authError = await authorizeScorekeeper(request, id)
+  if (authError) return authError
 
   try {
     const body = await request.json()
@@ -110,8 +102,9 @@ export async function POST(
 // Shot-only edits are deliberately separate from replaying the event history.
 // Imported/older final games can have a valid boxscore but no live events.
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  if (!(await validateAuth(request))) return NextResponse.json({ error: "Invalid PIN or session" }, { status: 401 })
   const { id } = await params
+  const authError = await authorizeScorekeeper(request, id)
+  if (authError) return authError
   try {
     const body = await request.json()
     const [context] = await rawSql(sql`

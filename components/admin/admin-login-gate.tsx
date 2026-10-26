@@ -29,11 +29,11 @@ export function AdminLoginGate() {
         body: JSON.stringify({ pin: pin.trim() }),
       })
 
-      if (res.ok) {
+      const data = await readApiJson(res)
+      if (res.ok && data.role === "admin") {
         router.refresh()
       } else {
-        const data = await readApiJson(res)
-        setError(res.status === 401 ? "Invalid PIN. Please try again." : data.error)
+        setError(res.ok ? "An admin passcode is required." : res.status === 401 ? "Invalid passcode. Please try again." : data.error)
         if (res.status === 401) setPin("")
       }
     } catch (error) {
@@ -56,7 +56,7 @@ export function AdminLoginGate() {
               BASH Admin
             </CardTitle>
             <CardDescription className="text-xs">
-              Enter your PIN to continue
+              Enter your admin passcode to continue
             </CardDescription>
           </div>
         </CardHeader>
@@ -66,7 +66,7 @@ export function AdminLoginGate() {
               <Input
                 id="admin-pin-input"
                 type="password"
-                placeholder="Enter PIN"
+                placeholder="Admin passcode"
                 value={pin}
                 onChange={(e) => setPin(e.target.value)}
                 autoFocus

@@ -6,7 +6,7 @@ import type { FinalShotContext } from "@/lib/final-game-shots"
 
 const mocks = vi.hoisted(() => ({ getSession: vi.fn(), select: vi.fn(), rawSql: vi.fn(), update: vi.fn() }))
 vi.mock("@/lib/db", async () => ({ db: mocks, rawSql: mocks.rawSql, schema: await import("@/lib/db/schema") }))
-vi.mock("@/lib/admin-session", () => ({ getSession: mocks.getSession }))
+vi.mock("@/lib/admin-session", () => ({ getSession: mocks.getSession, getOperatorRole: async () => null }))
 import { PATCH, PUT, POST } from "@/app/api/bash/scorekeeper/[id]/state/route"
 
 let context: FinalShotContext

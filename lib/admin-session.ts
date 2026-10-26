@@ -1,13 +1,14 @@
 import { cookies } from "next/headers"
 import crypto from "crypto"
+import type { OperatorRole } from "@/lib/auth-policy"
 
 const COOKIE_NAME = "admin_session"
 const MAX_AGE = 14400 // 4 hours in seconds
 
 function getSecret(): string {
-  const pin = process.env.SCOREKEEPER_PIN
-  if (!pin) throw new Error("SCOREKEEPER_PIN environment variable is required")
-  return pin
+  const secret = process.env.SESSION_SECRET
+  if (!secret || secret.length < 32) throw new Error("SESSION_SECRET must contain at least 32 random characters")
+  return secret
 }
 
 /**
@@ -31,7 +32,7 @@ export function verifyToken(token: string): Record<string, unknown> | null {
   try {
     const secret = getSecret()
     const [payloadStr, signature] = token.split(".")
-    if (!payloadStr || !signature) return null
+    if (!payloadStr || !signature || token.split(".").length !== 2) return null
 
     const expectedSig = crypto
       .createHmac("sha256", secret)
@@ -51,7 +52,7 @@ export function verifyToken(token: string): Record<string, unknown> | null {
     )
 
     // Check token age
-    if (payload.iat && Date.now() / 1000 - payload.iat > MAX_AGE) {
+    if (!Number.isSafeInteger(payload.iat) || payload.iat > Date.now() / 1000 + 30 || Date.now() / 1000 - payload.iat >= MAX_AGE) {
       return null // expired
     }
 
@@ -64,9 +65,11 @@ export function verifyToken(token: string): Record<string, unknown> | null {
 /**
  * Create a signed session token for an authenticated admin.
  */
-export function createSessionToken(): string {
+export function createSessionToken(role: OperatorRole = "admin"): string {
   return signToken({
     authenticated: true,
+    role,
+    credentialVersion: credentialVersion(role),
     iat: Math.floor(Date.now() / 1000),
   })
 }
@@ -74,8 +77,8 @@ export function createSessionToken(): string {
 /**
  * Set the admin session cookie on a Response.
  */
-export function setSessionCookie(response: Response): Response {
-  const token = createSessionToken()
+export function setSessionCookie(response: Response, role: OperatorRole = "admin"): Response {
+  const token = createSessionToken(role)
   response.headers.append(
     "Set-Cookie",
     [
@@ -122,12 +125,24 @@ export function clearSessionCookie(response: Response): Response {
  * Check if the current request has a valid admin session.
  * For use in Server Components and API routes.
  */
-export async function getSession(): Promise<boolean> {
+function credentialVersion(role: OperatorRole): string {
+  const credential = role === "admin" ? process.env.ADMIN_PIN : process.env.SCOREKEEPER_PIN
+  if (!credential) throw new Error("Operator credential is not configured")
+  return crypto.createHmac("sha256", getSecret()).update(`${role}:${credential}`).digest("hex")
+}
+
+export async function getOperatorRole(): Promise<OperatorRole | null> {
   const cookieStore = await cookies()
   const token = cookieStore.get(COOKIE_NAME)?.value
-  if (!token) return false
+  if (!token) return null
   const payload = verifyToken(token)
-  return payload?.authenticated === true
+  if (payload?.authenticated !== true || (payload.role !== "admin" && payload.role !== "scorekeeper")) return null
+  try { return payload.credentialVersion === credentialVersion(payload.role) ? payload.role : null } catch { return null }
+}
+
+/** Admin-only. Scorekeeper cookies never authorize administrative routes. */
+export async function getSession(): Promise<boolean> {
+  return await getOperatorRole() === "admin"
 }
 
 /**

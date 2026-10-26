@@ -120,6 +120,8 @@ export function GameDetail({ game, initialDetail, initialLiveData, homeRoster, a
         </button>
       </div>
 
+      {isAdmin && <Link href={`/admin/games/${game.id}/history`} className="mb-3 inline-block text-xs text-muted-foreground underline">Score history and restore</Link>}
+
       {/* Hero Scoreboard */}
       <div className={cn(
         "relative rounded-2xl overflow-hidden",

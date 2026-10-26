@@ -2,23 +2,15 @@ import { NextResponse } from "next/server"
 import { db, schema, rawSql } from "@/lib/db"
 import { eq, sql } from "drizzle-orm"
 import { createInitialState } from "@/lib/scorekeeper-types"
-import { getSession } from "@/lib/admin-session"
-
-async function validateAuth(request: Request): Promise<boolean> {
-  const pin = request.headers.get("x-pin")
-  if (pin && pin === process.env.SCOREKEEPER_PIN) return true
-  return await getSession()
-}
+import { authorizeScorekeeper } from "@/lib/operator-auth"
 
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  if (!(await validateAuth(request))) {
-    return NextResponse.json({ error: "Invalid PIN or session" }, { status: 401 })
-  }
-
   const { id } = await params
+  const authError = await authorizeScorekeeper(request, id)
+  if (authError) return authError
 
   try {
     // Verify game exists and is upcoming

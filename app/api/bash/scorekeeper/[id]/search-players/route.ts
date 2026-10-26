@@ -1,20 +1,14 @@
 import { NextResponse } from "next/server"
 import { db, schema } from "@/lib/db"
 import { ilike, asc } from "drizzle-orm"
-import { getSession } from "@/lib/admin-session"
-
-async function validateAuth(request: Request): Promise<boolean> {
-  const pin = request.headers.get("x-pin")
-  if (pin && pin === process.env.SCOREKEEPER_PIN) return true
-  return await getSession()
-}
+import { authorizeScorekeeper } from "@/lib/operator-auth"
 
 // GET /api/bash/scorekeeper/[id]/search-players?q=... — search players by name
 // Accepts PIN-based auth (scorekeeper) or admin session
-export async function GET(request: Request) {
-  if (!(await validateAuth(request))) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
+export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
+  const authError = await authorizeScorekeeper(request, id)
+  if (authError) return authError
 
   const { searchParams } = new URL(request.url)
   const q = searchParams.get("q") ?? ""

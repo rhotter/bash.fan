@@ -9,25 +9,17 @@ import { isDeepStrictEqual } from "node:util"
 import { randomUUID } from "node:crypto"
 import type { LiveGameState, GoalEvent } from "@/lib/scorekeeper-types"
 import { computePulledSeconds, clockToElapsed, parseClockString } from "@/lib/scorekeeper-types"
-import { getSession } from "@/lib/admin-session"
+import { authorizeScorekeeper } from "@/lib/operator-auth"
 import { fillMissingGoalieShots } from "@/lib/automatic-goalie-shots"
 import { validateShotArray, validateGoalieShotAllocation } from "@/lib/goalie-shot-validation"
-
-async function validateAuth(request: Request): Promise<boolean> {
-  const pin = request.headers.get("x-pin")
-  if (pin && pin === process.env.SCOREKEEPER_PIN) return true
-  return await getSession()
-}
 
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  if (!(await validateAuth(request))) {
-    return NextResponse.json({ error: "Invalid PIN or session" }, { status: 401 })
-  }
-
   const { id } = await params
+  const authError = await authorizeScorekeeper(request, id)
+  if (authError) return authError
   let acceptedState: LiveGameState | null = null
   let claimAttempted = false
 

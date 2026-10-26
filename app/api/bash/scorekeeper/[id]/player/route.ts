@@ -1,13 +1,7 @@
 import { NextResponse } from "next/server"
 import { db, schema, rawSql } from "@/lib/db"
 import { eq, sql } from "drizzle-orm"
-import { getSession } from "@/lib/admin-session"
-
-async function validateAuth(request: Request): Promise<boolean> {
-  const pin = request.headers.get("x-pin")
-  if (pin && pin === process.env.SCOREKEEPER_PIN) return true
-  return await getSession()
-}
+import { authorizeScorekeeper } from "@/lib/operator-auth"
 
 // POST /api/bash/scorekeeper/[id]/player — inline player creation for exhibition/tryout games
 // Body: { name: string, teamSide: "home" | "away" }
@@ -22,11 +16,9 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  if (!(await validateAuth(request))) {
-    return NextResponse.json({ error: "Invalid PIN or session" }, { status: 401 })
-  }
-
   const { id: gameId } = await params
+  const authError = await authorizeScorekeeper(request, gameId)
+  if (authError) return authError
 
   // Hoist trimmedName so the catch block can reference it for race-condition recovery
   let trimmedName = ""

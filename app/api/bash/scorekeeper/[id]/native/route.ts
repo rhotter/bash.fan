@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server"
 import { rawSql } from "@/lib/db"
 import { sql } from "drizzle-orm"
-import { getSession } from "@/lib/admin-session"
+import { authorizeScorekeeper } from "@/lib/operator-auth"
 import type { RosterPlayer } from "@/lib/scorekeeper-types"
 
-export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
-  if (!(await getSession())) return NextResponse.json({ error: "Admin access required" }, { status: 401 })
+export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
+  const authError = await authorizeScorekeeper(request, id)
+  if (authError) return authError
   // Get game info
   const gameRows = await rawSql(sql`
     SELECT g.id, g.date, g.time, g.status, g.season_id,

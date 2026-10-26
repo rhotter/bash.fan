@@ -15,7 +15,7 @@ vi.mock("@/lib/db", async () => ({
   rawSql: mocks.rawSql,
   schema: await import("@/lib/db/schema"),
 }))
-vi.mock("@/lib/admin-session", () => ({ getSession: mocks.getSession }))
+vi.mock("@/lib/admin-session", () => ({ getSession: mocks.getSession, getOperatorRole: async () => null }))
 
 import { POST } from "@/app/api/bash/scorekeeper/[id]/finalize/route"
 

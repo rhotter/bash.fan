@@ -1,15 +1,15 @@
 import { NextRequest, NextResponse } from "next/server"
 import { setSessionCookie } from "@/lib/admin-session"
+import { checkCredential } from "@/lib/operator-auth"
 
 export async function POST(request: NextRequest) {
   try {
     const { pin } = await request.json()
 
-    if (!pin || pin !== process.env.SCOREKEEPER_PIN) {
-      return NextResponse.json({ error: "Invalid PIN" }, { status: 401 })
-    }
+    const role = await checkCredential(request, pin, true)
+    if (role instanceof Response) return role
 
-    const response = NextResponse.json({ ok: true })
+    const response = NextResponse.json({ ok: true, role: "admin" }, { headers: { "Cache-Control": "no-store" } })
     setSessionCookie(response)
     return response
   } catch {

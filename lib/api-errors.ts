@@ -1,10 +1,11 @@
 type ErrorBody = { error?: unknown; details?: unknown; stateSaved?: unknown }
 
 export function apiErrorMessage(response: Pick<Response, "status" | "url">, body: ErrorBody = {}): string {
-  if (response.status === 401) return /\/admin\/(login|validate-pin)(?:\?|$)/.test(response.url ?? "")
+  if (response.status === 401) return /\/(?:admin\/(?:login|validate-pin)|scorekeeper\/login)(?:\?|$)/.test(response.url ?? "")
     ? "Invalid PIN. Please try again." : "Please sign in again to continue."
+  if (response.status === 403 && typeof body.error === "string" && body.error.startsWith("Scorekeeper edits are allowed only")) return body.error
   if (response.status === 403) return "You don't have permission to do that. Ask an administrator for help."
-  if (response.status === 429) return "Too many requests. Wait a moment, then try again."
+  if (response.status === 429) return body.error === "Too many incorrect attempts. Try again in 15 minutes." ? body.error : "Too many requests. Wait a moment, then try again."
   if (response.status >= 500) return body.stateSaved === true
     ? "The game was saved, but its statistics could not finish updating. Retry saving this game."
     : "The request couldn't finish. Reload to check the latest data before trying again."

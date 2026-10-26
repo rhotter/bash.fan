@@ -3,7 +3,7 @@ import { PgDialect } from "drizzle-orm/pg-core"
 import { createInitialState } from "@/lib/scorekeeper-types"
 const mocks = vi.hoisted(() => ({ getSession: vi.fn(), rawSql: vi.fn() }))
 vi.mock("@/lib/db", () => ({ rawSql: mocks.rawSql }))
-vi.mock("@/lib/admin-session", () => ({ getSession: mocks.getSession }))
+vi.mock("@/lib/admin-session", () => ({ getSession: mocks.getSession, getOperatorRole: async () => null }))
 import { GET } from "@/app/api/bash/scorekeeper/[id]/native/route"
 const context = { params: Promise.resolve({ id: "g1" }) }
 beforeEach(() => vi.resetAllMocks())
