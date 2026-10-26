@@ -5,8 +5,6 @@ import {
   integer,
   doublePrecision,
   serial,
-  bigserial,
-  bigint,
   jsonb,
   timestamp,
   primaryKey,
@@ -885,18 +883,9 @@ export type SeasonTradeItem = typeof seasonTradeItems.$inferSelect
 export type NewSeasonTradeItem = typeof seasonTradeItems.$inferInsert
 
 
-// Triggers and atomic functions live in scripts/operator-security-schema.sql.
+// Atomic throttling function lives in scripts/operator-security-schema.sql.
 export const operatorAuthAttempts = pgTable("operator_auth_attempts", {
   bucket: text("bucket").primaryKey(),
   failures: integer("failures").notNull().default(0),
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
 })
-export const gameScoreHistory = pgTable("game_score_history", {
-  id: bigserial("id", { mode: "bigint" }).primaryKey(),
-  gameId: text("game_id").notNull(),
-  transactionId: bigint("transaction_id", { mode: "bigint" }).notNull(),
-  phase: text("phase").notNull(),
-  recordedAt: timestamp("recorded_at", { withTimezone: true }).notNull().defaultNow(),
-  restoredFrom: bigint("restored_from", { mode: "bigint" }),
-  snapshot: jsonb("snapshot").notNull(),
-}, t => [index("game_score_history_game").on(t.gameId, t.id), unique().on(t.gameId, t.transactionId, t.phase)])
