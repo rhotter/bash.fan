@@ -46,9 +46,15 @@ import Security
     func registered(_ data: Data) {
         token = data.map { String(format: "%02x", $0) }.joined()
         UserDefaults.standard.set(token, forKey: "pushToken")
-        guard !busy else { return }
-        busy = true
+        let registeredToken = token
         Task {
+            // Serialize token refresh with preference edits; never overwrite a new selection
+            // with the preferences from an earlier registration request.
+            while busy {
+                do { try await Task.sleep(for: .milliseconds(100)) } catch { return }
+            }
+            guard token == registeredToken else { return }
+            busy = true
             defer { busy = false }
             do { try await save(teams: teams, games: games, enabled: !teams.isEmpty || !games.isEmpty) }
             catch { if !teams.isEmpty || !games.isEmpty { message = error.localizedDescription } }
