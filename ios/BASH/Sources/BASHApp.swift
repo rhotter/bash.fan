@@ -418,7 +418,7 @@ struct LeagueRoot: View {
                 } else {
                 VStack(spacing: 0) {
                     HStack(spacing: 10) {
-                        Text("Team"); Spacer(); statColumn("GP"); statColumn("DIF"); statColumn("PTS")
+                        Text("Team"); Spacer(); statColumn("PTS")
                     }.font(.caption.weight(.semibold)).foregroundStyle(.secondary)
                         .padding(.horizontal, 12).padding(.vertical, 12)
                     Divider()
@@ -429,21 +429,20 @@ struct LeagueRoot: View {
                                 TeamLogo(slug: team.slug, size: 30)
                                 VStack(alignment: .leading, spacing: 4) {
                                     Text(team.team).font(.subheadline.weight(.semibold)).foregroundStyle(.primary)
-                                    Text("\(team.w) W · \(team.otw) OTW · \(team.otl) OTL · \(team.l) L")
+                                    Text("\(team.gp) GP · \(team.w)–\(team.otw)–\(team.otl)–\(team.l) · \(team.gd > 0 ? "+" : "")\(team.gd) DIF")
                                         .font(.caption2).foregroundStyle(.secondary)
-                                        .fixedSize(horizontal: false, vertical: true)
-                                        .accessibilityLabel("\(team.w) wins, \(team.otw) overtime wins, \(team.otl) overtime losses, \(team.l) losses")
+                                        .lineLimit(1)
+                                        .minimumScaleFactor(0.85)
+                                        .accessibilityLabel("\(team.gp) games played, \(team.w) wins, \(team.otw) overtime wins, \(team.otl) overtime losses, \(team.l) losses, goal difference \(team.gd)")
                                 }
                                 Spacer(minLength: 8)
-                                statColumn("\(team.gp)").foregroundStyle(.secondary)
-                                statColumn(team.gd > 0 ? "+\(team.gd)" : "\(team.gd)").foregroundStyle(.secondary)
                                 statColumn("\(team.pts)").fontWeight(.semibold).foregroundStyle(.primary)
                             }.font(.subheadline).monospacedDigit().padding(.horizontal, 12).padding(.vertical, 12)
                         }.buttonStyle(.plain)
                         if rank < (store.snapshot?.standings.count ?? 0) - 1 { Divider() }
                     }
                 }.background(LeagueStyle.card, in: RoundedRectangle(cornerRadius: 18))
-                Text("Win 3 pts · OT win 2 · OT loss 1").font(.caption).foregroundStyle(.secondary)
+                Text("Record: W–OTW–OTL–L\nWin 3 pts · OT win 2 · OT loss 1").font(.caption).foregroundStyle(.secondary)
                 }
             }.padding(.horizontal, 12).padding(.vertical, 12)
         }.accessibilityIdentifier("standingsList")
