@@ -11,10 +11,20 @@ final class GameAlertsUITests: XCTestCase {
         XCTAssertTrue(app.navigationBars["Game alerts"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.staticTexts["Goals, puck drop and final scores"].exists)
         XCTAssertTrue(app.buttons.matching(NSPredicate(format: "value == 'Not following'")).firstMatch.waitForExistence(timeout: 20))
+        let team = app.buttons.matching(NSPredicate(format: "value == 'Not following'")).firstMatch
+        let teamLabel = team.label
+        team.tap()
+        let selectedTeam = app.buttons[teamLabel].firstMatch
+        XCTAssertEqual(selectedTeam.value as? String, "Following")
+        XCTAssertTrue(selectedTeam.isEnabled)
+        XCTAssertFalse(app.progressIndicators.firstMatch.exists)
+        XCTAssertFalse(XCUIApplication(bundleIdentifier: "com.apple.springboard").alerts.firstMatch.exists)
         let screenshot = XCTAttachment(screenshot: app.screenshot())
         screenshot.name = "BASH Game alerts team preferences"
         screenshot.lifetime = .keepAlways
         add(screenshot)
+        selectedTeam.tap()
+        XCTAssertEqual(selectedTeam.value as? String, "Not following")
         app.buttons["Done"].tap()
         XCTAssertTrue(app.tabBars.buttons["Scores"].isHittable)
     }

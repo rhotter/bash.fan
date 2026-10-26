@@ -61,37 +61,32 @@ import Security
         }
     }
     func registrationFailed() { message = "Couldn’t connect to Apple notifications. Please try again." }
-    func toggleTeam(_ slug: String) async {
-        var next = teams
-        if !next.insert(slug).inserted { next.remove(slug) }
-        await update(teams: next, games: games)
-    }
-    func toggleGame(_ id: String) async {
-        var next = games
-        if !next.insert(id).inserted { next.remove(id) }
-        await update(teams: teams, games: next)
-    }
-    private func update(teams nextTeams: Set<String>, games nextGames: Set<String>) async {
-        guard !busy else { return }
+    func update(teams nextTeams: Set<String>, games nextGames: Set<String>) async -> Bool {
+        // Token registration can be saving in the background when Done is tapped.
+        while busy {
+            do { try await Task.sleep(for: .milliseconds(100)) } catch { return false }
+        }
+        guard nextTeams != teams || nextGames != games else { return true }
         busy = true; message = nil
         defer { busy = false }
         do {
             let adding = !nextTeams.subtracting(teams).isEmpty || !nextGames.subtracting(games).isEmpty
             if adding {
                 guard try await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) else {
-                    denied = true; message = "Allow notifications in Settings to receive game alerts."; return
+                    denied = true; message = "Allow notifications in Settings to receive game alerts."; return false
                 }
                 denied = false
                 UIApplication.shared.registerForRemoteNotifications()
                 // APNs registration is asynchronous; wait briefly without blocking the UI.
                 for _ in 0..<30 where token == nil { try await Task.sleep(for: .milliseconds(100)) }
-                guard token != nil else { message = "Apple notifications are still connecting. Please try again."; return }
+                guard token != nil else { message = "Apple notifications are still connecting. Please try again."; return false }
             }
             try await save(teams: nextTeams, games: nextGames, enabled: !nextTeams.isEmpty || !nextGames.isEmpty)
             teams = nextTeams; games = nextGames
             UserDefaults.standard.set(Array(teams), forKey: "pushTeams")
             UserDefaults.standard.set(Array(games), forKey: "pushGames")
-        } catch { message = error.localizedDescription }
+            return true
+        } catch { message = error.localizedDescription; return false }
     }
     private func save(teams: Set<String>, games: Set<String>, enabled: Bool) async throws {
         guard let token else { throw AlertError.unavailable }
@@ -121,6 +116,9 @@ struct GameAlertsScreen: View {
     @ObservedObject private var alerts = GameAlerts.shared
     @Environment(\.dismiss) private var dismiss
     @State private var leagueTeams: [Standing] = []
+    @State private var selectedTeams = GameAlerts.shared.teams
+    @State private var selectedGames = GameAlerts.shared.games
+    @State private var saving = false
     private var teams: [(slug: String, name: String)] {
         var names: [String: String] = [:]
         for match in games + (game.map { [$0] } ?? []) {
@@ -140,29 +138,31 @@ struct GameAlertsScreen: View {
                 } footer: { Text("Choose your team to receive alerts for its games. Tap an alert to open the game.") }
                 if let game, game.status != "final" {
                     Section("This game") {
-                        selection("\(game.awayTeam) at \(game.homeTeam)", selected: alerts.games.contains(game.id)) {
-                            await alerts.toggleGame(game.id)
+                        selection("\(game.awayTeam) at \(game.homeTeam)", selected: selectedGames.contains(game.id)) {
+                            toggleGame(game.id)
                         }
                     }
                 }
                 Section("Teams") {
                     ForEach(teams, id: \.slug) { team in
-                        Button { Task { await alerts.toggleTeam(team.slug) } } label: {
+                        Button {
+                            if !selectedTeams.insert(team.slug).inserted { selectedTeams.remove(team.slug) }
+                        } label: {
                             HStack(spacing: 12) {
                                 TeamLogo(slug: team.slug, size: 36)
                                 Text(team.name).foregroundStyle(.primary)
                                 Spacer()
-                                if alerts.teams.contains(team.slug) { Image(systemName: "checkmark").foregroundStyle(.primary) }
+                                if selectedTeams.contains(team.slug) { Image(systemName: "checkmark").foregroundStyle(.primary) }
                             }
-                        }.disabled(alerts.busy)
-                        .accessibilityValue(alerts.teams.contains(team.slug) ? "Following" : "Not following")
+                        }.disabled(saving)
+                        .accessibilityValue(selectedTeams.contains(team.slug) ? "Following" : "Not following")
                     }
                 }
                 let otherGames = alerts.games.filter { $0 != game?.id }.sorted()
                 if !otherGames.isEmpty {
                     Section("Individual games") {
                         ForEach(otherGames, id: \.self) { id in
-                            selection(games.first { $0.id == id }.map { "\($0.awayTeam) at \($0.homeTeam)" } ?? "Game \(id)", selected: true) { await alerts.toggleGame(id) }
+                            selection(games.first { $0.id == id }.map { "\($0.awayTeam) at \($0.homeTeam)" } ?? "Game \(id)", selected: selectedGames.contains(id)) { toggleGame(id) }
                         }
                     }
                 }
@@ -175,18 +175,32 @@ struct GameAlertsScreen: View {
                     }
                 }
             }
-            .overlay { if alerts.busy { ProgressView().padding(20).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16)) } }
+            .overlay { if saving { ProgressView().padding(20).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16)) } }
             .navigationTitle("Game alerts").navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") {
+                        saving = true
+                        Task {
+                            if await alerts.update(teams: selectedTeams, games: selectedGames) { dismiss() }
+                            saving = false
+                        }
+                    }.disabled(saving)
+                }
+            }
+            .interactiveDismissDisabled(saving)
             .task {
                 await alerts.refreshAuthorization()
                 if let snapshot: LeagueSnapshot = try? await LeagueAPI.fetch("", maxAge: 120) { leagueTeams = snapshot.standings }
             }
         }.tint(.primary)
     }
-    private func selection(_ title: String, selected: Bool, action: @escaping () async -> Void) -> some View {
-        Button { Task { await action() } } label: {
+    private func toggleGame(_ id: String) {
+        if !selectedGames.insert(id).inserted { selectedGames.remove(id) }
+    }
+    private func selection(_ title: String, selected: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
             HStack { Text(title).foregroundStyle(.primary); Spacer(); Image(systemName: selected ? "bell.fill" : "bell").foregroundStyle(.primary) }
-        }.disabled(alerts.busy).accessibilityValue(selected ? "Following" : "Not following")
+        }.disabled(saving).accessibilityValue(selected ? "Following" : "Not following")
     }
 }
