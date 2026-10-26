@@ -45,6 +45,7 @@ export interface BashGameDetail {
   awayScore: number | null
   status: string
   isOvertime: boolean
+  isPlayoff: boolean
   isForfeit: boolean
   location: string
   gameType: string
@@ -201,6 +202,7 @@ async function fetchGameDetailInternal(id: string): Promise<BashGameDetail | nul
     awayScore: game.away_score,
     status: game.status,
     isOvertime: game.is_overtime,
+    isPlayoff: game.is_playoff,
     isForfeit: game.is_forfeit,
     location: game.location,
     gameType: game.game_type,
