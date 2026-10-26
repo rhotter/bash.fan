@@ -37,6 +37,11 @@ vi.mock("@/lib/db", async () => {
 
 import { GET as getRoster } from "@/app/api/bash/admin/seasons/[id]/roster/route"
 import { DELETE as deleteTrade } from "@/app/api/bash/admin/seasons/[id]/trades/route"
+import { POST as startDraft } from "@/app/api/bash/admin/seasons/[id]/draft/[draftId]/start/route"
+
+vi.mock("@/lib/draft-banner-sync", () => ({
+  syncDraftBanner: vi.fn().mockResolvedValue(undefined),
+}))
 
 // Progressive loader: Check if trades route exists on disk
 let liveTradesRoute: {
@@ -603,6 +608,152 @@ describe("Admin Season Roster & Atomic Trades Routes", () => {
       expect(body.revertedPlayers).toEqual([
         { playerId: 630, fromTeamSlug: "yetis", toTeamSlug: "loons" },
       ])
+
+      // Verify pre-check SQL checks game_live and adhoc_game_rosters for unfinalized games
+      const preCheckSql = mocks.rawSql.mock.calls[0]?.[0]?.sql ?? ""
+      expect(preCheckSql).toContain("game_live")
+      expect(preCheckSql).toContain("homeAttendance")
+      expect(preCheckSql).toContain("awayAttendance")
+      expect(preCheckSql).toContain("adhoc_game_rosters")
+      expect(preCheckSql).toContain("g.status <> 'final'")
+
+      // Verify undoQuery CTE also checks game_live/adhoc_game_rosters and cleans up seeded draft_trades
+      const undoCteSql = mocks.rawSql.mock.calls[1]?.[0]?.sql ?? ""
+      expect(undoCteSql).toContain("game_live")
+      expect(undoCteSql).toContain("adhoc_game_rosters")
+      expect(undoCteSql).toContain("seeded_draft_trades")
+      expect(undoCteSql).toContain("deleted_draft_trade_items")
+      expect(undoCteSql).toContain("deleted_draft_trades")
+    })
+  })
+
+  describe("4. Fall Draft Start Refreshes Prior-Season Pick Trades (POST /api/bash/admin/seasons/[id]/draft/[draftId]/start)", () => {
+    it("reconciles prior-season Fall pick trades from season_trade_items before resolving pick slot ownership", async () => {
+      mocks.getSession.mockResolvedValue(true)
+
+      // 1. draftInstances
+      mocks.select
+        .mockReturnValueOnce({
+          from: () => ({
+            where: () => ({
+              limit: () =>
+                Promise.resolve([
+                  {
+                    id: "draft-2027-fall",
+                    seasonId: "2027-2028",
+                    status: "published",
+                    rounds: 2,
+                    draftType: "linear",
+                    timerSeconds: 90,
+                  },
+                ]),
+            }),
+          }),
+        })
+        // 2. draftTeamOrder
+        .mockReturnValueOnce({
+          from: () => ({
+            where: () => ({
+              orderBy: () =>
+                Promise.resolve([{ teamSlug: "loons" }, { teamSlug: "yetis" }]),
+            }),
+          }),
+        })
+        // 3. seasons (seasonType = "fall")
+        .mockReturnValueOnce({
+          from: () => ({
+            where: () => ({
+              limit: () => Promise.resolve([{ seasonType: "fall" }]),
+            }),
+          }),
+        })
+        // 4. draftTrades (initially empty — trade was recorded after draft creation)
+        .mockReturnValueOnce({
+          from: () => ({
+            where: () => ({
+              orderBy: () => Promise.resolve([]),
+            }),
+          }),
+        })
+        // 5. seasonTradeItems (prior-season pick trade: loons Rd 1 -> yetis)
+        .mockReturnValueOnce({
+          from: () => ({
+            innerJoin: () => ({
+              where: () => ({
+                orderBy: () =>
+                  Promise.resolve([
+                    {
+                      tradeId: 12,
+                      fromTeamSlug: "loons",
+                      toTeamSlug: "yetis",
+                      round: 1,
+                      originalTeamSlug: "loons",
+                      tradedAt: new Date("2027-07-15T12:00:00Z"),
+                    },
+                  ]),
+              }),
+            }),
+          }),
+        })
+        // 6. draftPool keepers
+        .mockReturnValueOnce({
+          from: () => ({
+            where: () => Promise.resolve([]),
+          }),
+        })
+
+      const insertedValues: unknown[] = []
+      mocks.insert.mockImplementation(() => ({
+        values: (val: unknown) => {
+          insertedValues.push(val)
+          return {
+            returning: () =>
+              Promise.resolve([
+                {
+                  id: 1,
+                  tradeId: "trade-refreshed",
+                  fromTeamSlug: "loons",
+                  toTeamSlug: "yetis",
+                  round: 1,
+                  pickNumber: null,
+                  playerName: null,
+                },
+              ]),
+          }
+        },
+      }))
+
+      mocks.delete.mockReturnValue({
+        where: () => Promise.resolve(),
+      })
+
+      mocks.update.mockReturnValue({
+        set: () => ({
+          where: () => Promise.resolve(),
+        }),
+      })
+
+      const req = new NextRequest(
+        "http://bash.fan/api/bash/admin/seasons/2027-2028/draft/draft-2027-fall/start",
+        { method: "POST" }
+      )
+      const res = await startDraft(req, {
+        params: Promise.resolve({ id: "2027-2028", draftId: "draft-2027-fall" }),
+      })
+      expect(res.status).toBe(200)
+
+      // Find the batch of draftPicks inserted
+      const pickBatch = insertedValues.find((v) => Array.isArray(v)) as Array<{
+        round: number
+        pickNumber: number
+        teamSlug: string
+        originalTeamSlug: string
+      }>
+      expect(pickBatch).toBeDefined()
+      // Pick #1 (Round 1, loons slot) should now be owned by yetis with originalTeamSlug = loons!
+      const pick1 = pickBatch.find((p) => p.pickNumber === 1)!
+      expect(pick1.teamSlug).toBe("yetis")
+      expect(pick1.originalTeamSlug).toBe("loons")
     })
   })
 })

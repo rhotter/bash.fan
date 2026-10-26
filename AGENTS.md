@@ -81,7 +81,7 @@ Each page follows: async Server Component (data fetch via `React.cache` / `lib/c
 - `lib/optimized-logo.ts` & `lib/optimized-logos.json` — Static WebP logo manifest and resolver
 - `lib/api-errors.ts` & `lib/scorekeeper-login.ts` — Actionable API error helpers and side-effect-free scorekeeper PIN auth
 - `lib/hockey-data.ts` — SWR hooks for client-side data
-- `lib/db/schema.ts` — Drizzle ORM schema (45 tables)
+- `lib/db/schema.ts` — Drizzle ORM schema (43 tables)
 - `lib/db/game-id.ts` — Collision-free sequential `g[n]` game ID generator backed by `games_gen_seq`
 - `lib/banner-helpers.ts` — Pure helper algorithms, countdown suffixes, and banner contract validators
 - `lib/draft-banner-sync.ts` — Automated banner sync engine across draft lifecycle state transitions

@@ -446,6 +446,57 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
             OR g.date >= to_char(tt.traded_at AT TIME ZONE 'America/Los_Angeles', 'YYYY-MM-DD')
           )
       )
+      OR EXISTS (
+        SELECT 1
+        FROM game_live gl
+        JOIN games g ON g.id = gl.game_id
+        WHERE g.season_id = ${seasonId}
+          AND g.status <> 'final'
+          AND (
+            NOT tp.had_prior_stint_on_to_team
+            OR g.date >= to_char(tt.traded_at AT TIME ZONE 'America/Los_Angeles', 'YYYY-MM-DD')
+          )
+          AND (
+            (
+              g.home_team = tp.to_team_slug
+              AND (
+                CASE
+                  WHEN jsonb_typeof(gl.state->'homeAttendance'->(tp.player_id::text)) = 'boolean'
+                  THEN (gl.state->'homeAttendance'->>(tp.player_id::text))::boolean
+                  ELSE false
+                END
+                OR (gl.state->>'homeGoalie') = (tp.player_id::text)
+              )
+            )
+            OR (
+              g.away_team = tp.to_team_slug
+              AND (
+                CASE
+                  WHEN jsonb_typeof(gl.state->'awayAttendance'->(tp.player_id::text)) = 'boolean'
+                  THEN (gl.state->'awayAttendance'->>(tp.player_id::text))::boolean
+                  ELSE false
+                END
+                OR (gl.state->>'awayGoalie') = (tp.player_id::text)
+              )
+            )
+          )
+      )
+      OR EXISTS (
+        SELECT 1
+        FROM adhoc_game_rosters agr
+        JOIN games g ON g.id = agr.game_id
+        WHERE g.season_id = ${seasonId}
+          AND g.status <> 'final'
+          AND agr.player_id = tp.player_id
+          AND (
+            NOT tp.had_prior_stint_on_to_team
+            OR g.date >= to_char(tt.traded_at AT TIME ZONE 'America/Los_Angeles', 'YYYY-MM-DD')
+          )
+          AND (
+            (agr.team_side = 'home' AND g.home_team = tp.to_team_slug)
+            OR (agr.team_side = 'away' AND g.away_team = tp.to_team_slug)
+          )
+      )
       LIMIT 1;
     `)
 
@@ -498,6 +549,25 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
         AND sti.item_type = 'player'
         AND sti.player_id IS NOT NULL
     ),
+    pick_items AS MATERIALIZED (
+      SELECT
+        sti.id,
+        sti.from_team_slug,
+        sti.to_team_slug,
+        sti.draft_pick_round,
+        COALESCE(sti.draft_pick_original_team_slug, sti.from_team_slug) AS orig_owner,
+        'Prior season trade: ' || sti.from_team_slug || ' Rd ' || sti.draft_pick_round::text ||
+          CASE
+            WHEN COALESCE(sti.draft_pick_original_team_slug, sti.from_team_slug) <> sti.from_team_slug
+            THEN ' (via ' || sti.draft_pick_original_team_slug || ')'
+            ELSE ''
+          END || ' → ' || sti.to_team_slug AS expected_description
+      FROM season_trade_items sti
+      JOIN latest_trade lt ON lt.id = sti.trade_id
+      WHERE lt.id = ${resolvedTradeId}
+        AND sti.item_type = 'draft_pick'
+        AND sti.draft_pick_round IS NOT NULL
+    ),
     locked_rosters AS MATERIALIZED (
       SELECT ps.player_id, ps.season_id, ps.team_slug, pi.from_team_slug
       FROM player_seasons ps
@@ -534,6 +604,57 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
             OR g.date >= to_char(lt.traded_at AT TIME ZONE 'America/Los_Angeles', 'YYYY-MM-DD')
           )
       )
+      OR EXISTS (
+        SELECT 1
+        FROM game_live gl
+        JOIN games g ON g.id = gl.game_id
+        WHERE g.season_id = ${seasonId}
+          AND g.status <> 'final'
+          AND (
+            NOT pi.had_prior_stint_on_to_team
+            OR g.date >= to_char(lt.traded_at AT TIME ZONE 'America/Los_Angeles', 'YYYY-MM-DD')
+          )
+          AND (
+            (
+              g.home_team = pi.to_team_slug
+              AND (
+                CASE
+                  WHEN jsonb_typeof(gl.state->'homeAttendance'->(pi.player_id::text)) = 'boolean'
+                  THEN (gl.state->'homeAttendance'->>(pi.player_id::text))::boolean
+                  ELSE false
+                END
+                OR (gl.state->>'homeGoalie') = (pi.player_id::text)
+              )
+            )
+            OR (
+              g.away_team = pi.to_team_slug
+              AND (
+                CASE
+                  WHEN jsonb_typeof(gl.state->'awayAttendance'->(pi.player_id::text)) = 'boolean'
+                  THEN (gl.state->'awayAttendance'->>(pi.player_id::text))::boolean
+                  ELSE false
+                END
+                OR (gl.state->>'awayGoalie') = (pi.player_id::text)
+              )
+            )
+          )
+      )
+      OR EXISTS (
+        SELECT 1
+        FROM adhoc_game_rosters agr
+        JOIN games g ON g.id = agr.game_id
+        WHERE g.season_id = ${seasonId}
+          AND g.status <> 'final'
+          AND agr.player_id = pi.player_id
+          AND (
+            NOT pi.had_prior_stint_on_to_team
+            OR g.date >= to_char(lt.traded_at AT TIME ZONE 'America/Los_Angeles', 'YYYY-MM-DD')
+          )
+          AND (
+            (agr.team_side = 'home' AND g.home_team = pi.to_team_slug)
+            OR (agr.team_side = 'away' AND g.away_team = pi.to_team_slug)
+          )
+      )
     ),
     guard AS (
       SELECT s.id AS season_id, lt.id AS trade_id
@@ -542,6 +663,40 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
       WHERE lt.id = ${resolvedTradeId}
         AND (SELECT count(*)::int FROM locked_rosters) = (SELECT count(*)::int FROM player_items)
         AND (SELECT count(*)::int FROM post_trade_games) = 0
+    ),
+    seeded_draft_trades AS MATERIALIZED (
+      SELECT ranked.id
+      FROM (
+        SELECT
+          dt.id,
+          dt.description,
+          ROW_NUMBER() OVER (
+            PARTITION BY dt.draft_id, dt.description
+            ORDER BY dt.traded_at DESC, dt.id DESC
+          ) AS rn
+        FROM draft_trades dt
+        JOIN draft_instances di ON di.id = dt.draft_id
+        WHERE di.status IN ('draft', 'published')
+          AND dt.trade_type = 'pre_draft_pick_swap'
+          AND dt.description IN (SELECT expected_description FROM pick_items)
+      ) ranked
+      WHERE ranked.rn <= (
+        SELECT count(*)::int
+        FROM pick_items pi
+        WHERE pi.expected_description = ranked.description
+      )
+    ),
+    deleted_draft_trade_items AS (
+      DELETE FROM draft_trade_items dti
+      USING guard, seeded_draft_trades sdt
+      WHERE dti.trade_id = sdt.id
+      RETURNING dti.id
+    ),
+    deleted_draft_trades AS (
+      DELETE FROM draft_trades dt
+      USING guard, seeded_draft_trades sdt
+      WHERE dt.id = sdt.id
+      RETURNING dt.id
     ),
     reverted_rosters AS (
       UPDATE player_seasons ps
