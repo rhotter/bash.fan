@@ -479,9 +479,9 @@ private extension View {
         }
     }
 
-    func leagueHeader(_ title: String, season: SeasonMenu, operatorGames: [Game]? = nil) -> some View {
+    func leagueHeader(_ title: String, season: SeasonMenu, operatorGames: [Game]? = nil, searchAction: (() -> Void)? = nil, searching: Bool = false) -> some View {
         VStack(spacing: 0) {
-            LeagueHeader(title: title, operatorGames: operatorGames)
+            LeagueHeader(title: title, operatorGames: operatorGames, searchAction: searchAction, searching: searching)
             SeasonHeaderRow(menu: season)
             self
         }
@@ -504,6 +504,8 @@ private struct SeasonHeaderRow: View {
 private struct LeagueHeader: View {
     let title: String
     var operatorGames: [Game]?
+    var searchAction: (() -> Void)?
+    var searching = false
 
     var body: some View {
         Text(title)
@@ -513,6 +515,17 @@ private struct LeagueHeader: View {
             .frame(height: 44)
             .overlay(alignment: .trailing) {
                 if let operatorGames { OperatorMenu(games: operatorGames) }
+                if let searchAction {
+                    Button(action: searchAction) {
+                        Image(systemName: searching ? "xmark" : "magnifyingglass")
+                            .font(.body.weight(.semibold))
+                            .frame(width: 44, height: 44)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(searching ? "Close search" : "Search players")
+                    .accessibilityIdentifier("statsSearchButton")
+                }
             }
             .padding(.horizontal, 12).padding(.top, 8).padding(.bottom, 12)
         .background(LeagueStyle.background)
@@ -639,6 +652,7 @@ struct TeamScreen: View {
 /// UIKit's standard search field keeps native appearance, clear button, and editing behavior.
 private struct NativePlayerSearch: UIViewRepresentable {
     @Binding var text: String
+    var autofocus = false
     func makeCoordinator() -> Coordinator { Coordinator(text: $text) }
     func makeUIView(context: Context) -> UISearchBar {
         let bar = UISearchBar()
@@ -648,6 +662,7 @@ private struct NativePlayerSearch: UIViewRepresentable {
         bar.delegate = context.coordinator
         bar.searchTextField.accessibilityIdentifier = "playerSearch"
         bar.searchTextField.returnKeyType = .done
+        if autofocus { DispatchQueue.main.async { bar.becomeFirstResponder() } }
         return bar
     }
     func updateUIView(_ bar: UISearchBar, context: Context) {
@@ -698,6 +713,7 @@ private struct StatsScreen: View {
     @State private var selectedPlayer: Skater?
     @Bindable var store: LeagueStore
     @State private var search = ""
+    @State private var searching = false
     @State private var allTime = false
     @State private var showGoalies = false
     @State private var goalieMetric: GoalieMetric = .savePercentage
@@ -761,7 +777,7 @@ private struct StatsScreen: View {
                     Text("Skaters").tag(false)
                     Text("Goalies").tag(true)
                 }.pickerStyle(.segmented).accessibilityIdentifier("statsPlayerType")
-                NativePlayerSearch(text: $search).frame(height: 44)
+                if searching { NativePlayerSearch(text: $search, autofocus: true).frame(height: 44) }
                 if let error = statsError { Text(error).font(.footnote).foregroundStyle(.secondary) }
                 HStack {
                     if !allTime { Menu {
@@ -823,7 +839,10 @@ private struct StatsScreen: View {
                 }
             }.padding(.horizontal, 12).padding(.vertical, 12)
         }.accessibilityIdentifier("statsList")
-            .background(LeagueStyle.background).leagueHeader("Stats", season: SeasonMenu(store: store, allowsAllTime: true, allTime: $allTime))
+            .background(LeagueStyle.background).leagueHeader("Stats", season: SeasonMenu(store: store, allowsAllTime: true, allTime: $allTime), searchAction: {
+                searching.toggle()
+                if !searching { search = "" }
+            }, searching: searching)
             .scrollDismissesKeyboard(.interactively)
             .navigationDestination(optional: $selectedPlayer) { PlayerScreen(player: $0, store: store) }
             .task(id: allTime) { await loadAllTime() }

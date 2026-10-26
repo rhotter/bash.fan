@@ -1,6 +1,30 @@
 import XCTest
 
 final class LeagueUITests: XCTestCase {
+    @MainActor func testStatsSearchButton() throws {
+        let app = XCUIApplication()
+        app.launch()
+        app.tabBars.buttons["Stats"].tap()
+        let button = app.buttons["statsSearchButton"]
+        XCTAssertTrue(button.waitForExistence(timeout: 10))
+        XCTAssertFalse(app.searchFields["playerSearch"].exists)
+        capture("Stats search button")
+        button.tap()
+        let search = app.searchFields["playerSearch"]
+        XCTAssertTrue(search.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
+        search.typeText("zzzznomatch")
+        XCTAssertTrue(app.staticTexts["No matching players"].waitForExistence(timeout: 10))
+        capture("Stats search open")
+        button.tap()
+        XCTAssertFalse(search.exists)
+        XCTAssertFalse(app.keyboards.firstMatch.exists)
+        XCTAssertFalse(app.staticTexts["No matching players"].exists)
+        button.tap()
+        XCTAssertEqual(search.value as? String, "Search players")
+        button.tap()
+    }
+
     @MainActor func testHeaderSeasonAlignment() throws {
         let app = XCUIApplication()
         app.launch()
@@ -337,7 +361,8 @@ final class LeagueUITests: XCTestCase {
         capture("Standings")
         app.tabBars.buttons["Stats"].tap()
         XCTAssertTrue(app.buttons["statSort"].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.searchFields["playerSearch"].exists)
+        XCTAssertTrue(app.buttons["statsSearchButton"].exists)
+        XCTAssertFalse(app.searchFields["playerSearch"].exists)
         app.buttons["statSort"].tap()
         app.buttons["Goals"].tap()
         XCTAssertEqual(app.buttons["statSort"].label, "Sort by: Goals")
@@ -361,6 +386,7 @@ final class LeagueUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Summer 2026"].waitForExistence(timeout: 5))
         capture("Player playoffs")
         app.navigationBars.buttons.firstMatch.tap()
+        app.buttons["statsSearchButton"].tap()
         XCTAssertTrue(app.searchFields["playerSearch"].waitForExistence(timeout: 5))
         app.searchFields["playerSearch"].tap()
         app.searchFields["playerSearch"].typeText("Yetis")
