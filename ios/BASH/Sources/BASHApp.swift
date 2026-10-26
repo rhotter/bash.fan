@@ -722,9 +722,9 @@ private struct StatsScreen: View {
 
     private func rowSummary(_ player: Skater) -> String {
         if showGoalies, let goalie = statsGoalies.first(where: { $0.id == player.id }) {
-            return "\(goalie.gp) GP · \(goalie.wins) W · \(GoalieMetric.gaa.display(goalie)) GAA · \(GoalieMetric.savePercentage.display(goalie)) SV%"
+            return "\(goalie.wins) W · \(GoalieMetric.gaa.display(goalie)) GAA · \(GoalieMetric.savePercentage.display(goalie)) SV%"
         }
-        return "\(player.goals) Goals · \(player.assists) Assists · \(player.points) Points"
+        return "\(player.goals) G · \(player.assists) A · \(player.points) Pts"
     }
     private func rowValue(_ player: Skater) -> String {
         if showGoalies, let goalie = statsGoalies.first(where: { $0.id == player.id }) { return goalieMetric.display(goalie) }
@@ -776,11 +776,11 @@ private struct StatsScreen: View {
                         Menu {
                             if showGoalies {
                                 Picker("Sort by", selection: $goalieMetric) {
-                                    ForEach(GoalieMetric.allCases) { Text($0.rawValue).tag($0) }
+                                    ForEach([GoalieMetric.savePercentage, .gaa, .wins]) { Text($0.rawValue).tag($0) }
                                 }
                             } else {
                                 Picker("Sort by", selection: $statMetric) {
-                                    ForEach(StatMetric.allCases) { Text($0.rawValue).tag($0) }
+                                    ForEach([StatMetric.points, .goals, .assists]) { Text($0.rawValue).tag($0) }
                                 }
                             }
                         } label: {
