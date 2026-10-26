@@ -21,6 +21,7 @@
 		683800C593084D9745ABEFF5 /* BASHApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0EC877F5A9341250108252B4 /* BASHApp.swift */; };
 		7BC1C475E3EDF28193024728 /* CaptureAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE0F9E0250877E74DD47B04F /* CaptureAPI.swift */; };
 		7DC713ECA7ABE393BD97505D /* CaptureController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C046876AAD9BDB28C71BB89 /* CaptureController.swift */; };
+		8E57D6661357EBDE8EFF4BCF /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 55FF01E001302238EC4731B4 /* PrivacyInfo.xcprivacy */; };
 		8F63C217A2CEE08DF708D093 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 71A31660490BA4CF941A8532 /* Assets.xcassets */; };
 		93A10E852F136FC6C4182D8E /* OperatorAccessTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F78C40951431C5D097AF5745 /* OperatorAccessTests.swift */; };
 		963389DAC4CB4340A209DF0D /* RTMPHaishinKit in Frameworks */ = {isa = PBXBuildFile; productRef = 40B6D5260CCB5E34E1027EEA /* RTMPHaishinKit */; };
@@ -56,6 +57,7 @@
 		28810086D5C56AF02117A1D3 /* BASHUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = BASHUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		4039A73077351F50AF7E2E87 /* OperatorTools.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OperatorTools.swift; sourceTree = "<group>"; };
 		52ACE26F057E028385067236 /* GameDetail.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameDetail.swift; sourceTree = "<group>"; };
+		55FF01E001302238EC4731B4 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		662C64D85BE6FD363C3581D3 /* ScoreCardBackground.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScoreCardBackground.swift; sourceTree = "<group>"; };
 		71A31660490BA4CF941A8532 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		79083B7C7ABD5B118F2B97C1 /* LoadingPlaceholder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoadingPlaceholder.swift; sourceTree = "<group>"; };
@@ -128,6 +130,7 @@
 				D9F0304B777B7EDEA935F9D1 /* NativeScorekeeper.swift */,
 				4039A73077351F50AF7E2E87 /* OperatorTools.swift */,
 				B28834DA8ABAFE900240AFA9 /* PlayerHistory.swift */,
+				55FF01E001302238EC4731B4 /* PrivacyInfo.xcprivacy */,
 				662C64D85BE6FD363C3581D3 /* ScoreCardBackground.swift */,
 			);
 			path = Sources;
@@ -265,6 +268,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				8F63C217A2CEE08DF708D093 /* Assets.xcassets in Resources */,
+				8E57D6661357EBDE8EFF4BCF /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -480,7 +484,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 0.1;
+				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = fan.bash.league;
 				SDKROOT = iphoneos;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) BASH_LEAGUE";
@@ -507,7 +511,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 0.1;
+				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = fan.bash.league;
 				SDKROOT = iphoneos;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) BASH_LEAGUE";

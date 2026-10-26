@@ -18,6 +18,9 @@ struct OperatorMenu: View {
     @State private var tool: OperatorTool?
     var body: some View {
         Menu {
+            Link("App support", destination: URL(string: "https://www.bayareastreethockey.com/mobile/support.html")!)
+            Link("Privacy policy", destination: URL(string: "https://www.bayareastreethockey.com/mobile/privacy.html")!)
+            Divider()
             Button { tool = .scorekeeper } label: { Label("Scorekeeper", systemImage: "pencil.and.list.clipboard") }
             Button { tool = .recorder } label: { Label("Record game", systemImage: "video") }
             if let game { ShareLink(item: game.url) { Label("Share game", systemImage: "square.and.arrow.up") } }
