@@ -179,7 +179,12 @@ struct LeagueRoot: View {
     }
 
     private var gamesScreen: some View {
-        Group {
+        VStack(spacing: 0) {
+            LeagueHeader(title: "Scores", operatorGames: weekGames)
+            VStack(spacing: 4) {
+                HStack { seasonPicker; Spacer() }.padding(.horizontal, 12)
+                if !weeks.isEmpty { weekSlider }
+            }
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 14) {
                     statusSection
@@ -207,15 +212,11 @@ struct LeagueRoot: View {
                 }.padding(.horizontal, 12).padding(.vertical, 10)
                     .id(activeWeek?.id)
             }
-            // Scope pull-to-refresh to the list, excluding the week strip.
+            // The fixed headers sit outside the scroll view so they cannot cover
+            // its native pull-to-refresh indicator or inherit its refresh action.
+            .scrollBounceBehavior(.always, axes: .vertical)
             .refreshable { await store.refresh() }
-            .safeAreaInset(edge: .top, spacing: 0) {
-                VStack(spacing: 4) {
-                    HStack { seasonPicker; Spacer() }
-                        .padding(.horizontal, 12)
-                    if !weeks.isEmpty { weekSlider }
-                }.background(LeagueStyle.background)
-            }
+            .accessibilityIdentifier("scoresList")
             .task(id: activeWeek?.id) {
                 for game in weekGames.prefix(4) {
                     guard !Task.isCancelled else { return }
@@ -229,7 +230,8 @@ struct LeagueRoot: View {
             }
         }
         .background(LeagueStyle.background)
-        .leagueHeader("Scores", operatorGames: weekGames)
+        .navigationTitle("Scores")
+        .toolbar(.hidden, for: .navigationBar)
     }
 
     @ViewBuilder private var statusSection: some View {
@@ -289,18 +291,27 @@ private extension View {
         self.navigationTitle(title)
             .toolbar(.hidden, for: .navigationBar)
             .safeAreaInset(edge: .top, spacing: 0) {
-                HStack(spacing: 10) {
-                    Image("LeagueLogo").resizable().scaledToFit()
-                        .scaleEffect(1.15).offset(y: 0.35).frame(width: 34, height: 34)
-                        .clipShape(Circle()).overlay(Circle().strokeBorder(.white, lineWidth: 1))
-                        .accessibilityHidden(true)
-                    Text(title).font(.system(size: 28, weight: .bold)).foregroundStyle(.primary)
-                    Spacer()
-                    if let operatorGames { OperatorMenu(games: operatorGames) }
-                }
-                .padding(.horizontal, 12).padding(.top, 8).padding(.bottom, 12)
-                .background(LeagueStyle.background)
+                LeagueHeader(title: title, operatorGames: operatorGames)
             }
+    }
+}
+
+private struct LeagueHeader: View {
+    let title: String
+    var operatorGames: [Game]?
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image("LeagueLogo").resizable().scaledToFit()
+                .scaleEffect(1.15).offset(y: 0.35).frame(width: 34, height: 34)
+                .clipShape(Circle()).overlay(Circle().strokeBorder(.white, lineWidth: 1))
+                .accessibilityHidden(true)
+            Text(title).font(.system(size: 28, weight: .bold)).foregroundStyle(.primary)
+            Spacer()
+            if let operatorGames { OperatorMenu(games: operatorGames) }
+        }
+        .padding(.horizontal, 12).padding(.top, 8).padding(.bottom, 12)
+        .background(LeagueStyle.background)
     }
 }
 

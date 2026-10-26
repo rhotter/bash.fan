@@ -1,6 +1,36 @@
 import XCTest
 
 final class LeagueUITests: XCTestCase {
+    @MainActor func testScoresPullToRefreshPreservesWeek() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["--slow-network"]
+        app.launch()
+        let game = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "identifier BEGINSWITH 'game-'")).firstMatch
+        XCTAssertTrue(game.waitForExistence(timeout: 30))
+        XCTAssertFalse(app.buttons["refreshScores"].exists)
+        let originalY = game.frame.minY
+        let selectedWeek = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'week-'"))
+            .allElementsBoundByIndex.first(where: { $0.isSelected })
+        XCTAssertNotNil(selectedWeek)
+        let weekY = selectedWeek?.frame.minY ?? 0
+
+        let list = app.descendants(matching: .any)["scoresList"].firstMatch
+        let started = Date()
+        list.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.05))
+            .press(forDuration: 0.1, thenDragTo: list.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.83)),
+                   withVelocity: XCUIGestureVelocity(rawValue: 300), thenHoldForDuration: 0.2)
+        // XCTest waits for the native refresh animation to finish before returning
+        // from the gesture. The delayed API must have run, rather than just bouncing.
+        XCTAssertGreaterThanOrEqual(Date().timeIntervalSince(started), 8)
+        XCTAssertEqual(selectedWeek?.frame.minY ?? 0, weekY, accuracy: 2)
+        let settled = XCTNSPredicateExpectation(
+            predicate: NSPredicate { _, _ in abs(game.frame.minY - originalY) < 2 }, object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [settled], timeout: 3), .completed)
+        XCTAssertTrue(selectedWeek?.isSelected ?? false)
+        capture("Scores after pull-to-refresh")
+    }
+
     @MainActor func testNativeScorekeeper() throws {
         let app = XCUIApplication()
         app.launchArguments = ["--native-scorekeeper-preview"]
