@@ -1,5 +1,13 @@
 import SwiftUI
 
+// This is a local sample-data entry code, never a server/admin credential.
+// Keep it available in Release builds and document it in App Review notes.
+enum AppReviewAccess {
+    static func matches(_ passcode: String) -> Bool {
+        passcode.trimmingCharacters(in: .whitespacesAndNewlines) == "BASH-REVIEW-2026"
+    }
+}
+
 private enum OperatorTool: String, Identifiable {
     case scorekeeper, recorder
     var id: String { rawValue }
@@ -110,9 +118,6 @@ private struct OperatorFlow: View {
                                 .tint(LeagueStyle.orange).foregroundStyle(.black)
                                 .disabled(pin.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || website.busy)
                                 Text("Your passcode isn’t saved.").font(.footnote).foregroundStyle(.secondary)
-                                Button("Try demo") { showDemo = true }.disabled(website.busy)
-                                Text("Practice with sample data. Demo recordings stay on this phone; nothing is published.")
-                                    .font(.footnote).foregroundStyle(.secondary).multilineTextAlignment(.center)
                             }
                         }
                         .frame(maxWidth: 480).padding(.horizontal, 24).padding(.top, 32)
@@ -157,6 +162,12 @@ private struct OperatorFlow: View {
     private func signIn() {
         guard !website.busy, !pin.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
         let submitted = pin; pin = ""
+        if AppReviewAccess.matches(submitted) {
+            website.signOut()
+            website.error = nil
+            showDemo = true
+            return
+        }
         Task { await website.signIn(pin: submitted) }
     }
 }

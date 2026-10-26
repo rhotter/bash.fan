@@ -1,6 +1,40 @@
 import XCTest
 
 final class LeagueUITests: XCTestCase {
+    @MainActor func testReviewerScorekeeperCode() throws {
+        try checkReviewerCode(tool: "Scorekeeper")
+    }
+
+    @MainActor func testReviewerRecorderCode() throws {
+        try checkReviewerCode(tool: "Record game")
+    }
+
+    @MainActor private func checkReviewerCode(tool: String) throws {
+        let app = XCUIApplication()
+        app.launch()
+        let menu = app.buttons["operatorMenu"].firstMatch
+        XCTAssertTrue(menu.waitForExistence(timeout: 30))
+        menu.tap()
+        app.buttons[tool].tap()
+        let passcode = app.secureTextFields["adminPasscode"]
+        XCTAssertTrue(passcode.waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["Try demo"].exists)
+        XCTAssertFalse(app.buttons["Continue"].isEnabled)
+        capture("Reviewer - \(tool) passcode")
+        passcode.tap()
+        passcode.typeText("BASH-REVIEW-2026")
+        app.buttons["Continue"].tap()
+        let destination = tool == "Scorekeeper" ? app.buttons["recordGoal"] : app.buttons["Open camera"]
+        XCTAssertTrue(destination.waitForExistence(timeout: 10))
+        capture("Reviewer - \(tool) unlocked")
+        app.buttons["Done"].firstMatch.tap()
+        XCTAssertTrue(passcode.waitForExistence(timeout: 5))
+        XCTAssertEqual(passcode.value as? String, "Admin passcode")
+        app.buttons["Cancel"].tap()
+        XCTAssertTrue(menu.waitForExistence(timeout: 5))
+        app.terminate()
+    }
+
     @MainActor func testAboutLinks() throws {
         let app = XCUIApplication()
         app.launch()

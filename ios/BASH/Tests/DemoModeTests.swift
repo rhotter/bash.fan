@@ -2,6 +2,14 @@ import XCTest
 @testable import BASH
 
 final class DemoModeTests: XCTestCase {
+    func testReviewerCodeIsExactAndAllowsPastedWhitespace() {
+        XCTAssertTrue(AppReviewAccess.matches("BASH-REVIEW-2026"))
+        XCTAssertTrue(AppReviewAccess.matches("  BASH-REVIEW-2026\n"))
+        for value in ["", " ", "BASH-REVIEW", "bash-review-2026", "BASH-REVIEW-2026x", "preview-only"] {
+            XCTAssertFalse(AppReviewAccess.matches(value))
+        }
+    }
+
     @MainActor func testScorekeeperDemoSavesAndFinalizesWithoutServerOrDraft() async throws {
         let model = NativeScorekeeper.sample()
         XCTAssertTrue(model.preview)
