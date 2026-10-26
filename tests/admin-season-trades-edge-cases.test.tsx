@@ -1008,7 +1008,14 @@ describe("Admin Season Trades & Roster Mutations Edge Cases", () => {
         notesArea.dispatchEvent(new Event("change", { bubbles: true }))
       })
 
-      // Click Execute Trade
+      // Click Review Trade then Execute Trade
+      const reviewBtn = Array.from(document.querySelectorAll("button")).find((b) =>
+        b.textContent?.includes("Review Trade")
+      )!
+      await act(async () => {
+        reviewBtn.click()
+      })
+
       const executeBtn = Array.from(document.querySelectorAll("button")).find((b) =>
         b.textContent?.includes("Execute Trade")
       )!
@@ -1101,7 +1108,14 @@ describe("Admin Season Trades & Roster Mutations Edge Cases", () => {
         aCheckbox.click()
       })
 
-      // Execute trade
+      // Review and execute trade
+      const reviewBtn = Array.from(document.querySelectorAll("button")).find((b) =>
+        b.textContent?.includes("Review Trade")
+      )!
+      await act(async () => {
+        reviewBtn.click()
+      })
+
       const executeBtn = Array.from(document.querySelectorAll("button")).find((b) =>
         b.textContent?.includes("Execute Trade")
       )!

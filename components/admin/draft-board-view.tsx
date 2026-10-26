@@ -20,7 +20,7 @@ import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip"
 import { PlayerCardModal } from "@/components/player-card-modal"
-import { resolvePreDraftTrades, type PreDraftTradeInput } from "@/lib/draft-trade-resolver"
+import { resolvePreDraftTrades, type PreDraftTradeInput, type SinglePickTransferInput } from "@/lib/draft-trade-resolver"
 import { generatePickSlots, isPlayerGoalie } from "@/lib/draft-helpers"
 import { TeamLogo } from "@/components/team-logo"
 
@@ -863,7 +863,7 @@ export function DraftBoardView({
       const teamSlugs = teams.map((t) => t.teamSlug)
 
       if (preDraftTrades.length > 0) {
-        // Build trade inputs from stored trade items
+        // Build trade inputs from stored trade items (both 2-item swaps and 1-item prior-season transfers)
         const tradeInputs: PreDraftTradeInput[] = preDraftTrades
           .filter((t) => t.items.length === 2)
           .map((t) => ({
@@ -875,7 +875,15 @@ export function DraftBoardView({
             teamBOriginalOwner: t.items[1].fromTeamSlug,
           }))
 
-        const ownershipMap = resolvePreDraftTrades(teamSlugs, draft.rounds, tradeInputs)
+        const singleTransfers: SinglePickTransferInput[] = preDraftTrades
+          .filter((t) => t.items.length === 1 && Boolean(t.items[0]?.round))
+          .map((t) => ({
+            originalTeamSlug: t.items[0].fromTeamSlug,
+            round: t.items[0].round!,
+            toTeamSlug: t.items[0].toTeamSlug,
+          }))
+
+        const ownershipMap = resolvePreDraftTrades(teamSlugs, draft.rounds, tradeInputs, singleTransfers)
         const previewSlots = generatePickSlots(teamSlugs, draft.rounds, draft.draftType as "snake" | "linear", ownershipMap)
 
         for (const slot of previewSlots) {

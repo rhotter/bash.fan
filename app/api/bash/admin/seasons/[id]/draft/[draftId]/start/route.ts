@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
 import { db, schema } from "@/lib/db"
-import { eq, and } from "drizzle-orm"
+import { eq, and, asc, inArray } from "drizzle-orm"
 import { getSession } from "@/lib/admin-session"
-import { resolvePreDraftTrades, type PreDraftTradeInput } from "@/lib/draft-trade-resolver"
+import { resolvePreDraftTrades, type PreDraftTradeInput, type SinglePickTransferInput } from "@/lib/draft-trade-resolver"
 import { generatePickSlots } from "@/lib/draft-helpers"
 import { syncDraftBanner } from "@/lib/draft-banner-sync"
 
@@ -59,16 +59,35 @@ export async function POST(_request: NextRequest, context: RouteContext) {
       .select()
       .from(schema.draftTrades)
       .where(eq(schema.draftTrades.draftId, draftId))
+      .orderBy(asc(schema.draftTrades.tradedAt), asc(schema.draftTrades.id))
+
+    const allItems =
+      trades.length > 0
+        ? await db
+            .select()
+            .from(schema.draftTradeItems)
+            .where(
+              inArray(
+                schema.draftTradeItems.tradeId,
+                trades.map((t) => t.id)
+              )
+            )
+            .orderBy(asc(schema.draftTradeItems.id))
+        : []
+
+    const itemsByTradeId = new Map<string, typeof allItems>()
+    for (const item of allItems) {
+      const list = itemsByTradeId.get(item.tradeId) || []
+      list.push(item)
+      itemsByTradeId.set(item.tradeId, list)
+    }
 
     // Rebuild trade inputs from stored trade items
     // Supports both 2-item pick swaps and 1-item prior-season pick transfers
     const tradeInputs: PreDraftTradeInput[] = []
-    const singleTransfers: Array<{ originalTeamSlug: string; round: number; toTeamSlug: string }> = []
+    const singleTransfers: SinglePickTransferInput[] = []
     for (const trade of trades) {
-      const items = await db
-        .select()
-        .from(schema.draftTradeItems)
-        .where(eq(schema.draftTradeItems.tradeId, trade.id))
+      const items = itemsByTradeId.get(trade.id) || []
 
       if (items.length === 2) {
         // Item 0: side A (from original owner → to team B)
@@ -90,14 +109,8 @@ export async function POST(_request: NextRequest, context: RouteContext) {
       }
     }
 
-    // Resolve the final ownership map
-    const ownershipMap = resolvePreDraftTrades(teamSlugs, draft.rounds, tradeInputs)
-    for (const transfer of singleTransfers) {
-      const key = `${transfer.originalTeamSlug}::${transfer.round}`
-      if (ownershipMap.has(key) && teamSlugs.includes(transfer.toTeamSlug)) {
-        ownershipMap.set(key, transfer.toTeamSlug)
-      }
-    }
+    // Resolve the final ownership map (1-item prior-season transfers applied before 2-item pre-draft swaps)
+    const ownershipMap = resolvePreDraftTrades(teamSlugs, draft.rounds, tradeInputs, singleTransfers)
 
     // 3. Generate all pick slots
     const pickSlots = generatePickSlots(

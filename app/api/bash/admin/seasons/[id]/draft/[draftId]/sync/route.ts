@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
 import { db, schema } from "@/lib/db"
-import { eq } from "drizzle-orm"
+import { eq, and, inArray, asc } from "drizzle-orm"
 import { getSession } from "@/lib/admin-session"
+import { getTargetFallSeasonCandidates } from "@/lib/trade-helpers"
 
 interface RouteContext {
   params: Promise<{ id: string; draftId: string }>
@@ -78,6 +79,69 @@ export async function POST(_request: NextRequest, context: RouteContext) {
           position: i + 1,
         }))
       )
+    }
+
+    // ── Re-import prior-season Fall draft pick trades ───────────────────
+    // For Fall drafts, re-seed 1-item pick transfers from prior Fall season_trade_items
+    // so configuring the draft via DraftWizard does not lose traded future picks.
+    const [season] = await db
+      .select({ seasonType: schema.seasons.seasonType })
+      .from(schema.seasons)
+      .where(eq(schema.seasons.id, seasonId))
+      .limit(1)
+
+    if (season?.seasonType === "fall") {
+      const targetCandidates = getTargetFallSeasonCandidates(seasonId, season.seasonType)
+      if (targetCandidates.length > 0) {
+        const priorPickItems = await db
+          .select({
+            tradeId: schema.seasonTradeItems.tradeId,
+            fromTeamSlug: schema.seasonTradeItems.fromTeamSlug,
+            toTeamSlug: schema.seasonTradeItems.toTeamSlug,
+            round: schema.seasonTradeItems.draftPickRound,
+            originalTeamSlug: schema.seasonTradeItems.draftPickOriginalTeamSlug,
+            tradedAt: schema.seasonTrades.tradedAt,
+          })
+          .from(schema.seasonTradeItems)
+          .innerJoin(
+            schema.seasonTrades,
+            eq(schema.seasonTradeItems.tradeId, schema.seasonTrades.id)
+          )
+          .where(
+            and(
+              eq(schema.seasonTradeItems.itemType, "draft_pick"),
+              inArray(schema.seasonTradeItems.draftPickTargetSeason, targetCandidates)
+            )
+          )
+          .orderBy(
+            asc(schema.seasonTrades.tradedAt),
+            asc(schema.seasonTrades.id),
+            asc(schema.seasonTradeItems.id)
+          )
+
+        for (const item of priorPickItems) {
+          if (!item.round) continue
+          const origOwner = item.originalTeamSlug || item.fromTeamSlug
+          const via = origOwner !== item.fromTeamSlug ? ` (via ${origOwner})` : ""
+          const draftTradeId = `trade-${crypto.randomUUID()}`
+
+          await db.insert(schema.draftTrades).values({
+            id: draftTradeId,
+            draftId,
+            teamASlug: item.fromTeamSlug,
+            teamBSlug: item.toTeamSlug,
+            tradeType: "pre_draft_pick_swap",
+            description: `Prior season trade: ${item.fromTeamSlug} Rd ${item.round}${via} → ${item.toTeamSlug}`,
+          })
+
+          await db.insert(schema.draftTradeItems).values({
+            tradeId: draftTradeId,
+            fromTeamSlug: origOwner,
+            toTeamSlug: item.toTeamSlug,
+            round: item.round,
+          })
+        }
+      }
     }
 
     // ── Sync Player Pool ────────────────────────────────────────────────
