@@ -56,17 +56,17 @@ describe("Error messages in real forms and loaders", () => {
   it("never authenticates or saves game state after PIN validation returns a server error", async () => {
     const success = vi.fn()
     await withUI(<PinDialog open onOpenChange={() => {}} gameId="g55" currentState={{ goals: [] }} onSuccess={success} />, async () => {
-      await submit(document.querySelector<HTMLInputElement>('input[placeholder="Enter PIN"]')!)
+      await submit(document.querySelector<HTMLInputElement>('input[placeholder="Admin passcode"]')!)
       expect(success).not.toHaveBeenCalled()
       expect(document.body.textContent).toContain("Reload to check")
       expect(document.body.textContent).not.toContain("Invalid PIN")
-      expect(vi.mocked(fetch).mock.calls.map(([url]) => url)).toEqual(["/api/bash/admin/validate-pin"])
+      expect(vi.mocked(fetch).mock.calls.map(([url]) => url)).toEqual(["/api/bash/admin/login"])
     })
   })
 
   it("does not blame an admin's PIN when the server fails", async () => {
     await withUI(<AdminLoginGate />, async (container) => {
-      await submit(container.querySelector<HTMLInputElement>('input[placeholder="Enter PIN"]')!)
+      await submit(container.querySelector<HTMLInputElement>('input[placeholder="Admin passcode"]')!)
       expect(container.textContent).toContain("Reload to check")
       expect(container.textContent).not.toContain("Invalid PIN")
     })

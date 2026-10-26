@@ -5,9 +5,13 @@ vi.mock("@/lib/push/apns", () => ({ sendPush: send, pushConfigured: configured }
 import { PUT } from "@/app/api/bash/notifications/devices/route"
 import { dispatchGameAlerts } from "@/lib/push/dispatch"
 const device = { id: "00000000-0000-4000-8000-000000000001", token: "a".repeat(64), environment: "production", teams: ["seals"], games: [], enabled: true }
-const request = (body = device, secret = "b".repeat(64)) => new Request("http://localhost/api/bash/notifications/devices", { method: "PUT", headers: { authorization: `Bearer ${secret}`, "content-type": "application/json" }, body: JSON.stringify(body) })
+const request = (body: typeof device & { kinds?: string[] } = device, secret = "b".repeat(64)) => new Request("http://localhost/api/bash/notifications/devices", { method: "PUT", headers: { authorization: `Bearer ${secret}`, "content-type": "application/json" }, body: JSON.stringify(body) })
 beforeEach(() => { vi.clearAllMocks(); configured.mockReturnValue(true); query.mockReset(); send.mockReset() })
 describe("push preferences", () => {
+ it("rejects unknown alert kinds", async () => { expect((await PUT(request({ ...device, kinds: ["penalty"] }))).status).toBe(400); expect(query).not.toHaveBeenCalled() })
+ it("accepts a subset of alert kinds", async () => { query.mockResolvedValue([{ id: device.id }]); expect((await PUT(request({ ...device, kinds: ["final"] }))).status).toBe(200) })
+ it("accepts all alert kinds disabled", async () => { query.mockResolvedValue([{ id: device.id }]); expect((await PUT(request({ ...device, kinds: [], enabled: false }))).status).toBe(200) })
+ it("accepts older clients without alert kinds", async () => { query.mockResolvedValue([{ id: device.id }]); expect((await PUT(request())).status).toBe(200) })
  it("rejects unauthenticated installations before writing", async () => { expect((await PUT(request(device,"bad"))).status).toBe(401); expect(query).not.toHaveBeenCalled() })
  it("rejects malformed tokens", async () => { expect((await PUT(request({ ...device, token: "not-a-token" }))).status).toBe(400); expect(query).not.toHaveBeenCalled() })
  it("does not claim alerts are active without provider configuration", async () => { configured.mockReturnValue(false); expect((await PUT(request())).status).toBe(503); expect(query).not.toHaveBeenCalled() })
@@ -15,9 +19,21 @@ describe("push preferences", () => {
  it("allows disabling when provider is unavailable", async () => { configured.mockReturnValue(false); query.mockResolvedValue([{ id: device.id }]); expect((await PUT(request({ ...device, enabled: false }))).status).toBe(200) })
 })
 const job = { event_id: "e1", device_id: device.id, attempts: 1 }
-const event = { ...device, id: "e1", game_id: "g1", kind: "goal", goal_id: "goal1", created_at: new Date().toISOString(), home_team: "seals", away_team: "yetis", home_name: "Seals", away_name: "Yetis", home_score: 1, away_score: 0, state: { goals: [{ id: "goal1", team: "seals", scorerId: 7 }] } }
+const event = { ...device, kinds: ["goal", "start", "final"], id: "e1", game_id: "g1", kind: "goal", goal_id: "goal1", created_at: new Date().toISOString(), home_team: "seals", away_team: "yetis", home_name: "Seals", away_name: "Yetis", home_score: 1, away_score: 0, state: { goals: [{ id: "goal1", team: "seals", scorerId: 7 }] } }
 function setup(row = event) { query.mockResolvedValue([]).mockResolvedValueOnce([job]).mockResolvedValueOnce([row]) }
 describe("push delivery", () => {
+ it.each(["goal", "start", "final"])("skips an opted-out %s event queued before the preference changed", async kind => {
+  setup({ ...event, kind, kinds: [] }); await dispatchGameAlerts(); expect(send).not.toHaveBeenCalled()
+ })
+ it("does not send goals to a final-score-only subscriber", async () => {
+  setup({ ...event, kinds: ["final"] }); await dispatchGameAlerts(); expect(send).not.toHaveBeenCalled()
+ })
+ it.each(["start", "final"])("sends an opted-in %s event", async kind => {
+  setup({ ...event, kind, kinds: [kind], goal_id: "", ...{ status: kind === "final" ? "final" : "live" } })
+  send.mockResolvedValue({ status: 200 })
+  expect((await dispatchGameAlerts()).sent).toBe(1)
+  expect(send).toHaveBeenCalledWith(expect.objectContaining({ title: kind === "final" ? "Final score" : "Game started" }))
+ })
  it("skips a goal removed before delivery", async () => { setup({ ...event, state: { goals: [] } }); await dispatchGameAlerts(); expect(send).not.toHaveBeenCalled() })
  it("skips expired notifications", async () => { setup({ ...event, created_at: "2020-01-01" }); await dispatchGameAlerts(); expect(send).not.toHaveBeenCalled() })
  it("rechecks unfollowed games before sending", async () => { setup({ ...event, teams: [] }); await dispatchGameAlerts(); expect(send).not.toHaveBeenCalled() })

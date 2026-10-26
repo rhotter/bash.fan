@@ -1,6 +1,6 @@
 # AGENTS.md
 
-This file provides guidance to Codex (Codex.ai/code) when working with code in this repository.
+This file is the shared source of instructions for coding agents working in this repository.
 
 ## Project Overview
 
@@ -85,6 +85,7 @@ Each page follows: async Server Component (data fetch via `React.cache` / `lib/c
 - `lib/db/game-id.ts` — Collision-free sequential `g[n]` game ID generator backed by `games_gen_seq`
 - `lib/banner-helpers.ts` — Pure helper algorithms, countdown suffixes, and banner contract validators
 - `lib/draft-banner-sync.ts` — Automated banner sync engine across draft lifecycle state transitions
+- `lib/csv-utils.ts` — Shared CSV parser for Sportability exports
 - `lib/draft-helpers.ts` — Snake/linear pick slot generation
 - `lib/draft-trade-resolver.ts` — Chain trade resolution engine
 - `lib/trade-helpers.ts` — Mid-season trade payload validation (2-team and N-team circular trades, Fall target season resolution, and round-based acquired pick provenance)

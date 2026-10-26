@@ -1,0 +1,11 @@
+# Game alerts
+
+The iOS **Game alerts** item in the three-dot menu follows teams or an individual upcoming/live game. Permission is requested only when following. Tapping a notification opens the game, including games outside the selected season. Preferences are stored on this device; the installation secret is kept in Keychain.
+
+Production uses a topic-restricted APNs key for `fan.bash.league`. `APNS_KEY_ID`, `APNS_TEAM_ID`, and `APNS_PRIVATE_KEY` are server-only Vercel secrets. The TestFlight profile includes the production push entitlement. Debug builds request sandbox tokens and need a separate sandbox provider key before testing real push delivery; the production key intentionally cannot deliver to them.
+
+Apply `npx tsx scripts/deploy-push-schema.ts --prod` before deploying the routes (omit `--prod` for the explicit development database). This additive migration is repeatable and does not replay existing games. The `game_live` trigger queues recipients when a new goal, start, or successful finalization is committed. Historical games, failed finalization, repeat saves and duplicate team/game subscriptions do not create duplicate deliveries. Alerts follow team slugs rather than franchises across renamed seasons.
+
+Scorekeeper saves call the dispatcher using Next.js `after()`. An authenticated minute cron retries missed deliveries. Workers claim leases, recheck subscription and goal removal, discard alerts older than 15 minutes, and disable invalid tokens. APNs collapse IDs deduplicate pending retries; an ambiguous network failure after Apple accepted a request can still produce a duplicate. iOS settings, Focus, network conditions and Apple delivery affect when a device presents an alert.
+
+Verification: `npx vitest run tests/push-alerts.test.ts tests/scorekeeper-state.test.ts tests/scorekeeper-finalize.test.ts tests/scorekeeper-native.test.ts`; iOS UI test `GameAlertsUITests/testAlertsMenuAndTeams`. The migration was also executed twice against isolated PostgreSQL (PGlite), checking start/goal/final transitions, multi-subscription dedupe, removed/restored event IDs, historical exclusion and disabled devices. Physical-device delivery must be checked using the signed TestFlight build, without creating fake league scoring events.

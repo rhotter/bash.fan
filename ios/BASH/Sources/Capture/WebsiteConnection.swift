@@ -1,0 +1,119 @@
+import Foundation
+
+struct CameraQualityMismatch: Decodable {
+    let side: String
+    let quality: RecordingQuality
+}
+private struct ClaimResponse: Decodable {
+    let sessionId: String?
+    let side: String?
+    let token: String?
+    let qualityMismatch: CameraQualityMismatch?
+}
+private struct OKResponse: Decodable { let ok: Bool }
+private struct WebsiteError: LocalizedError {
+    let status: Int
+    let message: String
+    var errorDescription: String? { message }
+}
+
+@MainActor
+final class WebsiteConnection: ObservableObject {
+    @Published private(set) var signedIn = false
+    @Published private(set) var busy = false
+    @Published var error: String?
+    @Published var cameraConflict = false
+    @Published var qualityMismatch: CameraQualityMismatch?
+    // Operator cookies last only for this app session. The PIN is never saved.
+    private let session: URLSession
+    private var authenticatedServer: URL?
+    private let serverOverride: URL?
+    private let requiresAdmin: Bool
+
+    init(server: URL? = nil, requiresAdmin: Bool = false, session: URLSession? = nil) {
+        self.serverOverride = server
+        self.requiresAdmin = requiresAdmin
+        self.session = session ?? URLSession(configuration: .ephemeral)
+    }
+
+    var cookies: [HTTPCookie] {
+        guard signedIn, let authenticatedServer else { return [] }
+        return session.configuration.httpCookieStorage?.cookies(for: authenticatedServer) ?? []
+    }
+
+    private func serverURL() throws -> URL {
+        try serverOverride ?? BASHService.server()
+    }
+    private func call<T: Decodable>(_ server: URL, _ path: String, body: [String: Any]? = nil) async throws -> T {
+        var request = URLRequest(url: server.appending(path: path), cachePolicy: .reloadIgnoringLocalCacheData); request.timeoutInterval = 20
+        if let body { request.httpMethod = "POST"; request.httpBody = try JSONSerialization.data(withJSONObject: body); request.setValue("application/json", forHTTPHeaderField: "Content-Type") }
+        let (data, response) = try await session.data(for: request)
+        guard let response = response as? HTTPURLResponse, (200..<300).contains(response.statusCode) else {
+            if (response as? HTTPURLResponse)?.statusCode == 401 { signedIn = false }
+            let message = (try? JSONSerialization.jsonObject(with: data) as? [String: String])?["error"] ?? "Could not reach the website. Try again."
+            throw WebsiteError(status: (response as? HTTPURLResponse)?.statusCode ?? 0, message: message)
+        }
+        return try JSONDecoder().decode(T.self, from: data)
+    }
+    func signIn(pin: String) async {
+        guard !busy else { return }; busy = true; error = nil; defer { busy = false }
+        do {
+            let server = try serverURL()
+            let _: OKResponse = try await call(server, requiresAdmin ? "api/bash/admin/login" : "api/bash/scorekeeper/login", body: ["pin": pin.trimmingCharacters(in: .whitespacesAndNewlines)])
+            if requiresAdmin {
+                struct AdminResponse: Decodable { let isAdmin: Bool }
+                let admin: AdminResponse = try await call(server, "api/bash/admin/me")
+                guard admin.isAdmin else { throw CaptureError.message("An admin passcode is required.") }
+            }
+            authenticatedServer = server; signedIn = true
+        } catch { signOut(); self.error = error.localizedDescription }
+    }
+    func connect(side: String, camera: CaptureController, replace: Bool = false, allowQualityMismatch: Bool = false) async -> Bool {
+        guard let server = authenticatedServer, !busy, !camera.recording else { return false }
+        busy = true; error = nil; cameraConflict = false; qualityMismatch = nil; defer { busy = false }
+        do {
+            var body: [String: Any] = ["side": side, "replace": replace, "quality": camera.quality.rawValue, "allowQualityMismatch": allowQualityMismatch]
+            if let current = camera.pairing, current.server == server, current.side == side {
+                body["sessionId"] = current.session; body["token"] = current.token
+            }
+            let claim: ClaimResponse = try await call(server, "api/bash/video/capture", body: body)
+            if let mismatch = claim.qualityMismatch { qualityMismatch = mismatch; return false }
+            guard let sessionId = claim.sessionId, let claimedSide = claim.side, let token = claim.token else {
+                throw CaptureError.message("Could not connect this camera.")
+            }
+            var link = URLComponents(); link.scheme = "bashcapture"; link.host = "pair"
+            link.queryItems = [URLQueryItem(name: "server", value: server.absoluteString), URLQueryItem(name: "session", value: sessionId), URLQueryItem(name: "side", value: claimedSide), URLQueryItem(name: "token", value: token)]
+            guard let url = link.url else { throw CaptureError.message("Could not connect this camera.") }
+            let pairing = try Pairing(link: url.absoluteString)
+            try CameraKeychain.save(pairing); camera.pairing = pairing; camera.configuration = nil
+            UserDefaults.standard.set(pairing.key, forKey: "pairingKey")
+            camera.error = nil
+            if camera.liveEnabled {
+                do { let _: OKResponse = try await call(server, "api/bash/video/\(pairing.session)", body: ["action": "prepareStream", "side": side]) }
+                catch { camera.error = "Live setup could not finish. Local recording is still available. Reopen the camera to retry." }
+            }
+            await camera.refreshConfiguration()
+            let connected = camera.configuration != nil && camera.configuration?.ended == false
+            if !connected { error = camera.error ?? "Could not connect. Try opening the camera again." }
+            return connected
+        } catch {
+            self.error = error.localizedDescription
+            cameraConflict = (error as? WebsiteError)?.status == 409
+            return false
+        }
+    }
+    func endRecording(camera: CaptureController) async -> Bool {
+        guard let server = authenticatedServer, let pairing = camera.pairing,
+              pairing.server == server, signedIn, !busy, !camera.recording else { return false }
+        busy = true; error = nil; defer { busy = false }
+        do {
+            let _: OKResponse = try await call(server, "api/bash/video/\(pairing.session)", body: ["action": "end"])
+            await camera.refreshConfiguration()
+            return true
+        } catch { self.error = error.localizedDescription; return false }
+    }
+    func signOut() {
+        session.configuration.httpCookieStorage?.removeCookies(since: .distantPast)
+        signedIn = false; authenticatedServer = nil
+    }
+}

@@ -10,7 +10,13 @@ import {
   primaryKey,
   index,
   unique,
+  uniqueIndex,
+  uuid,
+  bigint,
+  foreignKey,
+  check,
 } from "drizzle-orm/pg-core"
+import { sql } from "drizzle-orm"
 
 // ─── Seasons ────────────────────────────────────────────────────────────────
 
@@ -832,6 +838,54 @@ export type CountdownType = "none" | "deadline" | "event"
 
 export type SiteBanner = typeof siteBanners.$inferSelect
 export type NewSiteBanner = typeof siteBanners.$inferInsert
+
+// Video media lives in R2/Stream. Postgres stores sessions, credentials, and timing only.
+export const videoSessions = pgTable("video_sessions", {
+  id: text("id").primaryKey(),
+  gameId: text("game_id").references(() => games.id),
+  captureDay: text("capture_day"),
+  title: text("title").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  endedAt: timestamp("ended_at", { withTimezone: true }),
+}, t => [uniqueIndex("video_sessions_open_game").on(t.gameId).where(sql`${t.endedAt} IS NULL AND ${t.gameId} IS NOT NULL`),
+  uniqueIndex("video_sessions_capture_day").on(t.captureDay)])
+export const videoCameras = pgTable("video_cameras", {
+  sessionId: text("session_id").notNull().references(() => videoSessions.id),
+  side: text("side").notNull(),
+  tokenHash: text("token_hash"),
+  tokenExpiresAt: timestamp("token_expires_at", { withTimezone: true }),
+  recordingQuality: text("recording_quality").notNull().default("uhd60"),
+  deviceName: text("device_name"),
+  lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
+  recording: boolean("recording").notNull().default(false),
+  streaming: boolean("streaming").notNull().default(false),
+  battery: doublePrecision("battery"),
+  error: text("error"),
+  streamInputId: text("stream_input_id"),
+  offsetMs: integer("offset_ms").notNull().default(0),
+}, t => [primaryKey({ columns: [t.sessionId, t.side] }), check("video_cameras_side_check", sql`${t.side} IN ('left', 'right')`)])
+export const videoSegments = pgTable("video_segments", {
+  id: uuid("id").primaryKey(),
+  sessionId: text("session_id").notNull(),
+  side: text("side").notNull(),
+  objectKey: text("object_key").notNull().unique(),
+  startedAt: timestamp("started_at", { withTimezone: true }).notNull(),
+  duration: doublePrecision("duration").notNull(),
+  bytes: bigint("bytes", { mode: "number" }).notNull(),
+  uploadedAt: timestamp("uploaded_at", { withTimezone: true }),
+}, t => [
+  foreignKey({ columns: [t.sessionId, t.side], foreignColumns: [videoCameras.sessionId, videoCameras.side] }),
+  index("video_segments_session").on(t.sessionId, t.startedAt),
+  check("video_segments_duration_check", sql`${t.duration} > 0 AND ${t.duration} <= 180`),
+  check("video_segments_bytes_check", sql`${t.bytes} > 0 AND ${t.bytes} <= 536870912`),
+])
+export const videoMarkers = pgTable("video_markers", {
+  id: uuid("id").primaryKey(),
+  sessionId: text("session_id").notNull().references(() => videoSessions.id),
+  label: text("label").notNull(),
+  occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
+  source: text("source").notNull().default("manual"),
+})
 
 // ─── Season Trades ──────────────────────────────────────────────────────────
 

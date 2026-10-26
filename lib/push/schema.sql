@@ -5,6 +5,7 @@ CREATE TABLE IF NOT EXISTS push_devices (
  teams text[] NOT NULL DEFAULT '{}', games text[] NOT NULL DEFAULT '{}',
  enabled boolean NOT NULL DEFAULT true, updated_at timestamptz NOT NULL DEFAULT now()
 );
+ALTER TABLE push_devices ADD COLUMN IF NOT EXISTS kinds text[] NOT NULL DEFAULT ARRAY['goal','start','final'];
 CREATE TABLE IF NOT EXISTS push_events (
  id uuid PRIMARY KEY DEFAULT gen_random_uuid(), game_id text NOT NULL REFERENCES games(id),
  event_key text NOT NULL, kind text NOT NULL, goal_id text,
@@ -27,7 +28,7 @@ BEGIN
  IF eid IS NULL THEN RETURN; END IF;
  INSERT INTO push_deliveries(event_id,device_id)
  SELECT eid,d.id FROM push_devices d JOIN games g ON g.id=gid
- WHERE d.enabled AND (gid=ANY(d.games) OR g.home_team=ANY(d.teams) OR g.away_team=ANY(d.teams));
+ WHERE d.enabled AND eventkind=ANY(d.kinds) AND (gid=ANY(d.games) OR g.home_team=ANY(d.teams) OR g.away_team=ANY(d.teams));
 END $$;
 CREATE OR REPLACE FUNCTION bash_live_push_events() RETURNS trigger LANGUAGE plpgsql AS $$
 DECLARE prior jsonb; goal jsonb; match games%ROWTYPE;

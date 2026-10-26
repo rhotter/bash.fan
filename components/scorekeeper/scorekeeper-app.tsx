@@ -29,7 +29,7 @@ import {
   saveToLocalStorage, loadLocalDraft, clearLocalStorage,
   createSyncManager, type SyncStatus, type SyncRequest,
 } from "@/lib/scorekeeper-sync"
-import { captureGameTime, recordGameTiming, type TimingCapture } from "@/lib/scorekeeper-timing"
+import { captureGameTime, recordGameTiming, withoutGameTiming, type TimingCapture } from "@/lib/scorekeeper-timing"
 import { INFRACTIONS } from "@/components/scorekeeper/shared/constants"
 import { FieldLabel } from "@/components/scorekeeper/shared/field-label"
 import { AttendanceList } from "@/components/scorekeeper/shared/attendance-list"
@@ -948,7 +948,7 @@ export function ScorekeeperApp({
       const res = await fetch(`/api/bash/scorekeeper/${gameId}/finalize`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-pin": pin, "x-state-updated-at": String(snapshot.updatedAt), "x-state-revision": String(retryingSavedState ? snapshot.revision ?? 0 : syncRef.current?.getRevision() ?? snapshot.revision ?? 0) },
-        ...(expectedState && !retryingSavedState ? { body: JSON.stringify({ expectedState, state: snapshot }) } : {}),
+        ...(expectedState && !retryingSavedState ? { body: JSON.stringify({ expectedState: withoutGameTiming(expectedState), state: syncRef.current?.prepareState(snapshot) ?? snapshot }) } : {}),
       })
       receivedResponse = true
       const data = await readApiJson(res)
