@@ -48,7 +48,15 @@ import UserNotifications
     @Environment(\.scenePhase) private var phase
     var body: some Scene {
         WindowGroup {
-            LeagueRoot(store: store).environmentObject(camera)
+            Group {
+#if DEBUG
+                if ProcessInfo.processInfo.arguments.contains("--native-scorekeeper-preview") {
+                    ScorekeeperScreen(model: NativeScorekeeper.sample())
+                } else { LeagueRoot(store: store) }
+#else
+                LeagueRoot(store: store)
+#endif
+            }.environmentObject(camera)
                 .task { await camera.library.recoverInterrupted() }
                 .onChange(of: camera.recording) { _, recording in UIApplication.shared.isIdleTimerDisabled = recording }
                 .onChange(of: phase) { _, next in

@@ -41,7 +41,7 @@ export function insertGameTimingSql(entries: GameTimingEntry[], acceptedRows: SQ
   `
 }
 
-export function saveLiveStateSql(id: string, state: LiveGameState, pinHash: string): SQL {
+export function saveLiveStateSql(id: string, state: LiveGameState, pinHash: string, expectedState?: LiveGameState): SQL {
   const compact = compactGameTiming(state)
   return sql`
     WITH saved_state AS (
@@ -61,6 +61,7 @@ export function saveLiveStateSql(id: string, state: LiveGameState, pinHash: stri
           ELSE '{}'::jsonb END,
         updated_at = NOW()
       WHERE NOT (game_live.state ? 'finalizationPending')
+        AND (${expectedState === undefined} OR (game_live.state - 'timing') = (${JSON.stringify(expectedState ?? {})}::jsonb - 'timing'))
         AND COALESCE((game_live.state->>'updatedAt')::bigint, 0) <= ${state.updatedAt}
         AND EXISTS (SELECT 1 FROM games WHERE id = ${id} AND status <> 'final' AND NOT is_forfeit)
       RETURNING game_id

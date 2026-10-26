@@ -79,7 +79,7 @@ export async function PUT(
     }
 
     // A delayed autosave must not replace the state of a now-final game.
-    const savedRows = await rawSql(saveLiveStateSql(id, state, process.env.SCOREKEEPER_PIN || "unknown"))
+    const savedRows = await rawSql(saveLiveStateSql(id, state, process.env.SCOREKEEPER_PIN || "unknown", body.expectedState))
     if (!savedRows.length) return NextResponse.json({ error: "A newer state or final result has already been saved. Reload the game." }, { status: 409 })
 
     // Set game to live once play starts (period >= 1), update scores

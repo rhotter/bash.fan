@@ -1,10 +1,9 @@
 import SwiftUI
-import WebKit
 
 private enum OperatorTool: String, Identifiable {
     case scorekeeper, recorder
     var id: String { rawValue }
-    var title: String { self == .scorekeeper ? "Keep score" : "Record game" }
+    var title: String { self == .scorekeeper ? "Scorekeeper" : "Record game" }
     var server: URL {
         switch self {
         case .scorekeeper: URL(string: "https://www.bayareastreethockey.com")!
@@ -19,7 +18,7 @@ struct OperatorMenu: View {
     @State private var tool: OperatorTool?
     var body: some View {
         Menu {
-            Button { tool = .scorekeeper } label: { Label("Keep score", systemImage: "pencil.and.list.clipboard") }
+            Button { tool = .scorekeeper } label: { Label("Scorekeeper", systemImage: "pencil.and.list.clipboard") }
             Button { tool = .recorder } label: { Label("Record game", systemImage: "video") }
             if let game { ShareLink(item: game.url) { Label("Share game", systemImage: "square.and.arrow.up") } }
         } label: {
@@ -111,7 +110,7 @@ private struct OperatorFlow: View {
                         }
                     }
                     .overlay { if games.isEmpty { ContentUnavailableView("No games this week", systemImage: "calendar", description: Text("Choose another week on Scores and try again.")) } }
-                    .navigationTitle("Keep score").navigationBarTitleDisplayMode(.inline)
+                    .navigationTitle("Scorekeeper").navigationBarTitleDisplayMode(.inline)
                     .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Done") { dismiss() } } }
                 }
             }
@@ -187,100 +186,5 @@ struct LeagueRecorderScreen: View {
         Task {
             if await website.connect(side: side, camera: camera, replace: replace, allowQualityMismatch: allowMismatch) { showCamera = true }
         }
-    }
-}
-
-@MainActor private final class ScorekeeperBrowser: NSObject, ObservableObject, WKNavigationDelegate {
-    let webView: WKWebView
-    let url: URL
-    let cookies: [HTTPCookie]
-    @Published var loading = true
-    @Published var error: String?
-    init(server: URL, gameID: String, cookies: [HTTPCookie]) {
-        let configuration = WKWebViewConfiguration()
-        configuration.websiteDataStore = .nonPersistent()
-        // Keep the existing scorekeeper controls, without a second site shell.
-        // This is presentation-only; authentication and writes remain server-side.
-        configuration.userContentController.addUserScript(WKUserScript(source: """
-            const style = document.createElement('style');
-            style.textContent = `
-              body > header, body > footer, a[href^="/game/"] { display: none !important; }
-              @media (prefers-color-scheme: dark) {
-                :root, .dark {
-                  --background: #000 !important; --foreground: #f5f5f7 !important;
-                  --card: #1c1c1e !important; --card-foreground: #f5f5f7 !important;
-                  --popover: #242426 !important; --popover-foreground: #f5f5f7 !important;
-                  --secondary: #242426 !important; --secondary-foreground: #f5f5f7 !important;
-                  --muted: #242426 !important; --muted-foreground: #a1a1a6 !important;
-                  --accent: #2c2c2e !important; --accent-foreground: #f5f5f7 !important;
-                  --border: #38383a !important; --input: #38383a !important;
-                }
-              }
-            `;
-            document.head.appendChild(style);
-            """, injectionTime: .atDocumentEnd, forMainFrameOnly: true))
-        webView = WKWebView(frame: .zero, configuration: configuration)
-        url = server.appending(path: "scorekeeper/\(gameID)")
-        self.cookies = cookies
-        super.init()
-        webView.navigationDelegate = self
-        webView.isOpaque = false
-    }
-    func load() async {
-        loading = true; error = nil
-        for cookie in cookies { await webView.configuration.websiteDataStore.httpCookieStore.setCookie(cookie) }
-        webView.load(URLRequest(url: url))
-    }
-    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) { loading = false }
-    func webView(_ webView: WKWebView, decidePolicyFor navigationResponse: WKNavigationResponse, decisionHandler: @escaping (WKNavigationResponsePolicy) -> Void) {
-        if navigationResponse.isForMainFrame, let response = navigationResponse.response as? HTTPURLResponse, response.statusCode >= 400 {
-            loading = false
-            error = "The scorekeeper is unavailable for this game. Try again shortly."
-            decisionHandler(.cancel)
-        } else { decisionHandler(.allow) }
-    }
-    func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) { failed(error) }
-    func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) { failed(error) }
-    private func failed(_ error: Error) { loading = false; self.error = "Couldn’t load the scorekeeper. Check your connection and retry." }
-    func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
-        guard let destination = navigationAction.request.url,
-              destination.scheme == url.scheme, destination.host == url.host,
-              destination.path == url.path else { decisionHandler(.cancel); return }
-        decisionHandler(.allow)
-    }
-}
-
-private struct ScorekeeperWebView: UIViewRepresentable {
-    let browser: ScorekeeperBrowser
-    func makeUIView(context: Context) -> WKWebView { browser.webView }
-    func updateUIView(_ uiView: WKWebView, context: Context) {}
-}
-
-private struct ScorekeeperScreen: View {
-    let game: Game
-    @StateObject private var browser: ScorekeeperBrowser
-    @State private var confirmClose = false
-    @Environment(\.dismiss) private var dismiss
-    init(game: Game, server: URL, cookies: [HTTPCookie]) {
-        self.game = game
-        _browser = StateObject(wrappedValue: ScorekeeperBrowser(server: server, gameID: game.id, cookies: cookies))
-    }
-    var body: some View {
-        NavigationStack {
-            ZStack {
-                ScorekeeperWebView(browser: browser)
-                if browser.loading { ProgressView("Loading scorekeeper…").padding(24).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16)) }
-                if let error = browser.error {
-                    ContentUnavailableView { Label("Scorekeeper unavailable", systemImage: "wifi.exclamationmark") } description: { Text(error) } actions: { Button("Retry") { Task { await browser.load() } } }
-                        .background(Color(uiColor: .systemBackground))
-                }
-            }
-            .navigationTitle("Keep score").navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Done") { confirmClose = true } } }
-        }
-        .task { await browser.load() }
-        .confirmationDialog("Leave scorekeeper?", isPresented: $confirmClose, titleVisibility: .visible) {
-            Button("Leave scorekeeper") { dismiss() }
-        } message: { Text("Finish any edits and check that they’ve saved before leaving.") }
     }
 }

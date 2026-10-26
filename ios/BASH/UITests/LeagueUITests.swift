@@ -1,13 +1,36 @@
 import XCTest
 
 final class LeagueUITests: XCTestCase {
+    @MainActor func testNativeScorekeeper() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["--native-scorekeeper-preview"]
+        app.launch()
+        XCTAssertTrue(app.buttons["recordGoal"].waitForExistence(timeout: 10))
+        XCTAssertEqual(app.webViews.count, 0)
+        capture("Native scorekeeper")
+        app.buttons["recordGoal"].tap()
+        XCTAssertTrue(app.navigationBars["Record goal"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["saveScoringEvent"].isEnabled)
+        app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Scorer'")).firstMatch.tap()
+        app.buttons["Alex Lee"].tap()
+        capture("Native goal entry")
+        app.buttons["saveScoringEvent"].tap()
+        XCTAssertTrue(app.staticTexts["Alex Lee"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Save"].isEnabled)
+        app.buttons["Save"].tap()
+        XCTAssertFalse(app.buttons["Save"].isEnabled)
+        app.buttons["Roster"].tap()
+        XCTAssertTrue(app.staticTexts["Attendance"].waitForExistence(timeout: 5))
+        capture("Native attendance")
+    }
+
     @MainActor func testOperatorMenuRequiresPasscode() throws {
         let app = XCUIApplication()
         app.launch()
         XCTAssertTrue(app.buttons["operatorMenu"].waitForExistence(timeout: 15))
         XCTAssertEqual(app.tabBars.buttons.count, 3)
         app.buttons["operatorMenu"].tap()
-        XCTAssertTrue(app.buttons["Keep score"].exists)
+        XCTAssertTrue(app.buttons["Scorekeeper"].exists)
         XCTAssertTrue(app.buttons["Record game"].exists)
         capture("Game tools menu")
         app.buttons["Record game"].tap()
@@ -17,7 +40,7 @@ final class LeagueUITests: XCTestCase {
         capture("Record game passcode")
         app.buttons["Cancel"].tap()
         app.buttons["operatorMenu"].tap()
-        app.buttons["Keep score"].tap()
+        app.buttons["Scorekeeper"].tap()
         XCTAssertTrue(app.secureTextFields["adminPasscode"].waitForExistence(timeout: 5))
         capture("Keep score passcode")
         app.secureTextFields["adminPasscode"].tap()
