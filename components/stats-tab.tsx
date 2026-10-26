@@ -6,11 +6,12 @@ import { useState, useMemo, useCallback } from "react"
 import { useSearchParams, useRouter } from "next/navigation"
 import { usePlayerStats, type PlayerStatsData } from "@/lib/hockey-data"
 import { cn } from "@/lib/utils"
-import { SearchIcon } from "lucide-react"
+import { SearchIcon, XIcon } from "lucide-react"
 import { IntentLink as Link } from "@/components/intent-link"
 import { playerSlug } from "@/lib/player-slug"
 import { useSort, SortableTh } from "@/components/stats-table"
 import { TeamLogo } from "@/components/team-logo"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 
 type SortKey = "points" | "goals" | "assists" | "pim" | "gp" | "gwg" | "ppg" | "shg" | "eng" | "hatTricks" | "pen" | "ptsPg"
 type GoalieSortKey = "savePercentage" | "gaa" | "wins" | "losses" | "saves" | "goalsAgainst" | "shotsAgainst" | "gp" | "shutouts" | "goalieAssists"
@@ -161,6 +162,46 @@ export function StatsTab({ initialData }: { initialData?: PlayerStatsData }) {
           </>
         )}
         <div className="h-px flex-1 bg-border/40 ml-2" />
+        <Popover>
+          <PopoverTrigger asChild>
+            <button
+              type="button"
+              aria-label={nameFilter ? `Search players: ${nameFilter}` : "Search players"}
+              title="Search players"
+              className={cn(
+                "relative flex size-11 shrink-0 items-center justify-center rounded-md border border-border/40 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                nameFilter && "bg-muted text-foreground"
+              )}
+            >
+              <SearchIcon className="size-4" />
+              {nameFilter && <span className="absolute right-2 top-2 size-1.5 rounded-full bg-foreground" />}
+            </button>
+          </PopoverTrigger>
+          <PopoverContent align="end" className="w-72 max-w-[calc(100vw-2rem)] p-3">
+            <label htmlFor="stats-player-search" className="mb-2 block text-xs font-medium">Search players</label>
+            <div className="relative">
+              <SearchIcon className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+              <input
+                id="stats-player-search"
+                type="text"
+                value={nameFilter}
+                onChange={(e) => { setNameFilter(e.target.value); setSkaterPage(1); setGoaliePage(1) }}
+                placeholder="Player name…"
+                className="min-h-11 w-full rounded-md border border-border bg-background pl-9 pr-10 text-base text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+              />
+              {nameFilter && (
+                <button
+                  type="button"
+                  aria-label="Clear player search"
+                  onClick={() => { setNameFilter(""); setSkaterPage(1); setGoaliePage(1) }}
+                  className="absolute right-0 top-0 flex size-11 items-center justify-center rounded-md text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <XIcon className="size-4" />
+                </button>
+              )}
+            </div>
+          </PopoverContent>
+        </Popover>
       </div>
 
       {/* Filters Control Bar */}
@@ -293,18 +334,6 @@ export function StatsTab({ initialData }: { initialData?: PlayerStatsData }) {
               </div>
             </>
           )}
-        </div>
-
-        {/* Player Name Search */}
-        <div className="relative w-full sm:max-w-xs self-end">
-          <SearchIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground/40" />
-          <input
-            type="text"
-            value={nameFilter}
-            onChange={(e) => { setNameFilter(e.target.value); setSkaterPage(1); setGoaliePage(1) }}
-            placeholder="Search players..."
-            className="w-full rounded-md bg-card border border-border/40 pl-8 pr-3 py-1.5 text-xs text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-primary/50 min-h-[40px] sm:min-h-0"
-          />
         </div>
       </div>
 
