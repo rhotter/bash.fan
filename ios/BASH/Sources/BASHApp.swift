@@ -147,7 +147,6 @@ struct LeagueRoot: View {
     private var weeks: [GameWeek] { store.weeks }
     private var activeWeek: GameWeek? { weeks.first { $0.id == selectedWeek } ?? GameWeek.defaultWeek(in: weeks) }
     private var weekGames: [Game] { activeWeek?.games ?? [] }
-    private var dates: [String] { Array(Set(weekGames.map(\.date))).sorted() }
 
     private var weekSlider: some View {
         ScrollViewReader { proxy in
@@ -185,38 +184,18 @@ struct LeagueRoot: View {
                 HStack { seasonPicker; Spacer() }.padding(.horizontal, 12)
                 if !weeks.isEmpty { weekSlider }
             }
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 14) {
-                    statusSection
-                    if store.snapshot == nil && store.error == nil {
-                        LoadingPlaceholder(title: "Loading scores…", rows: 3, matchups: true)
-                    }
-                    ForEach(dates, id: \.self) { date in
-                        VStack(alignment: .leading, spacing: 10) {
-                            HStack {
-                                Text(weekGames.first(where: { $0.date == date })?.dateLabel ?? date).font(.headline)
-                                Spacer()
-                            }
-                            VStack(spacing: 8) {
-                                ForEach(weekGames.filter { $0.date == date }) { game in
-                                    NavigationLink { GameScreen(game: game, store: store) } label: { GameRow(game: game) }
-                                        .buttonStyle(.plain)
-                                        .background(LeagueStyle.card, in: RoundedRectangle(cornerRadius: 16))
-                                }
-                            }
-                        }.id(date)
-                    }
-                    if store.snapshot != nil && games.isEmpty && !store.loading {
-                        ContentUnavailableView("No games yet", systemImage: "rectangle.stack", description: Text("The schedule will appear here when it is published."))
-                    }
-                }.padding(.horizontal, 12).padding(.vertical, 10)
-                    .id(activeWeek?.id)
+            Group {
+                if weeks.isEmpty {
+                    scoresPage(nil)
+                } else {
+                    TabView(selection: Binding(get: { activeWeek?.id ?? "" }, set: { selectedWeek = $0 })) {
+                        ForEach(weeks) { week in
+                            scoresPage(week).tag(week.id)
+                        }
+                    }.tabViewStyle(.page(indexDisplayMode: .never))
+                        .animation(.easeInOut(duration: 0.22), value: activeWeek?.id)
+                }
             }
-            // The fixed headers sit outside the scroll view so they cannot cover
-            // its native pull-to-refresh indicator or inherit its refresh action.
-            .scrollBounceBehavior(.always, axes: .vertical)
-            .refreshable { await store.refresh() }
-            .accessibilityIdentifier("scoresList")
             .task(id: activeWeek?.id) {
                 for game in weekGames.prefix(4) {
                     guard !Task.isCancelled else { return }
@@ -232,6 +211,43 @@ struct LeagueRoot: View {
         .background(LeagueStyle.background)
         .navigationTitle("Scores")
         .toolbar(.hidden, for: .navigationBar)
+    }
+
+    private func scoresPage(_ week: GameWeek?) -> some View {
+        let weekGames = week?.games ?? []
+        let dates = Array(Set(weekGames.map(\.date))).sorted()
+        return ScrollView {
+            LazyVStack(alignment: .leading, spacing: 14) {
+                statusSection
+                if store.snapshot == nil && store.error == nil {
+                    LoadingPlaceholder(title: "Loading scores…", rows: 3, matchups: true)
+                }
+                ForEach(dates, id: \.self) { date in
+                    VStack(alignment: .leading, spacing: 10) {
+                        HStack {
+                            Text(weekGames.first(where: { $0.date == date })?.dateLabel ?? date).font(.headline)
+                            Spacer()
+                        }
+                        VStack(spacing: 8) {
+                            ForEach(weekGames.filter { $0.date == date }) { game in
+                                NavigationLink { GameScreen(game: game, store: store) } label: { GameRow(game: game) }
+                                    .buttonStyle(.plain)
+                                    .background(LeagueStyle.card, in: RoundedRectangle(cornerRadius: 16))
+                            }
+                        }
+                    }.id(date)
+                }
+                if store.snapshot != nil && games.isEmpty && !store.loading {
+                    ContentUnavailableView("No games yet", systemImage: "rectangle.stack", description: Text("The schedule will appear here when it is published."))
+                }
+            }.padding(.horizontal, 12).padding(.vertical, 10)
+
+        }
+        // The fixed headers sit outside the scroll view so they cannot cover
+        // its native pull-to-refresh indicator or inherit its refresh action.
+        .scrollBounceBehavior(.always, axes: .vertical)
+        .refreshable { await store.refresh() }
+        .accessibilityIdentifier("scoresList")
     }
 
     @ViewBuilder private var statusSection: some View {

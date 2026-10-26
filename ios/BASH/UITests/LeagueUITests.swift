@@ -1,6 +1,41 @@
 import XCTest
 
 final class LeagueUITests: XCTestCase {
+    @MainActor func testSwipeWeeksAndGameTabs() throws {
+        let app = XCUIApplication()
+        app.launch()
+        let game = app.descendants(matching: .any)["game-g207"].firstMatch
+        XCTAssertTrue(game.waitForExistence(timeout: 40))
+        let weeks = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'week-'" )).allElementsBoundByIndex
+        let index = try XCTUnwrap(weeks.firstIndex(where: { $0.isSelected }))
+        XCTAssertGreaterThan(weeks.count, 1)
+        let forward = index + 1 < weeks.count
+        let next = weeks[forward ? index + 1 : index - 1]
+        let start = app.coordinate(withNormalizedOffset: CGVector(dx: forward ? 0.85 : 0.15, dy: 0.55))
+        let end = app.coordinate(withNormalizedOffset: CGVector(dx: forward ? 0.15 : 0.85, dy: 0.55))
+        start.press(forDuration: 0.05, thenDragTo: end)
+        XCTAssertTrue(next.isSelected)
+        capture("Scores after swiping to another week")
+        end.press(forDuration: 0.05, thenDragTo: start)
+        XCTAssertTrue(weeks[index].isSelected)
+        app.swipeUp()
+        XCTAssertTrue(weeks[index].isSelected, "Vertical scrolling must not change weeks")
+        app.swipeDown()
+        XCTAssertTrue(game.isHittable)
+        game.tap()
+        XCTAssertTrue(app.buttons["gameTab-Summary"].waitForExistence(timeout: 25))
+        let right = app.coordinate(withNormalizedOffset: CGVector(dx: 0.85, dy: 0.6))
+        let left = app.coordinate(withNormalizedOffset: CGVector(dx: 0.15, dy: 0.6))
+        right.press(forDuration: 0.05, thenDragTo: left)
+        XCTAssertTrue(app.buttons["gameTab-Stats"].isSelected)
+        XCTAssertTrue(app.segmentedControls["boxTeam"].waitForExistence(timeout: 10))
+        capture("Game stats after swiping")
+        left.press(forDuration: 0.05, thenDragTo: right)
+        XCTAssertTrue(app.buttons["gameTab-Summary"].isSelected)
+        XCTAssertTrue(app.tabBars.buttons["Scores"].isHittable)
+        capture("Game summary after swiping back")
+    }
+
     @MainActor func testScoresPullToRefreshPreservesWeek() throws {
         let app = XCUIApplication()
         app.launchArguments = ["--slow-network"]

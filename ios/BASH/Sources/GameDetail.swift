@@ -177,19 +177,29 @@ struct GameScreen: View {
                 }.padding(.horizontal, 16)
             }.background(Color(.systemBackground))
             Divider()
-            List {
-                if let error { Section { Text(error).foregroundStyle(.secondary); Button("Retry") { Task { await load() } } } }
-                if !hasLoaded && error == nil {
-                    LoadingPlaceholder(title: page == "Stats" ? "Loading game stats…" : "Loading game…", rows: 4)
-                        .listRowInsets(EdgeInsets()).listRowBackground(Color.clear)
-                } else {
-                switch page {
-                case "Stats": statsContent
-                default: summaryContent
+            TabView(selection: $page) {
+                ForEach(["Summary", "Stats"], id: \.self) { tab in
+                    List {
+                        if let error {
+                            Section {
+                                Text(error).foregroundStyle(.secondary)
+                                Button("Retry") { Task { await load() } }
+                            }
+                        }
+                        if !hasLoaded && error == nil {
+                            LoadingPlaceholder(title: tab == "Stats" ? "Loading game stats…" : "Loading game…", rows: 4)
+                                .listRowInsets(EdgeInsets()).listRowBackground(Color.clear)
+                        } else {
+                            switch tab {
+                            case "Stats": statsContent
+                            default: summaryContent
+                            }
+                        }
+                    }.tag(tab).listStyle(.insetGrouped).listSectionSpacing(12).contentMargins(.top, 12)
+                        .refreshable { await load(force: true) }
                 }
-                }
-            }.id(page).listStyle(.insetGrouped).listSectionSpacing(12).contentMargins(.top, 12)
-                .refreshable { await load(force: true) }
+            }.tabViewStyle(.page(indexDisplayMode: .never))
+                .animation(.easeInOut(duration: 0.22), value: page)
         }.tint(.primary).navigationTitle(current.dateLabel).navigationBarTitleDisplayMode(.inline)
             .toolbar(.visible, for: .navigationBar)
             .toolbar(.visible, for: .tabBar)
