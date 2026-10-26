@@ -518,9 +518,11 @@ private struct LeagueHeader: View {
                 if let searchAction {
                     Button(action: searchAction) {
                         Image(systemName: searching ? "xmark" : "magnifyingglass")
-                            .font(.body.weight(.semibold))
+                            .font(.system(size: 20, weight: .semibold))
+                            .foregroundStyle(.primary)
                             .frame(width: 44, height: 44)
-                            .contentShape(Rectangle())
+                            .background(.quaternary, in: Circle())
+                            .overlay(Circle().strokeBorder(.primary.opacity(0.1), lineWidth: 1))
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel(searching ? "Close search" : "Search players")
