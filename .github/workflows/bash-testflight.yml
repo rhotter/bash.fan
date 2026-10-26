@@ -2,8 +2,8 @@ name: BASH TestFlight
 
 on:
   push:
-    # The native app currently ships from video. Other refs require an explicit run.
-    branches: [video]
+    # The native app ships from main. Other refs require an explicit run.
+    branches: [main]
     paths:
       - 'ios/BASH/**'
       - '.github/workflows/bash-testflight.yml'
