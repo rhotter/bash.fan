@@ -1,6 +1,29 @@
 import XCTest
 
 final class GameAlertsUITests: XCTestCase {
+    @MainActor func testAlertSwitchContrast() {
+        let app = XCUIApplication()
+        app.launch()
+        let menu = app.buttons["operatorMenu"].firstMatch
+        XCTAssertTrue(menu.waitForExistence(timeout: 30))
+        menu.tap()
+        app.buttons["Game alerts"].tap()
+        let goals = app.switches["alertKind-goal"]
+        XCTAssertTrue(goals.waitForExistence(timeout: 10))
+        for enabled in [true, false] {
+            if (goals.value as? String == "1") != enabled {
+                goals.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
+            }
+            XCTAssertEqual(goals.value as? String, enabled ? "1" : "0")
+            let screenshot = XCTAttachment(screenshot: app.screenshot())
+            screenshot.name = "Alerts-\(enabled ? "on" : "off")"
+            screenshot.lifetime = .keepAlways
+            add(screenshot)
+        }
+        // Discard local changes without saving notification preferences.
+        app.terminate()
+    }
+
     @MainActor func testAlertsMenuAndTeams() {
         let app = XCUIApplication()
         app.launch()

@@ -159,6 +159,8 @@ struct GameAlertsScreen: View {
                                 else { selectedKinds.remove(kind.rawValue) }
                             }
                         ))
+                        // Keep the white switch thumb distinct from the enabled track in both appearances.
+                        .tint(Color(uiColor: .systemGray))
                         .disabled(saving)
                         .accessibilityIdentifier("alertKind-\(kind.rawValue)")
                     }
