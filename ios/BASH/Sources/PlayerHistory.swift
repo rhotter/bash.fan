@@ -147,7 +147,7 @@ struct PlayerScreen: View {
                     }
                     gameLog(career)
                     VStack(alignment: .leading, spacing: 10) {
-                        Text("Stats").font(.title3.bold())
+                        Text("Season history").font(.title3.bold())
                         Picker("Competition", selection: $playoffs) {
                             Text("Regular season").tag(false)
                             Text("Playoffs").tag(true)
