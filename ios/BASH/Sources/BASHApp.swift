@@ -57,7 +57,10 @@ import UserNotifications
             Group {
 #if DEBUG
                 if ProcessInfo.processInfo.arguments.contains("--native-scorekeeper-preview") {
-                    ScorekeeperScreen(model: NativeScorekeeper.sample())
+                    ScorekeeperScreen(model: NativeScorekeeper.sample(
+                        period: ProcessInfo.processInfo.arguments.contains("--pregame") ? 0 : ProcessInfo.processInfo.arguments.contains("--period-end") ? 3 : 1,
+                        gameOver: ProcessInfo.processInfo.arguments.contains("--game-over")
+                    ))
                 } else { LeagueRoot(store: store) }
 #else
                 LeagueRoot(store: store)
