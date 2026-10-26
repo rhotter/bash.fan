@@ -176,7 +176,15 @@ private struct ScoringDraft: Codable { let state: ScoringState; let expected: Sc
         if preview { expected = state; dirty = false; return true }
         busy = true; defer { busy = false }
         do {
-            _ = try await request("state", method: "PUT", body: ["state": .object(state), "expectedState": .object(expected)])
+            let mutationID = UUID().uuidString
+            let reply = try await request("state", method: "PUT", body: [
+                "state": .object(state), "expectedState": .object(expected),
+                "expectedRevision": expected["revision"] ?? .int(0), "mutationId": .string(mutationID)
+            ])
+            if let revision = reply["revision"] {
+                state["revision"] = revision
+                state["lastMutationId"] = .string(mutationID)
+            }
             if var timing = state["timing"]?.object { timing["entries"] = .array([]); state["timing"] = .object(timing) }
             expected = state; dirty = false; error = nil
             try? FileManager.default.removeItem(at: draftURL)
@@ -196,7 +204,7 @@ private struct ScoringDraft: Codable { let state: ScoringState; let expected: Sc
                 if final {
                     _ = try await request("finalize", method: "POST", body: ["state": .object(state), "expectedState": .object(expected)])
                 } else {
-                    _ = try await request("finalize", method: "POST", headers: ["x-state-updated-at": String(Int(state["updatedAt"]?.number ?? 0))])
+                    _ = try await request("finalize", method: "POST", headers: ["x-state-updated-at": String(Int(state["updatedAt"]?.number ?? 0)), "x-state-revision": String(Int(state["revision"]?.number ?? 0))])
                 }
             }
             payload?.status = "final"; dirty = false; editingFinal = false; error = nil; expected = state

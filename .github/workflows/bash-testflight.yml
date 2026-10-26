@@ -84,6 +84,13 @@ jobs:
           mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
           cp "$RUNNER_TEMP/bash.mobileprovision" "$HOME/Library/MobileDevice/Provisioning Profiles/$uuid.mobileprovision"
           echo "BASH_PROFILE_UUID=$uuid" >> "$GITHUB_ENV"
+      - name: Verify native scorekeeper API is deployed
+        run: |
+          status=$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' 'https://www.bayareastreethockey.com/api/bash/scorekeeper/g207/native')
+          if [ "$status" != '401' ]; then
+            echo "::error::Native scorekeeper API must be deployed and require authentication (expected 401, got $status)."
+            exit 1
+          fi
       - name: Upload and distribute to TestFlight
         run: bundle exec fastlane ios beta
       - name: Remove signing material

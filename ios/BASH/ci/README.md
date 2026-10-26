@@ -4,6 +4,8 @@ The BASH TestFlight GitHub Actions workflow runs for iOS app changes pushed to `
 
 Build numbers are the greater of the next TestFlight build and `CURRENT_PROJECT_VERSION` in `project.yml`. Uploads are serialized across branches. GitHub may replace an older pending run with a newer push; the running upload is never canceled.
 
+Signing credentials were configured on October 25, 2026. The CI distribution certificate and provisioning profile expire on October 26, 2027; renew both repository secrets before then.
+
 ## One-time credentials
 
 Add these repository secrets in GitHub Settings → Secrets and variables → Actions:

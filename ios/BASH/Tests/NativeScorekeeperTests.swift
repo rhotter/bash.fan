@@ -6,7 +6,19 @@ private final class ScoringTransportStub: URLProtocol, @unchecked Sendable {
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
     override func startLoading() {
         let rejected = request.url?.host == "conflict.example"
-        let body = rejected ? "{\"error\":\"A newer state has already been saved\"}" : "{\"ok\":true}"
+        let revisionServer = request.url?.host == "revision.example"
+        if revisionServer {
+            var data = request.httpBody ?? Data()
+            if let stream = request.httpBodyStream {
+                stream.open(); defer { stream.close() }
+                var buffer = [UInt8](repeating: 0, count: 4096)
+                while stream.hasBytesAvailable { let n = stream.read(&buffer, maxLength: buffer.count); if n <= 0 { break }; data.append(contentsOf: buffer.prefix(n)) }
+            }
+            let payload = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
+            XCTAssertEqual(payload?["expectedRevision"] as? Int, 0)
+            XCTAssertNotNil(UUID(uuidString: payload?["mutationId"] as? String ?? ""))
+        }
+        let body = revisionServer ? "{\"ok\":true,\"revision\":1}" : rejected ? "{\"error\":\"A newer state has already been saved\"}" : "{\"ok\":true}"
         client?.urlProtocol(self, didReceive: HTTPURLResponse(url: request.url!, statusCode: rejected ? 409 : 200, httpVersion: nil, headerFields: nil)!, cacheStoragePolicy: .notAllowed)
         client?.urlProtocol(self, didLoad: Data(body.utf8))
         client?.urlProtocolDidFinishLoading(self)
@@ -47,6 +59,19 @@ final class NativeScorekeeperTests: XCTestCase {
         XCTAssertFalse(model.running)
         XCTAssertEqual(model.ids("homeShots").count, 4)
         XCTAssertEqual(model.list("goaliePulls").first?["returnedAt"], .string("0:00"))
+    }
+    @MainActor func testSaveAdoptsServerRevisionForNextWrite() async throws {
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [ScoringTransportStub.self]
+        let fixture = NativeScorekeeper.sample()
+        let model = NativeScorekeeper(game: fixture.game, server: URL(string: "https://revision.example")!, cookies: [], session: URLSession(configuration: config))
+        model.payload = fixture.payload; model.state = fixture.state
+        model.shot(false, delta: 1)
+        let saved = await model.save()
+        XCTAssertTrue(saved)
+        XCTAssertFalse(model.dirty)
+        XCTAssertEqual(model.expected["revision"], .int(1))
+        XCTAssertNotNil(UUID(uuidString: model.expected["lastMutationId"]?.text ?? ""))
     }
     @MainActor func testConflictKeepsDraftAndBlocksFurtherEdits() async throws {
         let config = URLSessionConfiguration.ephemeral
