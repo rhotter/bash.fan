@@ -103,15 +103,15 @@ private struct ListRank: View {
     let total: Int
 
     var body: some View {
-        Text("\(max(99, total))")
+        Text("\(max(9, total))")
             .hidden()
-            .overlay(alignment: .trailing) { Text("\(rank)") }
+            .overlay(alignment: .leading) { Text("\(rank)") }
             .font(.caption.weight(.medium))
             .monospacedDigit()
             .foregroundStyle(.secondary)
             .lineLimit(1)
             .fixedSize(horizontal: true, vertical: false)
-            .frame(minWidth: 20, alignment: .trailing)
+            .frame(minWidth: 16, alignment: .leading)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("\(rank)")
     }
@@ -836,7 +836,7 @@ private struct StatsScreen: View {
                                 Spacer(minLength: 8)
                                 Text(rowValue(player)).font(.subheadline.weight(.semibold))
                                     .foregroundStyle(.primary).monospacedDigit()
-                            }.padding(.horizontal, 12).padding(.vertical, 12)
+                            }.padding(.horizontal, 12).padding(.vertical, 10)
                                 .contentShape(Rectangle())
                         }.buttonStyle(.plain).accessibilityIdentifier("player-\(player.id)")
                         if player.id != rows.last?.element.id { Divider() }
