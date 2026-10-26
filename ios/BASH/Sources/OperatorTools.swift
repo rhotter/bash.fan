@@ -23,6 +23,7 @@ private enum OperatorTool: String, Identifiable {
 struct OperatorMenu: View {
     let games: [Game]
     var game: Game?
+    var inToolbar = false
     @State private var tool: OperatorTool?
     @State private var showAlerts = false
     @State private var showAbout = false
@@ -40,8 +41,12 @@ struct OperatorMenu: View {
                 .font(.system(size: 20, weight: .semibold))
                 .foregroundStyle(.primary)
                 .frame(width: 44, height: 44)
-                .background(.quaternary, in: Circle())
-                .overlay(Circle().strokeBorder(.primary.opacity(0.1), lineWidth: 1))
+                .background {
+                    if !inToolbar {
+                        Circle().fill(.quaternary)
+                            .overlay(Circle().strokeBorder(.primary.opacity(0.1), lineWidth: 1))
+                    }
+                }
         }
         .accessibilityLabel("Game tools")
         .accessibilityIdentifier("operatorMenu")

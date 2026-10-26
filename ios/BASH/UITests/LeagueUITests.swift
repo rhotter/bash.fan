@@ -588,6 +588,78 @@ final class LeagueUITests: XCTestCase {
         XCTAssertFalse(placeholder.exists)
         capture("Loaded game")
     }
+    @MainActor func testUIReviewNavigationFixes() throws {
+        let app = XCUIApplication()
+        app.launch()
+        app.tabBars.buttons["Standings"].tap()
+        let yetis = app.staticTexts["Yetis"].firstMatch
+        XCTAssertTrue(yetis.waitForExistence(timeout: 25))
+        yetis.tap()
+        let date = app.staticTexts.matching(NSPredicate(format: "identifier BEGINSWITH 'team-game-date-'" )).firstMatch
+        XCTAssertTrue(date.waitForExistence(timeout: 10))
+        XCTAssertTrue(date.label.contains("Saturday"))
+        capture("Fixed team schedule dates")
+
+        app.tabBars.buttons["Stats"].tap()
+        app.buttons["Goalies"].tap()
+        let goalie = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'player-'" )).firstMatch
+        XCTAssertTrue(goalie.waitForExistence(timeout: 25))
+        goalie.tap()
+        let goalieHistory = app.staticTexts["goalieHistoryTitle"]
+        XCTAssertTrue(goalieHistory.waitForExistence(timeout: 25))
+        let skaterHistory = app.staticTexts["skaterHistoryTitle"]
+        if skaterHistory.exists { XCTAssertLessThan(goalieHistory.frame.minY, skaterHistory.frame.minY) }
+        capture("Fixed goalie profile order")
+        app.swipeUp()
+        capture("Goalie history comes first")
+        app.navigationBars.buttons.firstMatch.tap()
+        app.buttons["seasonPicker"].tap()
+        app.buttons["All time"].tap()
+        XCTAssertTrue(app.staticTexts["allTimeScope"].waitForExistence(timeout: 10))
+        XCTAssertEqual(app.staticTexts["allTimeScope"].label, "Fall regular seasons only")
+        capture("Explicit all time scope")
+        app.terminate()
+    }
+
+    @MainActor func testUIReviewLargeTextLayouts() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
+        app.launch()
+        let game = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'game-'" )).firstMatch
+        XCTAssertTrue(game.waitForExistence(timeout: 25))
+        XCTAssertLessThanOrEqual(game.frame.width, app.frame.width)
+        capture("Accessible score cards")
+        app.tabBars.buttons["Standings"].tap()
+        XCTAssertTrue(app.staticTexts["Rank 1"].waitForExistence(timeout: 15))
+        XCTAssertFalse(app.staticTexts["PTS"].exists)
+        capture("Accessible standings")
+        app.tabBars.buttons["Stats"].tap()
+        app.buttons["Goalies"].tap()
+        let team = app.buttons["teamFilter"]
+        let sort = app.buttons["statSort"]
+        XCTAssertTrue(sort.waitForExistence(timeout: 15))
+        XCTAssertGreaterThanOrEqual(sort.frame.minY, team.frame.maxY)
+        XCTAssertLessThanOrEqual(sort.frame.maxX, app.frame.maxX)
+        capture("Accessible goalie filters")
+        app.swipeUp()
+        capture("Accessible goalie rows")
+        app.terminate()
+    }
+
+    @MainActor func testUIReviewGameMenuAppearance() throws {
+        let app = XCUIApplication()
+        app.launch()
+        let game = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'game-'" )).firstMatch
+        XCTAssertTrue(game.waitForExistence(timeout: 25))
+        game.tap()
+        XCTAssertTrue(app.buttons["gameTab-Stats"].waitForExistence(timeout: 15))
+        capture("Single native toolbar menu background")
+        app.buttons["operatorMenu"].tap()
+        XCTAssertTrue(app.buttons["Scorekeeper"].waitForExistence(timeout: 5))
+        capture("Game menu remains accessible")
+        app.terminate()
+    }
+
     @MainActor private func capture(_ name: String) {
         let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
         attachment.name = name
