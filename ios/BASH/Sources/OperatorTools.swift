@@ -37,8 +37,11 @@ struct OperatorMenu: View {
             Button { showAbout = true } label: { Label("About BASH", systemImage: "info.circle") }
         } label: {
             Image(systemName: "ellipsis")
-                .rotationEffect(.degrees(90))
-                .frame(minWidth: 32, minHeight: 32)
+                .font(.system(size: 20, weight: .semibold))
+                .foregroundStyle(.primary)
+                .frame(width: 44, height: 44)
+                .background(.quaternary, in: Circle())
+                .overlay(Circle().strokeBorder(.primary.opacity(0.1), lineWidth: 1))
         }
         .accessibilityLabel("Game tools")
         .accessibilityIdentifier("operatorMenu")

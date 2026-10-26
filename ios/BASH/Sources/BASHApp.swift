@@ -295,8 +295,6 @@ struct LeagueRoot: View {
         }
     }
 
-    private var seasonPicker: some View { SeasonMenu(store: store) }
-
     private var games: [Game] { store.snapshot?.games ?? [] }
     private var weeks: [GameWeek] { store.weeks }
     private var activeWeek: GameWeek? { weeks.first { $0.id == selectedWeek } ?? GameWeek.defaultWeek(in: weeks) }
@@ -335,7 +333,7 @@ struct LeagueRoot: View {
         VStack(spacing: 0) {
             LeagueHeader(title: "Scores", operatorGames: weekGames)
             VStack(spacing: 4) {
-                HStack { seasonPicker; Spacer() }.padding(.horizontal, 12)
+                SeasonHeaderRow(menu: SeasonMenu(store: store))
                 if !weeks.isEmpty { weekSlider }
             }
             Group {
@@ -411,7 +409,6 @@ struct LeagueRoot: View {
     private var standingsScreen: some View {
         RefreshScrollView(action: { await store.refresh() }) {
             VStack(alignment: .leading, spacing: 18) {
-                HStack { seasonPicker; Spacer() }
                 statusSection
                 if store.snapshot == nil && store.error == nil {
                     LoadingPlaceholder(title: "Loading standings…", rows: 6)
@@ -446,7 +443,7 @@ struct LeagueRoot: View {
                 }
             }.padding(.horizontal, 12).padding(.vertical, 12)
         }.accessibilityIdentifier("standingsList")
-            .background(LeagueStyle.background).leagueHeader("Standings")
+            .background(LeagueStyle.background).leagueHeader("Standings", season: SeasonMenu(store: store))
     }
 
     private func statColumn(_ value: String) -> some View { Text(value).frame(width: 29, alignment: .trailing) }
@@ -461,13 +458,25 @@ private extension View {
         }
     }
 
-    func leagueHeader(_ title: String, operatorGames: [Game]? = nil) -> some View {
+    func leagueHeader(_ title: String, season: SeasonMenu, operatorGames: [Game]? = nil) -> some View {
         VStack(spacing: 0) {
             LeagueHeader(title: title, operatorGames: operatorGames)
+            SeasonHeaderRow(menu: season)
             self
         }
         .navigationTitle(title)
         .toolbar(.hidden, for: .navigationBar)
+    }
+}
+
+private struct SeasonHeaderRow: View {
+    let menu: SeasonMenu
+
+    var body: some View {
+        HStack { menu; Spacer() }
+            .frame(minHeight: 44)
+            .padding(.horizontal, 12)
+            .background(LeagueStyle.background)
     }
 }
 
@@ -476,16 +485,15 @@ private struct LeagueHeader: View {
     var operatorGames: [Game]?
 
     var body: some View {
-        HStack(spacing: 10) {
-            Image("LeagueLogo").resizable().scaledToFit()
-                .scaleEffect(1.15).offset(y: 0.35).frame(width: 34, height: 34)
-                .clipShape(Circle()).overlay(Circle().strokeBorder(.white, lineWidth: 1))
-                .accessibilityHidden(true)
-            Text(title).font(.system(size: 28, weight: .bold)).foregroundStyle(.primary)
-            Spacer()
-            if let operatorGames { OperatorMenu(games: operatorGames) }
-        }
-        .padding(.horizontal, 12).padding(.top, 8).padding(.bottom, 12)
+        Text(title)
+            .font(.headline)
+            .foregroundStyle(.primary)
+            .frame(maxWidth: .infinity)
+            .frame(height: 44)
+            .overlay(alignment: .trailing) {
+                if let operatorGames { OperatorMenu(games: operatorGames) }
+            }
+            .padding(.horizontal, 12).padding(.top, 8).padding(.bottom, 12)
         .background(LeagueStyle.background)
     }
 }
@@ -728,7 +736,6 @@ private struct StatsScreen: View {
         let rows = visiblePlayers
         RefreshScrollView(action: { if allTime { await loadAllTime(force: true) } else { await store.refresh() } }) {
             LazyVStack(alignment: .leading, spacing: 12) {
-                HStack { SeasonMenu(store: store, allowsAllTime: true, allTime: $allTime); Spacer() }
                 Picker("Player type", selection: $showGoalies) {
                     Text("Skaters").tag(false)
                     Text("Goalies").tag(true)
@@ -795,7 +802,7 @@ private struct StatsScreen: View {
                 }
             }.padding(.horizontal, 12).padding(.vertical, 12)
         }.accessibilityIdentifier("statsList")
-            .background(LeagueStyle.background).leagueHeader("Stats")
+            .background(LeagueStyle.background).leagueHeader("Stats", season: SeasonMenu(store: store, allowsAllTime: true, allTime: $allTime))
             .scrollDismissesKeyboard(.interactively)
             .navigationDestination(optional: $selectedPlayer) { PlayerScreen(player: $0, store: store) }
             .task(id: allTime) { await loadAllTime() }

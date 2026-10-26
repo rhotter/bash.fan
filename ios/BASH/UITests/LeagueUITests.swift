@@ -1,6 +1,25 @@
 import XCTest
 
 final class LeagueUITests: XCTestCase {
+    @MainActor func testHeaderSeasonAlignment() throws {
+        let app = XCUIApplication()
+        app.launch()
+        let season = app.buttons["seasonPicker"]
+        XCTAssertTrue(season.waitForExistence(timeout: 15))
+        let scoresY = season.frame.midY
+        capture("Scores header")
+        app.buttons["operatorMenu"].tap()
+        XCTAssertTrue(app.buttons["Scorekeeper"].waitForExistence(timeout: 5))
+        capture("Header menu")
+        app.tap()
+        for tab in ["Standings", "Stats"] {
+            app.tabBars.buttons[tab].tap()
+            XCTAssertTrue(season.waitForExistence(timeout: 10))
+            XCTAssertEqual(season.frame.midY, scoresY, accuracy: 1)
+            capture("\(tab) header")
+        }
+    }
+
     @MainActor func testReviewerScorekeeperCode() throws {
         try checkReviewerCode(tool: "Scorekeeper")
     }
