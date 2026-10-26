@@ -7,11 +7,11 @@ trap 'rm -rf "$work_dir"' EXIT
 python3 - "$work_dir/RecordingLibrary.swift" <<'PY'
 import sys
 from pathlib import Path
-source = Path('ios/BASHCapture/Sources/RecordingLibrary.swift').read_text()
+source = Path('ios/BASH/Sources/Capture/RecordingLibrary.swift').read_text()
 source = source.replace('URL.documentsDirectory.appending(path: "Recordings")', 'URL.temporaryDirectory.appending(path: "BASHUploadChecks-" + UUID().uuidString)')
 Path(sys.argv[1]).write_text(source)
 PY
 sdk=$(xcrun --sdk iphonesimulator --show-sdk-path)
 xcrun swiftc -swift-version 6 -parse-as-library -sdk "$sdk" -target arm64-apple-ios17.0-simulator \
-  "$work_dir/RecordingLibrary.swift" ios/BASHCapture/Tests/UploadRecoveryChecks.swift -o "$work_dir/checks"
+  "$work_dir/RecordingLibrary.swift" ios/BASH/UploadRecoveryChecks/UploadRecoveryChecks.swift -o "$work_dir/checks"
 xcrun simctl spawn booted "$work_dir/checks"

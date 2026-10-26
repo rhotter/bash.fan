@@ -1,6 +1,6 @@
-# BASH Capture development
+# BASH recording development
 
-The iPhone application is in `ios/BASHCapture`. Recording setup and camera management exist only in the iPhone app. Each existing score page, `/game/[id]`, provides viewing: livestreams, uploaded recordings and event replays. Operators connect through the app using the existing league PIN. There is no standalone video page. This is a development implementation: R2 upload and retrieval and Stream ingest have been verified with synthetic footage. Short synthetic live playback now works in Chrome. Game-length playback and physical camera performance still require validation before a game.
+Recording is integrated into the iPhone application in `ios/BASH`, with capture code in `ios/BASH/Sources/Capture`. The standalone BASH Capture application has been removed. Recording setup and camera management exist only in the iPhone app. Each existing score page, `/game/[id]`, provides viewing: livestreams, uploaded recordings and event replays. Operators connect through the app using the existing league PIN. There is no standalone video page. This is a development implementation: R2 upload and retrieval and Stream ingest have been verified with synthetic footage. Short synthetic live playback now works in Chrome. Game-length playback and physical camera performance still require validation before a game.
 
 ## Run the dashboard
 
@@ -26,9 +26,9 @@ Stream's `automatic` recording mode creates its own viewing copies in addition t
 Requires Xcode 26 with Swift 6, an iOS 17+ device, and XcodeGen. The HaishinKit dependency is pinned to 2.2.5.
 
 ```sh
-cd ios/BASHCapture
+cd ios/BASH
 xcodegen generate
-xcodebuild -project BASHCapture.xcodeproj -scheme BASHCapture \
+xcodebuild -project BASH.xcodeproj -scheme BASH \
   -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' \
   -derivedDataPath /tmp/bash-capture-build BASH_SERVER_URL=http://localhost:3002 \
   CODE_SIGN_IDENTITY=- CODE_SIGNING_ALLOWED=YES build
@@ -38,11 +38,11 @@ Open the project in Xcode, select your Apple signing team and a physical iPhone,
 
 Keep ad-hoc signing enabled for simulator runs: unsigned builds compile but cannot save the camera pairing in Keychain.
 
-The service address is built into the app through `BASH_SERVER_URL`, defaulting to `https://bash.fan`. There is no server-address field or settings screen. Override the build setting for development as above; physical phones need an accessible HTTPS dev service or trusted LAN address, since localhost points to the phone itself. The video backend must be deployed before a default production build can connect. Pairing credentials are stored in Keychain, never in the recording manifest. Camera setup cannot replace the active session while recording.
+The service address is built into the app through `BASH_SERVER_URL`, currently pointing to the video preview backend configured in `ios/BASH/project.yml`. There is no server-address field or settings screen. Override the build setting for development as above; physical phones need an accessible HTTPS dev service or trusted LAN address, since localhost points to the phone itself. The video backend must be deployed before a default production build can connect. Pairing credentials are stored in Keychain, never in the recording manifest. Camera setup cannot replace the active session while recording.
 
 The app uses native SwiftUI navigation, lists, forms, sheets, system typography and a full-screen camera. On iOS 26 its camera controls use Liquid Glass; earlier supported versions use system material. It follows the device's appearance outside the dark viewfinder. The web score pages keep the public BASH design.
 
-The home screen uses the BASH badge, orange accents, system typography and native iOS lists and sheets. Tap Set up recording, enter the league operator PIN if needed, choose Left or Right, and open the camera. There is no game picker. The app remembers the phone’s side. There are no tabs, game lists, server fields, format settings, livestream toggles or playback library. The home screen has one Set up recording action. An upload status row appears only while uploading or when pending footage or an error needs attention; completed uploads do not leave a permanent row.
+Open Record game from the three-dot menu on Scores or game details, enter the league operator PIN, choose Left or Right, and open the camera. Recording is independent of the selected game; the backend matches footage using scorekeeper timing. Upload progress is available in the Uploads sheet.
 
 The app joins `POST /api/bash/video/capture` with only its camera side. Both phones atomically join the same daily session using the Los Angeles calendar date and a unique `capture_day` index. Reopening with the same camera credential is idempotent; taking another phone’s side requires confirmation. The current implementation is for one fixed rink rig, with no simultaneous-rink disambiguation. Apply the updated video schema before deploying this version.
 

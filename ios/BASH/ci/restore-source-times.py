@@ -10,7 +10,7 @@ import subprocess
 
 root = Path(subprocess.check_output(["git", "rev-parse", "--show-toplevel"], text=True).strip())
 paths = subprocess.check_output(
-    ["git", "ls-files", "-z", "ios/BASH", "ios/BASHCapture/Sources"], cwd=root
+    ["git", "ls-files", "-z", "ios/BASH"], cwd=root
 ).decode().split("\0")
 for relative in filter(None, paths):
     path = root / relative

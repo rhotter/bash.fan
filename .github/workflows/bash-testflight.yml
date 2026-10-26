@@ -6,7 +6,6 @@ on:
     branches: [video]
     paths:
       - 'ios/BASH/**'
-      - 'ios/BASHCapture/Sources/**'
       - '.github/workflows/bash-testflight.yml'
   workflow_dispatch:
 
