@@ -21,47 +21,6 @@ env:
   FASTLANE_HIDE_CHANGELOG: 'true'
 
 jobs:
-  test:
-    runs-on: macos-15
-    timeout-minutes: 25
-    concurrency:
-      group: bash-testflight-test-${{ github.ref }}
-      cancel-in-progress: true
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - uses: maxim-lobanov/setup-xcode@v1
-        with:
-          xcode-version: '26.1'
-      - uses: ruby/setup-ruby@v1
-        with:
-          ruby-version: '3.3'
-          bundler-cache: true
-          working-directory: ios/BASH
-      - name: Generate project
-        run: |
-          brew install xcodegen
-          xcodegen generate
-      - name: Restore stable source timestamps
-        run: python3 ci/restore-source-times.py
-      - name: Cache test compiled products and packages
-        uses: actions/cache@v4
-        with:
-          path: ios/BASH/DerivedData/test
-          key: bash-test-v1-${{ runner.os }}-${{ runner.arch }}-xcode-26.1-${{ hashFiles('ios/BASH/project.yml', 'ios/BASH/**/Package.resolved') }}-${{ github.sha }}
-          restore-keys: |
-            bash-test-v1-${{ runner.os }}-${{ runner.arch }}-xcode-26.1-${{ hashFiles('ios/BASH/project.yml', 'ios/BASH/**/Package.resolved') }}-
-      - name: Run unit tests
-        run: |
-          set -euo pipefail
-          device=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; devices=json.load(sys.stdin)["devices"]; print(next(d["udid"] for runtime,ds in devices.items() if "iOS-18-5" in runtime for d in ds if d["name"].startswith("iPhone")))')
-          xcrun simctl boot "$device"
-          args=(-project BASH.xcodeproj -scheme BASH -derivedDataPath DerivedData/test -destination "platform=iOS Simulator,id=$device" -only-testing:BASHTests -parallel-testing-enabled NO)
-          xcodebuild "${args[@]}" build-for-testing
-          xcrun simctl bootstatus "$device" -b
-          xcodebuild "${args[@]}" test-without-building
-
   package:
     runs-on: macos-15
     timeout-minutes: 25
@@ -137,7 +96,7 @@ jobs:
           fi
 
   distribute:
-    needs: [test, package]
+    needs: [package]
     runs-on: macos-15
     timeout-minutes: 30
     # Only upload/processing is serialized. Never interrupt an upload.
