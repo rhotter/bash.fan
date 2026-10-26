@@ -16,21 +16,46 @@ struct OperatorMenu: View {
     let games: [Game]
     var game: Game?
     @State private var tool: OperatorTool?
+    @State private var showAbout = false
     var body: some View {
         Menu {
-            Link("App support", destination: URL(string: "https://www.bayareastreethockey.com/mobile/support.html")!)
-            Link("Privacy policy", destination: URL(string: "https://www.bayareastreethockey.com/mobile/privacy.html")!)
-            Divider()
             Button { tool = .scorekeeper } label: { Label("Scorekeeper", systemImage: "pencil.and.list.clipboard") }
             Button { tool = .recorder } label: { Label("Record game", systemImage: "video") }
             if let game { ShareLink(item: game.url) { Label("Share game", systemImage: "square.and.arrow.up") } }
+            Divider()
+            Button { showAbout = true } label: { Label("About BASH", systemImage: "info.circle") }
         } label: {
             Image(systemName: "ellipsis").frame(minWidth: 32, minHeight: 32)
         }
         .accessibilityLabel("Game tools")
         .accessibilityIdentifier("operatorMenu")
+        .sheet(isPresented: $showAbout) { AboutBASHScreen() }
         .fullScreenCover(item: $tool) { tool in
             OperatorFlow(tool: tool, games: games, game: game)
+        }
+    }
+}
+
+private struct AboutBASHScreen: View {
+    @Environment(\.dismiss) private var dismiss
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    Text("Bay Area Street Hockey")
+                    if let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String {
+                        LabeledContent("Version", value: version)
+                    }
+                }
+                Section {
+                    Link("Privacy policy", destination: URL(string: "https://www.bayareastreethockey.com/mobile/privacy.html")!)
+                    Link("App support", destination: URL(string: "https://www.bayareastreethockey.com/mobile/support.html")!)
+                }
+                .foregroundStyle(.primary)
+            }
+            .navigationTitle("About BASH")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
         }
     }
 }
