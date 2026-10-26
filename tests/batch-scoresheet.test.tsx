@@ -107,7 +107,7 @@ describe("GameScoresheet Component", () => {
     )
 
     const text = container.textContent || ""
-    expect(text).toContain("BASH - 2026 Fall Game Scoresheet")
+    expect(text).toContain("BASH - Fall 2026–27 Game Scoresheet")
     expect(text).toContain("NorCal Clowns at Whalers")
     expect(text).toContain("8:00pm")
     expect(text).toContain("The Lick")

@@ -16,6 +16,7 @@ import type { PlayerBoxScore, GoalieBoxScore } from "@/app/api/bash/game/[id]/ro
 import { useSort, SortableTh, SectionHeader } from "@/components/stats-table"
 import type { LiveGameState, GoalEvent, RosterPlayer } from "@/lib/scorekeeper-types"
 import { periodLabel, formatClock, computeCurrentClock, parseClockString, clockToElapsedDisplay } from "@/lib/scorekeeper-types"
+import { PeriodSummary } from "@/components/scorekeeper/shared/period-summary"
 import { AdminGameEditor } from "@/components/admin-editor/admin-game-editor"
 import { useAdmin } from "@/lib/admin-context"
 import { TeamLogo } from "@/components/team-logo"
@@ -172,7 +173,7 @@ export function GameDetail({ game, initialDetail, initialLiveData, homeRoster, a
                       <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-foreground/40 opacity-75" />
                       <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-foreground" />
                     </span>
-                    {liveState ? `${periodLabel(liveState.period)} ${formatClock(mounted ? computeCurrentClock(liveState) : liveState.clockSeconds)}` : "Live"}
+                    {liveState ? `${periodLabel(liveState.period, game.isPlayoff)} ${formatClock(mounted ? computeCurrentClock(liveState) : liveState.clockSeconds)}` : "Live"}
                   </span>
                 ) : isFinal ? (game.isOvertime ? "Final/OT" : game.isForfeit ? "Final/Forfeit" : "Final") : "Upcoming"}
               </div>
@@ -198,6 +199,7 @@ export function GameDetail({ game, initialDetail, initialLiveData, homeRoster, a
       {editMode && canEdit && (
         <div className="pt-4">
           <AdminGameEditor
+                isPlayoff={game.isPlayoff}
             gameId={game.id}
             state={liveState}
             pin={adminPin}
@@ -245,7 +247,7 @@ export function GameDetail({ game, initialDetail, initialLiveData, homeRoster, a
           {/* Period summary (goals + shots by period) */}
           {(isLive || isFinal) && liveState && (
             <div className="pt-4">
-              <LivePeriodSummary state={liveState} homeSlug={game.homeSlug} awaySlug={game.awaySlug} homeTeam={game.homeTeam} awayTeam={game.awayTeam} />
+              <PeriodSummary isPlayoff={game.isPlayoff} state={liveState} homeSlug={game.homeSlug} awaySlug={game.awaySlug} homeTeam={game.homeTeam} awayTeam={game.awayTeam} />
             </div>
           )}
 
@@ -253,6 +255,8 @@ export function GameDetail({ game, initialDetail, initialLiveData, homeRoster, a
           {liveState && liveState.goals.length > 0 && (
             <div className="pt-4">
               <EventLog
+                periodLength={(detail?.gameLength ?? initialDetail?.gameLength ?? 60) * 20}
+                isPlayoff={game.isPlayoff}
                 state={liveState}
                 homeSlug={game.homeSlug}
                 awaySlug={game.awaySlug}
@@ -267,6 +271,8 @@ export function GameDetail({ game, initialDetail, initialLiveData, homeRoster, a
           {liveState && liveState.penalties.length > 0 && (
             <div className="pt-4">
               <PenaltyLog
+                periodLength={(detail?.gameLength ?? initialDetail?.gameLength ?? 60) * 20}
+                isPlayoff={game.isPlayoff}
                 state={liveState}
                 homeSlug={game.homeSlug}
                 awaySlug={game.awaySlug}
@@ -353,6 +359,7 @@ export function GameDetail({ game, initialDetail, initialLiveData, homeRoster, a
 
         {isLive && liveState && liveData && (
           <LiveBoxScore
+                isPlayoff={game.isPlayoff}
             state={liveState}
             homeSlug={game.homeSlug}
             awaySlug={game.awaySlug}
@@ -473,88 +480,8 @@ function ThreeStars({ stars, playerNames, subPlayerIds }: { stars: number[]; pla
   )
 }
 
-function LivePeriodSummary({ state, homeSlug, awaySlug, homeTeam, awayTeam }: {
-  state: LiveGameState; homeSlug: string; awaySlug: string; homeTeam: string; awayTeam: string
-}) {
-  const totalHomeShots = state.homeShots.reduce((a, b) => a + b, 0)
-  const totalAwayShots = state.awayShots.reduce((a, b) => a + b, 0)
-
-  const periods = Math.max(state.period, 3)
-  const awayGoalsByPeriod: number[] = []
-  const homeGoalsByPeriod: number[] = []
-  for (let p = 1; p <= periods; p++) {
-    awayGoalsByPeriod.push(state.goals.filter((g) => g.team === awaySlug && g.period === p).length)
-    homeGoalsByPeriod.push(state.goals.filter((g) => g.team === homeSlug && g.period === p).length)
-  }
-
-  const periodHeaders = Array.from({ length: periods }, (_, i) => {
-    const p = i + 1
-    if (p <= 3) return `P${p}`
-    if (p === 4) return "OT"
-    return "SO"
-  })
-
-  return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-[11px]">
-        <thead>
-          <tr className="text-[9px] uppercase tracking-wider text-muted-foreground/50">
-            <th className="text-left font-medium py-1.5 pr-2"></th>
-            {periodHeaders.map((h) => (
-              <th key={h} className="text-center font-medium py-1.5 px-2 w-10">{h}</th>
-            ))}
-            <th className="text-center font-medium py-1.5 px-2 w-10">T</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr className="border-t border-border/20">
-            <td className="py-1.5 pr-2 text-[9px] uppercase tracking-wider text-muted-foreground/50 font-medium">Goals</td>
-            <td colSpan={periodHeaders.length + 1}></td>
-          </tr>
-          <tr className="border-t border-border/20">
-            <td className="py-1.5 pr-2 text-muted-foreground">{awayTeam}</td>
-            {awayGoalsByPeriod.map((g, i) => (
-              <td key={i} className="text-center tabular-nums font-mono py-1.5 px-2 text-muted-foreground">{g}</td>
-            ))}
-            <td className="text-center tabular-nums font-mono py-1.5 px-2 font-bold">
-              {awayGoalsByPeriod.reduce((a, b) => a + b, 0)}
-            </td>
-          </tr>
-          <tr className="border-t border-border/20">
-            <td className="py-1.5 pr-2 text-muted-foreground">{homeTeam}</td>
-            {homeGoalsByPeriod.map((g, i) => (
-              <td key={i} className="text-center tabular-nums font-mono py-1.5 px-2 text-muted-foreground">{g}</td>
-            ))}
-            <td className="text-center tabular-nums font-mono py-1.5 px-2 font-bold">
-              {homeGoalsByPeriod.reduce((a, b) => a + b, 0)}
-            </td>
-          </tr>
-          <tr className="border-t border-border/20">
-            <td className="py-1.5 pr-2 text-[9px] uppercase tracking-wider text-muted-foreground/50 font-medium pt-3">Shots</td>
-            <td colSpan={periodHeaders.length + 1}></td>
-          </tr>
-          <tr className="border-t border-border/20">
-            <td className="py-1.5 pr-2 text-muted-foreground">{awayTeam}</td>
-            {state.awayShots.slice(0, periods).map((s, i) => (
-              <td key={i} className="text-center tabular-nums font-mono py-1.5 px-2 text-muted-foreground">{s}</td>
-            ))}
-            <td className="text-center tabular-nums font-mono py-1.5 px-2 font-bold">{totalAwayShots}</td>
-          </tr>
-          <tr className="border-t border-border/20">
-            <td className="py-1.5 pr-2 text-muted-foreground">{homeTeam}</td>
-            {state.homeShots.slice(0, periods).map((s, i) => (
-              <td key={i} className="text-center tabular-nums font-mono py-1.5 px-2 text-muted-foreground">{s}</td>
-            ))}
-            <td className="text-center tabular-nums font-mono py-1.5 px-2 font-bold">{totalHomeShots}</td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-  )
-}
-
-function EventLog({ state, homeSlug, awaySlug, homeTeam, awayTeam, playerNames, subPlayerIds }: {
-  state: LiveGameState; homeSlug: string; awaySlug: string; homeTeam: string; awayTeam: string
+function EventLog({ isPlayoff = false, periodLength = 1200, state, homeSlug, awaySlug, homeTeam, awayTeam, playerNames, subPlayerIds }: {
+  isPlayoff?: boolean; periodLength?: number; state: LiveGameState; homeSlug: string; awaySlug: string; homeTeam: string; awayTeam: string
   playerNames: Record<number, string>; subPlayerIds: Set<number>
 }) {
   const nameById = (id: number | null) => {
@@ -589,7 +516,7 @@ function EventLog({ state, homeSlug, awaySlug, homeTeam, awayTeam, playerNames, 
   }
 
   // Group by period
-  const periods = [...new Set(events.map((e) => e.period))].sort()
+  const periods = [...new Set(events.map((e) => e.period))].sort((a, b) => a - b)
 
   return (
     <div className="space-y-4">
@@ -599,7 +526,7 @@ function EventLog({ state, homeSlug, awaySlug, homeTeam, awayTeam, playerNames, 
         return (
           <div key={period}>
             <div className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground/50 mb-1">
-              {periodLabel(period)}
+              {periodLabel(period, isPlayoff)}
             </div>
             <div className="space-y-0">
               {periodEvents.map((item) => {
@@ -640,7 +567,7 @@ function EventLog({ state, homeSlug, awaySlug, homeTeam, awayTeam, playerNames, 
                           {score.away}-{score.home}
                         </span>
                       )}
-                      <span className="text-[10px] text-muted-foreground/40 tabular-nums font-mono shrink-0 w-10 text-right">{clockToElapsedDisplay(g.clock, g.period)}</span>
+                      <span className="text-[10px] text-muted-foreground/40 tabular-nums font-mono shrink-0 w-10 text-right">{clockToElapsedDisplay(g.clock, g.period, periodLength, isPlayoff ? periodLength : 300)}</span>
                     </div>
                   )
                 }
@@ -653,8 +580,8 @@ function EventLog({ state, homeSlug, awaySlug, homeTeam, awayTeam, playerNames, 
   )
 }
 
-function PenaltyLog({ state, homeSlug, awaySlug: _awaySlug, homeTeam, awayTeam, playerNames, subPlayerIds }: {
-  state: LiveGameState; homeSlug: string; awaySlug: string; homeTeam: string; awayTeam: string
+function PenaltyLog({ isPlayoff = false, periodLength = 1200, state, homeSlug, awaySlug: _awaySlug, homeTeam, awayTeam, playerNames, subPlayerIds }: {
+  isPlayoff?: boolean; periodLength?: number; state: LiveGameState; homeSlug: string; awaySlug: string; homeTeam: string; awayTeam: string
   playerNames: Record<number, string>; subPlayerIds: Set<number>
 }) {
   const nameById = (id: number) => playerNames[id] ?? `#${id}`
@@ -663,7 +590,7 @@ function PenaltyLog({ state, homeSlug, awaySlug: _awaySlug, homeTeam, awayTeam, 
     (a, b) => a.period - b.period || parseClockString(b.clock) - parseClockString(a.clock)
   )
 
-  const periods = [...new Set(sorted.map((p) => p.period))].sort()
+  const periods = [...new Set(sorted.map((p) => p.period))].sort((a, b) => a - b)
 
   return (
     <div className="space-y-4">
@@ -673,7 +600,7 @@ function PenaltyLog({ state, homeSlug, awaySlug: _awaySlug, homeTeam, awayTeam, 
         return (
           <div key={period}>
             <div className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground/50 mb-1">
-              {periodLabel(period)}
+              {periodLabel(period, isPlayoff)}
             </div>
             <div className="space-y-0">
               {periodPenalties.map((p) => (
@@ -689,7 +616,7 @@ function PenaltyLog({ state, homeSlug, awaySlug: _awaySlug, homeTeam, awayTeam, 
                     </div>
                   </div>
                   <EventReplayButton eventId={p.id} kind="penalty" />
-                  <span className="text-[10px] text-muted-foreground/40 tabular-nums font-mono shrink-0 w-10 text-right">{clockToElapsedDisplay(p.clock, p.period)}</span>
+                  <span className="text-[10px] text-muted-foreground/40 tabular-nums font-mono shrink-0 w-10 text-right">{clockToElapsedDisplay(p.clock, p.period, periodLength, isPlayoff ? periodLength : 300)}</span>
                 </div>
               ))}
             </div>
@@ -700,8 +627,8 @@ function PenaltyLog({ state, homeSlug, awaySlug: _awaySlug, homeTeam, awayTeam, 
   )
 }
 
-function LiveBoxScore({ state, homeSlug, awaySlug, homeTeam, awayTeam, playerNames, goalieIds, subPlayerIds }: {
-  state: LiveGameState; homeSlug: string; awaySlug: string; homeTeam: string; awayTeam: string
+function LiveBoxScore({ isPlayoff = false, state, homeSlug, awaySlug, homeTeam, awayTeam, playerNames, goalieIds, subPlayerIds }: {
+  isPlayoff?: boolean; periodLength?: number; state: LiveGameState; homeSlug: string; awaySlug: string; homeTeam: string; awayTeam: string
   playerNames: Record<number, string>; goalieIds: number[]; subPlayerIds: number[]
 }) {
   const goalieSet = useMemo(() => new Set(goalieIds), [goalieIds])
@@ -720,7 +647,7 @@ function LiveBoxScore({ state, homeSlug, awaySlug, homeTeam, awayTeam, playerNam
     for (const id of [...state.homeAttendance, ...state.awayAttendance]) getOrCreate(id)
 
     for (const goal of state.goals) {
-      if (goal.period >= 5) continue
+      if (!isPlayoff && goal.period >= 5) continue
       const s = getOrCreate(goal.scorerId)
       s.goals++; s.points++
       if (goal.flags.includes("PPG")) s.ppg++
@@ -745,8 +672,8 @@ function LiveBoxScore({ state, homeSlug, awaySlug, homeTeam, awayTeam, playerNam
     }
 
     // Goalie stats
-    const homeGoalsAgainst = state.goals.filter((g) => g.team === awaySlug && g.period <= 4).length
-    const awayGoalsAgainst = state.goals.filter((g) => g.team === homeSlug && g.period <= 4).length
+    const homeGoalsAgainst = state.goals.filter((g) => g.team === awaySlug && (isPlayoff || g.period <= 4)).length
+    const awayGoalsAgainst = state.goals.filter((g) => g.team === homeSlug && (isPlayoff || g.period <= 4)).length
     const totalHomeShots = state.homeShots.reduce((a, b) => a + b, 0)
     const totalAwayShots = state.awayShots.reduce((a, b) => a + b, 0)
 
@@ -766,7 +693,7 @@ function LiveBoxScore({ state, homeSlug, awaySlug, homeTeam, awayTeam, playerNam
       homeGoalies: buildGoalies(state.homeAttendance, totalAwayShots, homeGoalsAgainst),
       awayGoalies: buildGoalies(state.awayAttendance, totalHomeShots, awayGoalsAgainst),
     }
-  }, [state, homeSlug, awaySlug, playerNames, goalieSet, subSet])
+  }, [state, homeSlug, awaySlug, playerNames, goalieSet, subSet, isPlayoff])
 
   return (
     <div className="flex flex-col gap-8">

@@ -41,13 +41,18 @@ export function insertGameTimingSql(entries: GameTimingEntry[], acceptedRows: SQ
   `
 }
 
-export function saveLiveStateSql(id: string, state: LiveGameState, pinHash: string, expectedState?: LiveGameState): SQL {
-  const compact = compactGameTiming(state)
+export function saveLiveStateSql(
+  id: string, state: LiveGameState, expectedRevision: number, mutationId: string,
+  scores: { home: number; away: number },
+): SQL {
+  const compact = { ...compactGameTiming(state), revision: expectedRevision + 1, lastMutationId: mutationId }
   return sql`
-    WITH saved_state AS (
+    WITH eligible_game AS MATERIALIZED (
+      SELECT id FROM games WHERE id = ${id} AND status <> 'final' AND NOT is_forfeit FOR UPDATE
+    ), saved_state AS (
       INSERT INTO game_live (game_id, state, pin_hash)
-      SELECT ${id}, ${JSON.stringify(compact)}::jsonb, ${pinHash}
-      WHERE EXISTS (SELECT 1 FROM games WHERE id = ${id} AND status <> 'final' AND NOT is_forfeit)
+      SELECT id, ${JSON.stringify(compact)}::jsonb, '' FROM eligible_game
+      WHERE ${expectedRevision} = 0 OR EXISTS (SELECT 1 FROM game_live WHERE game_id = ${id})
       ON CONFLICT (game_id) DO UPDATE SET state = (EXCLUDED.state - 'timing') ||
         CASE WHEN game_live.state ? 'timing' OR EXCLUDED.state ? 'timing' THEN
           jsonb_build_object('timing',
@@ -61,11 +66,15 @@ export function saveLiveStateSql(id: string, state: LiveGameState, pinHash: stri
           ELSE '{}'::jsonb END,
         updated_at = NOW()
       WHERE NOT (game_live.state ? 'finalizationPending')
-        AND (${expectedState === undefined} OR (game_live.state - 'timing') = (${JSON.stringify(expectedState ?? {})}::jsonb - 'timing'))
-        AND COALESCE((game_live.state->>'updatedAt')::bigint, 0) <= ${state.updatedAt}
-        AND EXISTS (SELECT 1 FROM games WHERE id = ${id} AND status <> 'final' AND NOT is_forfeit)
-      RETURNING game_id
+        AND (COALESCE((game_live.state->>'revision')::bigint, 0) = ${expectedRevision}
+          OR (game_live.state->>'lastMutationId' = ${mutationId}
+            AND game_live.state - 'timing' = EXCLUDED.state - 'timing'))
+      RETURNING game_id, state
+    ), saved_game AS (
+      UPDATE games SET home_score = ${scores.home}, away_score = ${scores.away},
+        status = CASE WHEN ${state.period} >= 1 THEN 'live' ELSE status END
+      WHERE id IN (SELECT game_id FROM saved_state) RETURNING id
     ), saved_timing AS (${insertGameTimingSql(state.timing?.entries ?? [], sql` saved_state `)})
-    SELECT game_id FROM saved_state
+    SELECT game_id, (state->>'revision')::bigint AS revision FROM saved_state
   `
 }

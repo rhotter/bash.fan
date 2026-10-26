@@ -162,6 +162,7 @@ export const playerGameStats = pgTable(
     gameId: text("game_id")
       .notNull()
       .references(() => games.id),
+    teamSlug: text("team_slug").references(() => teams.slug),
     goals: integer("goals").notNull().default(0),
     assists: integer("assists").notNull().default(0),
     points: integer("points").notNull().default(0),
@@ -178,6 +179,7 @@ export const playerGameStats = pgTable(
     primaryKey({ columns: [t.playerId, t.gameId] }),
     index("idx_player_game_stats_game").on(t.gameId),
     index("idx_player_game_stats_player").on(t.playerId),
+    index("idx_player_game_stats_team").on(t.teamSlug),
   ]
 )
 
@@ -192,6 +194,7 @@ export const goalieGameStats = pgTable(
     gameId: text("game_id")
       .notNull()
       .references(() => games.id),
+    teamSlug: text("team_slug").references(() => teams.slug),
     seconds: integer("seconds").notNull().default(0),
     goalsAgainst: integer("goals_against").notNull().default(0),
     shotsAgainst: integer("shots_against").notNull().default(0),
@@ -205,6 +208,7 @@ export const goalieGameStats = pgTable(
     primaryKey({ columns: [t.playerId, t.gameId] }),
     index("idx_goalie_game_stats_game").on(t.gameId),
     index("idx_goalie_game_stats_player").on(t.playerId),
+    index("idx_goalie_game_stats_team").on(t.teamSlug),
   ]
 )
 
@@ -882,3 +886,52 @@ export const videoMarkers = pgTable("video_markers", {
   occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
   source: text("source").notNull().default("manual"),
 })
+
+// ─── Season Trades ──────────────────────────────────────────────────────────
+
+export const seasonTrades = pgTable(
+  "season_trades",
+  {
+    id: serial("id").primaryKey(),
+    seasonId: text("season_id")
+      .notNull()
+      .references(() => seasons.id, { onDelete: "cascade" }),
+    teamSlugs: text("team_slugs").array().notNull(),
+    notes: text("notes"),
+    tradedAt: timestamp("traded_at", { withTimezone: true }).defaultNow().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [index("idx_season_trades_season").on(t.seasonId)]
+)
+
+export const seasonTradeItems = pgTable(
+  "season_trade_items",
+  {
+    id: serial("id").primaryKey(),
+    tradeId: integer("trade_id")
+      .notNull()
+      .references(() => seasonTrades.id, { onDelete: "cascade" }),
+    itemType: text("item_type").notNull(), // 'player' | 'draft_pick'
+    fromTeamSlug: text("from_team_slug")
+      .notNull()
+      .references(() => teams.slug),
+    toTeamSlug: text("to_team_slug")
+      .notNull()
+      .references(() => teams.slug),
+    // Populated when itemType === 'player'
+    playerId: integer("player_id").references(() => players.id),
+    // Populated when itemType === 'draft_pick'
+    draftPickRound: integer("draft_pick_round"),
+    draftPickOriginalTeamSlug: text("draft_pick_original_team_slug").references(() => teams.slug),
+    draftPickTargetSeason: text("draft_pick_target_season"),
+  },
+  (t) => [
+    index("idx_season_trade_items_trade").on(t.tradeId),
+    index("idx_season_trade_items_player").on(t.playerId),
+  ]
+)
+
+export type SeasonTrade = typeof seasonTrades.$inferSelect
+export type NewSeasonTrade = typeof seasonTrades.$inferInsert
+export type SeasonTradeItem = typeof seasonTradeItems.$inferSelect
+export type NewSeasonTradeItem = typeof seasonTradeItems.$inferInsert

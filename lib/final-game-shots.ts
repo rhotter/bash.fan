@@ -15,6 +15,7 @@ export interface FinalShotContext {
   status: string
   seasonId: string
   gameLength: number | null
+  isPlayoff?: boolean
   isOvertime: boolean
   isForfeit: boolean
   homeTeam: string
@@ -76,7 +77,7 @@ export function planFinalShotCorrection(context: FinalShotContext, correction: S
     const homeSO = shootout?.homeAttempts.filter((a) => a.scored).length ?? 0
     const awaySO = shootout?.awayAttempts.filter((a) => a.scored).length ?? 0
     const shootoutGoal = side === "home" ? Number(awaySO > homeSO) : Number(homeSO > awaySO)
-    const goals = context.state.goals.filter((g) => g.team === opponent && g.period <= 4)
+    const goals = context.state.goals.filter((g) => g.team === opponent && (context.isPlayoff || g.period <= 4))
     const emptyNetGoals = goals.filter((g) => g.flags.includes("ENG")).length
     const savedGA = goalies.reduce((sum, g) => sum + g.goalsAgainst, 0)
     // With an incomplete old event history, the official score and saved GA

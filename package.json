@@ -63,6 +63,7 @@
     "lucide-react": "^0.564.0",
     "next": "16.1.6",
     "next-themes": "^0.4.6",
+    "pgsql-ast-parser": "12.0.2",
     "react": "19.2.4",
     "react-colorful": "^5.7.0",
     "react-day-picker": "9.13.2",
@@ -80,6 +81,7 @@
     "zod": "^3.24.1"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "0.5.11",
     "@eslint/js": "^10.0.1",
     "@tailwindcss/postcss": "^4.1.13",
     "@tailwindcss/typography": "^0.5.19",

@@ -187,7 +187,7 @@ describe("completed-game scorekeeper corrections", () => {
   it("uses the new server snapshot when editing immediately after first finalization", async () => {
     const original = fixture()
     const saved = { ...original, updatedAt: 5678 }
-    fetchMock.mockImplementation(async (url) => reply(200, url.endsWith("/finalize") ? { ok: true, state: saved } : { ok: true }))
+    fetchMock.mockImplementation(async (url) => reply(200, url.endsWith("/finalize") ? { ok: true, state: saved } : { ok: true, revision: 1 }))
     await render(original, "live")
     await openFinalization()
     await finalize()
@@ -223,7 +223,7 @@ describe("completed-game scorekeeper corrections", () => {
     await click("Replace Home goalie")
     await click("Substitution — replacing now")
     await advance(600)
-    expect(body().goalieChanges[0]).toMatchObject({ team: "home", outGoalieId: 1, inGoalieId: 3,
+    expect(body().state.goalieChanges[0]).toMatchObject({ team: "home", outGoalieId: 1, inGoalieId: 3,
       shotSnapshot: { period: 2, clock: "8:00", opponentShots: [4, 2, 0] } })
   })
 

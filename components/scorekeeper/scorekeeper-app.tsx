@@ -27,7 +27,7 @@ import {
 } from "@/lib/scorekeeper-types"
 import {
   saveToLocalStorage, loadLocalDraft, clearLocalStorage,
-  createSyncManager, type SyncStatus,
+  createSyncManager, type SyncStatus, type SyncRequest,
 } from "@/lib/scorekeeper-sync"
 import { captureGameTime, recordGameTiming, withoutGameTiming, type TimingCapture } from "@/lib/scorekeeper-timing"
 import { INFRACTIONS } from "@/components/scorekeeper/shared/constants"
@@ -147,6 +147,8 @@ export function ScorekeeperApp({
   const [syncStatus, setSyncStatus] = useState<SyncStatus>("synced")
   const [syncError, setSyncError] = useState<string | null>(null)
   const [localSaveFailed, setLocalSaveFailed] = useState(false)
+  const restoredSyncRequest = useRef<SyncRequest | undefined>(undefined)
+  const syncRevision = useRef(existingState?.revision ?? 0)
   const syncRef = useRef<ReturnType<typeof createSyncManager> | null>(null)
 
   // ─── Goalie helpers ─────────────────────────────────────────────────────
@@ -234,7 +236,7 @@ export function ScorekeeperApp({
   }, [state.clockRunning, state.clockStartedAt, state.clockSeconds])
 
   // ─── Scores ──────────────────────────────────────────────────────────────
-  const scores = useMemo(() => computeScore(state.goals, homeSlug, awaySlug), [state.goals, homeSlug, awaySlug])
+  const scores = useMemo(() => computeScore(state.goals, homeSlug, awaySlug, isPlayoff), [state.goals, homeSlug, awaySlug, isPlayoff])
 
   // ─── Auto-advance when clock hits 0 ─────────────────────────────────────
   const scoresRef = useRef(scores)
@@ -263,11 +265,11 @@ export function ScorekeeperApp({
 
   // ─── Power Play State ──────────────────────────────────────────────────
   const activePenalties = useMemo(
-    () => getActivePenalties(state.penalties, state.period, displayClock, defaultPeriodLength, isPlayoff ? defaultPeriodLength : 300),
+    () => getActivePenalties(state.penalties, state.period, displayClock, defaultPeriodLength, isPlayoff ? defaultPeriodLength : 300, isPlayoff),
     [state.penalties, state.period, displayClock, defaultPeriodLength, isPlayoff]
   )
   const ppState = useMemo(
-    () => getPowerPlayState(state.penalties, state.period, displayClock, homeSlug, awaySlug, defaultPeriodLength, isPlayoff ? defaultPeriodLength : 300),
+    () => getPowerPlayState(state.penalties, state.period, displayClock, homeSlug, awaySlug, defaultPeriodLength, isPlayoff ? defaultPeriodLength : 300, isPlayoff),
     [state.penalties, state.period, displayClock, homeSlug, awaySlug, defaultPeriodLength, isPlayoff]
   )
 
@@ -276,7 +278,9 @@ export function ScorekeeperApp({
     const draft = loadLocalDraft(gameId)
     // Preserve the expected snapshot even if the server changed while offline.
     // Finalization must detect that conflict rather than silently rebase edits.
-    if (draft && !state.finalizationPending && (draft.expectedState || draft.state.updatedAt > state.updatedAt)) {
+    if (draft && !state.finalizationPending && (draft.expectedState || draft.pendingSync || draft.syncRequest || draft.state.updatedAt > state.updatedAt)) {
+      syncRevision.current = draft.state.revision ?? 0
+      restoredSyncRequest.current = draft.syncRequest
       restoredState.current = draft.state
       lastScheduledState.current = draft.state
       setState(draft.state)
@@ -291,7 +295,9 @@ export function ScorekeeperApp({
   // ─── Sync manager lifecycle ──────────────────────────────────────────────
   useEffect(() => {
     if (!authenticated) return
-    const mgr = createSyncManager(gameId, pin)
+    const mgr = createSyncManager(gameId, pin, { ...latestState.current, revision: syncRevision.current }, restoredSyncRequest.current)
+    restoredSyncRequest.current = undefined
+    mgr.setRevisionListener(revision => { syncRevision.current = revision })
     mgr.setStatusListener((status, message) => {
       setSyncStatus(status)
       setSyncError(message ?? null)
@@ -314,7 +320,7 @@ export function ScorekeeperApp({
     if (state !== lastScheduledState.current) {
       lastScheduledState.current = state
       hasEditedState.current = true
-      setLocalSaveFailed(!saveToLocalStorage(gameId, state, correctionExpectedState))
+      setLocalSaveFailed(!saveToLocalStorage(gameId, correctionExpectedState || state.finalizationPending ? state : { ...state, revision: syncRevision.current }, correctionExpectedState))
       if (!correctionExpectedState && !state.finalizationPending) syncRef.current?.scheduleSync(state)
     }
   }, [state, authenticated, finalized, gameId, correctionExpectedState])
@@ -479,7 +485,7 @@ export function ScorekeeperApp({
 
   function setPeriodTo(p: number) {
     updateState((prev) => {
-      const clockSecs = p === 0 ? defaultPeriodLength : p === 4 ? 300 : defaultPeriodLength
+      const clockSecs = !isPlayoff && p === 5 ? 0 : p >= 4 && !isPlayoff ? 300 : defaultPeriodLength
       const homeShots = [...prev.homeShots]
       const awayShots = [...prev.awayShots]
       while (homeShots.length < (p <= 3 ? p : 4)) homeShots.push(0)
@@ -492,7 +498,7 @@ export function ScorekeeperApp({
         clockStartedAt: null,
         homeShots,
         awayShots,
-        shootout: p === 5 ? (prev.shootout ?? { homeAttempts: [], awayAttempts: [] }) : prev.shootout,
+        shootout: !isPlayoff && p === 5 ? (prev.shootout ?? { homeAttempts: [], awayAttempts: [] }) : null,
       }
     })
     setPeriodEditOpen(false)
@@ -750,7 +756,7 @@ export function ScorekeeperApp({
         // End penalty on PP goal
         if (goalPPG) {
           const clockSecs = parseClockString(clock)
-          const result = findPenaltyToEnd(prev.penalties, goalTeam, capturedPeriod, clockSecs, defaultPeriodLength, isPlayoff ? defaultPeriodLength : 300)
+          const result = findPenaltyToEnd(prev.penalties, goalTeam, capturedPeriod, clockSecs, defaultPeriodLength, isPlayoff ? defaultPeriodLength : 300, isPlayoff)
           if (result) {
             const currentElapsed = clockToElapsed(capturedPeriod, clockSecs, defaultPeriodLength, isPlayoff ? defaultPeriodLength : 300)
             next.penalties = prev.penalties.map((p) => {
@@ -767,7 +773,7 @@ export function ScorekeeperApp({
 
         // OT sudden death: stop clock when a goal breaks the tie
         if (capturedPeriod >= 4) {
-          const { home, away } = computeScore(next.goals, homeSlug, awaySlug)
+          const { home, away } = computeScore(next.goals, homeSlug, awaySlug, isPlayoff)
           if (home !== away) {
             next.clockRunning = false
             next.clockSeconds = Math.max(0, computeCurrentClock(prev))
@@ -917,7 +923,7 @@ export function ScorekeeperApp({
     let receivedResponse = false
     const snapshot = latestState.current.finalizationPending
       ? latestState.current
-      : prepareScorekeeperFinalization(latestState.current, homeSlug, awaySlug)
+      : prepareScorekeeperFinalization(latestState.current, homeSlug, awaySlug, isPlayoff)
     const expectedState = correctionExpectedRef.current
     const retryingSavedState = snapshot.finalizationPending?.phase === "failed"
     setLocalSaveFailed(!saveToLocalStorage(gameId, snapshot, expectedState))
@@ -941,7 +947,7 @@ export function ScorekeeperApp({
 
       const res = await fetch(`/api/bash/scorekeeper/${gameId}/finalize`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-pin": pin, "x-state-updated-at": String(snapshot.updatedAt) },
+        headers: { "Content-Type": "application/json", "x-pin": pin, "x-state-updated-at": String(snapshot.updatedAt), "x-state-revision": String(retryingSavedState ? snapshot.revision ?? 0 : syncRef.current?.getRevision() ?? snapshot.revision ?? 0) },
         ...(expectedState && !retryingSavedState ? { body: JSON.stringify({ expectedState: withoutGameTiming(expectedState), state: syncRef.current?.prepareState(snapshot) ?? snapshot }) } : {}),
       })
       receivedResponse = true
@@ -1093,7 +1099,7 @@ export function ScorekeeperApp({
   const nameById = (id: number) => allPlayers.find((p) => p.id === id)?.name ?? `#${id}`
 
   const isPreGame = state.period === 0
-  const isShootout = state.period === 5
+  const isShootout = !isPlayoff && state.shootout !== null
 
   return (
     <div className="flex-1 bg-background pb-24" style={{ "--accent": "var(--muted)", "--accent-foreground": "var(--foreground)" } as React.CSSProperties}>
@@ -1109,7 +1115,15 @@ export function ScorekeeperApp({
 
       <div className="max-w-2xl mx-auto px-4">
         {correctionExpectedState && <p className="my-2 text-xs text-muted-foreground">Edits to this completed game are saved on this device until you finalize the correction.</p>}
-        {syncError && <p role="alert" className="my-2 text-xs text-destructive">{syncError}</p>}
+        {syncError && <div role="alert" className="my-2 space-y-2 text-xs text-destructive">
+          <p>{syncError}</p>
+          {syncRef.current?.canAutoRetry() === false && <Button variant="outline" size="sm" onClick={() => {
+            hasEditedState.current = false
+            syncRef.current?.destroy()
+            clearLocalStorage(gameId)
+            window.location.reload()
+          }}>Discard local edits and reload saved game</Button>}
+        </div>}
         {localSaveFailed && <p role="alert" className="my-2 text-xs text-destructive">This device couldn't save a backup. Keep this page open until your changes sync.</p>}
         {/* ─── Offline Finalize Banner ──────────────────────────────── */}
         {pendingFinalize && (
@@ -1153,7 +1167,7 @@ export function ScorekeeperApp({
                 <div className="flex items-center justify-center gap-3">
                   <button onClick={() => setPeriodEditOpen(true)}>
                     <span className="text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded-full bg-background/15 text-background">
-                      {periodLabel(state.period)}
+                      {periodLabel(state.period, isPlayoff)}
                     </span>
                   </button>
                   <button
@@ -1179,7 +1193,7 @@ export function ScorekeeperApp({
                 <div className="flex justify-center">
                   <button onClick={() => setPeriodEditOpen(true)}>
                     <span className="text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded-full bg-background/15 text-background">
-                      {periodLabel(state.period)}
+                      {periodLabel(state.period, isPlayoff)}
                     </span>
                   </button>
                 </div>
@@ -1466,7 +1480,7 @@ export function ScorekeeperApp({
                           )}
                         </div>
                         <span className="text-[10px] text-muted-foreground/50 shrink-0">{teamName}</span>
-                        <span className="text-[10px] text-muted-foreground/40 tabular-nums font-mono shrink-0">{periodLabel(g.period)} {clockToElapsedDisplay(g.clock, g.period, defaultPeriodLength, isPlayoff ? defaultPeriodLength : 300)}</span>
+                        <span className="text-[10px] text-muted-foreground/40 tabular-nums font-mono shrink-0">{periodLabel(g.period, isPlayoff)} {clockToElapsedDisplay(g.clock, g.period, defaultPeriodLength, isPlayoff ? defaultPeriodLength : 300)}</span>
                         <button
                           onClick={(e) => { e.stopPropagation(); setConfirmUndo({ id: g.id, type: "goal" }) }}
                           className="shrink-0 p-1 rounded text-muted-foreground/30 hover:text-foreground transition-colors"
@@ -1486,7 +1500,7 @@ export function ScorekeeperApp({
                           <span className="text-[10px] text-muted-foreground/50"> &middot; {p.infraction} &middot; {p.minutes}min</span>
                         </div>
                         <span className="text-[10px] text-muted-foreground/50 shrink-0">{teamName}</span>
-                        <span className="text-[10px] text-muted-foreground/40 tabular-nums font-mono shrink-0">{periodLabel(p.period)} {clockToElapsedDisplay(p.clock, p.period, defaultPeriodLength, isPlayoff ? defaultPeriodLength : 300)}</span>
+                        <span className="text-[10px] text-muted-foreground/40 tabular-nums font-mono shrink-0">{periodLabel(p.period, isPlayoff)} {clockToElapsedDisplay(p.clock, p.period, defaultPeriodLength, isPlayoff ? defaultPeriodLength : 300)}</span>
                         <button
                           onClick={(e) => { e.stopPropagation(); setConfirmUndo({ id: p.id, type: "penalty" }) }}
                           className="shrink-0 p-1 rounded text-muted-foreground/30 hover:text-foreground transition-colors"
@@ -1504,7 +1518,7 @@ export function ScorekeeperApp({
                         <div className="flex-1 min-w-0">
                           <span className="text-[11px] font-medium text-muted-foreground">{teamName}</span>
                         </div>
-                        <span className="text-[10px] text-muted-foreground/40 tabular-nums font-mono shrink-0">{periodLabel(t.period)} {clockToElapsedDisplay(t.clock, t.period, defaultPeriodLength, isPlayoff ? defaultPeriodLength : 300)}</span>
+                        <span className="text-[10px] text-muted-foreground/40 tabular-nums font-mono shrink-0">{periodLabel(t.period, isPlayoff)} {clockToElapsedDisplay(t.clock, t.period, defaultPeriodLength, isPlayoff ? defaultPeriodLength : 300)}</span>
                         <button
                           onClick={(e) => { e.stopPropagation(); setConfirmUndo({ id: t.id, type: "timeout" }) }}
                           className="shrink-0 p-1 rounded text-muted-foreground/30 hover:text-foreground transition-colors"
@@ -1525,7 +1539,7 @@ export function ScorekeeperApp({
                           <span className="text-[11px] font-medium">{nameById(c.inGoalieId)}</span>
                         </div>
                         <span className="text-[10px] text-muted-foreground/50 shrink-0">{teamName}</span>
-                        <span className="text-[10px] text-muted-foreground/40 tabular-nums font-mono shrink-0">{periodLabel(c.period)} {clockToElapsedDisplay(c.clock, c.period, defaultPeriodLength, isPlayoff ? defaultPeriodLength : 300)}</span>
+                        <span className="text-[10px] text-muted-foreground/40 tabular-nums font-mono shrink-0">{periodLabel(c.period, isPlayoff)} {clockToElapsedDisplay(c.clock, c.period, defaultPeriodLength, isPlayoff ? defaultPeriodLength : 300)}</span>
                         <button
                           onClick={(e) => { e.stopPropagation(); setConfirmUndo({ id: c.id, type: "goalieChange" }) }}
                           className="shrink-0 p-1 rounded text-muted-foreground/30 hover:text-foreground transition-colors"
@@ -1545,6 +1559,7 @@ export function ScorekeeperApp({
           <div className="mt-5">
             <SectionHeader>Stats by Period</SectionHeader>
             <PeriodSummary
+              isPlayoff={isPlayoff}
               state={state}
               homeSlug={homeSlug}
               awaySlug={awaySlug}
@@ -1651,6 +1666,9 @@ export function ScorekeeperApp({
                       <SelectItem key={p} value={p.toString()}>P{p}</SelectItem>
                     ))}
                     <SelectItem value="4">OT</SelectItem>
+                    {isPlayoff && Array.from({ length: Math.max(0, state.period - 4) }, (_, i) => i + 5).map(p => (
+                      <SelectItem key={p} value={String(p)}>{periodLabel(p, true)}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </FieldLabel>
@@ -1768,6 +1786,9 @@ export function ScorekeeperApp({
                       <SelectItem key={p} value={p.toString()}>P{p}</SelectItem>
                     ))}
                     <SelectItem value="4">OT</SelectItem>
+                    {isPlayoff && Array.from({ length: Math.max(0, state.period - 4) }, (_, i) => i + 5).map(p => (
+                      <SelectItem key={p} value={String(p)}>{periodLabel(p, true)}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </FieldLabel>
@@ -1889,7 +1910,8 @@ export function ScorekeeperApp({
               { value: 2, label: "Period 2" },
               { value: 3, label: "Period 3" },
               { value: 4, label: "Overtime" },
-              { value: 5, label: "Shootout" },
+              ...(!isPlayoff ? [{ value: 5, label: "Shootout" }] :
+                Array.from({ length: Math.max(2, state.period - 3) }, (_, i) => ({ value: i + 5, label: periodLabel(i + 5, true) }))),
             ].map((opt) => (
               <Button
                 key={opt.value}
@@ -1962,6 +1984,9 @@ export function ScorekeeperApp({
                       <SelectItem key={p} value={p.toString()}>P{p}</SelectItem>
                     ))}
                     <SelectItem value="4">OT</SelectItem>
+                    {isPlayoff && Array.from({ length: Math.max(0, state.period - 4) }, (_, i) => i + 5).map(p => (
+                      <SelectItem key={p} value={String(p)}>{periodLabel(p, true)}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </FieldLabel>

@@ -1,7 +1,6 @@
 import { beforeEach, expect, it, vi } from "vitest"
 import { PgDialect } from "drizzle-orm/pg-core"
 import { createInitialState } from "@/lib/scorekeeper-types"
-import { saveLiveStateSql } from "@/lib/scorekeeper-timing-db"
 const mocks = vi.hoisted(() => ({ getSession: vi.fn(), rawSql: vi.fn() }))
 vi.mock("@/lib/db", () => ({ rawSql: mocks.rawSql }))
 vi.mock("@/lib/admin-session", () => ({ getSession: mocks.getSession }))
@@ -23,12 +22,4 @@ it("returns authenticated roster and preserved state without starting or changin
   expect(response.headers.get("Cache-Control")).toBe("private, no-store")
   expect(await response.json()).toMatchObject({ periodLength: 900, homeRoster: [{ id: 1 }], awayRoster: [{ id: 2 }], state })
   for (const [query] of mocks.rawSql.mock.calls) expect(new PgDialect().sqlToQuery(query).sql).not.toMatch(/INSERT|UPDATE|DELETE/)
-})
-it("compares the native client's base snapshot inside the atomic live-state write", () => {
-  const expected = createInitialState()
-  const state = { ...expected, period: 1, updatedAt: 100 }
-  const query = new PgDialect().sqlToQuery(saveLiveStateSql("g1", state, "test", expected))
-  expect(query.sql).toContain("(game_live.state - 'timing') =")
-  expect(query.params).toContain(JSON.stringify(expected))
-  expect(query.params).toContain(false)
 })

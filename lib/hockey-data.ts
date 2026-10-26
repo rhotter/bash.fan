@@ -11,23 +11,13 @@ export type { BashApiData, BashGame, Standing, PlayerStatsData, SkaterStat, Goal
 
 const fetcher = (url: string) => fetch(url).then((res) => readApiJson(res))
 
-// Fire-and-forget sync trigger — at most once per page load
-let syncTriggered = false
-function triggerSync() {
-  if (syncTriggered) return
-  syncTriggered = true
-  fetch("/api/bash/sync").catch(() => {})
-}
-
 export function useBashData(season?: string, fallbackData?: BashApiData) {
   const url = season ? `/api/bash?season=${season}` : "/api/bash"
-  const isCurrentSeason = !season
 
   const { data, error, isLoading, mutate } = useSWR<BashApiData>(url, fetcher, {
     refreshInterval: (latestData) => (latestData ?? fallbackData)?.games?.some((g) => g.status === "live") ? REFRESH.LIVE_GAME : REFRESH.SCORES,
     revalidateOnFocus: true,
     dedupingInterval: DEDUPE.SCORES,
-    onSuccess: () => { if (isCurrentSeason) triggerSync() },
     fallbackData,
   })
 

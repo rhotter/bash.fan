@@ -7,6 +7,7 @@ import { ConditionalFooter } from '@/components/conditional-footer'
 import { SiteHeader } from '@/components/site-header'
 import { SiteBanner } from '@/components/site-banner'
 import { Toaster } from '@/components/ui/sonner'
+import { fetchInitialDraftStatus } from '@/lib/fetch-draft-status'
 import './globals.css'
 
 const inter = Inter({
@@ -40,11 +41,13 @@ export const viewport: Viewport = {
   themeColor: '#f8f9fc',
 }
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode
 }>) {
+  const initialDraftStatus = await fetchInitialDraftStatus()
+
   return (
     <html lang="en" className={`${inter.variable} ${jetbrainsMono.variable} bg-background`}>
       <body className="font-sans antialiased min-h-screen flex flex-col">
@@ -52,7 +55,7 @@ export default function RootLayout({
           <SiteBanner />
           <SiteHeader />
           {children}
-          <ConditionalFooter />
+          <ConditionalFooter initialDraftStatus={initialDraftStatus} />
           <Toaster />
         </AdminProvider>
         <Analytics />

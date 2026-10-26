@@ -1,12 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import { createSyncManager, saveToLocalStorage } from "@/lib/scorekeeper-sync"
+import { createSyncManager, saveToLocalStorage, loadLocalDraft } from "@/lib/scorekeeper-sync"
 import { createInitialState } from "@/lib/scorekeeper-types"
 
 const pending = () => {
-  let resolve!: (value: { ok: boolean }) => void
-  const promise = new Promise<{ ok: boolean }>((r) => { resolve = r })
+  let resolve!: (value: Response) => void
+  const promise = new Promise<Response>((r) => { resolve = r })
   return { promise, resolve }
 }
+const reply = (revision = 1, ids: string[] = []) => new Response(JSON.stringify({ ok: true, revision, timingAckIds: ids }))
 const state = (updatedAt: number) => ({ ...createInitialState(), updatedAt })
 
 beforeEach(() => { vi.useFakeTimers() })
@@ -45,12 +46,12 @@ describe("scorekeeper save/finalize synchronization", () => {
     const finalizeFlush = sync.flush().then((ok) => { finished = true; return ok })
     expect(fetch).toHaveBeenCalledTimes(1)
     expect(finished).toBe(false)
-    first.resolve({ ok: true })
-    await Promise.resolve(); await Promise.resolve(); await Promise.resolve()
+    first.resolve(reply(1))
+    await vi.advanceTimersByTimeAsync(0)
     expect(fetch).toHaveBeenCalledTimes(2)
     expect(finished).toBe(false)
-    expect(JSON.parse(fetch.mock.calls[1][1].body).updatedAt).toBe(2)
-    second.resolve({ ok: true })
+    expect(JSON.parse(fetch.mock.calls[1][1].body).state.updatedAt).toBe(2)
+    second.resolve(reply(2))
     expect(await finalizeFlush).toBe(true)
     expect(await oldFlush).toBe(true)
     expect(sync.getLastSyncedUpdatedAt()).toBe(2)
@@ -59,17 +60,19 @@ describe("scorekeeper save/finalize synchronization", () => {
 
   it("does not replace a newer pending correction with an older failed request", async () => {
     const first = pending()
-    const fetch = vi.fn().mockReturnValueOnce(first.promise).mockResolvedValue({ ok: true })
+    const fetch = vi.fn().mockReturnValueOnce(first.promise).mockImplementation(async (_url, options) => reply(JSON.parse(options.body).expectedRevision + 1))
     vi.stubGlobal("fetch", fetch)
     const sync = createSyncManager("g1", "pin")
     sync.scheduleSync(state(1))
     const saving = sync.flush()
     sync.scheduleSync(state(2))
-    first.resolve({ ok: false })
+    first.resolve(new Response(JSON.stringify({ error: "temporary" }), { status: 500 }))
     expect(await saving).toBe(false)
     expect(sync.getLastSyncedUpdatedAt()).toBeNull()
     expect(await sync.flush()).toBe(true)
-    expect(JSON.parse(fetch.mock.calls[1][1].body).updatedAt).toBe(2)
+    expect(JSON.parse(fetch.mock.calls[1][1].body).state.updatedAt).toBe(1)
+    expect(JSON.parse(fetch.mock.calls[2][1].body).state.updatedAt).toBe(2)
+    expect(JSON.parse(fetch.mock.calls[2][1].body).expectedRevision).toBe(1)
     sync.destroy()
   })
 
@@ -96,8 +99,8 @@ describe("incremental timing uploads", () => {
   it("sends only unacknowledged entries across saves and reloads", async () => {
     storage()
     const fetch = vi.fn(async (_url, options) => {
-      const ids = JSON.parse(options.body).timing.entries.map((e: { id: string }) => e.id)
-      return new Response(JSON.stringify({ ok: true, timingAckIds: ids }))
+      const ids = JSON.parse(options.body).state.timing.entries.map((e: { id: string }) => e.id)
+      return reply(JSON.parse(options.body).expectedRevision + 1, ids)
     })
     vi.stubGlobal("fetch", fetch)
     const sync = createSyncManager("g1", "pin")
@@ -105,21 +108,21 @@ describe("incremental timing uploads", () => {
     expect(await sync.flush()).toBe(true)
     sync.scheduleSync(timed(2, ["first", "second"]))
     expect(await sync.flush()).toBe(true)
-    expect(JSON.parse(fetch.mock.calls[1][1].body).timing.entries.map((e: { id: string }) => e.id)).toEqual(["second"])
+    expect(JSON.parse(fetch.mock.calls[1][1].body).state.timing.entries.map((e: { id: string }) => e.id)).toEqual(["second"])
     sync.destroy()
-    const reloaded = createSyncManager("g1", "pin")
+    const reloaded = createSyncManager("g1", "pin", loadLocalDraft("g1")!.state)
     reloaded.scheduleSync(timed(3, ["first", "second", "third"]))
     expect(await reloaded.flush()).toBe(true)
-    expect(JSON.parse(fetch.mock.calls[2][1].body).timing.entries.map((e: { id: string }) => e.id)).toEqual(["third"])
+    expect(JSON.parse(fetch.mock.calls[2][1].body).state.timing.entries.map((e: { id: string }) => e.id)).toEqual(["third"])
     reloaded.scheduleSync(timed(4, ["first", "second", "third"]))
     expect(await reloaded.flush()).toBe(true)
-    expect(JSON.parse(fetch.mock.calls[3][1].body).timing.entries).toEqual([])
+    expect(JSON.parse(fetch.mock.calls[3][1].body).state.timing.entries).toEqual([])
     reloaded.destroy()
   })
   it("resends after an uncertain response and never treats a beacon as an acknowledgment", async () => {
     storage()
     const fetch = vi.fn().mockRejectedValueOnce(new Error("response lost after commit"))
-      .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true, timingAckIds: ["first"] })))
+      .mockResolvedValueOnce(reply(1, ["first"]))
     vi.stubGlobal("fetch", fetch)
     vi.stubGlobal("navigator", { sendBeacon: vi.fn(() => true) })
     const sync = createSyncManager("g1", "pin")
@@ -134,11 +137,40 @@ describe("incremental timing uploads", () => {
   })
   it("only acknowledges IDs actually included in the confirmed request", async () => {
     storage()
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ ok: true, timingAckIds: ["first", "not-sent"] }))))
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(reply(1, ["first", "not-sent"])))
     const sync = createSyncManager("g1", "pin")
     sync.scheduleSync(timed(1, ["first"]))
     expect(await sync.flush()).toBe(true)
     expect(sync.prepareState(timed(2, ["first", "not-sent"])).timing?.entries.map(e => e.id)).toEqual(["not-sent"])
     sync.destroy()
+  })
+})
+
+describe("durable revision recovery", () => {
+  it("retries the exact uncertain write after reload before saving newer edits", async () => {
+    const values = new Map<string, string>()
+    vi.stubGlobal("localStorage", { getItem: (k: string) => values.get(k) ?? null, setItem: (k: string, v: string) => values.set(k, v), removeItem: (k: string) => values.delete(k) })
+    const fetch = vi.fn().mockRejectedValueOnce(new Error("response lost"))
+      .mockImplementation(async (_url, options) => reply(JSON.parse(options.body).expectedRevision + 1))
+    vi.stubGlobal("fetch", fetch)
+    const sync = createSyncManager("reload", "pin", { ...state(0), revision: 8 })
+    sync.scheduleSync(state(1))
+    expect(await sync.flush()).toBe(false)
+    sync.scheduleSync({ ...state(2), notes: "newer edit" })
+    sync.destroy()
+    const draft = loadLocalDraft("reload")!
+    expect(draft.state.revision).toBe(8)
+    expect(draft.pendingSync).toBe(true)
+    expect(draft.state.notes).toBe("newer edit")
+    const reloaded = createSyncManager("reload", "pin", draft.state, draft.syncRequest)
+    reloaded.scheduleSync(draft.state)
+    expect(await reloaded.flush()).toBe(true)
+    expect(fetch.mock.calls[1][1].body).toBe(fetch.mock.calls[0][1].body)
+    const newest = JSON.parse(fetch.mock.calls[2][1].body)
+    expect(newest.expectedRevision).toBe(9)
+    expect(newest.state.notes).toBe("newer edit")
+    expect(loadLocalDraft("reload")!.state.revision).toBe(10)
+    expect(loadLocalDraft("reload")!.pendingSync).toBeUndefined()
+    reloaded.destroy()
   })
 })

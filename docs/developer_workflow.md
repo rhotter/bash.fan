@@ -115,6 +115,12 @@ Navigate to `http://localhost:3000` in your browser. The app should now be runni
   pnpm lint && npx tsc --noEmit && pnpm build
   ```
 
+- **Optimizing Team & League Logos**: When adding or updating a PNG logo in `public/team-logos/` (and registering it in `lib/team-logos.ts`), regenerate the static `64px`/`128px`/`256px` WebP variants and manifest:
+  ```bash
+  pnpm logos:optimize
+  ```
+  Commit the generated files in `public/optimized-logos/` and `lib/optimized-logos.json`. (`pnpm build` also runs this automatically.)
+
 - **Running Banner Tests**: To verify the full banner test suite (helper math, date/timezone parsing, SWR, admin & public APIs, responsive layout assertions, draft sync lifecycle):
   ```bash
   npx vitest run tests/banners
@@ -132,7 +138,7 @@ The BASH Scorekeeper feature (`/scorekeeper`) allows scorekeepers to manually up
 To access and test the live scorekeeper logic locally:
 1. Ensure your local server is running (`pnpm dev`).
 2. Obtain or generate the scorekeeper PIN (stored as `SCOREKEEPER_PIN` in your environment variables). If you are testing offline sync features, you can turn off your web connection while recording events and test the synchronization once you come back online.
-3. Proceed to `http://localhost:3000/scorekeeper` and insert the PIN to manage active games.
+3. Proceed to `http://localhost:3000/scorekeeper` and insert the PIN to manage active games. Note that PIN sign-in uses `authenticateScorekeeper` (`lib/scorekeeper-login.ts` → `/api/bash/admin/validate-pin`) to validate credentials without writing to `/state`, preventing a newly opened or stale tab from overwriting live or finalized scores on login.
 
 ## Data Sync Workflow
 There are two distinct data sync mechanisms in BASH:
@@ -172,14 +178,22 @@ The admin dashboard (`/admin`) provides season management, schedule generation, 
 
 ## Known Gotchas
 
-### No `db.transaction()` Support
+### No `db.transaction()` Support & `neon-http` Round-Trip Latency
 The project uses Neon's **HTTP driver** (`drizzle-orm/neon-http`), which is stateless and **does not support transactions**. Any route that wraps writes in `db.transaction()` will throw:
 
 ```
 No transactions support in neon-http driver
 ```
 
-**Workaround**: Use sequential `await db.*` calls instead. This is acceptable for admin operations on draft data. If true ACID transactions are ever needed, the project would need to switch to the `neon-serverless` WebSocket driver.
+**Workarounds & Latency Best Practices**:
+- **Mutations**: Use idempotent sequential `await db.*` calls. If true ACID transactions are ever needed, migrate to the `neon-serverless` WebSocket driver.
+- **Reads**: Because each `neon-http` query is a separate HTTP request, avoid sequential `await` waterfalls. Run independent queries concurrently via `Promise.all()`, filter in SQL (`playerSlugSql`), or combine multi-section entity reads into a single `WITH ... AS MATERIALIZED` CTE query (`fetchPlayerQueryGroup`).
+- **Deduplication**: Always wrap server-side page fetchers (`lib/fetch-*.ts`) in `React.cache()` so `generateMetadata()` and the page component do not execute duplicate DB queries during the same render.
+
+### Navigation, Persistent Header & Bundle Size
+- **Do not mount `<SiteHeader />` in pages or `loading.tsx`**: `SiteHeader` is mounted once in `app/layout.tsx` so navigating between pages preserves the header DOM and decoded logo image. Use `PageLoading` (`components/page-loading.tsx`) for route `loading.tsx` files.
+- **Use `IntentLink` for detail links**: Import `IntentLink` (`components/intent-link.tsx`) instead of `next/link` when linking to `/player/[slug]`, `/team/[slug]`, or `/game/[id]` so pointer hover, focus, and touch-start prefetch the full RSC payload (`PrefetchKind.FULL`). Avoid `onClick={() => router.push(...)}` on table/list rows; use a real `<Link>` overlay instead.
+- **Lazy-load header modals**: Any dialog or heavy interactive component attached to `SiteHeader` (like `PlayerSearchDialog`) must be loaded via `next/dynamic` only when opened so its dependencies don't bloat the initial JS bundle on every page.
 
 ### Roster Import Requires CSV (Not XLSX)
 Sportability exports player lists as `.xlsx`. The import route uses a **built-in CSV parser** instead of the `xlsx` npm package, because `xlsx` depends on Node.js native APIs (`Buffer`, `fs`) that break under Next.js webpack bundling. Admins must convert the file to CSV before uploading.

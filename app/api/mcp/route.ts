@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { neon } from "@neondatabase/serverless"
+import { publicStatsQuery } from "@/lib/mcp-query"
 
 // BASH MCP Server — Streamable HTTP transport
 // Single tool: read-only SQL queries against the BASH hockey database
@@ -94,19 +95,17 @@ export async function POST(req: NextRequest) {
         }
 
         try {
-          const query = (args.sql || "").trim()
-          const forbidden = /\b(INSERT|UPDATE|DELETE|DROP|ALTER|CREATE|TRUNCATE|GRANT|REVOKE|COPY|EXECUTE|DO)\b/i
-          if (forbidden.test(query)) {
-            throw new Error("Only SELECT queries are allowed.")
-          }
-          if (!query.toUpperCase().startsWith("SELECT")) {
-            throw new Error("Query must start with SELECT.")
-          }
-          const limitedQuery = /\bLIMIT\b/i.test(query) ? query : `${query} LIMIT 100`
+          const limitedQuery = publicStatsQuery(args?.sql)
           const dbUrl = process.env.DATABASE_URL_READONLY
           if (!dbUrl) throw new Error("Database not configured.")
-          const sql = neon(dbUrl)
-          const rows = await sql.query(limitedQuery)
+          const connection = neon(dbUrl)
+          // Neon HTTP supports a non-interactive transaction here; this is not
+          // the unsupported Drizzle db.transaction API.
+          const [, , rows] = await connection.transaction([
+            connection.query("SET LOCAL statement_timeout = '5s'"),
+            connection.query("SET LOCAL search_path = pg_catalog, public"),
+            connection.query(limitedQuery),
+          ], { readOnly: true })
           return NextResponse.json(
             jsonrpcResponse(id, {
               content: [{ type: "text", text: JSON.stringify({ rows, rowCount: rows.length }) }],

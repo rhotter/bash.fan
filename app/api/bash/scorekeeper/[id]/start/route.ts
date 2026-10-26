@@ -67,13 +67,11 @@ export async function POST(
       }
     }
 
-    const pinHash = process.env.SCOREKEEPER_PIN!
-
     // Create game_live row (don't set game status to live yet — that happens when period 1 starts)
     await db.insert(schema.gameLive).values({
       gameId: id,
       state: initialState,
-      pinHash,
+      pinHash: "",
     })
 
     return NextResponse.json({ ok: true, state: initialState })
