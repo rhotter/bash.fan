@@ -1,6 +1,24 @@
 import XCTest
 
 final class LeagueUITests: XCTestCase {
+    @MainActor func testAboutLinks() throws {
+        let app = XCUIApplication()
+        app.launch()
+        let menu = app.buttons["operatorMenu"].firstMatch
+        XCTAssertTrue(menu.waitForExistence(timeout: 30))
+        menu.tap()
+        XCTAssertFalse(app.buttons["Privacy policy"].exists)
+        XCTAssertFalse(app.buttons["App support"].exists)
+        capture("Game tools with About BASH")
+        app.buttons["About BASH"].tap()
+        XCTAssertTrue(app.navigationBars["About BASH"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Privacy policy"].exists)
+        XCTAssertTrue(app.buttons["App support"].exists)
+        capture("About BASH privacy and support")
+        app.buttons["Done"].tap()
+        XCTAssertTrue(menu.waitForExistence(timeout: 5))
+    }
+
     @MainActor func testGoalieStatsSorting() throws {
         let app = XCUIApplication()
         app.launch()
