@@ -8,6 +8,7 @@ const preferences = z.object({
  id: z.string().uuid(), token: z.string().regex(/^[a-f0-9]{64,200}$/),
  environment: z.enum(["sandbox", "production"]),
  teams: z.array(z.string().regex(/^[a-z0-9-]{1,100}$/)).max(32),
+ kinds: z.array(z.enum(["goal", "start", "final"])).max(3).optional(),
  games: z.array(z.string().regex(/^[a-zA-Z0-9-]{1,100}$/)).max(100), enabled: z.boolean(),
 })
 export async function PUT(request: Request) {
@@ -22,12 +23,14 @@ export async function PUT(request: Request) {
  const hash = createHash("sha256").update(secret).digest("hex")
  try {
   const updated = await rawSql(sql`
-   INSERT INTO push_devices(id,secret_hash,token,environment,teams,games,enabled)
+   INSERT INTO push_devices(id,secret_hash,token,environment,teams,games,kinds,enabled)
    VALUES(${body.id}::uuid,${hash},${body.token},${body.environment},
     ARRAY(SELECT jsonb_array_elements_text(${JSON.stringify([...new Set(body.teams)])}::jsonb)),
-    ARRAY(SELECT jsonb_array_elements_text(${JSON.stringify([...new Set(body.games)])}::jsonb)),${body.enabled})
+    ARRAY(SELECT jsonb_array_elements_text(${JSON.stringify([...new Set(body.games)])}::jsonb)),
+    ARRAY(SELECT jsonb_array_elements_text(${JSON.stringify(body.kinds ?? ["goal", "start", "final"])}::jsonb)),${body.enabled})
    ON CONFLICT(id) DO UPDATE SET token=excluded.token,environment=excluded.environment,
-    teams=excluded.teams,games=excluded.games,enabled=excluded.enabled,updated_at=now()
+    teams=excluded.teams,games=excluded.games,
+    kinds=CASE WHEN ${body.kinds !== undefined} THEN excluded.kinds ELSE push_devices.kinds END,enabled=excluded.enabled,updated_at=now()
    WHERE push_devices.secret_hash=excluded.secret_hash RETURNING id
   `)
   if (!updated.length) return Response.json({ error: "Invalid installation credentials" }, { status: 401 })

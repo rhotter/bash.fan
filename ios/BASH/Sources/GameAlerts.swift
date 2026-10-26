@@ -2,10 +2,22 @@ import SwiftUI
 import UserNotifications
 import Security
 
+enum GameAlertKind: String, CaseIterable {
+    case goal, start, final
+    var title: String {
+        switch self {
+        case .goal: "Goals"
+        case .start: "Puck drop"
+        case .final: "Final scores"
+        }
+    }
+}
+
 @MainActor final class GameAlerts: ObservableObject {
     static let shared = GameAlerts()
     @Published private(set) var teams = Set(UserDefaults.standard.stringArray(forKey: "pushTeams") ?? [])
     @Published private(set) var games = Set(UserDefaults.standard.stringArray(forKey: "pushGames") ?? [])
+    @Published private(set) var kinds = Set(UserDefaults.standard.stringArray(forKey: "pushKinds") ?? GameAlertKind.allCases.map(\.rawValue))
     @Published var busy = false
     @Published var message: String?
     @Published var denied = false
@@ -40,7 +52,7 @@ import Security
         if settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional {
             UIApplication.shared.registerForRemoteNotifications()
         } else if denied, token != nil {
-            try? await save(teams: teams, games: games, enabled: false)
+            try? await save(teams: teams, games: games, kinds: kinds, enabled: false)
         }
     }
     func registered(_ data: Data) {
@@ -56,22 +68,23 @@ import Security
             guard token == registeredToken else { return }
             busy = true
             defer { busy = false }
-            do { try await save(teams: teams, games: games, enabled: !teams.isEmpty || !games.isEmpty) }
+            do { try await save(teams: teams, games: games, kinds: kinds, enabled: !kinds.isEmpty && (!teams.isEmpty || !games.isEmpty)) }
             catch { if !teams.isEmpty || !games.isEmpty { message = error.localizedDescription } }
         }
     }
     func registrationFailed() { message = "Couldn’t connect to Apple notifications. Please try again." }
-    func update(teams nextTeams: Set<String>, games nextGames: Set<String>) async -> Bool {
+    func update(teams nextTeams: Set<String>, games nextGames: Set<String>, kinds nextKinds: Set<String>) async -> Bool {
         // Token registration can be saving in the background when Done is tapped.
         while busy {
             do { try await Task.sleep(for: .milliseconds(100)) } catch { return false }
         }
-        guard nextTeams != teams || nextGames != games else { return true }
+        guard nextTeams != teams || nextGames != games || nextKinds != kinds else { return true }
         busy = true; message = nil
         defer { busy = false }
         do {
-            let adding = !nextTeams.subtracting(teams).isEmpty || !nextGames.subtracting(games).isEmpty
-            if adding {
+            let enabled = !nextKinds.isEmpty && (!nextTeams.isEmpty || !nextGames.isEmpty)
+            let adding = !nextTeams.subtracting(teams).isEmpty || !nextGames.subtracting(games).isEmpty || !nextKinds.subtracting(kinds).isEmpty
+            if enabled && (adding || token == nil) {
                 guard try await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) else {
                     denied = true; message = "Allow notifications in Settings to receive game alerts."; return false
                 }
@@ -81,14 +94,18 @@ import Security
                 for _ in 0..<30 where token == nil { try await Task.sleep(for: .milliseconds(100)) }
                 guard token != nil else { message = "Apple notifications are still connecting. Please try again."; return false }
             }
-            try await save(teams: nextTeams, games: nextGames, enabled: !nextTeams.isEmpty || !nextGames.isEmpty)
-            teams = nextTeams; games = nextGames
+            // Before APNs registration there is no server subscription to disable.
+            if token != nil {
+                try await save(teams: nextTeams, games: nextGames, kinds: nextKinds, enabled: enabled)
+            }
+            teams = nextTeams; games = nextGames; kinds = nextKinds
             UserDefaults.standard.set(Array(teams), forKey: "pushTeams")
             UserDefaults.standard.set(Array(games), forKey: "pushGames")
+            UserDefaults.standard.set(Array(kinds), forKey: "pushKinds")
             return true
         } catch { message = error.localizedDescription; return false }
     }
-    private func save(teams: Set<String>, games: Set<String>, enabled: Bool) async throws {
+    private func save(teams: Set<String>, games: Set<String>, kinds: Set<String>, enabled: Bool) async throws {
         guard let token else { throw AlertError.unavailable }
         let (id, secret) = try identity()
 #if DEBUG
@@ -101,7 +118,7 @@ import Security
         request.setValue("Bearer \(secret)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try JSONSerialization.data(withJSONObject: ["id": id, "token": token, "environment": environment,
-            "teams": Array(teams), "games": Array(games), "enabled": enabled])
+            "teams": Array(teams), "games": Array(games), "kinds": Array(kinds), "enabled": enabled])
         let (data, response) = try await URLSession.shared.data(for: request)
         guard (response as? HTTPURLResponse)?.statusCode == 200 else {
             let error = (try? JSONSerialization.jsonObject(with: data)) as? [String: String]
@@ -118,6 +135,7 @@ struct GameAlertsScreen: View {
     @State private var leagueTeams: [Standing] = []
     @State private var selectedTeams = GameAlerts.shared.teams
     @State private var selectedGames = GameAlerts.shared.games
+    @State private var selectedKinds = GameAlerts.shared.kinds
     @State private var saving = false
     private var teams: [(slug: String, name: String)] {
         var names: [String: String] = [:]
@@ -133,9 +151,23 @@ struct GameAlertsScreen: View {
         NavigationStack {
             List {
                 Section {
-                    Label("Goals, puck drop and final scores", systemImage: "bell.badge")
-                        .font(.subheadline)
-                } footer: { Text("Choose your team to receive alerts for its games. Tap an alert to open the game.") }
+                    ForEach(GameAlertKind.allCases, id: \.rawValue) { kind in
+                        Toggle(kind.title, isOn: Binding(
+                            get: { selectedKinds.contains(kind.rawValue) },
+                            set: { enabled in
+                                if enabled { selectedKinds.insert(kind.rawValue) }
+                                else { selectedKinds.remove(kind.rawValue) }
+                            }
+                        ))
+                        .disabled(saving)
+                        .accessibilityIdentifier("alertKind-\(kind.rawValue)")
+                    }
+                } header: { Text("Alert types") }
+                footer: {
+                    Text(selectedKinds.isEmpty
+                         ? "All alerts are off. Your team selections will be kept."
+                         : "Choose alerts for your selected teams and games. Changes are saved when you tap Done.")
+                }
                 if let game, game.status != "final" {
                     Section("This game") {
                         selection("\(game.awayTeam) at \(game.homeTeam)", selected: selectedGames.contains(game.id)) {
@@ -182,7 +214,7 @@ struct GameAlertsScreen: View {
                     Button("Done") {
                         saving = true
                         Task {
-                            if await alerts.update(teams: selectedTeams, games: selectedGames) { dismiss() }
+                            if await alerts.update(teams: selectedTeams, games: selectedGames, kinds: selectedKinds) { dismiss() }
                             saving = false
                         }
                     }.disabled(saving)

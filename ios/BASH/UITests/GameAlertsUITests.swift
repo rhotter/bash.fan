@@ -9,7 +9,13 @@ final class GameAlertsUITests: XCTestCase {
         menu.tap()
         app.buttons["Game alerts"].tap()
         XCTAssertTrue(app.navigationBars["Game alerts"].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.staticTexts["Goals, puck drop and final scores"].exists)
+        let goals = app.switches["alertKind-goal"]
+        XCTAssertTrue(goals.exists)
+        XCTAssertTrue(app.switches["alertKind-start"].exists)
+        XCTAssertTrue(app.switches["alertKind-final"].exists)
+        let originalGoals = goals.value as? String
+        goals.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
+        XCTAssertNotEqual(goals.value as? String, originalGoals)
         XCTAssertTrue(app.buttons.matching(NSPredicate(format: "value == 'Not following'")).firstMatch.waitForExistence(timeout: 20))
         let team = app.buttons.matching(NSPredicate(format: "value == 'Not following'")).firstMatch
         let teamLabel = team.label
@@ -23,6 +29,8 @@ final class GameAlertsUITests: XCTestCase {
         screenshot.name = "BASH Game alerts team preferences"
         screenshot.lifetime = .keepAlways
         add(screenshot)
+        goals.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
+        XCTAssertEqual(goals.value as? String, originalGoals)
         selectedTeam.tap()
         XCTAssertEqual(selectedTeam.value as? String, "Not following")
         app.buttons["Done"].tap()
