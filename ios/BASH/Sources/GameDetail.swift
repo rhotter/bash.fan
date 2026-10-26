@@ -228,20 +228,14 @@ struct GameScreen: View {
                 Section("Three stars") {
                     ForEach(Array(stars.enumerated()), id: \.offset) { rank, id in
                         let star = starInfo(id, live: live)
-                        HStack(spacing: 10) {
-                            ZStack {
-                                Image(systemName: "star.fill").font(.system(size: 32)).foregroundStyle(LeagueStyle.orange)
-                                Text("\(rank + 1)").font(.system(size: 11, weight: .bold)).foregroundStyle(.white)
-                            }.frame(width: 34).accessibilityLabel("\(rank + 1) star")
-                            TeamLogo(slug: star.slug, size: 36)
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(live.name(id)).font(.subheadline.weight(.semibold))
-                                if let stats = star.stats {
-                                    Text(stats).font(.caption).foregroundStyle(.secondary).monospacedDigit()
-                                }
-                            }
-                        }.padding(.vertical, 4).alignmentGuide(.listRowSeparatorLeading) { _ in 0 }
-                            .accessibilityElement(children: .combine).accessibilityIdentifier("game-star-\(rank + 1)")
+                        NavigationLink {
+                            PlayerScreen(player: star.player, store: store, prefersGoalieStats: star.isGoalie)
+                        } label: {
+                            GameStarRow(rank: rank + 1, name: star.player.name, slug: star.player.teamSlug, stats: star.stats)
+                        }
+                        .accessibilityIdentifier("game-star-\(rank + 1)")
+                        .accessibilityHint("Opens player stats")
+                        .alignmentGuide(.listRowSeparatorLeading) { _ in 0 }
                     }
                 }
             }
@@ -391,22 +385,27 @@ struct GameScreen: View {
                 .padding(.bottom, 4)
         }
     }
-    private func starInfo(_ id: Int, live: GameLive) -> (slug: String?, stats: String?) {
+    private func starInfo(_ id: Int, live: GameLive) -> (player: Skater, stats: String?, isGoalie: Bool) {
         for home in [false, true] {
             let slug = home ? current.homeSlug : current.awaySlug
+            let team = home ? current.homeTeam : current.awayTeam
             let goalies = (home ? detail?.homeGoalies : detail?.awayGoalies) ?? []
             if let goalie = goalies.first(where: { $0.id == id }) {
-                return (slug, "\(goalie.saves) SV · \(goalie.goalsAgainst) GA · \(goalie.savePercentage) SV%")
+                let player = Skater(teamSlug: slug, id: id, name: goalie.name, team: team, gp: 1, goals: 0, assists: 0, points: 0)
+                return (player, "\(goalie.saves) SV · \(goalie.goalsAgainst) GA · \(goalie.savePercentage) SV%", true)
             }
             let players = current.status == "live" ? live.skaters(home: home, slug: slug) : ((home ? detail?.homePlayers : detail?.awayPlayers) ?? [])
             if let player = players.first(where: { $0.id == id }) {
-                return (slug, "\(player.goals) G · \(player.assists) A · \(player.points) PTS")
+                return (player.player(team: team, slug: slug), "\(player.goals) G · \(player.assists) A · \(player.points) PTS", false)
             }
         }
         let home = live.state.homeAttendance.contains(id)
         let away = live.state.awayAttendance.contains(id)
         let eventTeam = live.state.goals.first { $0.scorerId == id || $0.assist1Id == id || $0.assist2Id == id }?.team
-        return (home ? current.homeSlug : away ? current.awaySlug : eventTeam, nil)
+        let slug = home ? current.homeSlug : away ? current.awaySlug : eventTeam
+        let team = slug == nil ? "" : slug == current.homeSlug ? current.homeTeam : slug == current.awaySlug ? current.awayTeam : ""
+        let player = Skater(teamSlug: slug, id: id, name: live.name(id), team: team, gp: 1, goals: 0, assists: 0, points: 0)
+        return (player, nil, live.goalieIds.contains(id))
     }
     private func columns(_ values: [String]) -> some View {
         HStack(spacing: 6) { ForEach(Array(values.enumerated()), id: \.offset) { _, value in Text(value).frame(width: 28, alignment: .trailing) } }.monospacedDigit()
@@ -463,5 +462,48 @@ struct GameScreen: View {
     private func fetchEvents(maxAge: TimeInterval) async throws -> GameLive? {
         do { return try await LeagueAPI.fetch("/game/\(game.id)/live", maxAge: maxAge) }
         catch let error as URLError where error.code == .fileDoesNotExist { return nil }
+    }
+}
+
+private struct GameStarRow: View {
+    let rank: Int
+    let name: String
+    let slug: String?
+    let stats: String?
+    @Environment(\.dynamicTypeSize) private var typeSize
+    @ScaledMetric(relativeTo: .subheadline) private var badgeWidth = 44
+    @ScaledMetric(relativeTo: .subheadline) private var badgeHeight = 30
+
+    var body: some View {
+        let layout = typeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 10))
+            : AnyLayout(HStackLayout(spacing: 12))
+
+        layout {
+            HStack(spacing: 12) {
+                HStack(spacing: 4) {
+                    Image(systemName: "star.fill").font(.caption2.weight(.semibold))
+                    Text("\(rank)").font(.system(.subheadline, design: .rounded, weight: .bold))
+                }
+                .foregroundStyle(.primary)
+                .frame(width: badgeWidth, height: badgeHeight)
+                .background(Color.primary.opacity(0.06), in: Capsule())
+
+                TeamLogo(slug: slug, size: 40)
+            }
+
+            VStack(alignment: .leading, spacing: 5) {
+                Text(name).font(.subheadline.weight(.semibold)).foregroundStyle(.primary)
+                if let stats {
+                    Text(stats).font(.caption).foregroundStyle(.secondary).monospacedDigit()
+                }
+            }
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(.vertical, 6)
+        .alignmentGuide(.listRowSeparatorLeading) { _ in 0 }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(rank == 1 ? "First" : rank == 2 ? "Second" : "Third") star, \(name)\(stats.map { ", " + $0 } ?? "")")
     }
 }

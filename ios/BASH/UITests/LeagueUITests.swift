@@ -519,21 +519,38 @@ final class LeagueUITests: XCTestCase {
     @MainActor func testGameStarsAndScoringLogos() throws {
         let app = XCUIApplication()
         app.launch()
+        let week = app.buttons["week-2026-10-19"]
+        XCTAssertTrue(week.waitForExistence(timeout: 40))
+        week.tap()
         let game = app.descendants(matching: .any)["game-g207"].firstMatch
         XCTAssertTrue(game.waitForExistence(timeout: 40))
         game.tap()
         XCTAssertTrue(app.staticTexts["Scoring by period"].waitForExistence(timeout: 25))
         capture("Team logos in period totals")
         let star = app.descendants(matching: .any)["game-star-1"].firstMatch
+        let thirdStar = app.descendants(matching: .any)["game-star-3"].firstMatch
         for _ in 0..<5 {
-            if star.isHittable { break }
-            app.swipeUp()
+            if thirdStar.isHittable && thirdStar.frame.maxY < app.frame.height * 0.83 { break }
+            app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.78))
+                .press(forDuration: 0.1, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.52)),
+                       withVelocity: .slow, thenHoldForDuration: 0.3)
         }
         XCTAssertTrue(star.isHittable)
+        XCTAssertTrue(thirdStar.isHittable)
         XCTAssertTrue(star.label.contains("PTS") || star.label.contains("SV%"))
-        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.76))
-            .press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.46)))
         capture("Three stars with team logos and game stats")
+        for (index, name) in ["Eric Crawford", "Joshua Klag", "Nicolas Peterson"].enumerated() {
+            let row = app.buttons["game-star-\(index + 1)"]
+            XCTAssertTrue(row.isHittable)
+            row.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
+            XCTAssertTrue(app.navigationBars["Player stats"].waitForExistence(timeout: 10))
+            XCTAssertTrue(app.staticTexts[name].exists)
+            XCTAssertTrue(app.staticTexts["Game log"].waitForExistence(timeout: 25))
+            XCTAssertTrue(app.staticTexts[index == 0 ? "SV%" : "PTS"].firstMatch.exists)
+            if index < 2 { capture(index == 0 ? "First star goalie profile" : "Second star skater profile") }
+            app.navigationBars.buttons.element(boundBy: 0).tap()
+            XCTAssertTrue(app.buttons["gameTab-Summary"].waitForExistence(timeout: 10))
+        }
         app.swipeUp()
         capture("Team logos in scoring summary")
     }
