@@ -56,6 +56,8 @@ export function usePlayerStats(season?: string, fallbackData?: PlayerStatsData, 
   return {
     skaters: data?.skaters ?? [],
     goalies: data?.goalies ?? [],
+    skatersByTeam: data?.skatersByTeam,
+    goaliesByTeam: data?.goaliesByTeam,
     teams: data?.teams ?? [],
     hasPlayoffs: data?.hasPlayoffs ?? false,
     lastUpdated: data?.lastUpdated ?? null,

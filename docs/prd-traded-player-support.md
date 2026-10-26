@@ -1,6 +1,6 @@
 # PRD: Mid-Season Traded Player Support & Season Trade Log
 
-> **Status**: Proposed (Phase 1 — PRD & Schema PR)  
+> **Status**: Implemented  
 > **Author**: Chris Torres & Antigravity  
 > **Created**: 2026-10-16  
 > **Target Release**: Fall 2026 (`bash-2026-2027`)  
@@ -60,10 +60,10 @@ In `lib/fetch-player-detail.ts` and `app/api/bash/player/[slug]/route.ts`:
 | **Current Roster (`/admin/seasons/[id]`, Scorekeeper, Printable Scoresheets)** | `player_seasons.team_slug` reflects the player's **current** active team so upcoming games, scorekeeper attendance checklists, and printable scoresheets automatically list the player on their new team. |
 | **Past Game Box Scores (`/game/[id]`) & Admin Game Editor** | Players and goalies remain permanently on the box score and `AdminGameEditor` roster of the team they actually played for on game day (`pgs.team_slug` / `ggs.team_slug`). |
 | **Team Detail Pages (`/team/[slug]`)** | Displays all players currently on the team's roster (`ps.team_slug = slug`, showing `0 GP` until they play a game for that team) **plus** any former/traded players who logged non-sub stats *for that team* (`pgs.team_slug = slug`), summing only stats accumulated *for that team*. |
-| **League Leaderboards (`/stats`) & Player Top Summary Card** | Combines all non-sub regular-season stats across all teams played for in the season so traded players are not penalized in league-wide point/goal rankings, while displaying their current team badge. |
+| **League Leaderboards (`/stats`) & Player Top Summary Card** | On `/stats` (`All Teams` view) and the player top summary card, combines all non-sub regular-season stats across all teams played for in the season so traded players are not penalized in league-wide rankings, while displaying their current team badge. When filtering `/stats` by a **specific team**, displays any player who logged $\ge 1\text{ GP}$ for that team (`COALESCE(pgs.team_slug, ps.team_slug) = teamFilter`) with **only the stats accumulated for that team**. |
 | **Player Per-Season Table (`/player/[slug]`)** | Shows separate rows per `(season_id, team_slug)` when a player has logged games for multiple teams in the same season (e.g., `2026-2027 — Loons` and `2026-2027 — Yetis`). |
 | **Player Game Logs (`/player/[slug]`)** | Uses the game-level `team_slug` (`COALESCE(pgs.team_slug, player.team_slug)`) to compute `isHome`, `opponent`, `teamScore`, `opponentScore`, and `W/L/OTW/OTL`. |
-| **Admin Roster & Trade UI (`/admin/seasons/[id]`)** | Unlocks direct player add/edit during `active` seasons and adds a **"Record Trade"** modal supporting multi-player and multi-team ($N$-team circular) swaps, optional future draft pick swaps, and a visible **Season Trades** log. |
+| **Admin Roster & Trade UI (`/admin/seasons/[id]`)** | Unlocks direct player add/edit during `active` seasons, caps the Roster Management table to ~25 visible rows with a sticky header and a `↔ N Trades ↓` jump badge, and provides a **"Record Trade"** modal + **Season Trades** table supporting 2-team and $N$-team trades, separate **Players Sent** and **Picks Sent** columns, per-team subrows, provenance tracking for re-traded picks, and automatic pre-population into the next **Fall** season's draft. |
 
 ---
 
@@ -137,9 +137,10 @@ export const seasonTradeItems = pgTable(
 ```
 
 > [!NOTE]
-> **$N$-Team Circular Trade Support & Future Draft Wizard Integration:**
+> **$N$-Team Circular Trade Support & Automatic Fall Draft Pick Integration:**
 > - Storing `teamSlugs` (`text[]`) on `season_trades` alongside per-item `fromTeamSlug` and `toTeamSlug` edges on `season_trade_items` natively models 2-team, 3-team circular (`A → B → C → A`), and $N$-team trades without requiring fixed `team_a_slug` / `team_b_slug` header columns.
-> - Recording `draft_pick` items with `fromTeamSlug`, `toTeamSlug`, `draftPickRound`, `draftPickOriginalTeamSlug`, and `draftPickTargetSeason` captures the exact fields needed by `draft_trades` in the Draft system. In a future milestone, creating a new season's draft in the Draft Wizard can query `season_trade_items` for `draftPickTargetSeason` and offer a one-click import into pre-draft pick trades.
+> - Mid-season draft pick trades always apply to the **next Fall season** (computed via `getNextFallSeasonId(seasonId)` in `lib/trade-helpers.ts`, e.g., `bash-2026-2027 → 2027-2028`), never to a Summer season.
+> - When creating (`POST /api/bash/admin/seasons/[id]/draft`) or syncing (`POST /api/bash/admin/seasons/[id]/draft/[draftId]/sync`) a **Fall** draft (`seasonType === "fall"`), the server queries `season_trade_items` (`item_type = 'draft_pick'`) matching `getTargetFallSeasonCandidates(seasonId, seasonType)` and seeds `"Prior season trade:"` entries in `draft_trades` / `draft_trade_items` so traded picks are automatically reflected on the Fall draft board (while never applying Fall trades to Summer drafts). Starting the draft (`.../start`) re-reconciles those entries against `season_trade_items`, and undoing a season trade removes its seeded entries from any pre-live draft.
 
 ---
 
@@ -235,6 +236,11 @@ To prevent row fan-out if a legacy season has multiple `player_seasons` rows for
    - `fetchPlayerQueryGroup` (`lib/fetch-player-query-group.ts`) materializes `SELECT * FROM player_game_stats` and `SELECT * FROM goalie_game_stats`, automatically exposing `team_slug` on `player_stats` and `goalie_stats`.
    - **Per-Season Skater & Goalie Queries (Regular & Playoff):** Resolve each game's effective team via `COALESCE(pgs.team_slug, (SELECT ps.team_slug FROM player_seasons ps WHERE ps.player_id = pgs.player_id AND ps.season_id = g.season_id LIMIT 1))` (and `ggs.team_slug`), join `teams t` on that effective `team_slug`, and `GROUP BY` `g.season_id`, the effective `team_slug`, and `t.name`.
    - **Game Log Queries (Regular, Playoff, Exhibition — Skater & Goalie):** Select `pgs.team_slug AS player_team_slug` (and `ggs.team_slug AS player_team_slug`), and compute `const effectiveTeamSlug = r.player_team_slug ?? teamSlug` and `const isHome = effectiveTeamSlug ? r.home_team === effectiveTeamSlug : true` across all game-log `.map` blocks in both `lib/fetch-player-detail.ts` and `app/api/bash/player/[slug]/route.ts`.
+4. **Season Leaderboard & Team-Filtered Split Stats (`lib/fetch-player-stats.ts`, `components/stats-tab.tsx`, `lib/hockey-data.ts`):**
+   - For single-season queries (`!isAllTime && !statsOnly`), `fetchPlayerStats` groups `player_game_stats` and `goalie_game_stats` by `(p.id, p.name, COALESCE(pgs.team_slug, ps.team_slug), ...)` in a single query wave (maintaining the 2-query-per-request budget).
+   - `skatersByTeam` and `goaliesByTeam` map directly from those per-team rows so each `(player, team_slug)` pair with $\ge 1\text{ GP}$ has its exact per-team stat row.
+   - `skaters` and `goalies` roll up all rows by `p.id` in memory (attaching the player's current `player_seasons.team_slug` badge and recomputing `ptsPg`, `savePercentage`, and `gaa` from the summed totals).
+   - In `StatsTab` (`components/stats-tab.tsx`), selecting **All Teams** renders the combined `skaters` / `goalies` arrays, while selecting a specific team tab filters `skatersByTeam` / `goaliesByTeam` by `teamSlug === teamFilter`.
 
 ### 5.3 Admin Roster & Season Trades API / UI
 1. **Active-Season Roster Mutations (`app/api/bash/admin/seasons/[id]/roster/route.ts`):**
@@ -251,34 +257,68 @@ To prevent row fan-out if a legacy season has multiple `player_seasons` rows for
      - `inserted_trade`: Inserts the `season_trades (season_id, team_slugs, notes)` header row gated on `FROM guard WHERE (SELECT count(*) FROM updated_rosters) = ${expectedPlayerCount} RETURNING id, traded_at`.
      - `inserted_items`: Inserts all `season_trade_items` rows (`player` and `draft_pick` items) from `jsonb_to_recordset` joined against `inserted_trade`.
      - Because Postgres executes a single SQL statement with data-modifying CTEs inside an implicit server transaction, **either the trade record, all trade items, and all player roster updates succeed together, or the entire statement rolls back with zero partial state**.
+   - `DELETE` (Undo Latest Trade): Allows undoing **only the most recent trade** (`ORDER BY traded_at DESC, id DESC LIMIT 1`) when `season.status === "draft" || season.status === "active"` and **before any traded player has played (or is actively checked into) a game for their new team**:
+     - Verifies `tradeId` matches the latest trade in `seasonId` (returning HTTP `409` if an older trade is targeted).
+     - Verifies every player moved in that trade is still assigned to `to_team_slug` in `player_seasons` and has **zero** `player_game_stats` or `goalie_game_stats` rows for `to_team_slug` in `seasonId` since the trade, as well as zero active attendance/goalie/ad-hoc entries in `game_live` or `adhoc_game_rosters` for unfinalized games (`g.status <> 'final'`) on `to_team_slug` (returning HTTP `409` with an actionable message if a player has already played or is currently playing a game for their new team).
+     - Executes the undo atomically in a single-statement data-modifying CTE (`locked_season`, `latest_trade`, `player_items`, `pick_items`, `locked_rosters`, `post_trade_games`, `guard`, `reverted_rosters`, `seeded_draft_trades`, `deleted_draft_trade_items`, `deleted_draft_trades`, `deleted_trade`) that reverts `player_seasons.team_slug` back to `from_team_slug`, removes any corresponding `"Prior season trade:"` entries from pre-live Fall drafts (`draft_instances.status IN ('draft', 'published')`), and deletes the `season_trades` row (cascading to `season_trade_items`).
 3. **Admin Roster Tab UI (`components/admin/season-roster-tab.tsx`):**
    - Unlock row editing and **"Add Player"** when `seasonStatus === "draft" || seasonStatus === "active"`.
-   - Add a **"Record Trade"** button and modal (supporting participating team selectors, player checklists/destination routing, optional future draft pick swap rows with direction, round `1–20`, original owner, target season, and optional notes).
-   - Render a **"Season Trades"** history section below the roster table.
+   - Cap the **Roster Management** table at ~25 visible rows (`max-h-[1060px] overflow-y-auto`) with a sticky header (`sticky top-0 z-10 bg-background`) and an interactive `↔ N Trades ↓` jump pill in the header that smoothly scrolls to the **Season Trades** section.
+   - Place the **"Record Trade"** button in the **Season Trades** card header. The modal uses a two-step flow:
+     - **Step 1 (Configure Trade):** Per-team trade cards (`Team A`, `Team B`, `+ Add Team to Trade`) with `<TeamLogo>` badges inside each team selector, subsection header (`[Logo] <Team> Players to Trade`, `[Logo] <Team> Draft Picks to Trade`), and destination indicator (`→ [Logo] <Destination Team>`). When a draft pick round (`Round 1`–`Round 15`, target season locked to `getNextFallSeasonId(seasonId)`) is chosen, `getAcquiredPickOriginsForRound` inspects prior `season_trades` and only reveals the second selector (`Own Round X Pick` vs. `Acquired Round X Pick (from <Team>)`) when the sending team holds acquired pick(s) in that round. Clicking **"Review Trade"** validates the trade and advances to Step 2.
+     - **Step 2 (Review Mid-Season Trade):** Renders a vertical confirmation summary table grouping each participating team (`[Logo] <Team>`) above stacked **Players Sent** and **Picks Sent** rows (each asset showing `→ [Logo] <Destination Team>` and acquired pick provenance), followed by a separate **Trade Notes** card below the table, with **Back** and **Execute Trade** actions.
+   - Render the **Season Trades** log using per-team subrows (`rowSpan` on `Date`/`Trade #` and `Notes`) with separate **Team** (`[Logo] <Team>`), **Players Sent**, **Picks Sent** (with `(from <Team>, Trade #N)` provenance when re-traded), and **Notes** columns. In 3+ team trades, each asset shows `→ [Destination Team Logo]`, and every player/pick chip has a single styled `<Tooltip>` hover summary (`<Team A> sends <Player/Pick> to <Team B>`). On the most recent trade (`tradeIdx === 0`), render an **Undo** button with a confirmation `AlertDialog` that calls `DELETE /api/bash/admin/seasons/[id]/trades?tradeId=N`.
+4. **Automatic Fall Draft Pre-Population (`app/api/bash/admin/seasons/[id]/draft/route.ts` & `.../start/route.ts`):**
+   - When creating a draft (`POST /api/bash/admin/seasons/[id]/draft`) or syncing a draft (`POST /api/bash/admin/seasons/[id]/draft/[draftId]/sync`) for a Fall season (`seasonType === "fall"`), the endpoint queries `season_trade_items` (`item_type = 'draft_pick'`) where `draft_pick_target_season` matches `getTargetFallSeasonCandidates(seasonId, seasonType)` and seeds corresponding `"Prior season trade:"` entries in `draft_trades` and `draft_trade_items`.
+   - When starting a Fall draft (`POST /api/bash/admin/seasons/[id]/draft/[draftId]/start`), it reconciles `"Prior season trade:"` entries against `season_trade_items` before calling `resolvePreDraftTrades`, ensuring any pick trades recorded or undone after draft creation/sync are always reflected when generating pick slots. Summer drafts (`seasonType === "summer"`) never import Fall pick trades.
+
+### 5.4 Historical Sportability Trade Backfill Design
+In historical Sportability seasons (`1999-2000` through `2025-2026`), Sportability overwrote a traded player's season roster assignment with their **post-trade team**, and `Game.asp` dynamically grouped box score rows by that final team rather than the team the player represented on game day. For example, in Game `1549397` (`2018-11-03`, Rink Rats 1 at Kings 4), Sportability renders a third `Haze Players` table section for `Brendan Nichols` (`1G`, who scored Rink Rats' only goal), `Harry Zuzan` (`Rink Rats → Haze`), and `Harrison Hansen` (`Kings → Haze`).
+
+Cross-referencing the verified 159-record historical trade dataset from [`kaylesworth/bash-scraper/extra/traded_players.json`](https://github.com/kaylesworth/bash-scraper/blob/main/extra/traded_players.json) (alongside `extra/name_merges.json` and Sportability `Rosters.asp` `TmID` values) against our database establishes 100% coverage across all 26 leagues (`159/159` players, `159/159` `previous_team_id` / `team_name` pairs) and resolves:
+- **825 of 858 (`96.2%`)** unstamped skater box score rows (`player_game_stats.team_slug IS NULL`) and **28 of 40 (`70.0%`)** unstamped goalie box score rows (`goalie_game_stats.team_slug IS NULL`) where a player was later traded to a third team not participating in that earlier game.
+- **167 pre-trade head-to-head games** (`{g.home_team, g.away_team} = {fromTeamSlug, toTeamSlug}`) where a player's original team played against their post-trade team *before* the trade took place, which were previously attributed to the post-trade team.
+
+To backfill historical trade data cleanly:
+1. **Vendor Canonical Historical Trade Dataset (`data/historical-traded-players.json`):**
+   - Check in a normalized JSON artifact derived from `extra/traded_players.json`, `extra/name_merges.json`, and Sportability `TmID` mappings containing all 159 verified entries (`seasonId`, `leagueId`, `playerName`, `sportabilityPlayerId`, `fromTeamSlug`, `toTeamSlug`, and `gameDates`).
+2. **Two-Pass Historical Backfill & Head-to-Head Correction Script:**
+   - **Pass 1 (3rd-Team Orphan Box Score Rows):** For each `(seasonId, playerId, fromTeamSlug, toTeamSlug)` entry, update `player_game_stats` and `goalie_game_stats` rows in `seasonId` where `team_slug IS NULL` (or `team_slug NOT IN (g.home_team, g.away_team)`) and `fromTeamSlug IN (g.home_team, g.away_team)` to `team_slug = fromTeamSlug`.
+   - **Pass 2 (Pre-Trade Head-to-Head Matchups):** Compute `maxFromDate` (latest game in `seasonId` where only `fromTeamSlug` participated) and `minToDate` (earliest game in `seasonId` where only `toTeamSlug` participated). For any head-to-head matchup (`{g.home_team, g.away_team} = {fromTeamSlug, toTeamSlug}`) with `g.date <= maxFromDate` and `g.date < minToDate`, set `team_slug = fromTeamSlug`. For the 56 head-to-head games falling inside the transition window between `maxFromDate` and `minToDate`, reconcile the player's side using box-score goal sums (`SUM(pgs.goals) = g.home_score / g.away_score`), goalie `result` / `goals_against`, or BASH Trade History sheet dates (`trade_parsing.py`).
+3. **Seed Historical `season_trades` & `season_trade_items` Audit Records:**
+   - Idempotently insert historical trade records into `season_trades` and `season_trade_items` (`item_type = 'player'`, `from_team_slug = fromTeamSlug`, `to_team_slug = toTeamSlug`, and `traded_at` derived from the transition window between `maxFromDate` and `minToDate`) so historical season pages and player profiles surface a complete trade log.
 
 ---
 
 ## 6. Phased Implementation Plan
 
-### Phase 1: PRD, Drizzle Schema & Idempotent DB Migration Script (Current PR)
+### Phase 1: PRD, Drizzle Schema & Idempotent DB Migration Script
 - [x] **Step 1.1:** Draft comprehensive PRD (`docs/prd-traded-player-support.md`) with technical design and phased implementation plan.
 - [x] **Step 1.2:** Update `lib/db/schema.ts` to add `teamSlug` to `playerGameStats` and `goalieGameStats` and define `seasonTrades` and `seasonTradeItems` tables + exported types.
 - [x] **Step 1.3:** Create `scripts/deploy-trades-schema.ts` to idempotently apply `ALTER TABLE` / `CREATE TABLE` DDL (`ADD COLUMN IF NOT EXISTS team_slug`, `CREATE TABLE IF NOT EXISTS season_trades`, `CREATE TABLE IF NOT EXISTS season_trade_items`, and indexes) and backfill `player_game_stats.team_slug` and `goalie_game_stats.team_slug` across all existing games using priority order (every rule guarantees `team_slug IN (games.home_team, games.away_team)` and is unambiguous):
   1. `game_live.state->'homeAttendance'` / `'awayAttendance'` matching `games.home_team` / `games.away_team` (with `COALESCE(..., false)` null-safe XOR).
   2. `adhoc_game_rosters.team_side` (`'home' → games.home_team`, `'away' → games.away_team`).
   3. `player_seasons.team_slug` where `player_seasons.season_id = games.season_id`, `games.game_type NOT IN ('exhibition', 'tryout')`, `player_seasons.team_slug IN (games.home_team, games.away_team)` (when unambiguous), and the player has no trade rows in `season_trade_items` for that season.
-- [ ] **Step 1.4 (Pre-Merge Deployment Gate):** Execute `npx tsx scripts/deploy-trades-schema.ts` against the target database(s) **before** merging PR #52 to `main`. Because Drizzle's `db.insert(schema.playerGameStats)` and `db.insert(schema.goalieGameStats)` enumerate all schema columns in generated `INSERT` statements, applying the additive `team_slug` columns and backfill first guarantees zero downtime or score-finalization failures when `lib/db/schema.ts` deploys.
+- [x] **Step 1.4 (Pre-Merge Deployment Gate):** Execute `npx tsx scripts/deploy-trades-schema.ts` against the target database(s) **before** merging PR #52 to `main`. Because Drizzle's `db.insert(schema.playerGameStats)` and `db.insert(schema.goalieGameStats)` enumerate all schema columns in generated `INSERT` statements, applying the additive `team_slug` columns and backfill first guarantees zero downtime or score-finalization failures when `lib/db/schema.ts` deploys.
 
-### Phase 2: Stat Write Paths & Read Queries (Follow-up PR)
-- [ ] **Step 2.1:** Add `lib/trade-helpers.ts` (`validateTradeInput`) and unit tests in `tests/trade-helpers.test.ts`.
-- [ ] **Step 2.2:** Update stat write paths (`app/api/bash/scorekeeper/[id]/finalize/route.ts`, `app/api/bash/sync/route.ts`, `lib/final-game-shots.ts`, `app/api/bash/scorekeeper/[id]/state/route.ts`, `lib/merge-duplicates.ts`, `app/api/bash/admin/players/merge-manual/route.ts`) to stamp and preserve `team_slug` / `season_trade_items`, and update `tests/scorekeeper-finalize.test.ts` + `tests/final-game-shots.test.ts`.
-- [ ] **Step 2.3:** Update stat read queries (`lib/fetch-game-detail.ts`, `lib/fetch-team-detail.ts`, `lib/fetch-player-detail.ts`, `app/api/bash/player/[slug]/route.ts`, `app/game/[id]/page.tsx`, `app/admin/games/[id]/edit/page.tsx`) and add unit tests in `tests/traded-player-stats.test.ts`.
+### Phase 2: Stat Write Paths & Read Queries
+- [x] **Step 2.1:** Add `lib/trade-helpers.ts` (`validateTradeInput`, `getNextFallSeasonId`, `getTargetFallSeasonCandidates`, `getAcquiredPickOriginsForRound`) and unit tests in `tests/trade-helpers.test.ts`.
+- [x] **Step 2.2:** Update stat write paths (`app/api/bash/scorekeeper/[id]/finalize/route.ts`, `app/api/bash/sync/route.ts`, `lib/final-game-shots.ts`, `app/api/bash/scorekeeper/[id]/state/route.ts`, `lib/merge-duplicates.ts`, `app/api/bash/admin/players/merge-manual/route.ts`) to stamp and preserve `team_slug` / `season_trade_items`, and update `tests/scorekeeper-finalize.test.ts` + `tests/final-game-shots.test.ts`.
+- [x] **Step 2.3:** Update stat read queries (`lib/fetch-game-detail.ts`, `lib/fetch-team-detail.ts`, `lib/fetch-player-detail.ts`, `lib/fetch-player-stats.ts`, `app/api/bash/player/[slug]/route.ts`, `app/game/[id]/page.tsx`, `app/admin/games/[id]/edit/page.tsx`, `components/stats-tab.tsx`) and add unit tests in `tests/traded-player-stats.test.ts`.
 
-### Phase 3: Admin Trade API & Roster UI
-- [ ] **Step 3.1:** Unlock `active` season mutations in `app/api/bash/admin/seasons/[id]/roster/route.ts`, implement `GET`/`POST /api/bash/admin/seasons/[id]/trades` (using the atomic single-statement data-modifying CTE), and add unit tests in `tests/admin-season-trades.test.ts`.
-- [ ] **Step 3.2:** Update `components/admin/season-roster-tab.tsx` with active-season editing, the **"Record Trade"** modal, and the **"Season Trades"** log, plus UI tests in `tests/season-roster-trade-ui.test.tsx`.
+### Phase 3: Admin Trade API, Roster UI & Fall Draft Integration
+- [x] **Step 3.1:** Unlock `active` season mutations in `app/api/bash/admin/seasons/[id]/roster/route.ts`, implement `GET`/`POST /api/bash/admin/seasons/[id]/trades` (using the atomic single-statement data-modifying CTE), wire Fall draft pre-population in `app/api/bash/admin/seasons/[id]/draft/route.ts`, `.../sync/route.ts`, and `.../start/route.ts`, and add unit tests in `tests/admin-season-trades.test.ts`.
+- [x] **Step 3.2:** Update `components/admin/season-roster-tab.tsx` with active-season editing, the per-team **"Record Trade"** modal (two-step Review → Execute confirmation), and the per-team subrow **"Season Trades"** table, plus UI tests in `tests/season-roster-trade-ui.test.tsx`.
+- [x] **Step 3.3:** Implement **Undo Latest Trade** (`DELETE /api/bash/admin/seasons/[id]/trades`) with post-trade game guards (finalized stats plus unfinalized `game_live` / `adhoc_game_rosters` check-ins) and cleanup of seeded pre-live `draft_trades`, plus the **Undo** button + confirmation dialog on the most recent trade.
 
 ### Phase 4: DB Export Sync & Week 1 Trades Execution
-- [ ] **Step 4.1:** Update `scripts/export-prod-db.ts` to include `team_slug` when copying `player_game_stats` and `goalie_game_stats`, and to copy `season_trades` and `season_trade_items`.
-- [ ] **Step 4.2:** Re-run `npx tsx scripts/deploy-trades-schema.ts` after Phase 2 write paths are deployed (and before recording any Week 1 roster trades) so any game re-finalized between Phase 1 and Phase 2 is stamped with `team_slug` (ensuring Darrell Draper's Week 1 game `g130` has `team_slug = 'loons'`).
-- [ ] **Step 4.3:** Record Week 1 Trade #1 (Eddie Parsons ↔ Logan Truman) and Trade #2 (Jonny Callan & Lee Jacobs ↔ Steph Tryphonas & Darrell Draper) via the Admin UI or `scripts/apply-fall-2026-week1-trades.ts`.
+- [x] **Step 4.1:** Update `scripts/export-prod-db.ts` to include `team_slug` when copying `player_game_stats` and `goalie_game_stats`, and to copy `season_trades` and `season_trade_items`.
+- [x] **Step 4.2:** Re-run `npx tsx scripts/deploy-trades-schema.ts` after Phase 2 write paths are deployed so any game finalized between Phase 1 and Phase 2 is stamped with `team_slug` (ensuring Darrell Draper's Week 1 game `g130` has `team_slug = 'loons'`).
+- [x] **Step 4.3:** Record Week 1 Trade #1 (Eddie Parsons ↔ Logan Truman) and Trade #2 (Jonny Callan & Lee Jacobs ↔ Steph Tryphonas & Darrell Draper).
+
+### Phase 5: Backfilling Historic Trade Data
+- [ ] **Step 5.1 (Vendor Canonical Historical Trade Dataset):** Add `data/historical-traded-players.json` normalizing the 159 verified historical trade records from `kaylesworth/bash-scraper/extra/traded_players.json` (with `previous_team_id` and player/team aliases resolved to canonical `seasonId`, `fromTeamSlug`, and `toTeamSlug`).
+- [ ] **Step 5.2 (Two-Pass Historical Game Stat Attribution Backfill):** Implement an idempotent backfill script (`scripts/backfill-historical-trades.ts`) that:
+  1. Stamps `team_slug = fromTeamSlug` on the 825 skater rows (`player_game_stats`) and 28 goalie rows (`goalie_game_stats`) where `team_slug IS NULL` (3rd-team orphan games such as `1549397`).
+  2. Corrects `team_slug = fromTeamSlug` on the 167 pre-trade head-to-head matchups (`{g.home_team, g.away_team} = {fromTeamSlug, toTeamSlug}`) played on or before `maxFromDate` (and reconciles the 56 transition-window head-to-head games via box-score goal tallies, goalie results, or trade sheet dates).
+- [ ] **Step 5.3 (Seed Historical `season_trades` & `season_trade_items`):** Populate `season_trades` and `season_trade_items` (`item_type = 'player'`) for historical seasons from the verified dataset so historical season pages and player profiles include a complete trade audit trail.

@@ -26,7 +26,7 @@ export function StatsTab({ initialData }: { initialData?: PlayerStatsData }) {
   const gameType = searchParams.get("gameType") || "regular"
   const router = useRouter()
   const [playoff, setPlayoff] = useState(false)
-  const { skaters, goalies, teams, hasPlayoffs, isLoading, isError, errorMessage } = usePlayerStats(season, !playoff ? initialData : undefined, playoff, seasonType, gameType)
+  const { skaters, goalies, skatersByTeam, goaliesByTeam, teams, hasPlayoffs, isLoading, isError, errorMessage } = usePlayerStats(season, !playoff ? initialData : undefined, playoff, seasonType, gameType)
   const rawView = searchParams.get("view")
   const tab = rawView === "goalies" ? "goalies" : "skaters" as const
 
@@ -66,7 +66,9 @@ export function StatsTab({ initialData }: { initialData?: PlayerStatsData }) {
   const nameLower = nameFilter.toLowerCase()
 
   const rankedSkaters = useMemo(() => {
-    let list = (season === "all" || teamFilter === "all") ? skaters : skaters.filter((p) => p.teamSlug === teamFilter)
+    let list = (season === "all" || teamFilter === "all")
+      ? skaters
+      : (skatersByTeam ?? skaters).filter((p) => p.teamSlug === teamFilter)
     if (season === "all" && tab === "skaters") {
       const minGp = typeof minGames === "number" ? minGames : 0
       list = list.filter((p) => p.gp >= minGp)
@@ -76,10 +78,12 @@ export function StatsTab({ initialData }: { initialData?: PlayerStatsData }) {
       const bv = (b[sortKey] ?? 0) as number
       return sortDir === "desc" ? bv - av : av - bv
     }).map((player, index) => ({ ...player, rank: index + 1 }))
-  }, [skaters, teamFilter, sortKey, sortDir, season, tab, minGames])
+  }, [skaters, skatersByTeam, teamFilter, sortKey, sortDir, season, tab, minGames])
  
   const rankedGoalies = useMemo(() => {
-    let list = (season === "all" || teamFilter === "all") ? goalies : goalies.filter((p) => p.teamSlug === teamFilter)
+    let list = (season === "all" || teamFilter === "all")
+      ? goalies
+      : (goaliesByTeam ?? goalies).filter((p) => p.teamSlug === teamFilter)
     if (season === "all" && tab === "goalies") {
       const minGp = typeof minGames === "number" ? minGames : 0
       list = list.filter((p) => p.gp >= minGp)
@@ -89,7 +93,7 @@ export function StatsTab({ initialData }: { initialData?: PlayerStatsData }) {
       const bv = (b[goalieSortKey] ?? 0) as number
       return goalieSortDir === "desc" ? bv - av : av - bv
     }).map((player, index) => ({ ...player, rank: index + 1 }))
-  }, [goalies, teamFilter, goalieSortKey, goalieSortDir, season, tab, minGames])
+  }, [goalies, goaliesByTeam, teamFilter, goalieSortKey, goalieSortDir, season, tab, minGames])
 
   // Search hides rows without changing their position in the full ranking.
   const filteredSkaters = useMemo(() => rankedSkaters.filter((player) => player.name.toLowerCase().includes(nameLower)), [rankedSkaters, nameLower])
@@ -332,7 +336,7 @@ export function StatsTab({ initialData }: { initialData?: PlayerStatsData }) {
               <tbody>
                 {paginatedSkaters.map((p, i) => (
                   <tr
-                    key={p.id}
+                    key={`${p.id}-${p.teamSlug}`}
                     className={cn(
                       "group border-t border-border/20 hover:bg-muted/50",
                       i % 2 === 0 && "bg-card/15"
@@ -395,7 +399,7 @@ export function StatsTab({ initialData }: { initialData?: PlayerStatsData }) {
               <tbody>
                 {paginatedGoalies.map((p, i) => (
                   <tr
-                    key={p.id}
+                    key={`${p.id}-${p.teamSlug}`}
                     className={cn(
                       "group border-t border-border/20 hover:bg-muted/50",
                       i % 2 === 0 && "bg-card/15"

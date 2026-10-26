@@ -800,6 +800,57 @@ describe("scorekeeper finalization", () => {
     expect(mocks.select).not.toHaveBeenCalled()
     expect(mocks.insert).not.toHaveBeenCalled()
   })
+
+  it("stamps teamSlug on player_game_stats and goalie_game_stats on insert and conflict update", async () => {
+    const response = await finalize()
+    expect(response.status).toBe(200)
+
+    // 1. Verify player_game_stats insert values
+    const pgsHome10 = rows("player_game_stats").find((r) => r.playerId === 10)
+    const pgsHome11 = rows("player_game_stats").find((r) => r.playerId === 11)
+    const pgsAway20 = rows("player_game_stats").find((r) => r.playerId === 20)
+
+    expect(pgsHome10).toMatchObject({ playerId: 10, teamSlug: "home" })
+    expect(pgsHome11).toMatchObject({ playerId: 11, teamSlug: "home" })
+    expect(pgsAway20).toMatchObject({ playerId: 20, teamSlug: "away" })
+
+    // 2. Verify player_game_stats onConflictDoUpdate set clause
+    const pgsEntry10 = inserted.find((e) => e.table === "player_game_stats" && e.values.playerId === 10)
+    const pgsEntry20 = inserted.find((e) => e.table === "player_game_stats" && e.values.playerId === 20)
+    expect(pgsEntry10?.update).toMatchObject({ teamSlug: "home" })
+    expect(pgsEntry20?.update).toMatchObject({ teamSlug: "away" })
+
+    // 3. Verify goalie_game_stats insert values
+    const ggsHome1 = rows("goalie_game_stats").find((r) => r.playerId === 1)
+    const ggsAway2 = rows("goalie_game_stats").find((r) => r.playerId === 2)
+
+    expect(ggsHome1).toMatchObject({ playerId: 1, teamSlug: "home" })
+    expect(ggsAway2).toMatchObject({ playerId: 2, teamSlug: "away" })
+
+    // 4. Verify goalie_game_stats onConflictDoUpdate set clause
+    const ggsEntry1 = inserted.find((e) => e.table === "goalie_game_stats" && e.values.playerId === 1)
+    const ggsEntry2 = inserted.find((e) => e.table === "goalie_game_stats" && e.values.playerId === 2)
+    expect(ggsEntry1?.update).toMatchObject({ teamSlug: "home" })
+    expect(ggsEntry2?.update).toMatchObject({ teamSlug: "away" })
+  })
+
+  it("stamps teamSlug on all goalies during mid-game substitutions", async () => {
+    splitHomeGoalies()
+    state.goalieShotsAgainst = { "1": 6, "3": 6 }
+    const response = await finalize()
+    expect(response.status).toBe(200)
+
+    const ggs1 = rows("goalie_game_stats").find((r) => r.playerId === 1)
+    const ggs3 = rows("goalie_game_stats").find((r) => r.playerId === 3)
+    const ggs2 = rows("goalie_game_stats").find((r) => r.playerId === 2)
+
+    expect(ggs1).toMatchObject({ playerId: 1, teamSlug: "home" })
+    expect(ggs3).toMatchObject({ playerId: 3, teamSlug: "home" })
+    expect(ggs2).toMatchObject({ playerId: 2, teamSlug: "away" })
+
+    const entry3 = inserted.find((e) => e.table === "goalie_game_stats" && e.values.playerId === 3)
+    expect(entry3?.update).toMatchObject({ teamSlug: "home" })
+  })
 })
 
 describe("private timing during finalization", () => {

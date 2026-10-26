@@ -120,11 +120,15 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         COALESCE((SELECT jsonb_agg(jsonb_build_object(
           'playerId', s.player_id, 'goalsAgainst', s.goals_against, 'shotsAgainst', s.shots_against,
           'saves', s.saves, 'seconds', s.seconds,
-          'sides', COALESCE((SELECT jsonb_agg(DISTINCT r.team_side) FROM adhoc_game_rosters r
-            WHERE r.game_id = g.id AND r.player_id = s.player_id),
-            (SELECT jsonb_agg(DISTINCT CASE WHEN ps.team_slug = g.home_team THEN 'home' ELSE 'away' END)
-              FROM player_seasons ps WHERE ps.player_id = s.player_id AND ps.season_id = g.season_id
-                AND ps.team_slug IN (g.home_team, g.away_team)), '[]'::jsonb)) ORDER BY s.player_id)
+          'sides', CASE
+            WHEN s.team_slug = g.home_team THEN '["home"]'::jsonb
+            WHEN s.team_slug = g.away_team THEN '["away"]'::jsonb
+            ELSE COALESCE((SELECT jsonb_agg(DISTINCT r.team_side) FROM adhoc_game_rosters r
+              WHERE r.game_id = g.id AND r.player_id = s.player_id),
+              (SELECT jsonb_agg(DISTINCT CASE WHEN ps.team_slug = g.home_team THEN 'home' ELSE 'away' END)
+                FROM player_seasons ps WHERE ps.player_id = s.player_id AND ps.season_id = g.season_id
+                  AND ps.team_slug IN (g.home_team, g.away_team)), '[]'::jsonb)
+          END) ORDER BY s.player_id)
           FROM goalie_game_stats s WHERE s.game_id = g.id), '[]'::jsonb) AS goalies
       FROM games g JOIN game_live l ON l.game_id = g.id LEFT JOIN seasons se ON se.id = g.season_id WHERE g.id = ${id}
     `) as FinalShotContext[]

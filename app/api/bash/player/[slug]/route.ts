@@ -186,7 +186,12 @@ export async function GET(
       // Skater per-season stats (regular season)
       rawSql(sql`
         SELECT
-          g.season_id, ps.team_slug, t.name as team_name,
+          g.season_id,
+          COALESCE(
+            pgs.team_slug,
+            (SELECT ps.team_slug FROM player_seasons ps WHERE ps.player_id = pgs.player_id AND ps.season_id = g.season_id LIMIT 1)
+          ) AS team_slug,
+          t.name as team_name,
           COUNT(*)::int as gp,
           SUM(pgs.goals)::int as goals, SUM(pgs.assists)::int as assists, SUM(pgs.points)::int as points,
           SUM(pgs.gwg)::int as gwg, SUM(pgs.ppg)::int as ppg, SUM(pgs.shg)::int as shg,
@@ -194,10 +199,15 @@ export async function GET(
           SUM(pgs.pen)::int as pen, SUM(pgs.pim)::int as pim
         FROM player_game_stats pgs
         JOIN games g ON pgs.game_id = g.id AND NOT g.is_forfeit AND NOT g.is_playoff AND g.game_type = 'regular'
-        JOIN player_seasons ps ON ps.player_id = pgs.player_id AND ps.season_id = g.season_id
-        JOIN teams t ON ps.team_slug = t.slug
+        LEFT JOIN teams t ON t.slug = COALESCE(
+          pgs.team_slug,
+          (SELECT ps.team_slug FROM player_seasons ps WHERE ps.player_id = pgs.player_id AND ps.season_id = g.season_id LIMIT 1)
+        )
         WHERE pgs.player_id = ${player.id} AND NOT pgs.is_sub
-        GROUP BY g.season_id, ps.team_slug, t.name
+        GROUP BY g.season_id, COALESCE(
+          pgs.team_slug,
+          (SELECT ps.team_slug FROM player_seasons ps WHERE ps.player_id = pgs.player_id AND ps.season_id = g.season_id LIMIT 1)
+        ), t.name
         ORDER BY g.season_id DESC
       `),
       // Skater game log (regular season)
@@ -206,7 +216,8 @@ export async function GET(
           pgs.game_id, g.date, g.home_team, g.away_team, g.home_score, g.away_score, g.is_overtime,
           COALESCE(ht.name, g.home_team) as home_name, COALESCE(awt.name, g.away_team) as away_name,
           pgs.goals, pgs.assists, pgs.points, pgs.gwg, pgs.ppg, pgs.shg,
-          pgs.eng, pgs.hat_tricks, pgs.pen, pgs.pim
+          pgs.eng, pgs.hat_tricks, pgs.pen, pgs.pim,
+          pgs.team_slug AS player_team_slug
         FROM player_game_stats pgs
         JOIN games g ON pgs.game_id = g.id AND NOT g.is_forfeit AND g.season_id = ${gameLogSeasonId} AND NOT g.is_playoff AND g.game_type = 'regular'
         LEFT JOIN teams ht ON g.home_team = ht.slug
@@ -246,7 +257,12 @@ export async function GET(
       // Goalie per-season stats (regular season)
       rawSql(sql`
         SELECT
-          g.season_id, ps.team_slug, t.name as team_name,
+          g.season_id,
+          COALESCE(
+            ggs.team_slug,
+            (SELECT ps.team_slug FROM player_seasons ps WHERE ps.player_id = ggs.player_id AND ps.season_id = g.season_id LIMIT 1)
+          ) AS team_slug,
+          t.name as team_name,
           COUNT(*)::int as gp,
           SUM(goals_against)::int as ga, SUM(saves)::int as saves,
           SUM(shots_against)::int as sa, SUM(seconds)::int as seconds,
@@ -256,11 +272,16 @@ export async function GET(
           COALESCE(MAX(s.game_length), ${DEFAULT_GAME_LENGTH_MIN})::int as game_length
         FROM goalie_game_stats ggs
         JOIN games g ON ggs.game_id = g.id AND NOT g.is_forfeit AND NOT g.is_playoff AND g.game_type = 'regular'
-        JOIN player_seasons ps ON ps.player_id = ggs.player_id AND ps.season_id = g.season_id
-        JOIN teams t ON ps.team_slug = t.slug
+        LEFT JOIN teams t ON t.slug = COALESCE(
+          ggs.team_slug,
+          (SELECT ps.team_slug FROM player_seasons ps WHERE ps.player_id = ggs.player_id AND ps.season_id = g.season_id LIMIT 1)
+        )
         LEFT JOIN seasons s ON g.season_id = s.id
         WHERE ggs.player_id = ${player.id} AND NOT ggs.is_sub
-        GROUP BY g.season_id, ps.team_slug, t.name
+        GROUP BY g.season_id, COALESCE(
+          ggs.team_slug,
+          (SELECT ps.team_slug FROM player_seasons ps WHERE ps.player_id = ggs.player_id AND ps.season_id = g.season_id LIMIT 1)
+        ), t.name
         ORDER BY g.season_id DESC
       `),
       // Goalie game log (regular season)
@@ -269,7 +290,8 @@ export async function GET(
           ggs.game_id, g.date, g.home_team, g.away_team, g.home_score, g.away_score,
           COALESCE(ht.name, g.home_team) as home_name, COALESCE(awt.name, g.away_team) as away_name,
           ggs.seconds, ggs.goals_against, ggs.shots_against, ggs.saves,
-          ggs.shutouts, ggs.goalie_assists, ggs.result
+          ggs.shutouts, ggs.goalie_assists, ggs.result,
+          ggs.team_slug AS player_team_slug
         FROM goalie_game_stats ggs
         JOIN games g ON ggs.game_id = g.id AND NOT g.is_forfeit AND g.season_id = ${gameLogSeasonId} AND NOT g.is_playoff AND g.game_type = 'regular'
         LEFT JOIN teams ht ON g.home_team = ht.slug
@@ -293,7 +315,12 @@ export async function GET(
       // Playoff skater per-season stats
       rawSql(sql`
         SELECT
-          g.season_id, ps.team_slug, t.name as team_name,
+          g.season_id,
+          COALESCE(
+            pgs.team_slug,
+            (SELECT ps.team_slug FROM player_seasons ps WHERE ps.player_id = pgs.player_id AND ps.season_id = g.season_id LIMIT 1)
+          ) AS team_slug,
+          t.name as team_name,
           COUNT(*)::int as gp,
           SUM(pgs.goals)::int as goals, SUM(pgs.assists)::int as assists, SUM(pgs.points)::int as points,
           SUM(pgs.gwg)::int as gwg, SUM(pgs.ppg)::int as ppg, SUM(pgs.shg)::int as shg,
@@ -301,10 +328,15 @@ export async function GET(
           SUM(pgs.pen)::int as pen, SUM(pgs.pim)::int as pim
         FROM player_game_stats pgs
         JOIN games g ON pgs.game_id = g.id AND NOT g.is_forfeit AND g.is_playoff AND g.game_type IN ('playoff', 'championship', 'regular')
-        JOIN player_seasons ps ON ps.player_id = pgs.player_id AND ps.season_id = g.season_id
-        JOIN teams t ON ps.team_slug = t.slug
+        LEFT JOIN teams t ON t.slug = COALESCE(
+          pgs.team_slug,
+          (SELECT ps.team_slug FROM player_seasons ps WHERE ps.player_id = pgs.player_id AND ps.season_id = g.season_id LIMIT 1)
+        )
         WHERE pgs.player_id = ${player.id} AND NOT pgs.is_sub
-        GROUP BY g.season_id, ps.team_slug, t.name
+        GROUP BY g.season_id, COALESCE(
+          pgs.team_slug,
+          (SELECT ps.team_slug FROM player_seasons ps WHERE ps.player_id = pgs.player_id AND ps.season_id = g.season_id LIMIT 1)
+        ), t.name
         ORDER BY g.season_id DESC
       `),
       // Playoff skater game log
@@ -313,7 +345,8 @@ export async function GET(
           pgs.game_id, g.date, g.home_team, g.away_team, g.home_score, g.away_score, g.is_overtime,
           COALESCE(ht.name, g.home_team) as home_name, COALESCE(awt.name, g.away_team) as away_name,
           pgs.goals, pgs.assists, pgs.points, pgs.gwg, pgs.ppg, pgs.shg,
-          pgs.eng, pgs.hat_tricks, pgs.pen, pgs.pim
+          pgs.eng, pgs.hat_tricks, pgs.pen, pgs.pim,
+          pgs.team_slug AS player_team_slug
         FROM player_game_stats pgs
         JOIN games g ON pgs.game_id = g.id AND NOT g.is_forfeit AND g.season_id = ${gameLogSeasonId} AND g.is_playoff AND g.game_type IN ('playoff', 'championship', 'regular')
         LEFT JOIN teams ht ON g.home_team = ht.slug
@@ -338,7 +371,12 @@ export async function GET(
       // Playoff goalie per-season stats
       rawSql(sql`
         SELECT
-          g.season_id, ps.team_slug, t.name as team_name,
+          g.season_id,
+          COALESCE(
+            ggs.team_slug,
+            (SELECT ps.team_slug FROM player_seasons ps WHERE ps.player_id = ggs.player_id AND ps.season_id = g.season_id LIMIT 1)
+          ) AS team_slug,
+          t.name as team_name,
           COUNT(*)::int as gp,
           SUM(goals_against)::int as ga, SUM(saves)::int as saves,
           SUM(shots_against)::int as sa, SUM(seconds)::int as seconds,
@@ -348,11 +386,16 @@ export async function GET(
           COALESCE(MAX(s.game_length), ${DEFAULT_GAME_LENGTH_MIN})::int as game_length
         FROM goalie_game_stats ggs
         JOIN games g ON ggs.game_id = g.id AND NOT g.is_forfeit AND g.is_playoff AND g.game_type IN ('playoff', 'championship', 'regular')
-        JOIN player_seasons ps ON ps.player_id = ggs.player_id AND ps.season_id = g.season_id
-        JOIN teams t ON ps.team_slug = t.slug
+        LEFT JOIN teams t ON t.slug = COALESCE(
+          ggs.team_slug,
+          (SELECT ps.team_slug FROM player_seasons ps WHERE ps.player_id = ggs.player_id AND ps.season_id = g.season_id LIMIT 1)
+        )
         LEFT JOIN seasons s ON g.season_id = s.id
         WHERE ggs.player_id = ${player.id} AND NOT ggs.is_sub
-        GROUP BY g.season_id, ps.team_slug, t.name
+        GROUP BY g.season_id, COALESCE(
+          ggs.team_slug,
+          (SELECT ps.team_slug FROM player_seasons ps WHERE ps.player_id = ggs.player_id AND ps.season_id = g.season_id LIMIT 1)
+        ), t.name
         ORDER BY g.season_id DESC
       `),
       // Playoff goalie game log
@@ -361,7 +404,8 @@ export async function GET(
           ggs.game_id, g.date, g.home_team, g.away_team, g.home_score, g.away_score,
           COALESCE(ht.name, g.home_team) as home_name, COALESCE(awt.name, g.away_team) as away_name,
           ggs.seconds, ggs.goals_against, ggs.shots_against, ggs.saves,
-          ggs.shutouts, ggs.goalie_assists, ggs.result
+          ggs.shutouts, ggs.goalie_assists, ggs.result,
+          ggs.team_slug AS player_team_slug
         FROM goalie_game_stats ggs
         JOIN games g ON ggs.game_id = g.id AND NOT g.is_forfeit AND g.season_id = ${gameLogSeasonId} AND g.is_playoff AND g.game_type IN ('playoff', 'championship', 'regular')
         LEFT JOIN teams ht ON g.home_team = ht.slug
@@ -404,7 +448,8 @@ export async function GET(
           COALESCE(ht.name, g.home_team) as home_name, COALESCE(awt.name, g.away_team) as away_name,
           pgs.goals, pgs.assists, pgs.points, pgs.gwg, pgs.ppg, pgs.shg,
           pgs.eng, pgs.hat_tricks, pgs.pen, pgs.pim,
-          g.game_type
+          g.game_type,
+          pgs.team_slug AS player_team_slug
         FROM player_game_stats pgs
         JOIN games g ON pgs.game_id = g.id AND NOT g.is_forfeit AND g.game_type = 'exhibition'
         LEFT JOIN teams ht ON g.home_team = ht.slug
@@ -419,7 +464,8 @@ export async function GET(
           COALESCE(ht.name, g.home_team) as home_name, COALESCE(awt.name, g.away_team) as away_name,
           ggs.seconds, ggs.goals_against, ggs.shots_against, ggs.saves,
           ggs.shutouts, ggs.goalie_assists, ggs.result,
-          g.game_type
+          g.game_type,
+          ggs.team_slug AS player_team_slug
         FROM goalie_game_stats ggs
         JOIN games g ON ggs.game_id = g.id AND NOT g.is_forfeit AND g.game_type = 'exhibition'
         LEFT JOIN teams ht ON g.home_team = ht.slug
@@ -441,12 +487,13 @@ export async function GET(
       .map((r) => ({
         seasonId: r.season_id,
         seasonName: seasonMap.get(r.season_id) ?? r.season_id,
-        teamName: r.team_name,
-        teamSlug: r.team_slug,
+        teamName: r.team_name ?? "",
+        teamSlug: r.team_slug ?? "",
         stats: buildSkaterStats(r),
       })).sort(compareSeasonsDesc)
     games = skaterGameRows.map((r) => {
-      const isHome = player.team_slug ? r.home_team === player.team_slug : true
+      const effectiveTeamSlug = r.player_team_slug ?? player.team_slug
+      const isHome = effectiveTeamSlug ? r.home_team === effectiveTeamSlug : true
       const teamScore = isHome ? r.home_score : r.away_score
       const opponentScore = isHome ? r.away_score : r.home_score
       let result: string | null = null
@@ -477,12 +524,13 @@ export async function GET(
       .map((r) => ({
         seasonId: r.season_id,
         seasonName: seasonMap.get(r.season_id) ?? r.season_id,
-        teamName: r.team_name,
-        teamSlug: r.team_slug,
+        teamName: r.team_name ?? "",
+        teamSlug: r.team_slug ?? "",
         stats: buildGoalieStats(r, r.game_length),
       })).sort(compareSeasonsDesc)
     goalieGames = goalieGameRows.map((r) => {
-      const isHome = player.team_slug ? r.home_team === player.team_slug : true
+      const effectiveTeamSlug = r.player_team_slug ?? player.team_slug
+      const isHome = effectiveTeamSlug ? r.home_team === effectiveTeamSlug : true
       return {
         gameId: r.game_id, date: r.date,
         opponent: isHome ? r.away_name : r.home_name,
@@ -507,12 +555,13 @@ export async function GET(
       .map((r) => ({
         seasonId: r.season_id,
         seasonName: seasonMap.get(r.season_id) ?? r.season_id,
-        teamName: r.team_name,
-        teamSlug: r.team_slug,
+        teamName: r.team_name ?? "",
+        teamSlug: r.team_slug ?? "",
         stats: buildSkaterStats(r),
       })).sort(compareSeasonsDesc)
     playoffGames = poSkaterGameRows.map((r) => {
-      const isHome = player.team_slug ? r.home_team === player.team_slug : true
+      const effectiveTeamSlug = r.player_team_slug ?? player.team_slug
+      const isHome = effectiveTeamSlug ? r.home_team === effectiveTeamSlug : true
       const teamScore = isHome ? r.home_score : r.away_score
       const opponentScore = isHome ? r.away_score : r.home_score
       let result: string | null = null
@@ -540,12 +589,13 @@ export async function GET(
       .map((r) => ({
         seasonId: r.season_id,
         seasonName: seasonMap.get(r.season_id) ?? r.season_id,
-        teamName: r.team_name,
-        teamSlug: r.team_slug,
+        teamName: r.team_name ?? "",
+        teamSlug: r.team_slug ?? "",
         stats: buildGoalieStats(r, r.game_length),
       })).sort(compareSeasonsDesc)
     playoffGoalieGames = poGoalieGameRows.map((r) => {
-      const isHome = player.team_slug ? r.home_team === player.team_slug : true
+      const effectiveTeamSlug = r.player_team_slug ?? player.team_slug
+      const isHome = effectiveTeamSlug ? r.home_team === effectiveTeamSlug : true
       return {
         gameId: r.game_id, date: r.date,
         opponent: isHome ? r.away_name : r.home_name,
@@ -586,7 +636,8 @@ export async function GET(
 
     // Populate exhibition game logs
     exhibitionGames = exhSkaterGameRows.map((r) => {
-      const isHome = player.team_slug ? r.home_team === player.team_slug : true
+      const effectiveTeamSlug = r.player_team_slug ?? player.team_slug
+      const isHome = effectiveTeamSlug ? r.home_team === effectiveTeamSlug : true
       const teamScore = isHome ? r.home_score : r.away_score
       const opponentScore = isHome ? r.away_score : r.home_score
       let result: string | null = null
@@ -606,7 +657,8 @@ export async function GET(
       }
     })
     exhibitionGoalieGames = exhGoalieGameRows.map((r) => {
-      const isHome = player.team_slug ? r.home_team === player.team_slug : true
+      const effectiveTeamSlug = r.player_team_slug ?? player.team_slug
+      const isHome = effectiveTeamSlug ? r.home_team === effectiveTeamSlug : true
       return {
         gameId: r.game_id, date: r.date,
         opponent: isHome ? r.away_name : r.home_name,

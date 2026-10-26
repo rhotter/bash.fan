@@ -80,7 +80,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: "Player name and team are required" }, { status: 400 })
     }
 
-    // Verify season is draft
+    // Verify season is draft or active
     const [season] = await db
       .select({ status: schema.seasons.status, seasonType: schema.seasons.seasonType })
       .from(schema.seasons)
@@ -90,8 +90,8 @@ export async function POST(request: NextRequest, context: RouteContext) {
     if (!season) {
       return NextResponse.json({ error: "Season not found" }, { status: 404 })
     }
-    if (season.status !== "draft") {
-      return NextResponse.json({ error: "Can only add players to draft seasons" }, { status: 400 })
+    if (season.status !== "draft" && season.status !== "active") {
+      return NextResponse.json({ error: "Cannot modify rosters for completed seasons" }, { status: 400 })
     }
 
     // 1. Find or create player. Rookie status is derived on read, not stored.
@@ -118,6 +118,25 @@ export async function POST(request: NextRequest, context: RouteContext) {
       playerId = newPlayer.id
     }
 
+    // Check if player already has a player_seasons row on ANY team for that season
+    const existingAssignment = await db
+      .select({ teamSlug: schema.playerSeasons.teamSlug })
+      .from(schema.playerSeasons)
+      .where(
+        and(
+          eq(schema.playerSeasons.playerId, playerId),
+          eq(schema.playerSeasons.seasonId, seasonId)
+        )
+      )
+      .limit(1)
+
+    if (existingAssignment.length > 0) {
+      return NextResponse.json(
+        { error: "Player is already assigned to a team this season" },
+        { status: 400 }
+      )
+    }
+
     // 2. Add to roster
     await db.insert(schema.playerSeasons).values({
       playerId,
@@ -126,7 +145,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
       isGoalie: isGoalie ?? false,
     })
 
-    return NextResponse.json({ ok: true }, { status: 201 })
+    return NextResponse.json({ ok: true, playerId }, { status: 201 })
   } catch (err: unknown) {
     // If unique constraint violation (player already on a team this season)
     if (typeof err === 'object' && err !== null && (err as { code?: string }).code === '23505') {
@@ -151,6 +170,20 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 
     if (!playerId || !oldTeamSlug || !canonicalPlayerName || !teamSlug) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
+    }
+
+    // Verify season status
+    const [season] = await db
+      .select({ status: schema.seasons.status })
+      .from(schema.seasons)
+      .where(eq(schema.seasons.id, seasonId))
+      .limit(1)
+
+    if (!season) {
+      return NextResponse.json({ error: "Season not found" }, { status: 404 })
+    }
+    if (season.status !== "draft" && season.status !== "active") {
+      return NextResponse.json({ error: "Cannot modify rosters for completed seasons" }, { status: 400 })
     }
 
     // Update global player name
@@ -199,6 +232,20 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
   }
 
   try {
+    // Verify season status
+    const [season] = await db
+      .select({ status: schema.seasons.status })
+      .from(schema.seasons)
+      .where(eq(schema.seasons.id, seasonId))
+      .limit(1)
+
+    if (!season) {
+      return NextResponse.json({ error: "Season not found" }, { status: 404 })
+    }
+    if (season.status !== "draft" && season.status !== "active") {
+      return NextResponse.json({ error: "Cannot modify rosters for completed seasons" }, { status: 400 })
+    }
+
     await db
       .delete(schema.playerSeasons)
       .where(

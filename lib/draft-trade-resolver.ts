@@ -44,18 +44,26 @@ function slotKey(originalTeamSlug: string, round: number): string {
   return `${originalTeamSlug}::${round}`
 }
 
+export interface SinglePickTransferInput {
+  originalTeamSlug: string
+  round: number
+  toTeamSlug: string
+}
+
 /**
  * Compute the current ownership map after processing all trades sequentially.
  *
  * @param teamSlugs - All team slugs participating in the draft
  * @param rounds - Total number of rounds
  * @param trades - Ordered array of pre-draft trade swaps
+ * @param singleTransfers - Optional ordered array of 1-way prior-season pick transfers applied before pre-draft swaps
  * @returns Map of slot key → current owner team slug
  */
 export function resolvePreDraftTrades(
   teamSlugs: string[],
   rounds: number,
-  trades: PreDraftTradeInput[]
+  trades: PreDraftTradeInput[],
+  singleTransfers: SinglePickTransferInput[] = []
 ): Map<string, string> {
   // Initialize: each team owns all their own round picks
   const ownership = new Map<string, string>()
@@ -65,7 +73,15 @@ export function resolvePreDraftTrades(
     }
   }
 
-  // Process each trade sequentially — order matters for chain trades
+  // Apply 1-way prior-season pick transfers first (chronological baseline)
+  for (const transfer of singleTransfers) {
+    const key = slotKey(transfer.originalTeamSlug, transfer.round)
+    if (ownership.has(key) && teamSlugs.includes(transfer.toTeamSlug)) {
+      ownership.set(key, transfer.toTeamSlug)
+    }
+  }
+
+  // Process each 2-item pre-draft swap sequentially — order matters for chain trades
   for (const trade of trades) {
     const keyA = slotKey(trade.teamAOriginalOwner, trade.teamARound)
     const keyB = slotKey(trade.teamBOriginalOwner, trade.teamBRound)

@@ -153,6 +153,36 @@ describe("final-game shot corrections", () => {
     expect(query.params).toContain(JSON.stringify(ctx.state))
     expect(query.params).toContain(JSON.stringify(ctx.goalies))
   })
+
+  it("prioritizes goalie_game_stats.team_slug over player_seasons in finalShotUpdateSql", () => {
+    const ctx = context()
+    const updates = planFinalShotCorrection(ctx, correction)
+    const query = new PgDialect().sqlToQuery(finalShotUpdateSql("g65", ctx, correction, updates, 1000))
+    expect(query.sql).toContain("WHEN s.team_slug = g.home_team THEN '[\"home\"]'::jsonb")
+    expect(query.sql).toContain("WHEN s.team_slug = g.away_team THEN '[\"away\"]'::jsonb")
+    expect(query.sql).toContain("adhoc_game_rosters")
+    expect(query.sql).toContain("player_seasons")
+  })
+
+  it("plans shot corrections for a traded goalie whose side was resolved via team_slug", () => {
+    const ctx = context()
+    // Goalie 1 played for 'home' in this game, but was traded to 'away' later in the season.
+    // team_slug attribution preserves sides: ['home'] rather than flipping to ['away'].
+    expect(ctx.goalies[0].sides).toEqual(["home"])
+    expect(ctx.goalies[1].sides).toEqual(["away"])
+    const updates = planFinalShotCorrection(ctx, correction)
+    expect(updates).toEqual([
+      { playerId: 1, shotsAgainst: 43, saves: 38 },
+      { playerId: 2, shotsAgainst: 29, saves: 25 },
+    ])
+  })
+
+  it("rejects shot correction planning if goalie sides are flipped or ambiguous from post-trade affiliation", () => {
+    const ctx = context()
+    // Simulating post-trade side flipping without team_slug: Goalie 1 appears as 'away'
+    ctx.goalies[0].sides = ["away"]
+    expect(() => planFinalShotCorrection(ctx, correction)).toThrow()
+  })
 })
 
 describe("admin edit dispatch", () => {

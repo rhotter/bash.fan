@@ -24,9 +24,35 @@ async function getRoster(teamSlug: string, seasonId: string, gameType: string, g
 
   const rows = await rawSql(sql`
     SELECT p.id, p.name
-    FROM player_seasons ps
-    JOIN players p ON ps.player_id = p.id
-    WHERE ps.season_id = ${seasonId} AND ps.team_slug = ${teamSlug}
+    FROM (
+      SELECT ps.player_id
+      FROM player_seasons ps
+      WHERE ps.season_id = ${seasonId}
+        AND ps.team_slug = ${teamSlug}
+        AND NOT EXISTS (
+          SELECT 1 FROM player_game_stats pgs
+          WHERE pgs.game_id = ${gameId}
+            AND pgs.player_id = ps.player_id
+            AND pgs.team_slug IS NOT NULL
+            AND pgs.team_slug <> ${teamSlug}
+        )
+        AND NOT EXISTS (
+          SELECT 1 FROM goalie_game_stats ggs
+          WHERE ggs.game_id = ${gameId}
+            AND ggs.player_id = ps.player_id
+            AND ggs.team_slug IS NOT NULL
+            AND ggs.team_slug <> ${teamSlug}
+        )
+      UNION
+      SELECT pgs.player_id
+      FROM player_game_stats pgs
+      WHERE pgs.game_id = ${gameId} AND pgs.team_slug = ${teamSlug}
+      UNION
+      SELECT ggs.player_id
+      FROM goalie_game_stats ggs
+      WHERE ggs.game_id = ${gameId} AND ggs.team_slug = ${teamSlug}
+    ) r
+    JOIN players p ON p.id = r.player_id
     ORDER BY p.name ASC
   `)
   return rows.map((r) => ({ id: r.id, name: r.name }))

@@ -46,6 +46,8 @@ export interface GoalieStat {
 export interface PlayerStatsData {
   skaters: SkaterStat[]
   goalies: GoalieStat[]
+  skatersByTeam?: SkaterStat[]
+  goaliesByTeam?: GoalieStat[]
   teams: { slug: string; name: string }[]
   lastUpdated: string
   hasPlayoffs?: boolean
@@ -225,12 +227,10 @@ export async function fetchPlayerStats(
       rawSql(sql`
         SELECT
           p.id, p.name,
-          (SELECT t2.name FROM player_seasons ps2 JOIN teams t2 ON ps2.team_slug = t2.slug
-           WHERE ps2.player_id = p.id AND ps2.season_id = ${seasonId}
-           ORDER BY ps2.season_id DESC LIMIT 1) as team,
-          (SELECT ps2.team_slug FROM player_seasons ps2
-           WHERE ps2.player_id = p.id AND ps2.season_id = ${seasonId}
-           ORDER BY ps2.season_id DESC LIMIT 1) as team_slug,
+          gt.name as game_team,
+          COALESCE(pgs.team_slug, ps.team_slug) as game_team_slug,
+          COALESCE(ct.name, gt.name) as team,
+          COALESCE(ps.team_slug, COALESCE(pgs.team_slug, ps.team_slug)) as team_slug,
           COUNT(DISTINCT pgs.game_id)::int as gp,
           SUM(pgs.goals)::int as goals,
           SUM(pgs.assists)::int as assists,
@@ -245,19 +245,24 @@ export async function fetchPlayerStats(
         FROM players p
         JOIN player_game_stats pgs ON p.id = pgs.player_id
         JOIN games g ON pgs.game_id = g.id AND NOT g.is_forfeit AND g.season_id = ${seasonId} AND ${playoffFragment} AND ${gameTypeFragment}
+        LEFT JOIN LATERAL (
+          SELECT ps2.team_slug FROM player_seasons ps2
+          WHERE ps2.player_id = p.id AND ps2.season_id = ${seasonId}
+          ORDER BY ps2.season_id DESC LIMIT 1
+        ) ps ON true
+        LEFT JOIN teams gt ON gt.slug = COALESCE(pgs.team_slug, ps.team_slug)
+        LEFT JOIN teams ct ON ct.slug = ps.team_slug
         WHERE NOT pgs.is_sub
-        GROUP BY p.id, p.name
+        GROUP BY p.id, p.name, COALESCE(pgs.team_slug, ps.team_slug), gt.name, ps.team_slug, ct.name
         ORDER BY points DESC, goals DESC, p.name ASC
       `),
       rawSql(sql`
         SELECT
           p.id, p.name,
-          (SELECT t2.name FROM player_seasons ps2 JOIN teams t2 ON ps2.team_slug = t2.slug
-           WHERE ps2.player_id = p.id AND ps2.season_id = ${seasonId}
-           ORDER BY ps2.season_id DESC LIMIT 1) as team,
-          (SELECT ps2.team_slug FROM player_seasons ps2
-           WHERE ps2.player_id = p.id AND ps2.season_id = ${seasonId}
-           ORDER BY ps2.season_id DESC LIMIT 1) as team_slug,
+          gt.name as game_team,
+          COALESCE(ggs.team_slug, ps.team_slug) as game_team_slug,
+          COALESCE(ct.name, gt.name) as team,
+          COALESCE(ps.team_slug, COALESCE(ggs.team_slug, ps.team_slug)) as team_slug,
           COUNT(DISTINCT ggs.game_id)::int as gp,
           SUM(ggs.seconds)::int as seconds,
           SUM(ggs.goals_against)::int as goals_against,
@@ -265,6 +270,7 @@ export async function fetchPlayerStats(
           SUM(ggs.saves)::int as saves,
           SUM(ggs.shutouts)::int as shutouts,
           SUM(ggs.goalie_assists)::int as goalie_assists,
+          COALESCE(MAX(s.game_length), ${DEFAULT_GAME_LENGTH_MIN})::int as game_length,
           CASE WHEN SUM(ggs.shots_against) > 0
             THEN SUM(ggs.saves)::float / SUM(ggs.shots_against)::float
             ELSE 0 END as save_pct,
@@ -277,8 +283,15 @@ export async function fetchPlayerStats(
         JOIN goalie_game_stats ggs ON p.id = ggs.player_id
         JOIN games g ON ggs.game_id = g.id AND NOT g.is_forfeit AND g.season_id = ${seasonId} AND ${playoffFragment} AND ${gameTypeFragment}
         LEFT JOIN seasons s ON g.season_id = s.id
+        LEFT JOIN LATERAL (
+          SELECT ps2.team_slug FROM player_seasons ps2
+          WHERE ps2.player_id = p.id AND ps2.season_id = ${seasonId}
+          ORDER BY ps2.season_id DESC LIMIT 1
+        ) ps ON true
+        LEFT JOIN teams gt ON gt.slug = COALESCE(ggs.team_slug, ps.team_slug)
+        LEFT JOIN teams ct ON ct.slug = ps.team_slug
         WHERE NOT ggs.is_sub
-        GROUP BY p.id, p.name
+        GROUP BY p.id, p.name, COALESCE(ggs.team_slug, ps.team_slug), gt.name, ps.team_slug, ct.name
         ORDER BY save_pct DESC
       `),
       rawSql(sql`
@@ -291,11 +304,12 @@ export async function fetchPlayerStats(
     ])
   }
 
-  const skaters: SkaterStat[] = skaterRows.map((r) => ({
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const mapSkaterRow = (r: any, useGameTeam = false): SkaterStat => ({
     id: r.id,
     name: r.name,
-    team: r.team,
-    teamSlug: r.team_slug,
+    team: useGameTeam ? (r.game_team ?? r.team) : r.team,
+    teamSlug: useGameTeam ? (r.game_team_slug ?? r.team_slug) : r.team_slug,
     gp: r.gp,
     goals: r.goals,
     assists: r.assists,
@@ -309,13 +323,14 @@ export async function fetchPlayerStats(
     pen: r.pen,
     pim: r.pim,
     ...(isAllTime ? { seasonsPlayed: r.seasons_played } : {}),
-  }))
+  })
 
-  const goalies: GoalieStat[] = goalieRows.map((r) => ({
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const mapGoalieRow = (r: any, useGameTeam = false): GoalieStat => ({
     id: r.id,
     name: r.name,
-    team: r.team,
-    teamSlug: r.team_slug,
+    team: useGameTeam ? (r.game_team ?? r.team) : r.team,
+    teamSlug: useGameTeam ? (r.game_team_slug ?? r.team_slug) : r.team_slug,
     gp: r.gp,
     seconds: r.seconds,
     goalsAgainst: r.goals_against,
@@ -328,9 +343,79 @@ export async function fetchPlayerStats(
     shutouts: r.shutouts,
     goalieAssists: r.goalie_assists,
     ...(isAllTime ? { seasonsPlayed: r.seasons_played } : {}),
-  }))
+  })
+
+  let skaters: SkaterStat[]
+  let goalies: GoalieStat[]
+  let skatersByTeam: SkaterStat[] | undefined
+  let goaliesByTeam: GoalieStat[] | undefined
+
+  if (!isAllTime && !statsOnly) {
+    skatersByTeam = skaterRows.map((r) => mapSkaterRow(r, true))
+    goaliesByTeam = goalieRows.map((r) => mapGoalieRow(r, true))
+
+    const skaterById = new Map<number, SkaterStat>()
+    for (const r of skaterRows) {
+      const existing = skaterById.get(r.id)
+      if (!existing) {
+        skaterById.set(r.id, mapSkaterRow(r, false))
+      } else {
+        existing.gp += r.gp
+        existing.goals += r.goals
+        existing.assists += r.assists
+        existing.points += r.points
+        existing.ptsPg = existing.gp > 0 ? (existing.points / existing.gp).toFixed(2) : "0.00"
+        existing.gwg += r.gwg
+        existing.ppg += r.ppg
+        existing.shg += r.shg
+        existing.eng += r.eng
+        existing.hatTricks += r.hat_tricks
+        existing.pen += r.pen
+        existing.pim += r.pim
+      }
+    }
+    skaters = [...skaterById.values()].sort(
+      (a, b) => b.points - a.points || b.goals - a.goals || a.name.localeCompare(b.name),
+    )
+
+    const goalieById = new Map<number, { stat: GoalieStat; gameLength: number }>()
+    for (const r of goalieRows) {
+      const gameLength = r.game_length || DEFAULT_GAME_LENGTH_MIN
+      const existing = goalieById.get(r.id)
+      if (!existing) {
+        goalieById.set(r.id, { stat: mapGoalieRow(r, false), gameLength })
+      } else {
+        const s = existing.stat
+        s.gp += r.gp
+        s.seconds += r.seconds
+        s.goalsAgainst += r.goals_against
+        s.shotsAgainst += r.shots_against
+        s.saves += r.saves
+        s.shutouts += r.shutouts
+        s.goalieAssists += r.goalie_assists
+        s.wins += r.wins
+        s.losses += r.losses
+        s.savePercentage = s.shotsAgainst > 0 ? s.saves / s.shotsAgainst : 0
+        s.gaa = s.seconds > 0 ? (s.goalsAgainst / s.seconds) * (existing.gameLength * 60) : 0
+      }
+    }
+    goalies = [...goalieById.values()]
+      .map((entry) => entry.stat)
+      .sort((a, b) => b.savePercentage - a.savePercentage)
+  } else {
+    skaters = skaterRows.map((r) => mapSkaterRow(r, false))
+    goalies = goalieRows.map((r) => mapGoalieRow(r, false))
+  }
 
   const teams = filterLegacyTeams(teamRows).map((r) => ({ slug: r.slug, name: r.name }))
 
-  return { skaters, goalies, teams, lastUpdated: new Date().toISOString(), hasPlayoffs }
+  return {
+    skaters,
+    goalies,
+    ...(skatersByTeam ? { skatersByTeam } : {}),
+    ...(goaliesByTeam ? { goaliesByTeam } : {}),
+    teams,
+    lastUpdated: new Date().toISOString(),
+    hasPlayoffs,
+  }
 }

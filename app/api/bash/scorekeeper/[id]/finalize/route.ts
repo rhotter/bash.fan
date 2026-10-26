@@ -458,6 +458,7 @@ export async function POST(
         const seconds = Math.max(0, totalGameSecs - pulledSecs)
         const ga = goalsAgainstEvents.length
         return teamGoalies.map((goalieId) => ({
+          teamSlug,
           goalieId,
           seconds,
           goalsAgainst: ga,
@@ -541,6 +542,7 @@ export async function POST(
         const sa = state.goalieShotsAgainst?.[String(goalieId)] ?? totalShots
         const ga = stats.goalsAgainst
         return {
+          teamSlug,
           goalieId,
           seconds: Math.max(0, stats.totalSecs),
           goalsAgainst: ga,
@@ -664,6 +666,8 @@ export async function POST(
     // 10. Delete old player/goalie stats then insert fresh for attending players
     await db.delete(schema.playerGameStats).where(eq(schema.playerGameStats.gameId, id))
 
+    const homeAttendanceSet = new Set(state.homeAttendance)
+
     for (const [playerId, stats] of playerStats) {
       const isGoalie = goalieIds.has(playerId)
       const isSub = subIds.has(playerId)
@@ -675,12 +679,14 @@ export async function POST(
 
       const hatTricks = (goalCounts.get(playerId) || 0) >= 3 ? 1 : 0
       const gwg = playerId === gwgScorerId ? 1 : 0
+      const playerTeamSlug = homeAttendanceSet.has(playerId) ? homeSlug : awaySlug
 
       await db
         .insert(schema.playerGameStats)
         .values({
           playerId,
           gameId: id,
+          teamSlug: playerTeamSlug,
           goals: stats.goals,
           assists: stats.assists,
           points: stats.points,
@@ -696,6 +702,7 @@ export async function POST(
         .onConflictDoUpdate({
           target: [schema.playerGameStats.playerId, schema.playerGameStats.gameId],
           set: {
+            teamSlug: playerTeamSlug,
             goals: stats.goals,
             assists: stats.assists,
             points: stats.points,
@@ -720,6 +727,7 @@ export async function POST(
         .values({
           playerId: gs.goalieId,
           gameId: id,
+          teamSlug: gs.teamSlug,
           seconds: gs.seconds,
           goalsAgainst: gs.goalsAgainst,
           shotsAgainst: gs.shotsAgainst,
@@ -732,6 +740,7 @@ export async function POST(
         .onConflictDoUpdate({
           target: [schema.goalieGameStats.playerId, schema.goalieGameStats.gameId],
           set: {
+            teamSlug: gs.teamSlug,
             seconds: gs.seconds,
             goalsAgainst: gs.goalsAgainst,
             shotsAgainst: gs.shotsAgainst,

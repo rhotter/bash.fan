@@ -295,6 +295,10 @@ async function syncBoxscore(gameId: string, leagueId: string, seasonId: string) 
   const liveCheck = await db.select({ gameId: schema.gameLive.gameId }).from(schema.gameLive).where(eq(schema.gameLive.gameId, gameId))
   if (liveCheck.length > 0) return
 
+  const gameRows = await rawSql(sql`SELECT home_team, away_team FROM games WHERE id = ${gameId}`)
+  if (!gameRows.length) return
+  const game = gameRows[0] as { home_team: string; away_team: string }
+
   const url = `${BASE_URL}/Game.asp?LgID=${leagueId}&GID=${gameId}`
   const res = await fetch(url, { cache: "no-store" })
   const html = await res.text()
@@ -408,17 +412,37 @@ async function syncBoxscore(gameId: string, leagueId: string, seasonId: string) 
           .returning({ id: schema.players.id })
         const playerId = playerRows[0].id
 
-        await db
-          .insert(schema.playerSeasons)
-          .values({ playerId, seasonId, teamSlug: currentTeamSlug })
-          .onConflictDoNothing()
+        await rawSql(sql`
+          INSERT INTO player_seasons (player_id, season_id, team_slug)
+          SELECT ${playerId}, ${seasonId}, ${currentTeamSlug}
+          WHERE NOT EXISTS (
+            SELECT 1 FROM player_seasons ps
+            WHERE ps.player_id = ${playerId} AND ps.season_id = ${seasonId}
+          )
+          ON CONFLICT (player_id, season_id, team_slug) DO NOTHING
+        `)
 
         await db
           .insert(schema.playerGameStats)
-          .values({ playerId, gameId, goals, assists, points, gwg, ppg, shg, eng, hatTricks: hat, pen, pim })
+          .values({
+            playerId,
+            gameId,
+            teamSlug: currentTeamSlug,
+            goals,
+            assists,
+            points,
+            gwg,
+            ppg,
+            shg,
+            eng,
+            hatTricks: hat,
+            pen,
+            pim,
+          })
           .onConflictDoUpdate({
             target: [schema.playerGameStats.playerId, schema.playerGameStats.gameId],
             set: {
+              teamSlug: sql`EXCLUDED.team_slug`,
               goals: sql`EXCLUDED.goals`,
               assists: sql`EXCLUDED.assists`,
               points: sql`EXCLUDED.points`,
@@ -518,17 +542,34 @@ async function syncBoxscore(gameId: string, leagueId: string, seasonId: string) 
           .returning({ id: schema.players.id })
         const playerId = playerRows[0].id
 
-        await db
-          .insert(schema.playerSeasons)
-          .values({ playerId, seasonId, teamSlug: currentTeamSlug })
-          .onConflictDoNothing()
+        await rawSql(sql`
+          INSERT INTO player_seasons (player_id, season_id, team_slug, is_goalie)
+          SELECT ${playerId}, ${seasonId}, ${currentTeamSlug}, true
+          WHERE NOT EXISTS (
+            SELECT 1 FROM player_seasons ps
+            WHERE ps.player_id = ${playerId} AND ps.season_id = ${seasonId}
+          )
+          ON CONFLICT (player_id, season_id, team_slug) DO NOTHING
+        `)
 
         await db
           .insert(schema.goalieGameStats)
-          .values({ playerId, gameId, seconds, goalsAgainst: ga, shotsAgainst, saves, shutouts, goalieAssists, result })
+          .values({
+            playerId,
+            gameId,
+            teamSlug: currentTeamSlug,
+            seconds,
+            goalsAgainst: ga,
+            shotsAgainst,
+            saves,
+            shutouts,
+            goalieAssists,
+            result,
+          })
           .onConflictDoUpdate({
             target: [schema.goalieGameStats.playerId, schema.goalieGameStats.gameId],
             set: {
+              teamSlug: sql`EXCLUDED.team_slug`,
               seconds: sql`EXCLUDED.seconds`,
               goalsAgainst: sql`EXCLUDED.goals_against`,
               shotsAgainst: sql`EXCLUDED.shots_against`,
@@ -551,17 +592,21 @@ async function syncBoxscore(gameId: string, leagueId: string, seasonId: string) 
 
   if (hasAnyStats) {
     // Only mark boxscore complete if goalie stats exist for both teams
-    const game = (await rawSql(sql`SELECT home_team, away_team FROM games WHERE id = ${gameId}`))[0]
     const goalieCheck = await rawSql(sql`
-      SELECT ps.team_slug
+      SELECT COALESCE(
+        ggs.team_slug,
+        (SELECT ps.team_slug FROM player_seasons ps WHERE ps.player_id = ggs.player_id AND ps.season_id = ${seasonId} LIMIT 1)
+      ) AS team_slug
       FROM goalie_game_stats ggs
-      JOIN player_seasons ps ON ggs.player_id = ps.player_id AND ps.season_id = ${seasonId}
       WHERE ggs.game_id = ${gameId}
-        AND ps.team_slug IN (${game.home_team}, ${game.away_team})
-      GROUP BY ps.team_slug
+        AND COALESCE(
+          ggs.team_slug,
+          (SELECT ps.team_slug FROM player_seasons ps WHERE ps.player_id = ggs.player_id AND ps.season_id = ${seasonId} LIMIT 1)
+        ) IN (${game.home_team}, ${game.away_team})
+      GROUP BY 1
     `)
-    const teamsWithGoalies = new Set(goalieCheck.map((r) => r.team_slug))
-    const hasAllGoalies = teamsWithGoalies.has(game.home_team) && teamsWithGoalies.has(game.away_team)
+    const teamsWithGoalies = new Set((goalieCheck as Array<{ team_slug: string | null }>).map((r) => r.team_slug))
+    const hasAllGoalies = Boolean(game.home_team && game.away_team && teamsWithGoalies.has(game.home_team) && teamsWithGoalies.has(game.away_team))
     await db.update(schema.games).set({ hasBoxscore: hasAllGoalies }).where(eq(schema.games.id, gameId))
   }
 }
