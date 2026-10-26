@@ -111,6 +111,12 @@ struct GameEvent: Identifiable {
     var id: String { goal.map { "goal-" + $0.id } ?? "penalty-" + (penalty?.id ?? "") }
     var period: Int { goal?.period ?? penalty?.period ?? 1 }
     var clock: String { goal?.clock ?? penalty?.clock ?? "" }
+    func elapsedClock(isPlayoff: Bool) -> String {
+        // Events store the countdown clock; summaries show time into the period.
+        let periodSeconds = period == 4 && !isPlayoff ? 300 : 1200
+        let elapsed = max(0, periodSeconds - GameLive.clockSeconds(clock))
+        return String(format: "%d:%02d", elapsed / 60, elapsed % 60)
+    }
     var team: String { goal?.team ?? penalty?.team ?? "" }
 }
 extension GameLive {
@@ -370,7 +376,7 @@ struct GameScreen: View {
                                     Text("\(penalty.infraction) · \(penalty.minutes) min").font(.caption).foregroundStyle(.secondary)
                                 }
                             }.frame(maxWidth: .infinity, alignment: .leading)
-                            Text(event.clock).font(.caption).monospacedDigit().foregroundStyle(.secondary)
+                            Text(event.elapsedClock(isPlayoff: current.isPlayoff)).font(.caption).monospacedDigit().foregroundStyle(.secondary)
                                 .frame(width: 38, alignment: .trailing)
                         }.padding(.vertical, 2)
                     }
