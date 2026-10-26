@@ -1,6 +1,6 @@
 # Automatic TestFlight deployments
 
-The BASH TestFlight GitHub Actions workflow automatically releases iOS changes pushed to `video`, the current native app release branch. Other branches can be released explicitly with a manual run. Website-only changes do not deploy the app.
+The BASH TestFlight GitHub Actions workflow automatically releases iOS changes pushed to `main`, the native app release branch. Other branches can be released explicitly with a manual run. Website-only changes do not deploy the app.
 
 Automatic deployment builds the signed release and then uploads it to TestFlight. Unit tests are run separately and do not gate deployment. The package job caches DerivedData, including compiled dependencies and Swift packages. Unchanged tracked sources get stable Git timestamps so a fresh checkout can reuse compiler work; Xcode still rebuilds changed inputs. Release builds no longer force a clean. Cache keys include Xcode, runner architecture, project settings, dependency locks, and the commit; a new commit restores the closest compatible cache. The first run is cold and will take longer. Bump the cache version or delete the caches to force a rebuild.
 

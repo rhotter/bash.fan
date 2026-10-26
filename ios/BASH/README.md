@@ -54,7 +54,7 @@ Push credentials, production database changes, associated domains, widgets, and 
 
 ## TestFlight
 
-Push-triggered GitHub Actions deployment is configured for iOS changes on `main` and `video`. See [CI setup](ci/README.md) for the required repository secrets and verification steps. The CI path uses API-key authentication and a temporary signing keychain rather than this Mac's Xcode account session.
+Push-triggered GitHub Actions deployment is configured for iOS changes on `main`. See [CI setup](ci/README.md) for the required repository secrets and verification steps. The CI path uses API-key authentication and a temporary signing keychain rather than this Mac's Xcode account session.
 
 Build 19: player profiles include the API-backed current-season skater/goalie game logs, switched by regular season/playoffs. Removed the extra points-per-game/penalty summary line, horizontal-swipe hint, and selected history-row fill.
 
