@@ -41,6 +41,7 @@ private struct OperatorFlow: View {
     @State private var selectedGame: Game?
     @StateObject private var website: WebsiteConnection
     @State private var pin = ""
+    @State private var showDemo = false
     @Environment(\.dismiss) private var dismiss
     init(tool: OperatorTool, games: [Game], game: Game?) {
         self.tool = tool; self.games = games
@@ -84,6 +85,9 @@ private struct OperatorFlow: View {
                                 .tint(LeagueStyle.orange).foregroundStyle(.black)
                                 .disabled(pin.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || website.busy)
                                 Text("Your passcode isn’t saved.").font(.footnote).foregroundStyle(.secondary)
+                                Button("Try demo") { showDemo = true }.disabled(website.busy)
+                                Text("Practice with sample data. Demo recordings stay on this phone; nothing is published.")
+                                    .font(.footnote).foregroundStyle(.secondary).multilineTextAlignment(.center)
                             }
                         }
                         .frame(maxWidth: 480).padding(.horizontal, 24).padding(.top, 32)
@@ -119,6 +123,10 @@ private struct OperatorFlow: View {
             }
         }
         .tint(.primary)
+        .fullScreenCover(isPresented: $showDemo) {
+            if tool == .scorekeeper { ScorekeeperScreen(model: NativeScorekeeper.sample()) }
+            else { DemoRecorderScreen() }
+        }
         // The flow owns an ephemeral session, discarded when the cover closes.
     }
     private func signIn() {

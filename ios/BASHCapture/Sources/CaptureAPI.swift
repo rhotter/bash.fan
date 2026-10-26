@@ -25,6 +25,11 @@ struct Pairing: Codable, Sendable {
     let session: String
     let side: String
     let token: String
+    static let demo = Pairing(server: URL(string: "https://demo.invalid")!, session: "demo", side: "left", token: "")
+    var isDemo: Bool { server.host == "demo.invalid" }
+    private init(server: URL, session: String, side: String, token: String) {
+        self.server = server; self.session = session; self.side = side; self.token = token
+    }
     var key: String { SHA256.hash(data: Data("\(server.absoluteString)/\(session)/\(side)".utf8)).map { String(format: "%02x", $0) }.joined() }
     var endpoint: URL { server.appending(path: "api/bash/video/camera/\(session)/\(side)") }
 
@@ -96,6 +101,7 @@ struct HeartbeatResponse: Decodable { let ended: Bool; let serverTime: Double }
 @MainActor
 enum CaptureAPI {
     static func call<T: Decodable>(_ pairing: Pairing, body: [String: Any]? = nil) async throws -> T {
+        guard !pairing.isDemo else { throw CaptureError.message("Demo recordings stay on this phone.") }
         var request = URLRequest(url: pairing.endpoint)
         request.timeoutInterval = 20
         request.setValue("Bearer \(pairing.token)", forHTTPHeaderField: "Authorization")

@@ -55,7 +55,7 @@ private struct ScoringDraft: Codable { let state: ScoringState; let expected: Sc
     @Published var error: String?
     @Published var editingFinal = false
     private(set) var expected: ScoringState = [:]
-    private var preview = false
+    private(set) var preview = false
     var period: Int { Int(state["period"]?.number ?? 0) }
     var periodLength: Int { period == 4 && payload?.isPlayoff != true ? 300 : payload?.periodLength ?? 1200 }
     var running: Bool { state["clockRunning"]?.flag == true }
@@ -96,6 +96,7 @@ private struct ScoringDraft: Codable { let state: ScoringState; let expected: Sc
         return goals + (own > other ? 1 : 0)
     }
     func request(_ suffix: String, method: String = "GET", body: ScoringState? = nil, headers: [String: String] = [:]) async throws -> ScoringState {
+        guard !preview else { throw URLError(.notConnectedToInternet) }
         var request = URLRequest(url: server.appending(path: "api/bash/scorekeeper/\(game.id)/\(suffix)"))
         request.httpMethod = method
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -356,7 +357,7 @@ struct ScorekeeperScreen: View {
                     }
                 }
             }
-            .navigationTitle("Scorekeeper").navigationBarTitleDisplayMode(.inline)
+            .navigationTitle(model.preview ? "Demo scorekeeper" : "Scorekeeper").navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Done") { if model.dirty { confirmClose = true } else { dismiss() } }.disabled(model.busy) }
                 ToolbarItem(placement: .primaryAction) {
@@ -367,7 +368,7 @@ struct ScorekeeperScreen: View {
             }
             .safeAreaInset(edge: .bottom) {
                 if model.payload != nil {
-                    Label(model.busy ? "Saving…" : model.conflict ? "Needs review" : model.dirty ? "Unsaved changes · saved on this phone" : "Saved", systemImage: model.dirty ? "icloud.and.arrow.up" : "checkmark.circle")
+                    Label(model.preview ? "Demo · changes stay in memory" : model.busy ? "Saving…" : model.conflict ? "Needs review" : model.dirty ? "Unsaved changes · saved on this phone" : "Saved", systemImage: model.dirty ? "icloud.and.arrow.up" : "checkmark.circle")
                         .font(.caption).foregroundStyle(model.dirty ? Color.orange : Color.secondary)
                         .frame(maxWidth: .infinity).padding(10).background(.bar)
                 }
@@ -831,7 +832,6 @@ private struct ScoringShootout: View {
     }
 }
 
-#if DEBUG
 extension NativeScorekeeper {
     static func sample() -> NativeScorekeeper {
         let game = Game(id: "native-preview", date: "2026-10-25", time: "12:00", homeTeam: "Landsharks", awayTeam: "Seals", homeSlug: "landsharks", awaySlug: "seals", homeScore: 0, awayScore: 0, status: "live", location: "Rink", isOvertime: false, isPlayoff: false)
@@ -848,4 +848,3 @@ extension NativeScorekeeper {
         return model
     }
 }
-#endif

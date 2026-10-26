@@ -45,7 +45,8 @@ final class CaptureController: ObservableObject {
     }
     var framesPerSecond: Int { quality.fps }
     private var preparedQuality: RecordingQuality?
-    let liveEnabled = true
+    let demo: Bool
+    var liveEnabled: Bool { !demo }
     let library = RecordingLibrary.shared
     let mixer = MediaMixer(captureSessionMode: .single)
     private let connection = RTMPConnection()
@@ -59,13 +60,15 @@ final class CaptureController: ObservableObject {
     private var clockAnchor: CaptureClockAnchor?
     private var prepared = false
 
-    init() {
-        if let key = UserDefaults.standard.string(forKey: "pairingKey"), let saved = CameraKeychain.load(key),
+    init(demo: Bool = false) {
+        self.demo = demo
+        if demo { pairing = .demo }
+        else if let key = UserDefaults.standard.string(forKey: "pairingKey"), let saved = CameraKeychain.load(key),
            saved.server == (try? BASHService.server()) { pairing = saved }
         UIDevice.current.isBatteryMonitoringEnabled = true
     }
     func pair(_ link: String) async {
-        guard !recording && !busy else { return }
+        guard !demo, !recording && !busy else { return }
         busy = true; defer { busy = false }
         do {
             let pair = try Pairing(link: link)
@@ -79,6 +82,10 @@ final class CaptureController: ObservableObject {
     }
     func refreshConfiguration() async {
         guard let pairing, !recording else { return }
+        if demo {
+            configuration = CameraConfiguration(title: "Demo recording", game: nil, ended: false, serverTime: Date().timeIntervalSince1970 * 1000, rtmpsUrl: nil, streamKey: nil)
+            return
+        }
         configuration = nil
         do {
             configuration = try await CaptureAPI.call(pairing)
@@ -158,10 +165,14 @@ final class CaptureController: ObservableObject {
         do {
             let free = try URL.documentsDirectory.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey]).volumeAvailableCapacityForImportantUsage ?? 0
             guard free > 2_000_000_000 else { throw CaptureError.message("Free at least 2 GB before recording.") }
-            let config: CameraConfiguration = try await CaptureAPI.call(pairing)
-            guard !config.ended else { throw CaptureError.message("This session has ended.") }
-            configuration = config
-            clockAnchor = try await CaptureAPI.synchronize(pairing); clockChecked = true
+            if demo {
+                clockAnchor = nil; clockChecked = false
+            } else {
+                let config: CameraConfiguration = try await CaptureAPI.call(pairing)
+                guard !config.ended else { throw CaptureError.message("This session has ended.") }
+                configuration = config
+                clockAnchor = try await CaptureAPI.synchronize(pairing); clockChecked = true
+            }
             try await mixer.setFrameRate(Double(framesPerSecond))
             guard UIDevice.current.orientation == .landscapeRight else {
                 throw CaptureError.message("Rotate to landscape with the volume buttons facing up.")
@@ -178,7 +189,7 @@ final class CaptureController: ObservableObject {
                         let free = try URL.documentsDirectory.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey]).volumeAvailableCapacityForImportantUsage ?? 0
                         guard free > 1_000_000_000, ProcessInfo.processInfo.thermalState != .critical else { throw CaptureError.message("Recording stopped: low storage or critical temperature.") }
                         try await beginSegment(pairing)
-                        Task { await library.uploadPending() }
+                        if !demo { Task { await library.uploadPending() } }
                     } catch { self.error = error.localizedDescription; break }
                 }
                 do { try await finishSegment() } catch { self.error = "Could not finalize the last segment. Existing files are preserved." }
@@ -186,10 +197,10 @@ final class CaptureController: ObservableObject {
                 status = "Recording saved on this phone"
                 serviceTask?.cancel(); _ = try? await stream.close(); try? await connection.close(); streaming = false
                 await sendHeartbeat(pairing)
-                Task { await library.uploadPending() }
+                if !demo { Task { await library.uploadPending() } }
             }
             serviceTask = Task { [weak self] in
-                guard let self else { return }
+                guard let self, !demo else { return }
                 while !Task.isCancelled && recording {
                     await sendHeartbeat(pairing)
                     if !recording || Task.isCancelled { break }
@@ -236,6 +247,7 @@ final class CaptureController: ObservableObject {
         try await library.finalize(current)
     }
     private func sendHeartbeat(_ pairing: Pairing) async {
+        guard !demo else { return }
         do {
             let response: HeartbeatResponse = try await CaptureAPI.call(pairing, body: ["action": "heartbeat", "deviceName": UIDevice.current.name, "recording": recording, "streaming": streaming, "battery": UIDevice.current.batteryLevel, "error": error.map { String($0.prefix(300)) } as Any? ?? NSNull()])
             if response.ended { recordingTask?.cancel() }
