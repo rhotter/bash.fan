@@ -1,4 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+
+// Finalize schedules post-response work via next/server `after()`, which throws outside a request scope.
+vi.mock("next/server", async (importOriginal) => ({ ...(await importOriginal<typeof import("next/server")>()), after: vi.fn() }))
+
 import { getTableName, type SQL } from "drizzle-orm"
 import { PgDialect } from "drizzle-orm/pg-core"
 import { isDeepStrictEqual } from "node:util"
