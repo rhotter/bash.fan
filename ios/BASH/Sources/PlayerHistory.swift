@@ -118,10 +118,6 @@ struct PlayerScreen: View {
                     }
                     Spacer(minLength: 0)
                 }.padding(.top, 4)
-                Picker("Competition", selection: $playoffs) {
-                    Text("Regular season").tag(false)
-                    Text("Playoffs").tag(true)
-                }.pickerStyle(.segmented).accessibilityIdentifier("careerCompetition")
                 if let career {
                     if let season = selectedSeason {
                         VStack(alignment: .leading, spacing: 18) {
@@ -140,17 +136,23 @@ struct PlayerScreen: View {
                                 TeamLogo(slug: season.teamSlug, size: 24)
                             }
                             HStack(spacing: 0) {
-                                headline("Points", "\(season.stats.points)")
+                                headline("Games played", "\(season.stats.gp)")
                                 headline("Goals", "\(season.stats.goals)")
                                 headline("Assists", "\(season.stats.assists)")
-                                headline("Games", "\(season.stats.gp)")
+                                headline("Points", "\(season.stats.points)")
                             }
                         }.padding(16).background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 18))
                     }
                     gameLog(career)
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("Stats").font(.title3.bold())
+                        Picker("Competition", selection: $playoffs) {
+                            Text("Regular season").tag(false)
+                            Text("Playoffs").tag(true)
+                        }.pickerStyle(.segmented).accessibilityIdentifier("careerCompetition")
+                    }
                     if !seasons.isEmpty {
                         VStack(alignment: .leading, spacing: 10) {
-                            Text("Season history").font(.title3.bold())
                             ScrollView(.horizontal) {
                                 VStack(spacing: 0) {
                                     historyRow("Season / team", values: ["GP", "G", "A", "PTS", "P/G", "PIM"], header: true)
@@ -173,7 +175,7 @@ struct PlayerScreen: View {
                     }
                     if !goalieSeasons.isEmpty {
                         VStack(alignment: .leading, spacing: 10) {
-                            Text("Goalie season history").font(.title3.bold())
+                            Text("Goalie stats").font(.title3.bold())
                             ScrollView(.horizontal) {
                                 VStack(spacing: 0) {
                                     historyRow("Season / team", values: ["GP", "W", "L", "GAA", "SV%", "SO"], header: true)

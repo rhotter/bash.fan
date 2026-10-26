@@ -80,7 +80,6 @@ private struct OperatorFlow: View {
                                 .buttonStyle(.borderedProminent).controlSize(.large)
                                 .tint(LeagueStyle.orange).foregroundStyle(.black)
                                 .disabled(pin.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || website.busy)
-                                Text("Your passcode isn’t saved.").font(.footnote).foregroundStyle(.secondary)
                             }
                         }
                         .frame(maxWidth: 480).padding(.horizontal, 24).padding(.top, 32)
