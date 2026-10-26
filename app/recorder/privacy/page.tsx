@@ -2,7 +2,7 @@ export const metadata = { title: "BASH Video Recorder Privacy" }
 export default function RecorderPrivacy() {
   return <main className="mx-auto w-full max-w-3xl flex-1 space-y-5 px-4 py-10 text-sm leading-7">
     <h1 className="text-2xl font-bold">BASH Video Recorder privacy policy</h1>
-    <p>Updated October 24, 2026. This policy covers the BASH Video Recorder iPhone app and its recording services, operated by Raffi Hotter for Bay Area Street Hockey.</p>
+    <p>Updated October 26, 2026. This policy covers the BASH Video Recorder iPhone app and its recording services, operated by Bay Area Street Hockey.</p>
     <h2 className="text-lg font-semibold">What the app collects</h2>
     <p>When you start recording, the app captures video and microphone audio. It stores clips on your phone and uploads them to BASH. A live feed is also sent while streaming is connected. Recordings can include identifiable players, spectators, voices, and anything visible or audible near the camera.</p>
     <p>The service stores recording timestamps, camera side, session and clip identifiers, upload status, device name, battery level, and recording or connection errors. Network providers may process IP addresses and technical request logs to operate and protect the service. The app does not request your location, contacts, or photo library.</p>
