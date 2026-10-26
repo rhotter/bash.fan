@@ -185,7 +185,7 @@ final class LeagueUITests: XCTestCase {
         XCTAssertTrue(app.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH 'goalie-stats-'")).firstMatch.isHittable)
         capture("Game goalie stats")
         app.buttons["gameTab-Summary"].tap()
-        let firstGoal = app.staticTexts["Goal · Samuel Dobbs"]
+        let firstGoal = app.staticTexts["Samuel Dobbs"]
         for _ in 0..<5 {
             if firstGoal.isHittable { break }
             app.swipeUp()

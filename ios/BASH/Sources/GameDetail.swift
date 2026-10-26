@@ -318,35 +318,50 @@ struct GameScreen: View {
         if eventsError { Text("Couldn't refresh plays. Pull down to retry.").font(.caption).foregroundStyle(.secondary) }
     }
     private func eventSummary(_ live: GameLive, scoring: Bool) -> some View {
-        Section(scoring ? "Scoring summary" : "Penalty summary") {
+        Section {
             ForEach(live.summaryPeriods, id: \.self) { period in
                 let events = live.events.filter { $0.period == period && (scoring ? $0.goal != nil : $0.penalty != nil) }
-                Text(periodLabel(period)).font(.caption.weight(.semibold)).foregroundStyle(.secondary)
-                    .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 4, trailing: 16))
-                if events.isEmpty {
-                    Text(scoring ? "No scoring" : "No penalties")
-                        .font(.subheadline).foregroundStyle(.secondary)
-                        .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 8, trailing: 16))
-                }
-                ForEach(events) { event in
-                    HStack(alignment: .center, spacing: 10) {
-                        Text(event.clock).font(.caption).monospacedDigit().foregroundStyle(.secondary).frame(width: 40, alignment: .leading)
-                        TeamLogo(slug: event.team, size: 26)
-                        VStack(alignment: .leading, spacing: 2) {
-                            if let goal = event.goal {
-                                Text("Goal · \(live.name(goal.scorerId))").font(.subheadline.weight(.semibold))
-                                let assists = [goal.assist1Id, goal.assist2Id].compactMap { $0 }.map { live.name($0) }
-                                Text(assists.isEmpty ? "Unassisted" : assists.joined(separator: ", ")).font(.caption).foregroundStyle(.secondary)
-                                if !goal.flags.isEmpty { Text(goal.flags.joined(separator: " · ")).font(.caption2).foregroundStyle(.secondary) }
-                            } else if let penalty = event.penalty {
-                                Text(live.name(penalty.playerId)).font(.subheadline.weight(.semibold))
-                                Text("\(penalty.infraction) · \(penalty.minutes) min").font(.caption).foregroundStyle(.secondary)
-                            }
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack {
+                        Text(period == 4 ? "Overtime" : "\(period == 1 ? "1st" : period == 2 ? "2nd" : "3rd") period")
+                            .font(.caption.weight(.semibold))
+                        Spacer()
+                        if events.isEmpty {
+                            Text(scoring ? "No scoring" : "No penalties").font(.caption)
                         }
-                    }.listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
-                        .alignmentGuide(.listRowSeparatorLeading) { _ in 0 }
+                    }.foregroundStyle(.secondary)
+                    ForEach(events) { event in
+                        HStack(alignment: .center, spacing: 10) {
+                            TeamLogo(slug: event.team, size: 30)
+                            VStack(alignment: .leading, spacing: 3) {
+                                if let goal = event.goal {
+                                    HStack(alignment: .firstTextBaseline, spacing: 6) {
+                                        Text(live.name(goal.scorerId)).font(.subheadline.weight(.semibold))
+                                        if !goal.flags.isEmpty {
+                                            Text(goal.flags.joined(separator: " · ")).font(.caption2.weight(.medium)).foregroundStyle(.secondary)
+                                        }
+                                    }
+                                    let assists = [goal.assist1Id, goal.assist2Id].compactMap { $0 }.map { live.name($0) }
+                                    Text(assists.isEmpty ? "Unassisted" : assists.joined(separator: ", "))
+                                        .font(.caption).foregroundStyle(.secondary)
+                                } else if let penalty = event.penalty {
+                                    Text(live.name(penalty.playerId)).font(.subheadline.weight(.semibold))
+                                    Text("\(penalty.infraction) · \(penalty.minutes) min").font(.caption).foregroundStyle(.secondary)
+                                }
+                            }.frame(maxWidth: .infinity, alignment: .leading)
+                            Text(event.clock).font(.caption).monospacedDigit().foregroundStyle(.secondary)
+                                .frame(width: 38, alignment: .trailing)
+                        }.padding(.vertical, 2)
+                    }
                 }
+                .padding(.vertical, 4)
+                .listRowInsets(EdgeInsets(top: 10, leading: 16, bottom: 10, trailing: 16))
+                .alignmentGuide(.listRowSeparatorLeading) { _ in 0 }
             }
+        } header: {
+            Text(scoring ? "Scoring summary" : "Penalty summary")
+                .font(.headline).foregroundStyle(.primary).textCase(nil)
+                .padding(.bottom, 4)
         }
     }
     private func columns(_ values: [String]) -> some View {
