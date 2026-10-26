@@ -2,6 +2,8 @@
 
 The BASH TestFlight GitHub Actions workflow automatically releases iOS changes pushed to `main`, the native app release branch. Other branches can be released explicitly with a manual run. Website-only changes do not deploy the app.
 
+Both jobs use `macos-15-intel` to avoid the macOS ARM runner capacity shortages that prevented releases from starting on October 26, 2026. Xcode remains pinned to 26.1; compiler caches are separated by runner architecture.
+
 Automatic deployment builds the signed release and then uploads it to TestFlight. Unit tests are run separately and do not gate deployment. The package job caches DerivedData, including compiled dependencies and Swift packages. Unchanged tracked sources get stable Git timestamps so a fresh checkout can reuse compiler work; Xcode still rebuilds changed inputs. Release builds no longer force a clean. Cache keys include Xcode, runner architecture, project settings, dependency locks, and the commit; a new commit restores the closest compatible cache. The first run is cold and will take longer. Bump the cache version or delete the caches to force a rebuild.
 
 New runs cancel superseded package jobs on the same branch. Upload waits for **the package job to succeed** and uses a shared concurrency lock that never cancels an active upload. A stale push is skipped before uploading. Manual runs intentionally release the selected revision. Avoid concurrent manual releases from different branches; older build numbers are rejected if a newer build has already reached Apple.

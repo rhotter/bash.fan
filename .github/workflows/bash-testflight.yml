@@ -22,7 +22,8 @@ env:
 
 jobs:
   package:
-    runs-on: macos-15
+    # Pin Intel: the macOS ARM pool has failed to acquire runners during shortages.
+    runs-on: macos-15-intel
     timeout-minutes: 25
     concurrency:
       group: bash-testflight-package-${{ github.ref }}
@@ -97,7 +98,7 @@ jobs:
 
   distribute:
     needs: [package]
-    runs-on: macos-15
+    runs-on: macos-15-intel
     timeout-minutes: 30
     # Only upload/processing is serialized. Never interrupt an upload.
     concurrency:
