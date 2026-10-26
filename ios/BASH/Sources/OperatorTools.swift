@@ -28,7 +28,9 @@ struct OperatorMenu: View {
             Divider()
             Button { showAbout = true } label: { Label("About BASH", systemImage: "info.circle") }
         } label: {
-            Image(systemName: "ellipsis").frame(minWidth: 32, minHeight: 32)
+            Image(systemName: "ellipsis")
+                .rotationEffect(.degrees(90))
+                .frame(minWidth: 32, minHeight: 32)
         }
         .accessibilityLabel("Game tools")
         .accessibilityIdentifier("operatorMenu")
