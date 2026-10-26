@@ -10,6 +10,8 @@ struct LocalRecording: Codable, Identifiable, Sendable {
     var duration: Double?
     var uploadedToStorage: Bool?
     var uploaded: Bool
+    var localOnly: Bool? = nil
+    var needsUpload: Bool { localOnly != true && !uploaded && duration != nil }
     var file: URL { RecordingLibrary.directory.appending(path: "\(id).mp4") }
 }
 
@@ -25,7 +27,7 @@ final class RecordingLibrary: ObservableObject {
     @Published var error: String?
     private var manifestLoaded = true
     private var manifest: URL { Self.directory.appending(path: "manifest.json") }
-    var pending: Int { recordings.filter { !$0.uploaded && $0.duration != nil }.count }
+    var pending: Int { recordings.filter { $0.needsUpload }.count }
 
     init() {
         do {
@@ -43,7 +45,7 @@ final class RecordingLibrary: ObservableObject {
     }
     func begin(pairing: Pairing, startedAt: Date, clockAnchor: CaptureClockAnchor? = nil) throws -> LocalRecording {
         guard manifestLoaded else { throw CaptureError.message("Recording library needs recovery. Existing files have been preserved.") }
-        let item = LocalRecording(id: UUID().uuidString.lowercased(), pairingKey: pairing.key, startedAt: startedAt, clockAnchor: clockAnchor, uploaded: false)
+        let item = LocalRecording(id: UUID().uuidString.lowercased(), pairingKey: pairing.key, startedAt: startedAt, clockAnchor: clockAnchor, uploaded: false, localOnly: pairing.isDemo)
         recordings.append(item); try persist(); return item
     }
     func finalize(_ item: LocalRecording) async throws {
@@ -78,7 +80,7 @@ final class RecordingLibrary: ObservableObject {
         // Reattach to OS-owned tasks before creating any replacements after relaunch.
         let tasks = await BackgroundUploads.shared.session.allTasks
         active.formUnion(tasks.compactMap(\.taskDescription))
-        for item in recordings where !item.uploaded && item.duration != nil && !active.contains(item.id) {
+        for item in recordings where item.needsUpload && !active.contains(item.id) {
             active.insert(item.id)
             uploading = true
             do {

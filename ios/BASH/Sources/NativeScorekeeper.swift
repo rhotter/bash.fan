@@ -66,7 +66,7 @@ private struct ScoringDraft: Codable {
     @Published var error: String?
     @Published var editingFinal = false
     private(set) var expected: ScoringState = [:]
-    private var preview = false
+    private(set) var preview = false
     @Published private(set) var syncing = false
     @Published private(set) var syncIssue: String?
     @Published private(set) var localSaveFailed = false
@@ -115,6 +115,7 @@ private struct ScoringDraft: Codable {
         return goals + (own > other ? 1 : 0)
     }
     func request(_ suffix: String, method: String = "GET", body: ScoringState? = nil, headers: [String: String] = [:]) async throws -> ScoringState {
+        guard !preview else { throw URLError(.notConnectedToInternet) }
         var request = URLRequest(url: server.appending(path: "api/bash/scorekeeper/\(game.id)/\(suffix)"))
         request.httpMethod = method
         request.timeoutInterval = 15
@@ -464,7 +465,7 @@ struct ScorekeeperScreen: View {
                     }
                 }
             }
-            .navigationTitle("Scorekeeper").navigationBarTitleDisplayMode(.inline)
+            .navigationTitle(model.preview ? "Demo scorekeeper" : "Scorekeeper").navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Done") { close() }.disabled(model.busy || closing)
@@ -1129,7 +1130,6 @@ private struct ScoringShootout: View {
     }
 }
 
-#if DEBUG
 extension NativeScorekeeper {
     static func sample(period: Int = 1, gameOver: Bool = false) -> NativeScorekeeper {
         let game = Game(id: "native-preview", date: "2026-10-25", time: "12:00", homeTeam: "Landsharks", awayTeam: "Seals", homeSlug: "landsharks", awaySlug: "seals", homeScore: 0, awayScore: 0, status: "live", location: "Rink", isOvertime: false, isPlayoff: false)
@@ -1161,4 +1161,3 @@ extension NativeScorekeeper {
         return model
     }
 }
-#endif
