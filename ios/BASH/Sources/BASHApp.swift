@@ -642,6 +642,8 @@ struct TeamScreen: View {
                 ForEach((store.snapshot?.games ?? []).filter { $0.homeSlug == team.slug || $0.awaySlug == team.slug }) { game in
                     NavigationLink { GameScreen(game: game, store: store) } label: { GameRow(game: game) }
                         .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 16))
+                        .alignmentGuide(.listRowSeparatorLeading) { _ in 0 }
+                        .alignmentGuide(.listRowSeparatorTrailing) { dimensions in dimensions.width + 16 }
                 }
             }
         }.navigationTitle(team.team).navigationBarTitleDisplayMode(.inline).toolbar(.visible, for: .navigationBar)
