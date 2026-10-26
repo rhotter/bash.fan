@@ -778,76 +778,83 @@ private struct StatsScreen: View {
 
     var body: some View {
         let rows = visiblePlayers
-        RefreshScrollView(action: { if allTime { await loadAllTime(force: true) } else { await store.refresh() } }) {
-            // This content is a single List row. Lazy stacks change its measured
-            // height while scrolling, which can shift the list past the search bar.
-            VStack(alignment: .leading, spacing: 12) {
-                Picker("Player type", selection: $showGoalies) {
-                    Text("Skaters").tag(false)
-                    Text("Goalies").tag(true)
-                }.pickerStyle(.segmented).accessibilityIdentifier("statsPlayerType")
-                if searching { NativePlayerSearch(text: $search, autofocus: true).frame(height: 44) }
-                if let error = statsError { Text(error).font(.footnote).foregroundStyle(.secondary) }
-                HStack {
-                    if !allTime { Menu {
-                        Picker("Team", selection: $selectedTeam) {
-                            Text("All teams").tag("")
-                            ForEach(teamNames, id: \.self) { Text($0).tag($0) }
-                        }
-                    } label: {
-                        HStack(spacing: 6) {
-                            Text(selectedTeam.isEmpty ? "All teams" : selectedTeam)
-                            Image(systemName: "chevron.down").font(.caption2.weight(.bold))
-                        }.font(.subheadline.weight(.semibold)).foregroundStyle(.primary)
-                    }.tint(.primary).accessibilityLabel("Team: \(selectedTeam.isEmpty ? "All teams" : selectedTeam)")
-                        .accessibilityIdentifier("teamFilter")
-                    }
-                    Spacer()
-                    Menu {
-                        if showGoalies {
-                            Picker("Sort by", selection: $goalieMetric) {
-                                ForEach(GoalieMetric.allCases) { Text($0.rawValue).tag($0) }
+        VStack(spacing: 0) {
+            Picker("Player type", selection: $showGoalies) {
+                Text("Skaters").tag(false)
+                Text("Goalies").tag(true)
+            }
+            .pickerStyle(.segmented)
+            .accessibilityIdentifier("statsPlayerType")
+            .padding(.horizontal, 12)
+            .padding(.top, 12)
+            .background(LeagueStyle.background)
+            RefreshScrollView(action: { if allTime { await loadAllTime(force: true) } else { await store.refresh() } }) {
+                // This content is a single List row. Lazy stacks change its measured
+                // height while scrolling, which can shift the list past the search bar.
+                VStack(alignment: .leading, spacing: 12) {
+                    if searching { NativePlayerSearch(text: $search, autofocus: true).frame(height: 44) }
+                    if let error = statsError { Text(error).font(.footnote).foregroundStyle(.secondary) }
+                    HStack {
+                        if !allTime { Menu {
+                            Picker("Team", selection: $selectedTeam) {
+                                Text("All teams").tag("")
+                                ForEach(teamNames, id: \.self) { Text($0).tag($0) }
                             }
-                        } else {
-                            Picker("Sort by", selection: $statMetric) {
-                                ForEach(StatMetric.allCases) { Text($0.rawValue).tag($0) }
-                            }
+                        } label: {
+                            HStack(spacing: 6) {
+                                Text(selectedTeam.isEmpty ? "All teams" : selectedTeam)
+                                Image(systemName: "chevron.down").font(.caption2.weight(.bold))
+                            }.font(.subheadline.weight(.semibold)).foregroundStyle(.primary)
+                        }.tint(.primary).accessibilityLabel("Team: \(selectedTeam.isEmpty ? "All teams" : selectedTeam)")
+                            .accessibilityIdentifier("teamFilter")
                         }
-                    } label: {
-                        HStack(spacing: 6) {
-                            Text(showGoalies ? goalieMetric.rawValue : statMetric.rawValue)
-                            Image(systemName: "chevron.down").font(.caption2.weight(.bold))
-                        }.font(.subheadline.weight(.semibold)).foregroundStyle(.primary)
-                    }.tint(.primary).accessibilityLabel("Sort by: \(showGoalies ? goalieMetric.rawValue : statMetric.rawValue)")
-                        .accessibilityIdentifier("statSort")
-                }.padding(.horizontal, 12).frame(minHeight: 44)
-                VStack(spacing: 0) {
-                    ForEach(rows, id: \.element.id) { rank, player in
-                        Button { selectedPlayer = player } label: {
-                            HStack(spacing: 10) {
-                                ListRank(rank: rank + 1, total: rankedPlayers.count)
-                                TeamLogo(slug: player.teamSlug, size: 30)
-                                VStack(alignment: .leading, spacing: 3) {
-                                    Text(player.name).font(.subheadline.weight(.semibold)).foregroundStyle(.primary)
-                                    Text(rowSummary(player))
-                                        .font(.caption).foregroundStyle(.secondary)
-                                        .fixedSize(horizontal: false, vertical: true)
+                        Spacer()
+                        Menu {
+                            if showGoalies {
+                                Picker("Sort by", selection: $goalieMetric) {
+                                    ForEach(GoalieMetric.allCases) { Text($0.rawValue).tag($0) }
                                 }
-                                Spacer(minLength: 8)
-                                Text(rowValue(player)).font(.subheadline.weight(.semibold))
-                                    .foregroundStyle(.primary).monospacedDigit()
-                            }.padding(.horizontal, 12).padding(.vertical, 10)
-                                .contentShape(Rectangle())
-                        }.buttonStyle(.plain).accessibilityIdentifier("player-\(player.id)")
-                        if player.id != rows.last?.element.id { Divider() }
+                            } else {
+                                Picker("Sort by", selection: $statMetric) {
+                                    ForEach(StatMetric.allCases) { Text($0.rawValue).tag($0) }
+                                }
+                            }
+                        } label: {
+                            HStack(spacing: 6) {
+                                Text(showGoalies ? goalieMetric.rawValue : statMetric.rawValue)
+                                Image(systemName: "chevron.down").font(.caption2.weight(.bold))
+                            }.font(.subheadline.weight(.semibold)).foregroundStyle(.primary)
+                        }.tint(.primary).accessibilityLabel("Sort by: \(showGoalies ? goalieMetric.rawValue : statMetric.rawValue)")
+                            .accessibilityIdentifier("statSort")
+                    }.padding(.horizontal, 12).frame(minHeight: 44)
+                    VStack(spacing: 0) {
+                        ForEach(rows, id: \.element.id) { rank, player in
+                            Button { selectedPlayer = player } label: {
+                                HStack(spacing: 10) {
+                                    ListRank(rank: rank + 1, total: rankedPlayers.count)
+                                    TeamLogo(slug: player.teamSlug, size: 30)
+                                    VStack(alignment: .leading, spacing: 3) {
+                                        Text(player.name).font(.subheadline.weight(.semibold)).foregroundStyle(.primary)
+                                        Text(rowSummary(player))
+                                            .font(.caption).foregroundStyle(.secondary)
+                                            .fixedSize(horizontal: false, vertical: true)
+                                    }
+                                    Spacer(minLength: 8)
+                                    Text(rowValue(player)).font(.subheadline.weight(.semibold))
+                                        .foregroundStyle(.primary).monospacedDigit()
+                                }.padding(.horizontal, 12).padding(.vertical, 10)
+                                    .contentShape(Rectangle())
+                            }.buttonStyle(.plain).accessibilityIdentifier("player-\(player.id)")
+                            if player.id != rows.last?.element.id { Divider() }
+                        }
+                    }.background(LeagueStyle.card, in: RoundedRectangle(cornerRadius: 18))
+                    if rankedPlayers.isEmpty && statsLoading && statsError == nil { LoadingPlaceholder(title: "Loading stats…", rows: 6) }
+                    if rows.isEmpty && !statsLoading && statsError == nil {
+                        ContentUnavailableView("No matching players", systemImage: "magnifyingglass", description: Text("Try a different player name or change the team filter."))
                     }
-                }.background(LeagueStyle.card, in: RoundedRectangle(cornerRadius: 18))
-                if rankedPlayers.isEmpty && statsLoading && statsError == nil { LoadingPlaceholder(title: "Loading stats…", rows: 6) }
-                if rows.isEmpty && !statsLoading && statsError == nil {
-                    ContentUnavailableView("No matching players", systemImage: "magnifyingglass", description: Text("Try a different player name or change the team filter."))
-                }
-            }.padding(.horizontal, 12).padding(.vertical, 12)
-        }.accessibilityIdentifier("statsList")
+                }.padding(.horizontal, 12).padding(.vertical, 12)
+            }.accessibilityIdentifier("statsList")
+        }
             .background(LeagueStyle.background).leagueHeader("Stats", season: SeasonMenu(store: store, allowsAllTime: true, allTime: $allTime), searchAction: {
                 searching.toggle()
                 if !searching { search = "" }

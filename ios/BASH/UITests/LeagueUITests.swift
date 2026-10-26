@@ -190,6 +190,8 @@ final class LeagueUITests: XCTestCase {
             XCTAssertTrue(list.waitForExistence(timeout: 10))
             let season = app.buttons["seasonPicker"]
             let originalY = season.frame.minY
+            let toggle = app.segmentedControls["statsPlayerType"]
+            let toggleFrame = tab == "Stats" ? toggle.frame : .zero
             list.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.4))
                 .press(forDuration: 0.1,
                        thenDragTo: list.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.95)),
@@ -197,6 +199,12 @@ final class LeagueUITests: XCTestCase {
             XCTAssertEqual(list.value as? String, "Refreshing")
             XCTAssertEqual(season.frame.minY, originalY, accuracy: 2, "The fixed header must not move during refresh")
             assertRefreshIndicator(in: list, app: app)
+            if tab == "Stats" {
+                XCTAssertEqual(toggle.frame.minY, toggleFrame.minY, accuracy: 2)
+                XCTAssertEqual(toggle.frame.maxY, toggleFrame.maxY, accuracy: 2)
+                XCTAssertGreaterThanOrEqual(list.frame.minY, toggle.frame.maxY)
+                XCTAssertGreaterThan(app.activityIndicators["refreshIndicator"].frame.minY, toggle.frame.maxY)
+            }
             capture("\(tab) while refreshing")
             let finished = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == 'Ready'"), object: list)
             XCTAssertEqual(XCTWaiter.wait(for: [finished], timeout: 20), .completed)
@@ -204,6 +212,14 @@ final class LeagueUITests: XCTestCase {
                 abs(season.frame.minY - originalY) < 2
             }, object: nil)
             XCTAssertEqual(XCTWaiter.wait(for: [settled], timeout: 5), .completed)
+            if tab == "Stats" {
+                XCTAssertEqual(toggle.frame.minY, toggleFrame.minY, accuracy: 2)
+                XCTAssertTrue(toggle.isHittable)
+                list.swipeUp()
+                XCTAssertEqual(toggle.frame.minY, toggleFrame.minY, accuracy: 2)
+                XCTAssertTrue(toggle.isHittable)
+                capture("Stats toggle after scrolling")
+            }
             capture("\(tab) after pull-to-refresh")
         }
     }
