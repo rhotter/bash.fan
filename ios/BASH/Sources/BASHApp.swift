@@ -74,7 +74,7 @@ import UserNotifications
 }
 
 // Warm orange from the website, with quiet neutral surfaces around the data.
-private enum LeagueStyle {
+enum LeagueStyle {
     static let orange = Color(red: 0.80, green: 0.49, blue: 0.13)
     static let background = Color(uiColor: .systemGroupedBackground)
     static let card = Color(uiColor: .secondarySystemGroupedBackground)

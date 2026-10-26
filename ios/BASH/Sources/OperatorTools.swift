@@ -49,20 +49,46 @@ private struct OperatorFlow: View {
         Group {
             if !website.signedIn {
                 NavigationStack {
-                    Form {
-                        Section {
-                            SecureField("Admin passcode", text: $pin)
-                                .textContentType(.password).submitLabel(.go)
-                                .accessibilityIdentifier("adminPasscode")
-                                .onSubmit { signIn() }
-                            Button(action: signIn) {
-                                HStack { Text("Continue"); Spacer(); if website.busy { ProgressView() } }
-                            }.disabled(pin.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || website.busy)
-                        } header: { Text("Admin access") } footer: {
-                            Text("Enter the league’s admin passcode. Your passcode isn’t saved.")
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 24) {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Admin access").font(.title2.bold())
+                                Text("Enter the league’s admin passcode to \(tool == .scorekeeper ? "keep score" : "record a game").")
+                                    .font(.subheadline).foregroundStyle(.secondary)
+                            }
+                            VStack(alignment: .leading, spacing: 10) {
+                                Text("Passcode").font(.subheadline.weight(.medium))
+                                SecureField("Admin passcode", text: $pin)
+                                    .textContentType(.password).submitLabel(.go)
+                                    .textInputAutocapitalization(.never).autocorrectionDisabled()
+                                    .padding(16)
+                                    .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 12))
+                                    .disabled(website.busy)
+                                    .accessibilityIdentifier("adminPasscode")
+                                    .onSubmit { signIn() }
+                                if let error = website.error {
+                                    Text(error).font(.footnote).foregroundStyle(.red)
+                                }
+                            }
+                            VStack(spacing: 12) {
+                                Button(action: signIn) {
+                                    HStack(spacing: 10) {
+                                        if website.busy { ProgressView().tint(.black) }
+                                        Text(website.busy ? "Checking passcode…" : "Continue")
+                                    }
+                                    .font(.headline).frame(maxWidth: .infinity).frame(minHeight: 36)
+                                }
+                                .buttonStyle(.borderedProminent).controlSize(.large)
+                                .tint(LeagueStyle.orange).foregroundStyle(.black)
+                                .disabled(pin.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || website.busy)
+                                Text("Your passcode isn’t saved.").font(.footnote).foregroundStyle(.secondary)
+                            }
                         }
-                        if let error = website.error { Section { Text(error).foregroundStyle(.red) } }
+                        .frame(maxWidth: 480).padding(.horizontal, 24).padding(.top, 32)
+                        .frame(maxWidth: .infinity)
                     }
+                    .background(Color(.systemGroupedBackground))
+                    .scrollDismissesKeyboard(.interactively)
                     .navigationTitle(tool.title).navigationBarTitleDisplayMode(.inline)
                     .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() }.disabled(website.busy) } }
                 }
@@ -94,7 +120,7 @@ private struct OperatorFlow: View {
         // The flow owns an ephemeral session, discarded when the cover closes.
     }
     private func signIn() {
-        guard !website.busy, !pin.isEmpty else { return }
+        guard !website.busy, !pin.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
         let submitted = pin; pin = ""
         Task { await website.signIn(pin: submitted) }
     }

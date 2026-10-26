@@ -20,6 +20,11 @@ final class LeagueUITests: XCTestCase {
         app.buttons["Keep score"].tap()
         XCTAssertTrue(app.secureTextFields["adminPasscode"].waitForExistence(timeout: 5))
         capture("Keep score passcode")
+        app.secureTextFields["adminPasscode"].tap()
+        app.secureTextFields["adminPasscode"].typeText("preview-only")
+        XCTAssertTrue(app.buttons["Continue"].isEnabled)
+        XCTAssertTrue(app.buttons["Continue"].isHittable)
+        capture("Keep score continue button")
         app.buttons["Cancel"].tap()
         let game = app.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH 'game-'" )).firstMatch
         XCTAssertTrue(game.waitForExistence(timeout: 40))
