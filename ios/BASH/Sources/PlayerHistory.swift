@@ -91,8 +91,8 @@ extension Skater {
 
 actor PlayerCareerCache {
     static let shared = PlayerCareerCache()
-    func load(slug: String) async throws -> PlayerCareer {
-        try await LeagueAPI.fetch("/player/\(slug)", season: "all", maxAge: 120)
+    func load(slug: String, force: Bool = false) async throws -> PlayerCareer {
+        try await LeagueAPI.fetch("/player/\(slug)", season: "all", maxAge: force ? 0 : 120)
     }
 }
 
@@ -108,7 +108,7 @@ struct PlayerScreen: View {
     private var selectedSeason: CareerSeason? { seasons.first { $0.id == selectedSeasonID } ?? seasons.first }
 
     var body: some View {
-        ScrollView {
+        RefreshScrollView(action: { await load(force: true) }) {
             VStack(alignment: .leading, spacing: 22) {
                 HStack(spacing: 14) {
                     TeamLogo(slug: player.teamSlug, size: 54)
@@ -285,12 +285,12 @@ struct PlayerScreen: View {
         }.padding(.horizontal, 12).padding(.vertical, header ? 12 : 10)
             .accessibilityElement(children: .combine)
     }
-    @MainActor private func load() async {
+    @MainActor private func load(force: Bool = false) async {
         guard !loading else { return }
         loading = true
         error = nil
         defer { loading = false }
-        do { career = try await PlayerCareerCache.shared.load(slug: player.slug) }
+        do { career = try await PlayerCareerCache.shared.load(slug: player.slug, force: force) }
         catch is CancellationError { }
         catch { self.error = "Couldn't load career stats. Please try again." }
     }

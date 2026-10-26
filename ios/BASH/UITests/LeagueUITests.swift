@@ -82,20 +82,50 @@ final class LeagueUITests: XCTestCase {
         XCTAssertNotNil(selectedWeek)
         let weekY = selectedWeek?.frame.minY ?? 0
 
-        let list = app.descendants(matching: .any)["scoresList"].firstMatch
-        let started = Date()
+        let list = app.collectionViews["scoresList"]
         list.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.05))
             .press(forDuration: 0.1, thenDragTo: list.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.83)),
                    withVelocity: XCUIGestureVelocity(rawValue: 300), thenHoldForDuration: 0.2)
-        // XCTest waits for the native refresh animation to finish before returning
-        // from the gesture. The delayed API must have run, rather than just bouncing.
-        XCTAssertGreaterThanOrEqual(Date().timeIntervalSince(started), 8)
+        XCTAssertEqual(list.value as? String, "Refreshing")
+        XCTAssertGreaterThan(game.frame.minY, originalY + 20)
+        capture("Scores while refreshing")
+        let finished = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == 'Ready'"), object: list)
+        XCTAssertEqual(XCTWaiter.wait(for: [finished], timeout: 20), .completed)
         XCTAssertEqual(selectedWeek?.frame.minY ?? 0, weekY, accuracy: 2)
         let settled = XCTNSPredicateExpectation(
             predicate: NSPredicate { _, _ in abs(game.frame.minY - originalY) < 2 }, object: nil)
         XCTAssertEqual(XCTWaiter.wait(for: [settled], timeout: 3), .completed)
         XCTAssertTrue(selectedWeek?.isSelected ?? false)
         capture("Scores after pull-to-refresh")
+    }
+
+    @MainActor func testRefreshStandingsAndStats() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["--slow-network"]
+        app.launch()
+        XCTAssertTrue(app.descendants(matching: .any)
+            .matching(NSPredicate(format: "identifier BEGINSWITH 'game-'")).firstMatch.waitForExistence(timeout: 40))
+        for (tab, identifier) in [("Standings", "standingsList"), ("Stats", "statsList")] {
+            app.tabBars.buttons[tab].tap()
+            let list = app.collectionViews[identifier]
+            XCTAssertTrue(list.waitForExistence(timeout: 10))
+            let season = app.buttons["seasonPicker"]
+            let originalY = season.frame.minY
+            list.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.05))
+                .press(forDuration: 0.1,
+                       thenDragTo: list.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.83)),
+                       withVelocity: XCUIGestureVelocity(rawValue: 300), thenHoldForDuration: 0.2)
+            XCTAssertEqual(list.value as? String, "Refreshing")
+            XCTAssertGreaterThan(season.frame.minY, originalY + 20, "Content must remain held below the spinner")
+            capture("\(tab) while refreshing")
+            let finished = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == 'Ready'"), object: list)
+            XCTAssertEqual(XCTWaiter.wait(for: [finished], timeout: 20), .completed)
+            let settled = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+                abs(season.frame.minY - originalY) < 2
+            }, object: nil)
+            XCTAssertEqual(XCTWaiter.wait(for: [settled], timeout: 5), .completed)
+            capture("\(tab) after pull-to-refresh")
+        }
     }
 
     @MainActor func testNativeScorekeeper() throws {
@@ -224,7 +254,7 @@ final class LeagueUITests: XCTestCase {
         let selected = weeks.allElementsBoundByIndex.first(where: { $0.isSelected })
         XCTAssertNotNil(selected)
         let originalID = selected?.identifier ?? ""
-        let other = weeks.allElementsBoundByIndex.first(where: { !$0.isSelected && $0.isHittable })
+        let other = weeks.allElementsBoundByIndex.first(where: { !$0.isSelected && app.frame.contains($0.frame) })
         XCTAssertNotNil(other)
         other?.tap()
         XCTAssertTrue(other?.isSelected ?? false)

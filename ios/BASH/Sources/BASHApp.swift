@@ -117,16 +117,134 @@ private struct ListRank: View {
     }
 }
 
+/// A shared native pull gesture with an explicitly retained loading inset.
+struct RefreshScrollView<Content: View>: View {
+    let action: @MainActor () async -> Void
+    @ViewBuilder let content: () -> Content
+    var body: some View {
+        List {
+            content().background(NativeRefreshControl(action: action))
+                .listRowInsets(EdgeInsets())
+                .listRowSeparator(.hidden)
+                .listRowBackground(Color.clear)
+        }
+        .listStyle(.plain)
+        .navigationLinkIndicatorVisibility(.hidden)
+        .scrollContentBackground(.hidden)
+        .environment(\.defaultMinListRowHeight, 0)
+        .scrollBounceBehavior(.always, axes: .vertical)
+    }
+}
+
+private struct NativeRefreshControl: UIViewRepresentable {
+    let action: @MainActor () async -> Void
+    func makeUIView(context: Context) -> Probe { Probe(action: action) }
+    func updateUIView(_ view: Probe, context: Context) {
+        view.action = action
+        view.scheduleAttachment()
+    }
+    static func dismantleUIView(_ view: Probe, coordinator: ()) { view.detach() }
+
+    final class Probe: UIView {
+        var action: @MainActor () async -> Void
+        private let control = UIRefreshControl()
+        private let spinner = UIActivityIndicatorView(style: .medium)
+        private var restingInset = UIEdgeInsets.zero
+        private var restingY: CGFloat = 0
+        private weak var scroll: UIScrollView?
+        private var task: Task<Void, Never>?
+        init(action: @escaping @MainActor () async -> Void) {
+            self.action = action
+            super.init(frame: .zero)
+            isUserInteractionEnabled = false
+            control.tintColor = .secondaryLabel
+            spinner.color = .secondaryLabel
+            spinner.accessibilityLabel = "Refreshing"
+            control.addTarget(self, action: #selector(refresh), for: .valueChanged)
+        }
+        required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+        override func didMoveToWindow() { super.didMoveToWindow(); scheduleAttachment() }
+        override func layoutSubviews() { super.layoutSubviews(); scheduleAttachment() }
+        func scheduleAttachment() {
+            DispatchQueue.main.async { [weak self] in self?.attach() }
+        }
+        private func attach() {
+            guard window != nil else { return }
+            var parent = superview
+            while let view = parent {
+                if let candidate = view as? UIScrollView {
+                    if scroll !== candidate {
+                        restingInset = candidate.contentInset
+                        restingY = -candidate.adjustedContentInset.top
+                    }
+                    scroll = candidate
+                    if candidate.refreshControl !== control {
+                        candidate.alwaysBounceVertical = true
+                        candidate.refreshControl = control
+                        candidate.accessibilityValue = "Ready"
+                    }
+                    return
+                }
+                parent = view.superview
+            }
+        }
+        func detach() {
+            task?.cancel()
+            task = nil
+            control.endRefreshing()
+            spinner.stopAnimating()
+            spinner.removeFromSuperview()
+            scroll?.contentInset = restingInset
+            if scroll?.refreshControl === control { scroll?.refreshControl = nil }
+            scroll = nil
+        }
+        @objc private func refresh() {
+            guard task == nil else { control.endRefreshing(); return }
+            task = Task { @MainActor [weak self] in
+                guard let self, let scroll else { return }
+                scroll.accessibilityValue = "Refreshing"
+                // SwiftUI resets the native refresh inset when the drag ends.
+                // Pin our own inset after release and retain it for the request.
+                while scroll.isDragging && !Task.isCancelled {
+                    try? await Task.sleep(for: .milliseconds(16))
+                }
+                guard !Task.isCancelled else { return }
+                control.tintColor = .clear
+                control.endRefreshing()
+                scroll.contentInset = restingInset
+                spinner.frame = CGRect(x: (scroll.bounds.width - 60) / 2, y: -60, width: 60, height: 60)
+                scroll.addSubview(spinner)
+                spinner.startAnimating()
+                scroll.contentInset.top += 60
+                scroll.setContentOffset(CGPoint(x: scroll.contentOffset.x, y: restingY - 60), animated: true)
+                await action()
+                let nearTop = scroll.contentOffset.y < restingY + 1
+                spinner.stopAnimating()
+                spinner.removeFromSuperview()
+                UIView.animate(withDuration: 0.25) { [self] in
+                    scroll.contentInset = restingInset
+                    if nearTop { scroll.contentOffset.y = restingY }
+                }
+                control.tintColor = .secondaryLabel
+                scroll.accessibilityValue = "Ready"
+                task = nil
+            }
+        }
+    }
+}
+
 struct LeagueRoot: View {
     @Bindable var store: LeagueStore
     @Environment(\.scenePhase) private var phase
     @State private var openedGame: Game?
     @State private var selectedWeek: String?
+    @State private var selectedGame: Game?
+    @State private var selectedTeam: Standing?
 
     var body: some View {
         TabView {
-            NavigationStack { gamesScreen }.tabItem { Label { Text("Scores") } icon: { Image(systemName: "rectangle.stack").environment(\.symbolVariants, .none) } }
-            NavigationStack { standingsScreen }.tabItem { Label { Text("Standings") } icon: { Image(systemName: "list.number").environment(\.symbolVariants, .none) } }
+            NavigationStack { gamesScreen.navigationDestination(optional: $selectedGame) { GameScreen(game: $0, store: store) } }.tabItem { Label { Text("Scores") } icon: { Image(systemName: "rectangle.stack").environment(\.symbolVariants, .none) } }
+            NavigationStack { standingsScreen.navigationDestination(optional: $selectedTeam) { TeamScreen(team: $0, store: store) } }.tabItem { Label { Text("Standings") } icon: { Image(systemName: "list.number").environment(\.symbolVariants, .none) } }
             NavigationStack { StatsScreen(store: store) }.tabItem { Label { Text("Stats") } icon: { Image(systemName: "chart.bar.xaxis").environment(\.symbolVariants, .none) } }
         }
         .environment(\.symbolVariants, .none)
@@ -252,7 +370,7 @@ struct LeagueRoot: View {
     private func scoresPage(_ week: GameWeek?) -> some View {
         let weekGames = week?.games ?? []
         let dates = Array(Set(weekGames.map(\.date))).sorted()
-        return ScrollView {
+        return RefreshScrollView(action: { await store.refresh() }) {
             LazyVStack(alignment: .leading, spacing: 14) {
                 statusSection
                 if store.snapshot == nil && store.error == nil {
@@ -266,7 +384,7 @@ struct LeagueRoot: View {
                         }
                         VStack(spacing: 8) {
                             ForEach(weekGames.filter { $0.date == date }) { game in
-                                NavigationLink { GameScreen(game: game, store: store) } label: { GameRow(game: game) }
+                                Button { selectedGame = game } label: { GameRow(game: game) }
                                     .buttonStyle(.plain)
                                     .background(LeagueStyle.card, in: RoundedRectangle(cornerRadius: 16))
                             }
@@ -282,7 +400,6 @@ struct LeagueRoot: View {
         // The fixed headers sit outside the scroll view so they cannot cover
         // its native pull-to-refresh indicator or inherit its refresh action.
         .scrollBounceBehavior(.always, axes: .vertical)
-        .refreshable { await store.refresh() }
         .accessibilityIdentifier("scoresList")
     }
 
@@ -292,7 +409,7 @@ struct LeagueRoot: View {
     }
 
     private var standingsScreen: some View {
-        ScrollView {
+        RefreshScrollView(action: { await store.refresh() }) {
             VStack(alignment: .leading, spacing: 18) {
                 HStack { seasonPicker; Spacer() }
                 statusSection
@@ -306,7 +423,7 @@ struct LeagueRoot: View {
                         .padding(.horizontal, 12).padding(.vertical, 12)
                     Divider()
                     ForEach(Array((store.snapshot?.standings ?? []).enumerated()), id: \.element.id) { rank, team in
-                        NavigationLink { TeamScreen(team: team, store: store) } label: {
+                        Button { selectedTeam = team } label: {
                             HStack(spacing: 10) {
                                 ListRank(rank: rank + 1, total: store.snapshot?.standings.count ?? 0)
                                 TeamLogo(slug: team.slug, size: 30)
@@ -329,8 +446,8 @@ struct LeagueRoot: View {
                 Text("Win 3 pts · OT win 2 · OT loss 1").font(.caption).foregroundStyle(.secondary)
                 }
             }.padding(.horizontal, 12).padding(.vertical, 12)
-        }.background(LeagueStyle.background).leagueHeader("Standings")
-            .refreshable { await store.refresh() }
+        }.accessibilityIdentifier("standingsList")
+            .background(LeagueStyle.background).leagueHeader("Standings")
     }
 
     private func statColumn(_ value: String) -> some View { Text(value).frame(width: 29, alignment: .trailing) }
@@ -339,12 +456,19 @@ struct LeagueRoot: View {
 }
 
 private extension View {
+    func navigationDestination<Item, Destination: View>(optional item: Binding<Item?>, @ViewBuilder destination: @escaping (Item) -> Destination) -> some View {
+        navigationDestination(isPresented: Binding(get: { item.wrappedValue != nil }, set: { if !$0 { item.wrappedValue = nil } })) {
+            if let value = item.wrappedValue { destination(value) }
+        }
+    }
+
     func leagueHeader(_ title: String, operatorGames: [Game]? = nil) -> some View {
-        self.navigationTitle(title)
-            .toolbar(.hidden, for: .navigationBar)
-            .safeAreaInset(edge: .top, spacing: 0) {
-                LeagueHeader(title: title, operatorGames: operatorGames)
-            }
+        VStack(spacing: 0) {
+            LeagueHeader(title: title, operatorGames: operatorGames)
+            self
+        }
+        .navigationTitle(title)
+        .toolbar(.hidden, for: .navigationBar)
     }
 }
 
@@ -457,7 +581,9 @@ struct GameRow: View {
 struct TeamScreen: View {
     let team: Standing
     @Bindable var store: LeagueStore
+    private var currentTeam: Standing { store.snapshot?.standings.first { $0.id == team.id } ?? team }
     var body: some View {
+        let team = currentTeam
         List {
             Section {
                 HStack(spacing: 16) {
@@ -478,6 +604,7 @@ struct TeamScreen: View {
                 }
             }
         }.navigationTitle(team.team).navigationBarTitleDisplayMode(.inline).toolbar(.visible, for: .navigationBar)
+            .refreshable { await store.refresh() }
     }
 }
 
@@ -540,6 +667,7 @@ private struct SeasonMenu: View {
 }
 
 private struct StatsScreen: View {
+    @State private var selectedPlayer: Skater?
     @Bindable var store: LeagueStore
     @State private var search = ""
     @State private var allTime = false
@@ -599,7 +727,7 @@ private struct StatsScreen: View {
 
     var body: some View {
         let rows = visiblePlayers
-        ScrollView {
+        RefreshScrollView(action: { if allTime { await loadAllTime(force: true) } else { await store.refresh() } }) {
             LazyVStack(alignment: .leading, spacing: 12) {
                 HStack { SeasonMenu(store: store, allowsAllTime: true, allTime: $allTime); Spacer() }
                 Picker("Player type", selection: $showGoalies) {
@@ -643,7 +771,7 @@ private struct StatsScreen: View {
                 }.padding(.horizontal, 12).frame(minHeight: 44)
                 LazyVStack(spacing: 0) {
                     ForEach(rows, id: \.element.id) { rank, player in
-                        NavigationLink { PlayerScreen(player: player) } label: {
+                        Button { selectedPlayer = player } label: {
                             HStack(spacing: 10) {
                                 ListRank(rank: rank + 1, total: rankedPlayers.count)
                                 TeamLogo(slug: player.teamSlug, size: 30)
@@ -667,9 +795,10 @@ private struct StatsScreen: View {
                     ContentUnavailableView("No matching players", systemImage: "magnifyingglass", description: Text("Try a different player name or change the team filter."))
                 }
             }.padding(.horizontal, 12).padding(.vertical, 12)
-        }.background(LeagueStyle.background).leagueHeader("Stats")
+        }.accessibilityIdentifier("statsList")
+            .background(LeagueStyle.background).leagueHeader("Stats")
             .scrollDismissesKeyboard(.interactively)
-            .refreshable { if allTime { await loadAllTime(force: true) } else { await store.refresh() } }
+            .navigationDestination(optional: $selectedPlayer) { PlayerScreen(player: $0) }
             .task(id: allTime) { await loadAllTime() }
             .onChange(of: allTime) { selectedTeam = ""; updateRanking() }
             .task(id: Array(rankedPlayers.prefix(4).map(\.id))) {
