@@ -22,11 +22,15 @@ export function PlayerPageContent({ player }: { player: PlayerDetail }) {
   return (
     <div className="flex flex-col gap-8">
       <div>
-        <h1 className="text-2xl font-black tracking-tight">{player.name}</h1>
-        <Link href={`/team/${player.teamSlug}`} className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-primary transition-colors">
-          <TeamLogo slug={player.teamSlug} name={player.team} size={24} />
-          {player.team}
-        </Link>
+        <div className="flex items-center gap-3">
+          <TeamLogo slug={player.teamSlug} name={player.team} size={54} linked />
+          <div className="min-w-0">
+            <h1 className="text-2xl font-black tracking-tight">{player.name}</h1>
+            <Link href={`/team/${player.teamSlug}`} className="text-sm text-muted-foreground hover:text-primary transition-colors">
+              {player.team}
+            </Link>
+          </div>
+        </div>
         {(player.hallOfFame || player.championships.length > 0 || player.awards.length > 0) && (
           <div className="flex items-center gap-2 flex-wrap mt-2">
             {player.hallOfFame && (
