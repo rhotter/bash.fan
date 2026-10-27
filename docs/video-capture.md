@@ -40,7 +40,15 @@ Open the project in Xcode, select your Apple signing team and a physical iPhone,
 
 Keep ad-hoc signing enabled for simulator runs: unsigned builds compile but cannot save the camera pairing in Keychain.
 
-The service address is built into the app through `BASH_SERVER_URL`, currently pointing to the video preview backend configured in `ios/BASH/project.yml`. There is no server-address field or settings screen. Override the build setting for development as above; physical phones need an accessible HTTPS dev service or trusted LAN address, since localhost points to the phone itself. The video backend must be deployed before a default production build can connect. Pairing credentials are stored in Keychain, never in the recording manifest. Camera setup cannot replace the active session while recording.
+The service address is built into the app through `BASH_SERVER_URL`, pointing to `https://www.bayareastreethockey.com` in `ios/BASH/project.yml`. There is no server-address field or settings screen. Override the build setting for development as above; physical phones need an accessible HTTPS dev service or trusted LAN address, since localhost points to the phone itself. Pairing credentials are stored in Keychain, never in the recording manifest. Camera setup cannot replace the active session while recording.
+
+### Production recording configuration
+
+Production requires `VIDEO_ENABLED=1`, `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_STREAM_TOKEN`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, and `R2_VIDEO_BUCKET` in the Vercel **production** environment. Preview variables scoped to the `video` branch do not apply. Redeploy after changing these variables. An authenticated Open camera request returns “Video is not enabled in this environment” when the deployed enable flag is missing.
+
+Apply `scripts/video-schema.sql` and `scripts/video-recording-quality-schema.sql` to the explicitly verified production database before enabling recording. Both are additive and repeatable. `setup-video-dev.ts` remains development-only; do not redirect it to production. Keep production on its production database, without copying the preview `DB_TARGET=dev` setting or review credentials.
+
+Production currently uses the existing private R2 bucket `bash-video-dev` and Cloudflare Stream account. Production and preview metadata are in separate databases; objects use unique `sessions/<session UUID>/<side>/<segment UUID>.mp4` paths. The bucket name does not mean its contents are disposable: it contains production recordings too. Do not apply development cleanup or retention rules to the whole bucket.
 
 The app uses native SwiftUI navigation, lists, forms, sheets, system typography and a full-screen camera. On iOS 26 its camera controls use Liquid Glass; earlier supported versions use system material. It follows the device's appearance outside the dark viewfinder. The web score pages keep the public BASH design.
 
