@@ -21,8 +21,7 @@ struct DemoRecorderScreen: View {
                 }
             }
             .safeAreaInset(edge: .bottom) {
-                OpenCameraAction(disabled: camera.recording || camera.busy,
-                                 detail: "Requires a physical iPhone with a rear ultra-wide camera.") { showCamera = true }
+                OpenCameraAction(disabled: camera.recording || camera.busy) { showCamera = true }
             }
             .navigationTitle("Demo recorder")
             .navigationBarTitleDisplayMode(.inline)

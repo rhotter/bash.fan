@@ -214,8 +214,7 @@ struct LeagueRecorderScreen: View {
                 if let error = website.error { Section { Text(error).foregroundStyle(.red) } }
             }
             .safeAreaInset(edge: .bottom) {
-                OpenCameraAction(busy: website.busy, disabled: website.busy || camera.recording,
-                                 detail: "Record continuously across games. Uploads resume automatically.") { connect() }
+                OpenCameraAction(busy: website.busy, disabled: website.busy || camera.recording) { connect() }
             }
             .navigationTitle("Record game").navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Done") { dismiss() }.disabled(website.busy || camera.recording) } }
@@ -248,14 +247,10 @@ struct LeagueRecorderScreen: View {
 struct OpenCameraAction: View {
     var busy = false
     var disabled = false
-    let detail: String
     let action: () -> Void
 
     var body: some View {
         VStack(spacing: 12) {
-            Text(detail)
-                .font(.footnote).foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
             Button(action: action) {
                 HStack(spacing: 10) {
                     if busy { ProgressView().tint(.white) }
