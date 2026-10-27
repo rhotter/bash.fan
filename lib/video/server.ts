@@ -1,7 +1,7 @@
 import { createHash, timingSafeEqual } from "node:crypto"
 import { sql } from "drizzle-orm"
 import { ZodError } from "zod"
-import { requireAdminSession } from "@/lib/admin-session"
+import { getOperatorRole, requireAdminSession } from "@/lib/admin-session"
 import { rawSql } from "@/lib/db"
 import { reviewSessionId } from "@/lib/video/review-access"
 
@@ -13,6 +13,13 @@ export function tokenMatches(token: string, hash: string) {
 export function fail(message: string, status = 400): never { throw Response.json({ error: message }, { status }) }
 export async function adminVideo(sessionId?: string) {
   if (!sessionId || await reviewSessionId() !== sessionId) await requireAdminSession()
+  if (process.env.VIDEO_ENABLED !== "1") fail("Video is not enabled in this environment", 503)
+}
+/** Recording controls are available to signed-in scorekeepers as well as admins. */
+export async function captureVideo(sessionId?: string) {
+  if (!await getOperatorRole()) {
+    if (!sessionId || await reviewSessionId() !== sessionId) fail("Sign in with the scorekeeper passcode", 401)
+  }
   if (process.env.VIDEO_ENABLED !== "1") fail("Video is not enabled in this environment", 503)
 }
 export async function cameraVideo(request: Request, id: string, side: string) {

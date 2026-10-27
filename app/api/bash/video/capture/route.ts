@@ -2,13 +2,13 @@ import { randomBytes, randomUUID } from "node:crypto"
 import { sql } from "drizzle-orm"
 import { z } from "zod"
 import { rawSql } from "@/lib/db"
-import { adminVideo, digestToken, fail, tokenMatches, videoHandler } from "@/lib/video/server"
+import { captureVideo, digestToken, fail, tokenMatches, videoHandler } from "@/lib/video/server"
 import { reviewSessionId } from "@/lib/video/review-access"
 export const runtime = "nodejs"
 
 export async function POST(request: Request) { return videoHandler(async () => {
   const reviewId = await reviewSessionId()
-  await adminVideo(reviewId ?? undefined)
+  await captureVideo(reviewId ?? undefined)
   const body = z.object({ side: z.enum(["left", "right"]), replace: z.boolean().default(false),
     quality: z.enum(["hd30", "hd60", "uhd30", "uhd60"]).optional(), allowQualityMismatch: z.boolean().default(false),
     sessionId: z.string().uuid().optional(), token: z.string().regex(/^[A-Za-z0-9_-]{43}$/).optional() }).parse(await request.json())

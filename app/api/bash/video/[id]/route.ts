@@ -2,7 +2,7 @@ import { randomBytes, randomUUID } from "node:crypto"
 import { sql } from "drizzle-orm"
 import { z } from "zod"
 import { rawSql } from "@/lib/db"
-import { adminVideo, digestToken, fail, videoHandler } from "@/lib/video/server"
+import { adminVideo, captureVideo, digestToken, fail, videoHandler } from "@/lib/video/server"
 import { playbackUrl, streamRequest, type LiveInput } from "@/lib/video/cloudflare"
 import { readVideoDetail, sessionFor } from "@/lib/video/detail"
 export const runtime = "nodejs"
@@ -23,9 +23,10 @@ const operation = z.discriminatedUnion("action", [
 ])
 export async function POST(request: Request, context: Context) { return videoHandler(async () => {
   const { id } = await context.params
-  await adminVideo(id)
-  const session = await sessionFor(id)
   const body = operation.parse(await request.json())
+  if (body.action === "prepareStream" || body.action === "end") await captureVideo(id)
+  else await adminVideo(id)
+  const session = await sessionFor(id)
   if (body.action === "pair") {
     if (session.ended_at) fail("Session has ended")
     const token = randomBytes(32).toString("base64url")

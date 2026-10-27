@@ -94,7 +94,7 @@ private struct OperatorFlow: View {
     init(tool: OperatorTool, games: [Game], game: Game?) {
         self.tool = tool; self.games = games
         _selectedGame = State(initialValue: game)
-        _website = StateObject(wrappedValue: WebsiteConnection(server: tool.server, requiresAdmin: tool == .recorder))
+        _website = StateObject(wrappedValue: WebsiteConnection(server: tool.server))
     }
     var body: some View {
         Group {
@@ -103,13 +103,13 @@ private struct OperatorFlow: View {
                     ScrollView {
                         VStack(alignment: .leading, spacing: 24) {
                             VStack(alignment: .leading, spacing: 8) {
-                                Text(tool == .scorekeeper ? "Scorekeeper access" : "Admin access").font(.title2.bold())
-                                Text(tool == .scorekeeper ? "Enter the scorekeeper passcode. Edits are available on game day and for seven days afterward, Pacific time." : "Enter the admin passcode to record a game.")
+                                Text("Scorekeeper access").font(.title2.bold())
+                                Text(tool == .scorekeeper ? "Enter the scorekeeper passcode. Edits are available on game day and for seven days afterward, Pacific time." : "Enter the scorekeeper passcode to record a game.")
                                     .font(.subheadline).foregroundStyle(.secondary)
                             }
                             VStack(alignment: .leading, spacing: 10) {
                                 Text("Passcode").font(.subheadline.weight(.medium))
-                                SecureField(tool == .scorekeeper ? "Scorekeeper passcode" : "Admin passcode", text: $pin)
+                                SecureField("Scorekeeper passcode", text: $pin)
                                     .focused($passcodeFocused)
                                     .textContentType(.password).submitLabel(.go)
                                     .textInputAutocapitalization(.never).autocorrectionDisabled()

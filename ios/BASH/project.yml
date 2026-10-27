@@ -29,7 +29,7 @@ targets:
         CODE_SIGN_STYLE: Automatic
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         SWIFT_VERSION: "6.0"
-        BASH_SERVER_URL: https://bash-git-video-raffi-hotters-projects.vercel.app
+        BASH_SERVER_URL: https://www.bayareastreethockey.com
         INFOPLIST_KEY_NSCameraUsageDescription: Record rink video with BASH Capture.
         INFOPLIST_KEY_NSMicrophoneUsageDescription: Record rink audio with your video.
         TARGETED_DEVICE_FAMILY: "1"

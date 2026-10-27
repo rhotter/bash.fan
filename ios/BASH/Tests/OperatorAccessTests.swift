@@ -7,7 +7,13 @@ private final class OperatorAuthStub: URLProtocol, @unchecked Sendable {
     override func startLoading() {
         let host = request.url!.host!
         let login = request.url!.path.hasSuffix("/login")
-        let rejected = host == "rejected.example"
+        if host == "protected.example" {
+            client?.urlProtocol(self, didReceive: HTTPURLResponse(url: request.url!, statusCode: 401, httpVersion: nil, headerFields: nil)!, cacheStoragePolicy: .notAllowed)
+            client?.urlProtocol(self, didLoad: Data("{\"error\":{\"code\":\"401\",\"message\":\"Protected deployment\"}}".utf8))
+            client?.urlProtocolDidFinishLoading(self)
+            return
+        }
+        let rejected = host == "rejected.example" || (host == "scorekeeper.example" && request.url!.path != "/api/bash/scorekeeper/login")
         let data = Data((rejected ? "{\"error\":\"Invalid PIN\"}" : login ? "{\"ok\":true}" : "{\"isAdmin\":\(host == "admin.example")}").utf8)
         client?.urlProtocol(self, didReceive: HTTPURLResponse(url: request.url!, statusCode: rejected ? 401 : 200, httpVersion: nil, headerFields: nil)!, cacheStoragePolicy: .notAllowed)
         client?.urlProtocol(self, didLoad: data)
@@ -42,6 +48,17 @@ final class OperatorAccessTests: XCTestCase {
         await website.signIn(pin: "test-fixture")
         XCTAssertFalse(website.signedIn)
         XCTAssertEqual(website.error, "Invalid PIN")
+    }
+    @MainActor func testRecorderUsesScorekeeperLogin() async {
+        let website = connection(host: "scorekeeper.example", requiresAdmin: false)
+        await website.signIn(pin: "test-fixture")
+        XCTAssertTrue(website.signedIn)
+    }
+    @MainActor func testDeploymentErrorIsNotReportedAsNetworkFailure() async {
+        let website = connection(host: "protected.example", requiresAdmin: false)
+        await website.signIn(pin: "test-fixture")
+        XCTAssertFalse(website.signedIn)
+        XCTAssertEqual(website.error, "Protected deployment")
     }
     @MainActor func testStandaloneCaptureRetainsReviewAccess() async {
         let website = connection(host: "review.example", requiresAdmin: false)

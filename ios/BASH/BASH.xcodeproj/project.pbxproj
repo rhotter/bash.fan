@@ -481,7 +481,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				BASH_SERVER_URL = "https://bash-git-video-raffi-hotters-projects.vercel.app";
+				BASH_SERVER_URL = "https://www.bayareastreethockey.com";
 				CODE_SIGN_ENTITLEMENTS = BASH.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
@@ -508,7 +508,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				BASH_SERVER_URL = "https://bash-git-video-raffi-hotters-projects.vercel.app";
+				BASH_SERVER_URL = "https://www.bayareastreethockey.com";
 				CODE_SIGN_ENTITLEMENTS = BASH.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;

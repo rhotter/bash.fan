@@ -50,7 +50,11 @@ final class WebsiteConnection: ObservableObject {
         let (data, response) = try await session.data(for: request)
         guard let response = response as? HTTPURLResponse, (200..<300).contains(response.statusCode) else {
             if (response as? HTTPURLResponse)?.statusCode == 401 { signedIn = false }
-            let message = (try? JSONSerialization.jsonObject(with: data) as? [String: String])?["error"] ?? "Could not reach the website. Try again."
+            let payload = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
+            let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+            let message = payload?["error"] as? String
+                ?? (payload?["error"] as? [String: Any])?["message"] as? String
+                ?? "BASH returned an unexpected response (HTTP \(status)). Please try again."
             throw WebsiteError(status: (response as? HTTPURLResponse)?.statusCode ?? 0, message: message)
         }
         return try JSONDecoder().decode(T.self, from: data)

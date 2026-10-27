@@ -1,17 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
-const mocks = vi.hoisted(() => ({ query: vi.fn(), admin: vi.fn() }))
+const mocks = vi.hoisted(() => ({ query: vi.fn(), role: vi.fn() }))
 vi.mock("@/lib/video/review-access", () => ({ reviewSessionId: async () => undefined }))
 vi.mock("@/lib/db", () => ({ rawSql: mocks.query }))
-vi.mock("@/lib/admin-session", () => ({ requireAdminSession: mocks.admin }))
+vi.mock("@/lib/admin-session", () => ({ getOperatorRole: mocks.role }))
 import { POST } from "@/app/api/bash/video/capture/route"
 import { digestToken } from "@/lib/video/server"
 const id = "171d2d66-7c1c-49ef-aa75-9b6a79e495c2"
 const token = "a".repeat(43)
 const request = (body: object) => new Request("http://localhost/api/bash/video/capture", { method: "POST", body: JSON.stringify(body) })
-beforeEach(() => { vi.resetAllMocks(); process.env.VIDEO_ENABLED = "1" })
+beforeEach(() => { vi.resetAllMocks(); process.env.VIDEO_ENABLED = "1"; mocks.role.mockResolvedValue("scorekeeper") })
 describe("automatic camera joining", () => {
   it("requires operator login before any session writes", async () => {
-    mocks.admin.mockRejectedValue(new Response("Unauthorized", { status: 401 }))
+    mocks.role.mockResolvedValue(null)
     expect((await POST(request({ side: "left" }))).status).toBe(401)
     expect(mocks.query).not.toHaveBeenCalled()
   })
