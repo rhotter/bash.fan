@@ -132,8 +132,8 @@ enum GoalieMetric: String, CaseIterable, Identifiable {
     func sorted(_ goalies: [Goalie]) -> [Goalie] {
         goalies.sorted {
             if value($0) != value($1) { return self == .gaa ? value($0) < value($1) : value($0) > value($1) }
-            let comparison = $0.name.compare($1.name, options: [.caseInsensitive, .diacriticInsensitive, .numeric], locale: Locale(identifier: "en_US"))
-            return comparison == .orderedSame ? $0.id < $1.id : comparison == .orderedAscending
+            if self == .wins && $0.savePercentage != $1.savePercentage { return $0.savePercentage > $1.savePercentage }
+            return $0.id < $1.id
         }
     }
 }
@@ -381,11 +381,12 @@ enum StatMetric: String, CaseIterable, Identifiable {
     func sorted(_ players: [Skater]) -> [Skater] {
         players.sorted {
             if value($0) != value($1) { return value($0) > value($1) }
-            // Keep tie breakers aligned with lib/stats-sort.ts.
-            if $0.points != $1.points { return $0.points > $1.points }
-            if $0.goals != $1.goals { return $0.goals > $1.goals }
-            let comparison = $0.name.compare($1.name, options: [.caseInsensitive, .diacriticInsensitive, .numeric], locale: Locale(identifier: "en_US"))
-            return comparison == .orderedSame ? $0.id < $1.id : comparison == .orderedAscending
+            // NHL summary ordering; keep aligned with lib/stats-sort.ts.
+            if self == .points {
+                if $0.goals != $1.goals { return $0.goals > $1.goals }
+                if $0.assists != $1.assists { return $0.assists > $1.assists }
+            }
+            return $0.id < $1.id
         }
     }
 }

@@ -76,7 +76,7 @@ final class GameTests: XCTestCase {
         let bob = Skater(teamSlug: nil, id: 2, name: "Bob", team: "B", gp: 10, goals: 5, assists: 3, points: 8)
         let bobAgain = Skater(teamSlug: nil, id: 3, name: "Bob", team: "B", gp: 10, goals: 5, assists: 3, points: 8)
         XCTAssertEqual(StatMetric.points.sorted([alice, bobAgain, bob]).map(\.id), [2, 3, 1])
-        XCTAssertEqual(StatMetric.gamesPlayed.sorted([alice, bobAgain, bob]).map(\.id), [2, 3, 1])
+        XCTAssertEqual(StatMetric.gamesPlayed.sorted([alice, bobAgain, bob]).map(\.id), [1, 2, 3])
         let roundedLower = Skater(teamSlug: nil, id: 4, name: "Aaron", team: "A", gp: 200, goals: 1, assists: 0, points: 201)
         let roundedHigher = Skater(teamSlug: nil, id: 5, name: "Zoe", team: "A", gp: 199, goals: 1, assists: 0, points: 200)
         XCTAssertEqual(StatMetric.pointsPerGame.sorted([roundedLower, roundedHigher]).map(\.id), [5, 4])

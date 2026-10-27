@@ -13,11 +13,11 @@ const goalie = (id: number, name: string, values: Partial<GoalieStat> = {}): Goa
 })
 
 describe("cross-platform stats ordering", () => {
-  it("breaks skater ties by points, goals, name and ID independently of input order", () => {
+  it("uses NHL summary tiebreakers for points and ID for other columns", () => {
     const players = [skater(1, "Alice"), skater(3, "Bob", { goals: 5 }), skater(2, "Bob", { goals: 5 })]
     for (const key of ["points", "gp"] as const) {
       for (const dir of ["asc", "desc"] as const) {
-        expect(players.toSorted((a, b) => compareSkaterStats(a, b, key, dir)).map(p => p.id)).toEqual([2, 3, 1])
+        expect(players.toSorted((a, b) => compareSkaterStats(a, b, key, dir)).map(p => p.id)).toEqual(key === "points" ? [2, 3, 1] : [1, 2, 3])
       }
     }
   })
@@ -26,9 +26,15 @@ describe("cross-platform stats ordering", () => {
     expect(players.toSorted((a, b) => compareSkaterStats(a, b, "ptsPg", "desc")).map(p => p.id)).toEqual([5, 4, 6])
     expect(players.toSorted((a, b) => compareSkaterStats(a, b, "ptsPg", "asc")).map(p => p.id)).toEqual([6, 4, 5])
   })
-  it("breaks goalie ties by name and ID and supports ascending GAA", () => {
+  it("breaks goalie ties by ID and supports ascending GAA", () => {
     const players = [goalie(3, "Bob"), goalie(2, "Alice"), goalie(1, "Alice"), goalie(4, "Zoe", { gaa: .5, savePercentage: .95 })]
     expect(players.toSorted((a, b) => compareGoalieStats(a, b, "gaa", "asc")).map(p => p.id)).toEqual([4, 1, 2, 3])
     expect(players.toSorted((a, b) => compareGoalieStats(a, b, "savePercentage", "desc")).map(p => p.id)).toEqual([4, 1, 2, 3])
   })
+  it("uses save percentage to break goalie wins ties, never alphabetical order", () => {
+    const players = [goalie(1, "Zoe"), goalie(2, "Alice"), goalie(3, "Bob", { savePercentage: .95 })]
+    expect(players.toSorted((a, b) => compareGoalieStats(a, b, "wins", "desc")).map(p => p.id)).toEqual([3, 1, 2])
+    expect(players.toSorted((a, b) => compareGoalieStats(a, b, "gp", "desc")).map(p => p.id)).toEqual([1, 2, 3])
+  })
+
 })
