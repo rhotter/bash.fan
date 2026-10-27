@@ -253,13 +253,13 @@ struct OpenCameraAction: View {
         VStack(spacing: 12) {
             Button(action: action) {
                 HStack(spacing: 10) {
-                    if busy { ProgressView().tint(.white) }
+                    if busy { ProgressView() }
                     Label("Open camera", systemImage: "video.fill")
                 }
                 .font(.headline).frame(maxWidth: .infinity).frame(minHeight: 36)
             }
             .buttonStyle(.borderedProminent).controlSize(.large)
-            .tint(LeagueStyle.orange).foregroundStyle(.white)
+            .tint(LeagueStyle.orange)
             .disabled(disabled)
         }
         .padding(.horizontal, 20).padding(.top, 16).padding(.bottom, 12)
