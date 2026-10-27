@@ -171,7 +171,7 @@ export function PlayerPageContent({ player }: { player: PlayerDetail }) {
         <SkaterGameLogTable
           title={isDualRole ? "Exhibition Skater Games" : "Exhibition Games"}
           games={player.exhibitionGames}
-          showGameTypeBadge
+          showTryoutBadge
         />
       )}
 
@@ -179,7 +179,7 @@ export function PlayerPageContent({ player }: { player: PlayerDetail }) {
         <GoalieGameLogTable
           title={isDualRole ? "Exhibition Goalie Games" : "Exhibition Games"}
           games={player.exhibitionGoalieGames}
-          showGameTypeBadge
+          showTryoutBadge
         />
       )}
     </div>
@@ -366,7 +366,7 @@ function GoalieStatsTable({ title, perSeasonStats, allTimeFallStats, allTimeAllS
   )
 }
 
-function SkaterGameLogTable({ title, games, showGameTypeBadge }: { title: string; games: SkaterGameLog[]; showGameTypeBadge?: boolean }) {
+function SkaterGameLogTable({ title, games, showTryoutBadge }: { title: string; games: SkaterGameLog[]; showTryoutBadge?: boolean }) {
   return (
     <div>
       <SectionHeader>{title}</SectionHeader>
@@ -395,7 +395,7 @@ function SkaterGameLogTable({ title, games, showGameTypeBadge }: { title: string
                   <Link href={`/game/${g.gameId}`} className="hover:text-primary transition-colors">
                     {formatGameDateShort(g.date)}
                   </Link>
-                  {showGameTypeBadge && g.gameType && <GameTypeBadge gameType={g.gameType} size="xs" className="ml-1" />}
+                  {showTryoutBadge && g.gameType === "tryout" && <GameTypeBadge gameType={g.gameType} size="xs" className="ml-1" />}
                 </td>
                 <td className="py-2 text-xs font-medium truncate pr-3">
                   <span className="text-muted-foreground/40 mr-1">{g.isHome ? "vs" : "@"}</span>
@@ -429,7 +429,7 @@ function SkaterGameLogTable({ title, games, showGameTypeBadge }: { title: string
   )
 }
 
-function GoalieGameLogTable({ title, games, showGameTypeBadge }: { title: string; games: GoalieGameLog[]; showGameTypeBadge?: boolean }) {
+function GoalieGameLogTable({ title, games, showTryoutBadge }: { title: string; games: GoalieGameLog[]; showTryoutBadge?: boolean }) {
   return (
     <div>
       <SectionHeader>{title}</SectionHeader>
@@ -456,7 +456,7 @@ function GoalieGameLogTable({ title, games, showGameTypeBadge }: { title: string
                   <Link href={`/game/${g.gameId}`} className="hover:text-primary transition-colors">
                     {formatGameDateShort(g.date)}
                   </Link>
-                  {showGameTypeBadge && g.gameType && <GameTypeBadge gameType={g.gameType} size="xs" className="ml-1" />}
+                  {showTryoutBadge && g.gameType === "tryout" && <GameTypeBadge gameType={g.gameType} size="xs" className="ml-1" />}
                 </td>
                 <td className="py-2 text-xs font-medium truncate pr-3">
                   <span className="text-muted-foreground/40 mr-1">{g.isHome ? "vs" : "@"}</span>
