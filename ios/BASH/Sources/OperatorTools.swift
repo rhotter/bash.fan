@@ -212,12 +212,17 @@ struct LeagueRecorderScreen: View {
                 }
                 Section {
                     Button { connect() } label: {
-                        HStack {
-                            Label("Open camera", systemImage: "video.fill").fontWeight(.semibold)
-                            Spacer()
-                            if website.busy { ProgressView() }
-                        }.padding(.vertical, 4)
-                    }.disabled(website.busy || camera.recording)
+                        HStack(spacing: 10) {
+                            if website.busy { ProgressView().tint(.black) }
+                            Label("Open camera", systemImage: "video.fill")
+                        }
+                        .font(.headline).frame(maxWidth: .infinity).frame(minHeight: 36)
+                    }
+                    .buttonStyle(.borderedProminent).controlSize(.large)
+                    .tint(LeagueStyle.orange).foregroundStyle(.black)
+                    .listRowInsets(EdgeInsets())
+                    .listRowBackground(Color.clear)
+                    .disabled(website.busy || camera.recording)
                 } footer: {
                     Text("Record continuously across games. Uploads resume automatically.")
                 }

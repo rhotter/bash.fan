@@ -21,7 +21,16 @@ struct DemoRecorderScreen: View {
                     Picker("Quality", selection: $camera.quality) {
                         ForEach(RecordingQuality.allCases) { Text($0.title).tag($0) }
                     }
-                    Button("Open camera") { showCamera = true }
+                }
+                Section {
+                    Button { showCamera = true } label: {
+                        Label("Open camera", systemImage: "video.fill")
+                            .font(.headline).frame(maxWidth: .infinity).frame(minHeight: 36)
+                    }
+                    .buttonStyle(.borderedProminent).controlSize(.large)
+                    .tint(LeagueStyle.orange).foregroundStyle(.black)
+                    .listRowInsets(EdgeInsets())
+                    .listRowBackground(Color.clear)
                 } footer: {
                     Text("Requires a physical iPhone with a rear ultra-wide camera. In Simulator, you can review settings and the camera screen, but cannot record.")
                 }
