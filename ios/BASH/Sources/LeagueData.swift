@@ -139,7 +139,7 @@ enum GoalieMetric: String, CaseIterable, Identifiable {
 }
 
 struct PlayerSnapshot: Codable { let skaters: [Skater]; let goalies: [Goalie] }
-struct Season: Decodable, Identifiable {
+struct Season: Codable, Identifiable {
     let id: String
     let name: String
     let isCurrent: Bool
@@ -177,7 +177,8 @@ final class LeagueStore {
     private(set) var weeks: [GameWeek] = []
     var players: [Skater] = []
     var goalies: [Goalie] = []
-    var seasons: [Season] = []
+    var seasons: [Season] = UserDefaults.standard.data(forKey: "leagueSeasons")
+        .flatMap { try? JSONDecoder().decode([Season].self, from: $0) } ?? []
     var selectedSeason = ""
     var loading = false
     var error: String?
@@ -206,6 +207,7 @@ final class LeagueStore {
         error = nil
         // Stats should not wait for the scores request before starting.
         async let playerResult: PlayerSnapshot = LeagueAPI.fetch("/players", season: season)
+        async let seasonResult: SeasonSnapshot? = try? LeagueAPI.fetch("/seasons", maxAge: 120)
         let cacheKey = "leagueCache-\(season)"
         var restoreSaved = true
         #if DEBUG
@@ -218,7 +220,14 @@ final class LeagueStore {
         }
         do {
             let result: LeagueSnapshot = try await LeagueAPI.fetch("", season: season)
+            let metadata = await seasonResult
             guard request == generation else { return }
+            if let metadata {
+                seasons = metadata.seasons
+                if let data = try? JSONEncoder().encode(seasons) {
+                    UserDefaults.standard.set(data, forKey: "leagueSeasons")
+                }
+            }
             snapshot = result
             cached = false
             UserDefaults.standard.set(try JSONEncoder().encode(result), forKey: cacheKey)
@@ -240,9 +249,6 @@ final class LeagueStore {
         }
         guard request == generation else { return }
         loading = false
-        if seasons.isEmpty, let result: SeasonSnapshot = try? await LeagueAPI.fetch("/seasons") {
-            seasons = result.seasons
-        }
         if request == generation { await updateReminders() }
     }
 

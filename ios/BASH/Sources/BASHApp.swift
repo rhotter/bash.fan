@@ -649,8 +649,9 @@ private struct SeasonMenu: View {
     }
     private var seasonName: String {
         if allTime { return "All time" }
-        if store.selectedSeason.isEmpty { return "Current season" }
-        return store.seasons.first(where: { $0.id == store.selectedSeason })?.name ?? "Current season"
+        return store.seasons.first(where: {
+            store.selectedSeason.isEmpty ? $0.isCurrent : $0.id == store.selectedSeason
+        })?.name ?? "Loading season…"
     }
 
     var body: some View {
@@ -660,8 +661,9 @@ private struct SeasonMenu: View {
                 if value != "all" { store.selectedSeason = value }
             })) {
                 if allowsAllTime { Text("All time").tag("all") }
-                Text("Current season").tag("")
-                ForEach(store.seasons) { Text($0.name).tag($0.id) }
+                ForEach(store.seasons) { season in
+                    Text(season.name).tag(season.isCurrent ? "" : season.id)
+                }
             }
         } label: {
             HStack(spacing: 6) {
@@ -672,6 +674,7 @@ private struct SeasonMenu: View {
             }.foregroundStyle(Color.primary).padding(.vertical, 10)
         }.tint(.primary).accessibilityLabel("Season: \(seasonName)")
             .accessibilityIdentifier("seasonPicker")
+            .disabled(store.seasons.isEmpty)
     }
 
 }
