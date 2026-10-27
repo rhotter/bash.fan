@@ -1,10 +1,12 @@
 "use client"
 
-import { useState } from "react"
+import { type CSSProperties, useState } from "react"
 import Image from "next/image"
 import { IntentLink as Link } from "@/components/intent-link"
 import { getTeamLogoUrl } from "@/lib/team-logos"
 import { getOptimizedLogoUrl } from "@/lib/optimized-logo"
+import { getTeamLogoColor } from "@/lib/team-logo-colors"
+import { cn } from "@/lib/utils"
 
 const FallbackLogo = ({ size, className }: { size: number; className?: string }) => (
   <svg
@@ -39,42 +41,48 @@ export function TeamLogo({
   linked?: boolean
   seasonId?: string
 }) {
-  const [error, setError] = useState(false)
+  const [failedUrl, setFailedUrl] = useState<string | null>(null)
   const logoUrl = getTeamLogoUrl(slug, seasonId)
-
-  if (!logoUrl || error) {
-    const fallback = <FallbackLogo size={size} className={className} />
-    if (linked) {
-      return (
-        <Link href={`/team/${slug}`} onClick={(e) => e.stopPropagation()}>
-          {fallback}
-        </Link>
-      )
-    }
-    return fallback
-  }
-
-  const optimizedUrl = getOptimizedLogoUrl(logoUrl, size)
-  const img = (
-    <Image
-      src={optimizedUrl}
-      unoptimized={optimizedUrl !== logoUrl}
-      alt={name}
-      width={size}
-      height={size}
-      loading="eager"
-      className={className}
-      onError={() => setError(true)}
-    />
+  const optimizedUrl = logoUrl ? getOptimizedLogoUrl(logoUrl, size) : null
+  const hasLogo = logoUrl && optimizedUrl && failedUrl !== logoUrl
+  const badge = (
+    <span
+      className={cn("team-logo-badge relative inline-flex shrink-0 items-center justify-center rounded-full align-middle", className)}
+      style={{ width: size, height: size, "--team-logo-color": getTeamLogoColor(slug) } as CSSProperties}
+      role="img"
+      aria-label={name}
+    >
+      <span className="team-logo-artwork absolute inset-[10%]" aria-hidden="true">
+        {hasLogo ? (
+          <>
+            {logoUrl === "/team-logos/yetis_1024.png" && (
+              <span className="absolute left-[49.2%] top-[50.1%] h-[55%] w-[55%] -translate-x-1/2 -translate-y-1/2 rounded-full bg-white" />
+            )}
+            <Image
+              src={optimizedUrl}
+              unoptimized={optimizedUrl !== logoUrl}
+              alt=""
+              width={size}
+              height={size}
+              loading="eager"
+              className="relative h-full w-full object-contain"
+              onError={() => setFailedUrl(logoUrl)}
+            />
+          </>
+        ) : (
+          <FallbackLogo size={size} className="h-full w-full p-[15%]" />
+        )}
+      </span>
+    </span>
   )
 
   if (linked) {
     return (
       <Link href={`/team/${slug}`} onClick={(e) => e.stopPropagation()}>
-        {img}
+        {badge}
       </Link>
     )
   }
 
-  return img
+  return badge
 }

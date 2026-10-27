@@ -137,3 +137,24 @@ html body[data-scroll-locked] {
   padding-right: 0 !important;
 }
 
+
+/* Match the native iOS team badges without clipping the logo artwork. */
+.team-logo-badge {
+  background: linear-gradient(135deg,
+    color-mix(in srgb, var(--team-logo-color), white 12%) 0%,
+    var(--team-logo-color) 40%,
+    color-mix(in srgb, var(--team-logo-color), black 12%) 78%,
+    color-mix(in srgb, var(--team-logo-color), black 30%) 100%);
+  box-shadow: 0 1px 4px rgb(0 0 0 / 18%);
+}
+
+.team-logo-artwork {
+  filter: drop-shadow(-1.1px 0 0 white) drop-shadow(1.1px 0 0 white)
+    drop-shadow(0 -1.1px 0 white) drop-shadow(0 1.1px 0 white);
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .team-logo-badge {
+    background: var(--team-logo-color);
+  }
+}
