@@ -125,13 +125,13 @@ private struct OperatorFlow: View {
                             VStack(spacing: 12) {
                                 Button(action: signIn) {
                                     HStack(spacing: 10) {
-                                        if website.busy { ProgressView().tint(.black) }
+                                        if website.busy { ProgressView() }
                                         Text(website.busy ? "Checking passcode…" : "Continue")
                                     }
                                     .font(.headline).frame(maxWidth: .infinity).frame(minHeight: 36)
                                 }
                                 .buttonStyle(.borderedProminent).controlSize(.large)
-                                .tint(LeagueStyle.orange).foregroundStyle(.black)
+                                .tint(LeagueStyle.orange)
                                 .disabled(pin.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || website.busy)
                             }
                         }
