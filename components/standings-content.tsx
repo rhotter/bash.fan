@@ -41,7 +41,9 @@ export function StandingsContent({ initialData }: { initialData?: BashApiData })
 
   const availableTeams = useMemo(() => {
     if (standings.length > 0) {
-      return standings.filter((s) => !isLegacyTeamSlug(s.slug))
+      return [...standings]
+        .filter((s) => !isLegacyTeamSlug(s.slug))
+        .sort((a, b) => a.team.localeCompare(b.team))
     }
     const map = new Map<string, string>()
     for (const g of games) {
@@ -50,19 +52,21 @@ export function StandingsContent({ initialData }: { initialData?: BashApiData })
         if (!isLegacyTeamSlug(g.awaySlug) && !map.has(g.awaySlug)) map.set(g.awaySlug, g.awayTeam)
       }
     }
-    return [...map.entries()].map(([slug, name]) => ({
-      slug,
-      team: name,
-      gp: 0,
-      w: 0,
-      otw: 0,
-      l: 0,
-      otl: 0,
-      gf: 0,
-      ga: 0,
-      gd: 0,
-      pts: 0,
-    }))
+    return [...map.entries()]
+      .map(([slug, name]) => ({
+        slug,
+        team: name,
+        gp: 0,
+        w: 0,
+        otw: 0,
+        l: 0,
+        otl: 0,
+        gf: 0,
+        ga: 0,
+        gd: 0,
+        pts: 0,
+      }))
+      .sort((a, b) => a.team.localeCompare(b.team))
   }, [standings, games])
 
   // Validate selected team against available teams when in h2h view

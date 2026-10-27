@@ -253,10 +253,16 @@ describe("Standings and Head-to-Head UI Integration", () => {
     expect(replaceStateSpy).toHaveBeenCalledTimes(1)
     const callUrl = replaceStateSpy.mock.calls[0][2] as string
     expect(callUrl).toContain("view=h2h")
-    expect(callUrl).toContain("team=seals")
+    expect(callUrl).toContain("team=reign")
     expect(callUrl).toContain("season=bash-2026-2027")
 
-    // Now in Head to Head mode
+    // Now in Head to Head mode; teams are sorted alphabetically (Reign, Seals, Yetis) on both mobile select and desktop buttons
+    const selectOptions = Array.from(container.querySelectorAll<HTMLOptionElement>('select[aria-label="Team"] option')).map((o) => o.textContent)
+    expect(selectOptions).toEqual(["Reign", "Seals", "Yetis"])
+    const pillButtons = Array.from(container.querySelectorAll<HTMLButtonElement>(".overflow-x-auto button"))
+      .map((b) => b.textContent?.trim())
+      .filter(Boolean)
+    expect(pillButtons).toEqual(["Reign", "Seals", "Yetis"])
     expect(container.textContent).toContain("Team")
     expect(container.querySelector("th")?.textContent).toContain("Opponent")
   })
@@ -444,7 +450,7 @@ describe("Standings and Head-to-Head UI Integration", () => {
     expect(container.textContent).not.toContain("Season Series")
   })
 
-  it("falls back to 1st place team and syncs URL when visiting ?view=h2h&team=nonexistent-slug", async () => {
+  it("falls back to first alphabetical team and syncs URL when visiting ?view=h2h&team=nonexistent-slug", async () => {
     searchParamsState.view = "h2h"
     searchParamsState.team = "nonexistent-slug"
 
@@ -455,11 +461,11 @@ describe("Standings and Head-to-Head UI Integration", () => {
     expect(replaceStateSpy).toHaveBeenCalled()
     const lastCallUrl = replaceStateSpy.mock.calls[replaceStateSpy.mock.calls.length - 1][2] as string
     expect(lastCallUrl).toContain("view=h2h")
-    expect(lastCallUrl).toContain("team=seals")
+    expect(lastCallUrl).toContain("team=reign")
     expect(lastCallUrl).not.toContain("team=nonexistent-slug")
 
-    // The rendered team is Seals
-    expect(container.textContent).toContain("Reign")
+    // The rendered team is Reign (so Seals is in the opponent rows)
+    expect(container.textContent).toContain("Seals")
   })
 
   it("shows empty series message when expanding an opponent with 0 GP and 0 games", async () => {

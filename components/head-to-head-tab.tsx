@@ -52,6 +52,7 @@ export function HeadToHeadTab({
       return standings
         .filter((s) => !isLegacyTeamSlug(s.slug))
         .map((s) => ({ slug: s.slug, name: s.team }))
+        .sort((a, b) => a.name.localeCompare(b.name))
     }
     const map = new Map<string, string>()
     for (const g of games) {
@@ -60,7 +61,9 @@ export function HeadToHeadTab({
         if (!isLegacyTeamSlug(g.awaySlug) && !map.has(g.awaySlug)) map.set(g.awaySlug, g.awayTeam)
       }
     }
-    return [...map.entries()].map(([slug, name]) => ({ slug, name }))
+    return [...map.entries()]
+      .map(([slug, name]) => ({ slug, name }))
+      .sort((a, b) => a.name.localeCompare(b.name))
   }, [standings, games])
 
   const activeSlug = selectedTeamSlug && teams.some((t) => t.slug === selectedTeamSlug)

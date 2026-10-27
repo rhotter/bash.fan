@@ -53,10 +53,10 @@ All view and team selections update the browser address bar via `window.history.
 - `view=h2h`: Sets Head-to-Head mode. When switching back to Standings, `view` and `team` are stripped from query parameters.
 - `team=<slug>`: Records the active team perspective (e.g., `team=seals`).
 - `season=<id>`: Preserves any active season filter (e.g., `/standings?season=bash-2026-2027&view=h2h&team=seals`).
-- **Default Selection**: If switching to `view=h2h` without a `team` parameter, the default is the 1st-place team in the standings.
+- **Default Selection**: If switching to `view=h2h` without a `team` parameter, the default is the first alphabetical team in the season.
 
 ### 3.3 Team Selector Bar (Mobile Dropdown + Desktop Pill Row)
-When `Head to Head` is active, a `TEAM` selector card (`border border-border/10 rounded-lg p-3 bg-card/45`) displays all active teams in the season, matching the responsive `TEAM` selector on `/stats`:
+When `Head to Head` is active, a `TEAM` selector card (`border border-border/10 rounded-lg p-3 bg-card/45`) displays all active teams in the season in **alphabetical order** (matching `/stats` and legacy Sportability):
 - Unlike `/stats`, there is **no "All Teams" option** because head-to-head statistics are fundamentally defined from the perspective of a single team.
 - **Mobile (`sm:hidden`)**: Renders a compact `<select>` dropdown (`rounded-md bg-card border border-border/40 px-2 py-1.5 text-[11px] font-semibold`) matching the mobile team selector on `/stats`.
 - **Desktop (`hidden sm:flex`)**: Renders text-only pills (`shrink-0 rounded-md px-2.5 py-1 text-[10px] font-medium transition-colors`), or a `<select>` if more than 8 teams exist in the season.
