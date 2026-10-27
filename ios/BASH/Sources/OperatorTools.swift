@@ -210,24 +210,12 @@ struct LeagueRecorderScreen: View {
                         ForEach(RecordingQuality.allCases) { Text($0.title).tag($0) }
                     }.disabled(website.busy || camera.recording)
                 }
-                Section {
-                    Button { connect() } label: {
-                        HStack(spacing: 10) {
-                            if website.busy { ProgressView().tint(.black) }
-                            Label("Open camera", systemImage: "video.fill")
-                        }
-                        .font(.headline).frame(maxWidth: .infinity).frame(minHeight: 36)
-                    }
-                    .buttonStyle(.borderedProminent).controlSize(.large)
-                    .tint(LeagueStyle.orange).foregroundStyle(.black)
-                    .listRowInsets(EdgeInsets())
-                    .listRowBackground(Color.clear)
-                    .disabled(website.busy || camera.recording)
-                } footer: {
-                    Text("Record continuously across games. Uploads resume automatically.")
-                }
                 Section { Button { showUploads = true } label: { Label("Uploads", systemImage: "icloud.and.arrow.up") } }
                 if let error = website.error { Section { Text(error).foregroundStyle(.red) } }
+            }
+            .safeAreaInset(edge: .bottom) {
+                OpenCameraAction(busy: website.busy, disabled: website.busy || camera.recording,
+                                 detail: "Record continuously across games. Uploads resume automatically.") { connect() }
             }
             .navigationTitle("Record game").navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Done") { dismiss() }.disabled(website.busy || camera.recording) } }
@@ -254,5 +242,32 @@ struct LeagueRecorderScreen: View {
         Task {
             if await website.connect(side: side, camera: camera, replace: replace, allowQualityMismatch: allowMismatch) { showCamera = true }
         }
+    }
+}
+
+struct OpenCameraAction: View {
+    var busy = false
+    var disabled = false
+    let detail: String
+    let action: () -> Void
+
+    var body: some View {
+        VStack(spacing: 12) {
+            Text(detail)
+                .font(.footnote).foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+            Button(action: action) {
+                HStack(spacing: 10) {
+                    if busy { ProgressView().tint(.white) }
+                    Label("Open camera", systemImage: "video.fill")
+                }
+                .font(.headline).frame(maxWidth: .infinity).frame(minHeight: 36)
+            }
+            .buttonStyle(.borderedProminent).controlSize(.large)
+            .tint(LeagueStyle.orange).foregroundStyle(.white)
+            .disabled(disabled)
+        }
+        .padding(.horizontal, 20).padding(.top, 16).padding(.bottom, 12)
+        .background(.bar)
     }
 }

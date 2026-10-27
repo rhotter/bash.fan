@@ -61,6 +61,8 @@ import UserNotifications
                         period: ProcessInfo.processInfo.arguments.contains("--pregame") ? 0 : ProcessInfo.processInfo.arguments.contains("--period-end") ? 3 : 1,
                         gameOver: ProcessInfo.processInfo.arguments.contains("--game-over")
                     ))
+                } else if ProcessInfo.processInfo.arguments.contains("--recorder-preview") {
+                    LeagueRecorderScreen(website: WebsiteConnection()).tint(.primary)
                 } else { LeagueRoot(store: store) }
 #else
                 LeagueRoot(store: store)

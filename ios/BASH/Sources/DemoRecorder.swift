@@ -1,5 +1,4 @@
 import SwiftUI
-import AVKit
 
 /// Uses the real capture pipeline, with a separate controller that never authenticates,
 /// streams, sends telemetry, or queues its clips for upload.
@@ -14,40 +13,16 @@ struct DemoRecorderScreen: View {
             Form {
                 Section {
                     Text("Try recording without a league account. Video and audio stay on this iPhone and are never streamed or uploaded.")
-                    Text("Use Files → BASH → Recordings to manage or delete demo clips.")
-                        .foregroundStyle(.secondary)
                 }
                 Section {
                     Picker("Quality", selection: $camera.quality) {
                         ForEach(RecordingQuality.allCases) { Text($0.title).tag($0) }
                     }
                 }
-                Section {
-                    Button { showCamera = true } label: {
-                        Label("Open camera", systemImage: "video.fill")
-                            .font(.headline).frame(maxWidth: .infinity).frame(minHeight: 36)
-                    }
-                    .buttonStyle(.borderedProminent).controlSize(.large)
-                    .tint(LeagueStyle.orange).foregroundStyle(.black)
-                    .listRowInsets(EdgeInsets())
-                    .listRowBackground(Color.clear)
-                } footer: {
-                    Text("Requires a physical iPhone with a rear ultra-wide camera. In Simulator, you can review settings and the camera screen, but cannot record.")
-                }
-                Section("Demo recordings on this phone") {
-                    let clips = library.recordings.filter { $0.localOnly == true && $0.duration != nil }
-                    if clips.isEmpty { Text("No demo recordings yet").foregroundStyle(.secondary) }
-                    ForEach(clips) { clip in
-                        NavigationLink {
-                            DemoPlayback(url: clip.file)
-                        } label: {
-                            VStack(alignment: .leading) {
-                                Text(clip.startedAt, style: .date)
-                                Text("\(Int(clip.duration ?? 0)) seconds · Local only").font(.caption).foregroundStyle(.secondary)
-                            }
-                        }
-                    }
-                }
+            }
+            .safeAreaInset(edge: .bottom) {
+                OpenCameraAction(disabled: camera.recording || camera.busy,
+                                 detail: "Requires a physical iPhone with a rear ultra-wide camera.") { showCamera = true }
             }
             .navigationTitle("Demo recorder")
             .navigationBarTitleDisplayMode(.inline)
@@ -62,14 +37,5 @@ struct DemoRecorderScreen: View {
         .onChange(of: phase) { _, next in
             if next != .active { Task { await camera.stop(); await camera.suspendPreview() } }
         }
-    }
-}
-
-private struct DemoPlayback: View {
-    @State private var player: AVPlayer
-    init(url: URL) { _player = State(initialValue: AVPlayer(url: url)) }
-    var body: some View {
-        VideoPlayer(player: player).navigationTitle("Demo clip")
-            .onDisappear { player.pause() }
     }
 }
