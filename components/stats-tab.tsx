@@ -10,6 +10,7 @@ import { SearchIcon } from "lucide-react"
 import { IntentLink as Link } from "@/components/intent-link"
 import { playerSlug } from "@/lib/player-slug"
 import { useSort, SortableTh } from "@/components/stats-table"
+import { compareSkaterStats, compareGoalieStats } from "@/lib/stats-sort"
 import { TeamLogo } from "@/components/team-logo"
 
 type SortKey = "points" | "goals" | "assists" | "pim" | "gp" | "gwg" | "ppg" | "shg" | "eng" | "hatTricks" | "pen" | "ptsPg"
@@ -73,11 +74,7 @@ export function StatsTab({ initialData }: { initialData?: PlayerStatsData }) {
       const minGp = typeof minGames === "number" ? minGames : 0
       list = list.filter((p) => p.gp >= minGp)
     }
-    return [...list].sort((a, b) => {
-      const av = (a[sortKey] ?? 0) as number
-      const bv = (b[sortKey] ?? 0) as number
-      return sortDir === "desc" ? bv - av : av - bv
-    }).map((player, index) => ({ ...player, rank: index + 1 }))
+    return [...list].sort((a, b) => compareSkaterStats(a, b, sortKey, sortDir)).map((player, index) => ({ ...player, rank: index + 1 }))
   }, [skaters, skatersByTeam, teamFilter, sortKey, sortDir, season, tab, minGames])
  
   const rankedGoalies = useMemo(() => {
@@ -88,11 +85,7 @@ export function StatsTab({ initialData }: { initialData?: PlayerStatsData }) {
       const minGp = typeof minGames === "number" ? minGames : 0
       list = list.filter((p) => p.gp >= minGp)
     }
-    return [...list].sort((a, b) => {
-      const av = (a[goalieSortKey] ?? 0) as number
-      const bv = (b[goalieSortKey] ?? 0) as number
-      return goalieSortDir === "desc" ? bv - av : av - bv
-    }).map((player, index) => ({ ...player, rank: index + 1 }))
+    return [...list].sort((a, b) => compareGoalieStats(a, b, goalieSortKey, goalieSortDir)).map((player, index) => ({ ...player, rank: index + 1 }))
   }, [goalies, goaliesByTeam, teamFilter, goalieSortKey, goalieSortDir, season, tab, minGames])
 
   // Search hides rows without changing their position in the full ranking.
