@@ -30,10 +30,9 @@ In legacy Sportability:
 ### 2.2 Modern BASH Enhancements
 While Sportability provided basic records and goal differential, BASH modernizes and significantly elevates the experience:
 1. **3-Point System Integration**: BASH uses a regulation win (3 pts), overtime win (2 pts), overtime loss (1 pt), regulation loss (0 pts) system. The Head to Head table reflects this with full `W-OTW-OTL-L` record tracking and explicit `PTS` earned against each opponent.
-2. **Current Streak (`STRK`)**: Displays the active head-to-head streak against that opponent (e.g. `W2`, `OTL1`, `L1`, or `—` if 0 games played).
-3. **Summary Totals Footer**: Aggregates the selected team's overall regular-season totals across all opponents, providing a direct mathematical check against the main standings table.
-4. **Expandable Opponent Rows & Season Series Breakdown**: Clicking an opponent row expands to reveal the full season series game-by-game breakdown (scores, home `vs` / away `@` indicator, result badges, overtime/forfeit tags, `IntentLink` navigation to `/game/[id]`, plus any upcoming scheduled matchups with date, time, and location).
-5. **Fast Client-Side Navigation**: Responsive top-level pill toggles (`Standings` / `Head to Head`) and team selector pills matching the design system on `/stats`, with zero unnecessary Server Component round-trips via shallow URL synchronization.
+2. **Summary Totals Footer**: Aggregates the selected team's overall regular-season totals across all opponents, providing a direct mathematical check against the main standings table.
+3. **Expandable Opponent Rows & Season Series Breakdown**: Clicking an opponent row expands to reveal the full season series game-by-game breakdown (scores, home `vs` / away `@` indicator, result badges, overtime/forfeit tags, `IntentLink` navigation to `/game/[id]`, plus any upcoming scheduled matchups with date, time, and location).
+4. **Fast Client-Side Navigation**: Responsive top-level pill toggles (`Standings` / `Head to Head`) and team selector pills matching the design system on `/stats`, with zero unnecessary Server Component round-trips via shallow URL synchronization.
 
 ---
 
@@ -56,12 +55,12 @@ All view and team selections update the browser address bar via `window.history.
 - `season=<id>`: Preserves any active season filter (e.g., `/standings?season=bash-2026-2027&view=h2h&team=seals`).
 - **Default Selection**: If switching to `view=h2h` without a `team` parameter, the default is the 1st-place team in the standings.
 
-### 3.3 Team Selector Pill Bar
-When `Head to Head` is active, a `TEAM` selector card (`border border-border/10 rounded-lg p-3 bg-card/45`) displays all active teams in the season:
+### 3.3 Team Selector Bar (Mobile Dropdown + Desktop Pill Row)
+When `Head to Head` is active, a `TEAM` selector card (`border border-border/10 rounded-lg p-3 bg-card/45`) displays all active teams in the season, matching the responsive `TEAM` selector on `/stats`:
 - Unlike `/stats`, there is **no "All Teams" option** because head-to-head statistics are fundamentally defined from the perspective of a single team.
-- Each pill includes the team's official `TeamLogo` (16px) and name.
-- Active team pill is highlighted (`bg-card text-foreground font-semibold shadow-xs border border-border/40`).
-- Container supports smooth horizontal swipe/scroll (`overflow-x-auto`) for mobile and desktop screens.
+- **Mobile (`sm:hidden`)**: Renders a compact `<select>` dropdown (`rounded-md bg-card border border-border/40 px-2 py-1.5 text-[11px] font-semibold`) matching the mobile team selector on `/stats`.
+- **Desktop (`hidden sm:flex`)**: Renders text-only pills (`shrink-0 rounded-md px-2.5 py-1 text-[10px] font-medium transition-colors`), or a `<select>` if more than 8 teams exist in the season.
+- Active team pill is highlighted (`bg-card text-foreground font-semibold`), while inactive pills use `text-muted-foreground/60 hover:text-muted-foreground hover:bg-card/40`.
 
 ---
 
@@ -78,7 +77,6 @@ The Head to Head table displays the selected team's performance against every ot
 | **Goals For** | `GF` | Total goals scored by the selected team against this opponent. |
 | **Goals Against** | `GA` | Total goals scored by the opponent against the selected team. |
 | **Goal Differential** | `+/-` | Goal differential (`GF - GA`), formatted with a `+` prefix for positive values (e.g., `+4`, `0`, `-3`). |
-| **Current Streak** | `STRK` | Most recent consecutive result against this opponent: `W{n}`, `OTL{n}`, `L{n}`, or `—` if 0 GP. |
 
 ### 4.1 Inverse Symmetry Rule
 All head-to-head statistics must satisfy strict inverse symmetry between any pair of teams (Team A and Team B):
@@ -96,29 +94,23 @@ All head-to-head statistics must satisfy strict inverse symmetry between any pai
 The table includes a summary footer row (`<tfoot>`):
 - Displays the selected team's aggregate regular-season totals across all opponents.
 - The footer values (`GP`, `Record`, `PTS`, `GF`, `GA`, `+/-`) exactly equal the team's standing row in the main league standings table.
-- `STRK` in the footer row is rendered as `—`.
 
 ---
 
 ## 5. Expandable Opponent Rows & Season Series Breakdown
 
-Clicking an opponent row expands an inline breakdown displaying all games between the two teams in the current season:
-1. **Game Cards**:
-   - Arranged in a responsive grid.
-   - Each card is wrapped in an `IntentLink` to `/game/[id]` with full RSC speculative prefetching on hover/touch.
+Clicking an opponent row expands an inline table-row list displaying all games between the two teams in the current season:
+1. **Minimal Table-Row UX**:
+   - Games are rendered as clean horizontal rows (`divide-y divide-border/15 border-t border-border/15`) rather than boxed cards.
+   - Each row is wrapped in an `IntentLink` to `/game/[id]` with full RSC speculative prefetching on hover/touch.
 2. **Completed Games**:
-   - Result badge: `W` (emerald), `OTW` (sky), `OTL` (amber), `L` (rose).
-   - Matchup indicator: `vs` (home) or `@` (away).
-   - Score: Selected team score vs Opponent score (e.g. `5 - 3`).
-   - Overtime / Shootout tag: `(OT)` or `(SO)` if applicable.
-   - Forfeit tag: `(Forfeit)` if applicable.
-   - Date: Clean localized date without timezone shifting (e.g. `Oct 12`).
+   - Date column (`Oct 12`), home/away indicator (`vs` or `@`), opponent name, and `OT` / `SO` / `Forfeit` status indicator on the left.
+   - Inline result label (`W` / `OTW` in emerald, `OTL` in amber, `L` in rose) and tabular score (`5 - 3`) on the right.
 3. **Live Games**:
    - Red pulsing `LIVE` badge.
    - Current in-progress score.
 4. **Upcoming Games**:
-   - `UPCOMING` badge.
-   - Scheduled date, time, and arena location.
+   - Scheduled date and home/away indicator (`vs` or `@`) on the left, with `-` (`text-muted-foreground/40`) in the score column on the right.
 5. **Zero Games Edge Case**:
    - If two teams have not yet played and have no scheduled games, displays "No games scheduled or played this season."
 

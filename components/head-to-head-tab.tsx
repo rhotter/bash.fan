@@ -10,14 +10,12 @@ import { cn } from "@/lib/utils"
 import {
   computeHeadToHead,
   formatGameDate,
-  getStreakSortScore,
   type HeadToHeadOpponentRecord,
 } from "@/lib/head-to-head"
 import { isLegacyTeamSlug } from "@/lib/team-filters"
-import { formatGameTime } from "@/lib/format-time"
 import type { BashGame, Standing } from "@/app/api/bash/route"
 
-type H2HSortKey = "opponent" | "gp" | "record" | "pts" | "gf" | "ga" | "gd" | "streak"
+type H2HSortKey = "opponent" | "gp" | "record" | "pts" | "gf" | "ga" | "gd"
 
 const opponentAscKeys = new Set<H2HSortKey>(["opponent"])
 
@@ -94,13 +92,6 @@ export function HeadToHeadTab({
         if (a.gd !== b.gd) {
           return sortDir === "desc" ? b.gd - a.gd : a.gd - b.gd
         }
-      } else if (sortKey === "streak") {
-        const scoreA = getStreakSortScore(a.streak)
-        const scoreB = getStreakSortScore(b.streak)
-        const diff = scoreB - scoreA
-        if (diff !== 0) {
-          return sortDir === "desc" ? diff : -diff
-        }
       } else {
         const av = a[sortKey]
         const bv = b[sortKey]
@@ -132,35 +123,86 @@ export function HeadToHeadTab({
   const { summary } = h2hData
 
   return (
-    <div className="flex flex-col gap-4">
-      {/* Team Selector Pill Bar */}
-      <div className="border border-border/10 rounded-lg p-3 bg-card/45 flex flex-col gap-1.5">
-        <span className="text-[9px] uppercase tracking-wider text-muted-foreground/50 font-bold pl-0.5">
-          Team
-        </span>
-        <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-4 px-4 sm:mx-0 sm:px-0">
-          {teams.map((t) => (
-            <button
-              key={t.slug}
-              type="button"
-              onClick={() => onSelectTeam(t.slug)}
-              className={cn(
-                "shrink-0 rounded-md px-2.5 py-1 text-[10px] font-medium transition-colors min-h-[40px] sm:min-h-0 flex items-center gap-1.5 cursor-pointer",
-                activeSlug === t.slug
-                  ? "bg-card text-foreground font-semibold shadow-xs border border-border/40"
-                  : "text-muted-foreground/60 hover:text-muted-foreground hover:bg-card/40"
-              )}
+    <div className="flex flex-col gap-5">
+      {/* Filters Control Bar (matching /stats mobile dropdown + desktop pill row) */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between border border-border/10 rounded-lg p-3 bg-card/45">
+        <div className="flex items-end gap-2 sm:gap-3 w-full sm:w-auto">
+          {/* Mobile Team Filter Dropdown (always select on small screen) */}
+          <div className="flex flex-col gap-1.5 sm:hidden w-[140px]">
+            <span className="text-[9px] uppercase tracking-wider text-muted-foreground/50 font-bold pl-0.5">
+              Team
+            </span>
+            <select
+              aria-label="Team"
+              value={activeSlug}
+              onChange={(e) => onSelectTeam(e.target.value)}
+              className="rounded-md bg-card border border-border/40 px-2 py-1.5 text-[11px] font-semibold text-foreground appearance-none cursor-pointer pr-6 bg-[length:10px] bg-[right_6px_center] bg-no-repeat min-h-[36px] sm:min-h-0 w-full"
+              style={{
+                backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`,
+              }}
             >
-              <TeamLogo slug={t.slug} name={t.name} size={16} className="shrink-0" />
-              <span>{t.name}</span>
-            </button>
-          ))}
+              {teams.map((t) => (
+                <option key={t.slug} value={t.slug}>
+                  {t.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Desktop Team Filter (buttons or select on larger screens) */}
+          <div className="hidden sm:flex sm:flex-col sm:gap-1.5">
+            {teams.length > 8 ? (
+              <>
+                <span className="text-[9px] uppercase tracking-wider text-muted-foreground/50 font-bold pl-0.5">
+                  Team
+                </span>
+                <select
+                  aria-label="Team"
+                  value={activeSlug}
+                  onChange={(e) => onSelectTeam(e.target.value)}
+                  className="rounded-md bg-card border border-border/40 px-2.5 py-1.5 text-[11px] font-semibold text-foreground min-h-[40px] sm:min-h-0 appearance-none cursor-pointer pr-7 bg-[length:12px] bg-[right_8px_center] bg-no-repeat w-40"
+                  style={{
+                    backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`,
+                  }}
+                >
+                  {teams.map((t) => (
+                    <option key={t.slug} value={t.slug}>
+                      {t.name}
+                    </option>
+                  ))}
+                </select>
+              </>
+            ) : (
+              <>
+                <span className="text-[9px] uppercase tracking-wider text-muted-foreground/50 font-bold pl-0.5">
+                  Team
+                </span>
+                <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-4 px-4 sm:mx-0 sm:px-0">
+                  {teams.map((t) => (
+                    <button
+                      key={t.slug}
+                      type="button"
+                      onClick={() => onSelectTeam(t.slug)}
+                      className={cn(
+                        "shrink-0 rounded-md px-2.5 py-1 text-[10px] font-medium transition-colors min-h-[40px] sm:min-h-0 flex items-center gap-1 cursor-pointer",
+                        activeSlug === t.slug
+                          ? "bg-card text-foreground font-semibold"
+                          : "text-muted-foreground/60 hover:text-muted-foreground hover:bg-card/40"
+                      )}
+                    >
+                      {t.name}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </div>
 
       {/* Head-to-Head Table */}
       <div className="overflow-x-auto -mx-4 sm:mx-0 sm:px-0">
-        <table className="w-full min-w-[540px] text-[11px] table-fixed">
+        <table className="w-full min-w-[500px] text-[11px] table-fixed">
           <thead>
             <tr className="text-muted-foreground/50 text-[9px] uppercase tracking-wider">
               <th
@@ -173,12 +215,11 @@ export function HeadToHeadTab({
                 </div>
               </th>
               <SortableTh label="GP" sortKey="gp" currentKey={sortKey} dir={sortDir} onToggle={toggleSort} />
-              <SortableTh label="Record" sortKey="record" currentKey={sortKey} dir={sortDir} onToggle={toggleSort} className="w-20 min-w-[70px]" />
+              <SortableTh label="Record" sortKey="record" currentKey={sortKey} dir={sortDir} onToggle={toggleSort} className="w-20" />
               <SortableTh label="PTS" sortKey="pts" currentKey={sortKey} dir={sortDir} onToggle={toggleSort} bold />
               <SortableTh label="GF" sortKey="gf" currentKey={sortKey} dir={sortDir} onToggle={toggleSort} />
               <SortableTh label="GA" sortKey="ga" currentKey={sortKey} dir={sortDir} onToggle={toggleSort} />
               <SortableTh label="+/-" sortKey="gd" currentKey={sortKey} dir={sortDir} onToggle={toggleSort} />
-              <SortableTh label="STRK" sortKey="streak" currentKey={sortKey} dir={sortDir} onToggle={toggleSort} />
             </tr>
           </thead>
           <tbody>
@@ -203,7 +244,7 @@ export function HeadToHeadTab({
                 </div>
               </td>
               <td className="text-center tabular-nums py-2.5 px-3 text-foreground font-semibold">{summary.gp}</td>
-              <td className="text-center tabular-nums py-2.5 px-3 text-foreground font-semibold">
+              <td className="text-center tabular-nums py-2.5 px-3 text-foreground font-semibold whitespace-nowrap">
                 {summary.w}-{summary.otw}-{summary.otl}-{summary.l}
               </td>
               <td className="text-center tabular-nums py-2.5 px-3 font-bold text-foreground">{summary.pts}</td>
@@ -212,15 +253,13 @@ export function HeadToHeadTab({
               <td className="text-center tabular-nums py-2.5 px-3 text-foreground font-semibold">
                 {summary.gd > 0 ? `+${summary.gd}` : summary.gd}
               </td>
-              <td className="text-center tabular-nums py-2.5 px-3 text-muted-foreground/60">—</td>
             </tr>
           </tfoot>
         </table>
       </div>
 
-      <div className="py-2 border-t border-border/20 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 text-[10px] text-muted-foreground/50">
+      <div className="py-2 border-t border-border/20 text-[10px] text-muted-foreground/50">
         <p>W=3pts, OTW=2pts, OTL=1pt, L=0pts</p>
-        <p>Click opponent row to view season series games</p>
       </div>
     </div>
   )
@@ -242,7 +281,6 @@ function OpponentRowsGroup({
       <tr
         onClick={onToggleExpand}
         tabIndex={0}
-        role="button"
         aria-expanded={isExpanded}
         onKeyDown={(e) => {
           if (e.target !== e.currentTarget) return
@@ -286,7 +324,7 @@ function OpponentRowsGroup({
           </div>
         </td>
         <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{row.gp}</td>
-        <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">
+        <td className="text-center tabular-nums py-2 px-3 text-muted-foreground whitespace-nowrap">
           {row.w}-{row.otw}-{row.otl}-{row.l}
         </td>
         <td className="text-center tabular-nums py-2 px-3 font-bold text-foreground">{row.pts}</td>
@@ -295,26 +333,13 @@ function OpponentRowsGroup({
         <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">
           {row.gd > 0 ? `+${row.gd}` : row.gd}
         </td>
-        <td className="text-center tabular-nums py-2 px-3">
-          <span
-            className={cn(
-              "font-semibold text-[10px]",
-              (row.streak.startsWith("W") || row.streak.startsWith("OTW")) && "text-emerald-500",
-              row.streak.startsWith("OTL") && "text-amber-500",
-              row.streak.startsWith("L") && "text-rose-500",
-              row.streak === "—" && "text-muted-foreground/40"
-            )}
-          >
-            {row.streak}
-          </span>
-        </td>
       </tr>
 
       {isExpanded && (
         <tr className="bg-muted/10 border-t border-b border-border/20">
-          <td colSpan={8} className="p-3 sm:p-4">
-            <div className="flex flex-col gap-2">
-              <div className="flex items-center justify-between text-[10px] font-semibold text-muted-foreground/70 uppercase tracking-wider">
+          <td colSpan={7} className="p-0">
+            <div className="sticky left-0 w-[calc(100vw-2rem)] sm:static sm:w-full px-4 py-2.5 sm:pl-6 sm:pr-3 flex flex-col">
+              <div className="flex items-center justify-between pb-1.5 text-[9px] font-medium text-muted-foreground/50 uppercase tracking-wider">
                 <span>
                   Season Series ({row.games.length} {row.games.length === 1 ? "game" : "games"})
                 </span>
@@ -323,89 +348,77 @@ function OpponentRowsGroup({
                 </span>
               </div>
               {row.games.length === 0 ? (
-                <p className="text-[11px] text-muted-foreground italic py-1">
+                <p className="text-[11px] text-muted-foreground italic py-1.5 border-t border-border/15">
                   No games scheduled or played this season.
                 </p>
               ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div className="divide-y divide-border/15 border-t border-border/15">
                   {row.games.map((g) => (
                     <Link
                       key={g.id}
                       href={`/game/${g.id}`}
-                      className="flex items-center justify-between p-2.5 rounded-lg bg-card/60 hover:bg-card border border-border/30 hover:border-border/60 transition-all text-[11px] group shadow-xs"
+                      className="flex items-center justify-between py-1.5 px-1 -mx-1 rounded-sm hover:bg-muted/40 transition-colors text-[11px] group"
                     >
-                      <div className="flex items-center gap-2 min-w-0">
-                        {/* Result Badge */}
-                        {(g.result === "W" || g.result === "OTW" || g.result === "OTL" || g.result === "L") && (
-                          <span
-                            className={cn(
-                              "px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wide uppercase shrink-0",
-                              g.result === "W" && "bg-emerald-500/15 text-emerald-400 border border-emerald-500/30",
-                              g.result === "OTW" && "bg-sky-500/15 text-sky-400 border border-sky-500/30",
-                              g.result === "OTL" && "bg-amber-500/15 text-amber-400 border border-amber-500/30",
-                              g.result === "L" && "bg-rose-500/15 text-rose-400 border border-rose-500/30"
-                            )}
-                          >
-                            {g.result}
-                          </span>
-                        )}
-                        {g.result === "LIVE" && (
-                          <span className="px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wide uppercase shrink-0 bg-red-500/20 text-red-400 border border-red-500/30 animate-pulse">
-                            LIVE
-                          </span>
-                        )}
-                        {g.result === "FINAL" && (
-                          <span className="px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wide uppercase shrink-0 bg-muted text-muted-foreground border border-border/40">
-                            FINAL
-                          </span>
-                        )}
-                        {g.result === "UPCOMING" && (
-                          <span className="px-1.5 py-0.5 rounded text-[9px] font-medium tracking-wide uppercase shrink-0 bg-muted text-muted-foreground border border-border/40">
-                            UPCOMING
-                          </span>
-                        )}
-
-                        <span className="text-muted-foreground font-medium shrink-0">
-                          {g.isHome ? "vs" : "@"}
-                        </span>
-                        <span className="font-semibold text-foreground truncate group-hover:text-primary transition-colors">
-                          {row.opponentTeam}
+                      <div className="flex items-center gap-3 min-w-0">
+                        <span className="text-[10px] text-muted-foreground/60 tabular-nums w-12 shrink-0">
+                          {formatGameDate(g.date)}
                         </span>
 
-                        {(g.isOvertime || g.hasShootout) && (
-                          <span className="text-[9px] text-muted-foreground/70 uppercase font-semibold">
-                            {g.hasShootout ? "(SO)" : "(OT)"}
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <span className="text-muted-foreground/70 font-medium w-4 shrink-0">
+                            {g.isHome ? "vs" : "@"}
                           </span>
-                        )}
-                        {g.isForfeit && (
-                          <span className="text-[9px] text-rose-400 uppercase font-semibold">
-                            (Forfeit)
+                          <span className="font-medium text-foreground truncate group-hover:text-primary transition-colors">
+                            {row.opponentTeam}
                           </span>
-                        )}
+                          {(g.isOvertime || g.hasShootout) && (
+                            <span className="text-[9px] text-muted-foreground/60 uppercase font-medium">
+                              {g.hasShootout ? "SO" : "OT"}
+                            </span>
+                          )}
+                          {g.isForfeit && (
+                            <span className="text-[9px] text-rose-400 uppercase font-medium">
+                              Forfeit
+                            </span>
+                          )}
+                        </div>
                       </div>
 
-                      <div className="flex items-center gap-2 shrink-0 text-right">
+                      <div className="flex items-center gap-2.5 shrink-0 text-right">
                         {g.status === "final" || g.status === "live" ? (
-                          <div className="flex items-center gap-1.5">
-                            <span className="font-bold tabular-nums text-foreground">
+                          <>
+                            {(g.result === "W" || g.result === "OTW" || g.result === "OTL" || g.result === "L") && (
+                              <span
+                                className={cn(
+                                  "text-[10px] font-semibold uppercase tracking-wide",
+                                  (g.result === "W" || g.result === "OTW") && "text-emerald-500",
+                                  g.result === "OTL" && "text-amber-500",
+                                  g.result === "L" && "text-rose-500"
+                                )}
+                              >
+                                {g.result}
+                              </span>
+                            )}
+                            {g.result === "LIVE" && (
+                              <span className="text-[9px] font-bold uppercase tracking-wide text-red-400 animate-pulse">
+                                LIVE
+                              </span>
+                            )}
+                            {g.result === "FINAL" && (
+                              <span className="text-[9px] font-medium uppercase tracking-wide text-muted-foreground">
+                                FINAL
+                              </span>
+                            )}
+                            <span className="font-semibold tabular-nums text-foreground w-10 text-right">
                               {g.status === "final" && (g.teamScore === null || g.opponentScore === null)
                                 ? "Final"
                                 : `${g.teamScore ?? 0} - ${g.opponentScore ?? 0}`}
                             </span>
-                            <span className="text-[10px] text-muted-foreground/60">
-                              {formatGameDate(g.date)}
-                            </span>
-                          </div>
+                          </>
                         ) : (
-                          <div className="text-[10px] text-muted-foreground flex items-center gap-1.5">
-                            <span>{formatGameDate(g.date)}</span>
-                            {g.time && <span className="font-medium">• {formatGameTime(g.time)}</span>}
-                            {g.location && (
-                              <span className="text-muted-foreground/60">
-                                • {g.location}
-                              </span>
-                            )}
-                          </div>
+                          <span className="text-muted-foreground/40 tabular-nums w-10 text-right">
+                            -
+                          </span>
                         )}
                       </div>
                     </Link>

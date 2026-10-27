@@ -16,11 +16,17 @@ export function StandingsContent({ initialData }: { initialData?: BashApiData })
 
   const { games, standings, isLoading } = useBashData(season, initialData)
 
-  const initialView = searchParams.get("view") === "h2h" ? "h2h" : "standings"
-  const initialTeam = searchParams.get("team") || undefined
+  const paramView = searchParams.get("view") === "h2h" ? "h2h" : "standings"
+  const paramTeam = searchParams.get("team") || undefined
 
-  const [view, setView] = useState<"standings" | "h2h">(initialView)
-  const [selectedTeam, setSelectedTeam] = useState<string | undefined>(initialTeam)
+  const [view, setView] = useState<"standings" | "h2h">(paramView)
+  const [selectedTeam, setSelectedTeam] = useState<string | undefined>(paramTeam)
+
+  // Sync state when Next.js client navigation updates searchParams (e.g. clicking SiteHeader "Standings" link)
+  useEffect(() => {
+    setView(paramView)
+    setSelectedTeam(paramTeam)
+  }, [paramView, paramTeam])
 
   // Listen for browser Back / Forward navigation
   useEffect(() => {
@@ -154,7 +160,7 @@ export function StandingsContent({ initialData }: { initialData?: BashApiData })
       {view === "h2h" ? (
         <HeadToHeadTab
           games={games}
-          standings={standings}
+          standings={availableTeams}
           isLoading={isLoading}
           selectedTeamSlug={selectedTeam}
           onSelectTeam={handleSelectTeam}

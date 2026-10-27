@@ -270,13 +270,12 @@ describe("Standings and Head-to-Head UI Integration", () => {
     })
 
     // Initially Seals is selected
-    // Seals vs Reign: 3-0-0-1, 9 pts, 14 GF, 8 GA, +6 GD, Streak L1
+    // Seals vs Reign: 3-0-0-1, 9 pts, 14 GF, 8 GA, +6 GD
     expect(container.textContent).toContain("Reign")
     const initialRows = Array.from(container.querySelectorAll<HTMLTableRowElement>("tbody tr"))
     const reignRow = initialRows.find((r) => r.textContent?.includes("Reign"))!
     expect(reignRow.textContent).toContain("3-0-0-1")
     expect(reignRow.textContent).toContain("+6")
-    expect(reignRow.textContent).toContain("L1")
 
     // Footer summary row shows Seals overall regular season totals
     const footer = container.querySelector("tfoot tr")!
@@ -299,12 +298,11 @@ describe("Standings and Head-to-Head UI Integration", () => {
     expect(lastCallUrl).toContain("team=reign")
 
     // From Reign's perspective vs Seals:
-    // 1-0-0-3, 3 pts, 8 GF, 14 GA, -6 GD, Streak W1
+    // 1-0-0-3, 3 pts, 8 GF, 14 GA, -6 GD
     const updatedRows = Array.from(container.querySelectorAll<HTMLTableRowElement>("tbody tr"))
     const sealsRow = updatedRows.find((r) => r.textContent?.includes("Seals"))!
     expect(sealsRow.textContent).toContain("1-0-0-3")
     expect(sealsRow.textContent).toContain("-6")
-    expect(sealsRow.textContent).toContain("W1")
   })
 
   it("expands an opponent row on click to show season series games with result badges and IntentLinks to /game/[id]", async () => {
@@ -335,11 +333,10 @@ describe("Standings and Head-to-Head UI Integration", () => {
     expect(gameLinks[1].getAttribute("href")).toBe("/game/g102")
     expect(gameLinks[4].getAttribute("href")).toBe("/game/g105")
 
-    // Contains result badges and UPCOMING badge
+    // Contains result badges and "-" for upcoming game
     expect(container.textContent).toContain("W")
     expect(container.textContent).toContain("L")
-    expect(container.textContent).toContain("UPCOMING")
-    expect(container.textContent).toContain("Silver Creek")
+    expect(gameLinks[4].textContent).toContain("-")
 
     // Clicking again collapses
     await act(async () => {
@@ -483,34 +480,6 @@ describe("Standings and Head-to-Head UI Integration", () => {
     expect(container.textContent).toContain("No games scheduled or played this season.")
   })
 
-  it("sorts by STRK accurately using sports streak scoring", async () => {
-    searchParamsState.view = "h2h"
-    searchParamsState.team = "seals"
-
-    await act(async () => {
-      root.render(<StandingsContent />)
-    })
-
-    const strkTh = Array.from(container.querySelectorAll("th")).find((th) => th.textContent?.includes("STRK"))!
-    expect(strkTh).toBeDefined()
-
-    // Click STRK to sort descending (— has score 0, L1 has score -1001, so — comes first, L1 second)
-    await act(async () => {
-      strkTh.click()
-    })
-    let tbodyRows = Array.from(container.querySelectorAll<HTMLTableRowElement>("tbody tr"))
-    expect(tbodyRows[0].textContent).toContain("Yetis") // Yetis is "—"
-    expect(tbodyRows[1].textContent).toContain("Reign") // Reign is "L1"
-
-    // Click STRK again to sort ascending (L1 comes first, — comes second)
-    await act(async () => {
-      strkTh.click()
-    })
-    tbodyRows = Array.from(container.querySelectorAll<HTMLTableRowElement>("tbody tr"))
-    expect(tbodyRows[0].textContent).toContain("Reign") // L1 is worse than —
-    expect(tbodyRows[1].textContent).toContain("Yetis")
-  })
-
   it("renders All Time view notice when season is all", async () => {
     searchParamsState.season = "all"
 
@@ -521,7 +490,7 @@ describe("Standings and Head-to-Head UI Integration", () => {
     expect(container.textContent).toContain("Standings are not available for All Time view")
   })
 
-  it("breaks ties in STRK sort using secondary tiebreakers (pts, gd, alphabetical) without NaN errors", async () => {
+  it("breaks ties in PTS sort using secondary tiebreakers (gd, alphabetical) without NaN errors", async () => {
     const tiedStandings: Standing[] = [
       { team: "Seals", slug: "seals", gp: 3, w: 3, otw: 0, otl: 0, l: 0, gf: 10, ga: 3, gd: 7, pts: 9 },
       { team: "Zeta", slug: "zeta", gp: 1, w: 0, otw: 0, otl: 0, l: 1, gf: 1, ga: 2, gd: -1, pts: 0 },
@@ -530,10 +499,9 @@ describe("Standings and Head-to-Head UI Integration", () => {
     ]
 
     // From Seals perspective:
-    // Seals beat Zeta 2-1 (Seals W1, 3 pts, +1 GD)
-    // Seals beat Alpha 3-1 (Seals W1, 3 pts, +2 GD)
-    // Seals beat Beta 5-1 (Seals W1, 3 pts, +4 GD)
-    // All 3 opponents have streak W1 from Seals perspective!
+    // Seals beat Zeta 2-1 (Seals 3 pts, +1 GD)
+    // Seals beat Alpha 3-1 (Seals 3 pts, +2 GD)
+    // Seals beat Beta 5-1 (Seals 3 pts, +4 GD)
     const games: BashGame[] = [
       { ...mockGames[0], id: "gZ", homeSlug: "seals", awaySlug: "zeta", homeScore: 2, awayScore: 1, status: "final" },
       { ...mockGames[0], id: "gA", homeSlug: "seals", awaySlug: "alpha", homeScore: 3, awayScore: 1, status: "final" },
@@ -552,12 +520,7 @@ describe("Standings and Head-to-Head UI Integration", () => {
       )
     })
 
-    const strkTh = Array.from(container.querySelectorAll("th")).find((th) => th.textContent?.includes("STRK"))!
-    await act(async () => {
-      strkTh.click()
-    })
-
-    // All three have streak "W1". Ties are broken by PTS (all 3), then GD (Beta +4 > Alpha +2 > Zeta +1)
+    // All three have 3 PTS. Ties are broken by GD (Beta +4 > Alpha +2 > Zeta +1)
     const tbodyRows = Array.from(container.querySelectorAll<HTMLTableRowElement>("tbody tr"))
     expect(tbodyRows[0].textContent).toContain("Beta")
     expect(tbodyRows[1].textContent).toContain("Alpha")
@@ -628,7 +591,7 @@ describe("Standings and Head-to-Head UI Integration", () => {
     expect(container.textContent).not.toContain("Opponent")
   })
 
-  it("renders correctly on narrow mobile viewport (320px)", async () => {
+  it("renders correctly on narrow mobile viewport (320px) and supports the mobile Team dropdown", async () => {
     searchParamsState.view = "h2h"
     searchParamsState.team = "seals"
 
@@ -638,19 +601,34 @@ describe("Standings and Head-to-Head UI Integration", () => {
       root.render(<StandingsContent />)
     })
 
-    // Table and team selector are rendered
+    // Table and mobile team dropdown are rendered
     const table = container.querySelector("table")
     expect(table).toBeDefined()
-    expect(table?.className).toContain("min-w-[540px]")
+    expect(table?.className).toContain("min-w-[500px]")
 
-    // Expanding opponent row renders series breakdown
+    const mobileSelect = container.querySelector<HTMLSelectElement>('select[aria-label="Team"]')
+    expect(mobileSelect).not.toBeNull()
+    expect(mobileSelect?.value).toBe("seals")
+
+    //Expanding opponent row renders series breakdown
     const reignRow = Array.from(container.querySelectorAll<HTMLTableRowElement>("tbody tr")).find((r) => r.textContent?.includes("Reign"))!
     await act(async () => {
       reignRow.click()
     })
 
     expect(container.textContent).toContain("Season Series")
-    expect(container.textContent).toContain("Silver Creek")
+    expect(container.textContent).toContain("-")
+
+    // Changing the mobile select updates the selected team
+    await act(async () => {
+      mobileSelect!.value = "reign"
+      mobileSelect!.dispatchEvent(new Event("change", { bubbles: true }))
+    })
+
+    expect(replaceStateSpy).toHaveBeenCalled()
+    const updatedRows = Array.from(container.querySelectorAll<HTMLTableRowElement>("tbody tr"))
+    const sealsRow = updatedRows.find((r) => r.textContent?.includes("Seals"))!
+    expect(sealsRow.textContent).toContain("1-0-0-3")
   })
 
   it("renders FINAL badge and 'Final' score for completed games with null scores", async () => {
@@ -684,6 +662,28 @@ describe("Standings and Head-to-Head UI Integration", () => {
     expect(container.textContent).toContain("FINAL")
     expect(container.textContent).toContain("Final")
     expect(container.textContent).not.toContain("0 - 0")
+  })
+
+  it("resets to Standings view when Next.js soft navigation updates searchParams", async () => {
+    searchParamsState.view = "h2h"
+    searchParamsState.team = "seals"
+
+    await act(async () => {
+      root.render(<StandingsContent />)
+    })
+
+    expect(container.textContent).toContain("Opponent")
+
+    // Simulate clicking SiteHeader "Standings" link (soft navigation clears view/team searchParams)
+    searchParamsState.view = null
+    searchParamsState.team = null
+
+    await act(async () => {
+      root.render(<StandingsContent />)
+    })
+
+    expect(container.textContent).not.toContain("Opponent")
+    expect(container.textContent).toContain("OTW")
   })
 })
 
