@@ -9,6 +9,7 @@ import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip
 import { Trophy, Star, Award } from "lucide-react"
 import { getAwardLabel } from "@/lib/awards"
 import { GameTypeBadge } from "@/components/game-type-badge"
+import { TeamLogo } from "@/components/team-logo"
 
 export function PlayerPageContent({ player }: { player: PlayerDetail }) {
   const hasSkaterData = player.perSeasonStats.length > 0 || player.allTimeStats
@@ -22,7 +23,8 @@ export function PlayerPageContent({ player }: { player: PlayerDetail }) {
     <div className="flex flex-col gap-8">
       <div>
         <h1 className="text-2xl font-black tracking-tight">{player.name}</h1>
-        <Link href={`/team/${player.teamSlug}`} className="text-sm text-muted-foreground hover:text-primary transition-colors">
+        <Link href={`/team/${player.teamSlug}`} className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-primary transition-colors">
+          <TeamLogo slug={player.teamSlug} name={player.team} size={24} />
           {player.team}
         </Link>
         {(player.hallOfFame || player.championships.length > 0 || player.awards.length > 0) && (
