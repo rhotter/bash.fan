@@ -13,11 +13,16 @@ export function SeasonSelector() {
   const currentSeason = searchParams.get("season") || ""
 
   const onChange = useCallback((value: string) => {
-    const params = new URLSearchParams(searchParams.toString())
+    const currentSearch = typeof window !== "undefined" ? window.location.search : searchParams.toString()
+    const params = new URLSearchParams(currentSearch)
     if (value) {
       params.set("season", value)
     } else {
       params.delete("season")
+    }
+    if (value !== "all") {
+      params.delete("gameType")
+      params.delete("seasonType")
     }
     const qs = params.toString()
     router.push(qs ? `${pathname}?${qs}` : pathname, { scroll: false })

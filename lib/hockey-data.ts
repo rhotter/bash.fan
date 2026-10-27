@@ -1,13 +1,27 @@
 import { fetchApi as fetch, readApiJson, errorMessage } from "@/lib/api-errors"
 import useSWR from "swr"
 import type { BashApiData, BashGame, Standing } from "@/app/api/bash/route"
-import type { PlayerStatsData, SkaterStat, GoalieStat } from "@/app/api/bash/players/route"
+import type { PlayerStatsData, SkaterStat, GoalieStat, TeamSkaterStat, TeamGoalieStat, TeamStatsData } from "@/app/api/bash/players/route"
 import type { RefStatsData, RefStat } from "@/app/api/bash/refs/route"
 import type { BashGameDetail } from "@/app/api/bash/game/[id]/route"
 import type { SeasonsData } from "@/app/api/bash/seasons/route"
 import { REFRESH, DEDUPE } from "@/lib/sync-config"
 
-export type { BashApiData, BashGame, Standing, PlayerStatsData, SkaterStat, GoalieStat, RefStatsData, RefStat, BashGameDetail, SeasonsData }
+export type {
+  BashApiData,
+  BashGame,
+  Standing,
+  PlayerStatsData,
+  SkaterStat,
+  GoalieStat,
+  TeamSkaterStat,
+  TeamGoalieStat,
+  TeamStatsData,
+  RefStatsData,
+  RefStat,
+  BashGameDetail,
+  SeasonsData,
+}
 
 const fetcher = (url: string) => fetch(url).then((res) => readApiJson(res))
 
@@ -58,6 +72,8 @@ export function usePlayerStats(season?: string, fallbackData?: PlayerStatsData, 
     goalies: data?.goalies ?? [],
     skatersByTeam: data?.skatersByTeam,
     goaliesByTeam: data?.goaliesByTeam,
+    teamSkaters: data?.teamSkaters ?? [],
+    teamGoalies: data?.teamGoalies ?? [],
     teams: data?.teams ?? [],
     hasPlayoffs: data?.hasPlayoffs ?? false,
     lastUpdated: data?.lastUpdated ?? null,
