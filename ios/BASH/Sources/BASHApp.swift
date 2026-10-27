@@ -237,7 +237,10 @@ struct LeagueRoot: View {
             }
             .frame(height: weekLabelHeight + 34)
             .scrollBounceBehavior(.basedOnSize, axes: .vertical)
-            .onChange(of: activeWeek?.id, initial: true) {
+            .onAppear {
+                if let id = activeWeek?.id { proxy.scrollTo(id, anchor: .center) }
+            }
+            .onChange(of: activeWeek?.id) {
                 if let id = activeWeek?.id {
                     withAnimation(.easeInOut(duration: 0.2)) { proxy.scrollTo(id, anchor: .center) }
                 }
@@ -645,7 +648,9 @@ private struct SeasonMenu: View {
         self.store = store; self.allowsAllTime = allowsAllTime; self._allTime = allTime
     }
     private var seasonName: String {
-        allTime ? "All time" : (store.seasons.first(where: { store.selectedSeason.isEmpty ? $0.isCurrent : $0.id == store.selectedSeason })?.name ?? "Current season")
+        if allTime { return "All time" }
+        if store.selectedSeason.isEmpty { return "Current season" }
+        return store.seasons.first(where: { $0.id == store.selectedSeason })?.name ?? "Current season"
     }
 
     var body: some View {
