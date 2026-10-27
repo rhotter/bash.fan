@@ -57,7 +57,7 @@ The filter bar behaves contextually depending on whether a single season or All-
     - **Season Type Filter**: Dropdown with `Fall`, `Summer`, `All`.
     - **Team Search Filter**: Text search input with `placeholder="Search teams or seasons..."` allowing instant filtering by team name, team slug (including hyphenated slugs like `no-regretzkys`), formatted season name (with hyphen/en-dash normalization), or season ID (e.g. `2024-summer`). Search inputs with leading or trailing whitespace are trimmed automatically to prevent zero-result false negatives.
     - **Finish Filter**: Dropdown (`All`, `Champions`, `Champs + Finalists`) filtering All-Time team-season rows to championship winners (`isChampion`) or championship game participants (`isChampion || isFinalist`).
-    - **Franchise Filter**: Dropdown (`All`, plus all active franchises from `season_teams.franchise_slug` $\rightarrow$ `franchises`) filtering All-Time team-season rows by `franchiseSlug`.
+    - **Franchise Filter**: Dropdown (`All`, plus all active franchises from `season_teams.franchise_slug` $\rightarrow$ `franchises`) filtering All-Time team-season rows by `franchiseSlug`. Hidden when `Season Type` is `Summer`.
     - **Min TGP Filter**: Numeric input (`Min TGP`) defaulting to `12` games for Fall/All seasons, `8` games when Summer (`seasonType === "summer"`) is selected, and `2` games when Playoffs (`gameType === "playoffs"`) is selected, filtering All-Time team-season rows by `gp >= minTeamGames`.
     - **Omitted Filters**: The single-season Team filter and individual player `Min Games` filter are omitted on the Teams view.
 

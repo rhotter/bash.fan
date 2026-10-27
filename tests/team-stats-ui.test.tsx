@@ -492,6 +492,12 @@ describe("StatsTab - Teams View UI", () => {
     })
     expect(tables[0].querySelectorAll("tbody tr")).toHaveLength(1)
     expect(tables[0].textContent).toContain("Team 28")
+
+    // When Season Type is "summer", Franchise filter is hidden
+    route.seasonType = "summer"
+    await act(async () => root.render(<StatsTab />))
+    expect(container.textContent).not.toContain("Franchise")
+    route.seasonType = "fall"
   })
 
   it("renders Game Type dropdown in the filter bar in single-season Teams view when playoffs exist and allows switching", async () => {

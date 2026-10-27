@@ -63,6 +63,9 @@ export function StatsTab({ initialData }: { initialData?: PlayerStatsData }) {
 
   useEffect(() => {
     setMinTeamGames(getDefaultMinTeamGames(gameType, seasonType))
+    if (seasonType === "summer") {
+      setFranchiseFilter("all")
+    }
   }, [gameType, seasonType])
 
   useEffect(() => {
@@ -184,7 +187,7 @@ export function StatsTab({ initialData }: { initialData?: PlayerStatsData }) {
       } else if (resultFilter === "finalists") {
         list = list.filter((t) => t.isChampion === true || t.isFinalist === true)
       }
-      if (franchiseFilter !== "all") {
+      if (seasonType !== "summer" && franchiseFilter !== "all") {
         list = list.filter((t) => t.franchiseSlug === franchiseFilter)
       }
     }
@@ -211,7 +214,7 @@ export function StatsTab({ initialData }: { initialData?: PlayerStatsData }) {
         ? (bv - av || ptsTiebreaker || goalsTiebreaker || stableTiebreaker)
         : (av - bv || ptsTiebreaker || goalsTiebreaker || stableTiebreaker)
     }).map((t, index) => ({ ...t, rank: index + 1 }))
-  }, [teamSkaters, teamSkaterSortKey, teamSkaterSortDir, season, tab, minTeamGames, resultFilter, franchiseFilter])
+  }, [teamSkaters, teamSkaterSortKey, teamSkaterSortDir, season, seasonType, tab, minTeamGames, resultFilter, franchiseFilter])
 
   const rankedTeamGoalies = useMemo(() => {
     let list = teamGoalies
@@ -223,7 +226,7 @@ export function StatsTab({ initialData }: { initialData?: PlayerStatsData }) {
       } else if (resultFilter === "finalists") {
         list = list.filter((t) => t.isChampion === true || t.isFinalist === true)
       }
-      if (franchiseFilter !== "all") {
+      if (seasonType !== "summer" && franchiseFilter !== "all") {
         list = list.filter((t) => t.franchiseSlug === franchiseFilter)
       }
     }
@@ -250,7 +253,7 @@ export function StatsTab({ initialData }: { initialData?: PlayerStatsData }) {
         ? (bv - av || svTiebreaker || gaaTiebreaker || stableTiebreaker)
         : (av - bv || svTiebreaker || gaaTiebreaker || stableTiebreaker)
     }).map((t, index) => ({ ...t, rank: index + 1 }))
-  }, [teamGoalies, teamGoalieSortKey, teamGoalieSortDir, season, tab, minTeamGames, resultFilter, franchiseFilter])
+  }, [teamGoalies, teamGoalieSortKey, teamGoalieSortDir, season, seasonType, tab, minTeamGames, resultFilter, franchiseFilter])
 
   // Search hides rows without changing their position in the full ranking.
   const filteredSkaters = useMemo(() => rankedSkaters.filter((player) => player.name.toLowerCase().includes(nameLower)), [rankedSkaters, nameLower])
@@ -505,7 +508,7 @@ export function StatsTab({ initialData }: { initialData?: PlayerStatsData }) {
                       </select>
                     </div>
 
-                    {availableFranchises.length > 0 && (
+                    {seasonType !== "summer" && availableFranchises.length > 0 && (
                       <div className="flex flex-col gap-1.5 w-[100px] sm:w-28">
                         <span className="text-[9px] uppercase tracking-wider text-muted-foreground/50 font-bold pl-0.5">Franchise</span>
                         <select
