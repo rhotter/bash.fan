@@ -4,7 +4,13 @@ import { isLegacyTeamSlug } from "@/lib/team-filters"
 export function computeStandings(games: BashGame[]): Standing[] {
   const teamMap = new Map<string, Standing>()
 
-  const regularGames = games.filter((g) => g.gameType === "regular" && !g.isPlayoff)
+  const regularGames = games.filter(
+    (g) =>
+      g.gameType === "regular" &&
+      !g.isPlayoff &&
+      !isLegacyTeamSlug(g.homeSlug) &&
+      !isLegacyTeamSlug(g.awaySlug)
+  )
 
   for (const game of regularGames) {
     if (!teamMap.has(game.homeSlug)) {
@@ -33,7 +39,7 @@ export function computeStandings(games: BashGame[]): Standing[] {
     away.gf += game.awayScore; away.ga += game.homeScore
 
     if (game.homeScore > game.awayScore) {
-      if (game.isOvertime) {
+      if (game.isOvertime || game.hasShootout) {
         home.otw++; home.pts += 2
         away.otl++; away.pts += 1
       } else {
@@ -41,7 +47,7 @@ export function computeStandings(games: BashGame[]): Standing[] {
         away.l++
       }
     } else {
-      if (game.isOvertime) {
+      if (game.isOvertime || game.hasShootout) {
         away.otw++; away.pts += 2
         home.otl++; home.pts += 1
       } else {
