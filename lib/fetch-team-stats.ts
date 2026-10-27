@@ -1,5 +1,6 @@
 import { rawSql } from "@/lib/db"
 import { sql } from "drizzle-orm"
+import { getCurrentSeason } from "@/lib/seasons"
 import { filterLegacyTeams, isLegacyTeamSlug } from "@/lib/team-filters"
 import { DEFAULT_GAME_LENGTH_MIN, computeGaa } from "@/lib/game-rules"
 import { formatSeasonName, compareTeamSeasonDesc } from "@/lib/season-name"
@@ -94,22 +95,25 @@ export async function fetchTeamStats(
   let seasonGameLength = DEFAULT_GAME_LENGTH_MIN
 
   if (!isAllTime) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let seasonRows: any[]
-    if (seasonId) {
-      seasonRows = await rawSql(sql`SELECT id, name, game_length, stats_only FROM seasons WHERE id = ${seasonId}`)
-    } else {
-      seasonRows = await rawSql(sql`SELECT id, name, game_length, stats_only FROM seasons WHERE is_current = true ORDER BY id DESC LIMIT 1`)
-      if (seasonRows.length === 0) {
-        seasonRows = await rawSql(sql`SELECT id, name, game_length, stats_only FROM seasons ORDER BY id DESC LIMIT 1`)
+    if (!resolvedSeasonId) {
+      try {
+        const currentSeason = await getCurrentSeason()
+        resolvedSeasonId = currentSeason.id
+        seasonName = formatSeasonName(currentSeason.name || currentSeason.id)
+        statsOnly = currentSeason.statsOnly === true
+      } catch {
+        resolvedSeasonId = null
       }
     }
-    if (seasonRows.length > 0) {
-      resolvedSeasonId = seasonRows[0].id
-      seasonName = formatSeasonName(seasonRows[0].name || seasonRows[0].id)
-      statsOnly = seasonRows[0].stats_only === true
-      if (seasonRows[0].game_length) {
-        seasonGameLength = Number(seasonRows[0].game_length) || DEFAULT_GAME_LENGTH_MIN
+    if (resolvedSeasonId) {
+      const seasonRows = await rawSql(sql`SELECT id, name, game_length, stats_only FROM seasons WHERE id = ${resolvedSeasonId}`)
+      if (seasonRows.length > 0) {
+        resolvedSeasonId = seasonRows[0].id
+        seasonName = formatSeasonName(seasonRows[0].name || seasonRows[0].id)
+        statsOnly = seasonRows[0].stats_only === true
+        if (seasonRows[0].game_length) {
+          seasonGameLength = Number(seasonRows[0].game_length) || DEFAULT_GAME_LENGTH_MIN
+        }
       }
     }
   }

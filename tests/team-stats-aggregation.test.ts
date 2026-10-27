@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   rawSql: vi.fn(),
   query: vi.fn(),
   statsOnly: vi.fn(),
+  currentSeason: vi.fn(),
 }))
 
 vi.mock("@/lib/db", async () => {
@@ -23,7 +24,7 @@ vi.mock("@/lib/db", async () => {
 
 vi.mock("@/lib/seasons", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/seasons")>()),
-  getCurrentSeason: async () => ({ id: "bash-2026-2027", name: "Fall 2026" }),
+  getCurrentSeason: () => mocks.currentSeason(),
   getAllSeasons: async () => [{ id: "bash-2026-2027", name: "Fall 2026" }],
   isStatsOnlySeason: (seasonId: string) => mocks.statsOnly(seasonId),
 }))
@@ -34,6 +35,7 @@ describe("fetchTeamStats aggregation logic", () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.statsOnly.mockResolvedValue(false)
+    mocks.currentSeason.mockResolvedValue({ id: "bash-2026-2027", name: "Fall 2026", statsOnly: false })
   })
 
   it("calculates distinct team GP, PTS/G, and includes substitute and traded player stats in single-season mode", async () => {
@@ -345,8 +347,9 @@ describe("fetchTeamStats aggregation logic", () => {
   })
 
   it("resolves default current season and assigns resolved seasonId when season parameter is omitted", async () => {
+    mocks.currentSeason.mockResolvedValue({ id: "bash-current-2026", name: "Summer 2026", statsOnly: false })
     mocks.rawSql.mockImplementation(async ({ sql }: Query) => {
-      if (sql.includes("WHERE is_current = true")) {
+      if (sql.includes("FROM seasons WHERE id =")) {
         return [{ id: "bash-current-2026", name: "Summer 2026", game_length: 60, stats_only: false }]
       }
       if (sql.includes("FROM season_teams st")) {
@@ -414,6 +417,7 @@ describe("fetchTeamStats aggregation logic", () => {
   })
 
   it("handles empty database where no seasons exist without throwing, keeping seasonId undefined", async () => {
+    mocks.currentSeason.mockRejectedValue(new Error("No seasons configured in the database."))
     mocks.rawSql.mockImplementation(async ({ sql }: Query) => {
       if (sql.includes("FROM seasons")) return []
       if (sql.includes("FROM season_teams st")) return [{ slug: "yetis", name: "Yetis" }]
