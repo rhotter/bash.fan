@@ -151,8 +151,10 @@ html body[data-scroll-locked] {
 }
 
 .team-logo-artwork {
-  filter: drop-shadow(-0.5px 0 0 white) drop-shadow(0.5px 0 0 white)
-    drop-shadow(0 -0.5px 0 white) drop-shadow(0 0.5px 0 white);
+  /* Whole-pixel offsets keep the outline visible in iPhone Safari, including
+     when the badge is scaled down. Subpixel offsets can round down to zero. */
+  filter: drop-shadow(-1px 0 0 white) drop-shadow(1px 0 0 white)
+    drop-shadow(0 -1px 0 white) drop-shadow(0 1px 0 white);
 }
 
 @media (prefers-reduced-transparency: reduce) {
