@@ -322,7 +322,6 @@ struct LeagueRoot: View {
 
     @ViewBuilder private var statusSection: some View {
         if let error = store.error { Text(error).font(.footnote).foregroundStyle(.secondary) }
-        if store.cached { Label("Saved scores · may be out of date", systemImage: "wifi.slash").font(.caption).foregroundStyle(.secondary) }
     }
 
     private var standingsScreen: some View {
