@@ -90,7 +90,8 @@ Each page follows: async Server Component (data fetch via `React.cache` / `lib/c
 - `lib/draft-trade-resolver.ts` — Chain trade resolution engine
 - `lib/trade-helpers.ts` — Mid-season trade payload validation (2-team and N-team circular trades, Fall target season resolution, and round-based acquired pick provenance)
 - `lib/schedule-utils.ts` — Round-robin and playoff bracket generation, Berger tables, and simulated annealing equity optimizer (home/away, intra-day time slots)
-- `components/` — Page-level components (scores-tab, standings-tab, stats-tab, etc.)
+- `lib/standings.ts` & `lib/head-to-head.ts` — Regular-season standings (`computeStandings`) and pairwise head-to-head series computation (`computeHeadToHead`)
+- `components/` — Page-level components (scores-tab, standings-tab, head-to-head-tab, stats-tab, etc.)
 - `components/intent-link.tsx` — Link wrapper that prefetches full RSC payloads (`PrefetchKind.FULL`) on hover/focus/touch
 - `components/loading-state.tsx` & `components/page-loading.tsx` — Standardized skeleton loading states and action spinners
 - `components/site-banner.tsx` — Responsive public site banner with protected countdown truncation
@@ -103,13 +104,13 @@ Each page follows: async Server Component (data fetch via `React.cache` / `lib/c
 
 ### Standings Computation
 
-Standings are computed from the games array (not stored): W=3pts, OTW=2pts, OTL=1pt, L=0pts. Sorted by points → goal diff → goals for. Regular season only (playoff games filtered out).
+Standings (`lib/standings.ts`) and pairwise Head-to-Head breakdowns (`lib/head-to-head.ts`) are computed from the regular-season games array (not stored): W=3pts, OTW=2pts, OTL=1pt, L=0pts. Standings are sorted by points → goal diff → goals for. Regular season only (playoff and exhibition games filtered out).
 
 ### URL Structure
 
 - `/` — Home (scores grouped by date/week)
 - `/register` — Player registration flow (temporary — will be removed)
-- `/standings`, `/stats` — List pages filtered by `?season=YYYY-YYYY`
+- `/standings`, `/stats` — List pages filtered by `?season=YYYY-YYYY` (`/standings` also supports `?view=h2h&team=<slug>` for Head to Head)
 - `/player/[slug]`, `/team/[slug]`, `/game/[id]` — Detail pages
 - `/draft/[season]` — Public draft board (e.g., `/draft/2026-summer`)
 - `/scorekeeper/[id]` — Live game scorekeeper
