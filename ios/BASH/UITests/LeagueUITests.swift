@@ -1,6 +1,23 @@
 import XCTest
 
 final class LeagueUITests: XCTestCase {
+    @MainActor func testStandingsWholeRowTapsAndImmediateReopen() throws {
+        let app = XCUIApplication()
+        app.launch()
+        app.tabBars.buttons["Standings"].tap()
+        let row = app.buttons["standings-team-yetis"]
+        XCTAssertTrue(row.waitForExistence(timeout: 30))
+        capture("Standings full row tap targets")
+        // Exercise padding and the empty gap before points, not just visible text.
+        for point in [CGVector(dx: 0.8, dy: 0.5), CGVector(dx: 0.5, dy: 0.05), CGVector(dx: 0.02, dy: 0.5)] {
+            row.coordinate(withNormalizedOffset: point).tap()
+            XCTAssertTrue(app.navigationBars["Yetis"].waitForExistence(timeout: 3))
+            capture("Standings team opens from row space")
+            app.navigationBars["Yetis"].buttons.firstMatch.tap()
+            XCTAssertTrue(row.waitForExistence(timeout: 3))
+        }
+    }
+
     @MainActor func testStatsSearchButton() throws {
         let app = XCUIApplication()
         app.launch()

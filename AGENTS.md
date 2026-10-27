@@ -2,6 +2,10 @@
 
 This file is the shared source of instructions for coding agents working in this repository.
 
+## Task Completion
+
+When a task is requested by Raffi, commit and push the task's changes when finished, after appropriate validation, unless Raffi explicitly asks otherwise. Include only changes belonging to the task and preserve unrelated worktree edits.
+
 ## Project Overview
 
 Bay Area Street Hockey (BASH) league stats website. Displays scores, standings, player stats, game details, and live draft boards. Data is synced daily from Sportability (external API) into a Neon Postgres database.

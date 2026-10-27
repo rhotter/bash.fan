@@ -356,6 +356,7 @@ struct LeagueRoot: View {
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .foregroundStyle(.primary)
                                 .padding(12)
+                                .contentShape(Rectangle())
                             } else {
                                 HStack(spacing: 10) {
                                     Text("\(rank + 1)")
@@ -374,8 +375,10 @@ struct LeagueRoot: View {
                                     Spacer(minLength: 8)
                                     statColumn("\(team.pts)").fontWeight(.semibold).foregroundStyle(.primary)
                                 }.font(.subheadline).monospacedDigit().padding(.horizontal, 12).padding(.vertical, 10)
+                                    .contentShape(Rectangle())
                             }
                         }.buttonStyle(.plain)
+                            .accessibilityIdentifier("standings-team-\(team.slug)")
                         if rank < (store.snapshot?.standings.count ?? 0) - 1 { Divider() }
                     }
                 }.background(LeagueStyle.card, in: RoundedRectangle(cornerRadius: 18))
