@@ -1036,8 +1036,7 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
                       <div key={team.teamSlug}>
                         {/* Team header */}
                         <div
-                          className="flex items-center gap-2.5 mb-2 pb-1.5 border-b-2"
-                          style={{ borderBottomColor: team.color || "#94a3b8" }}
+                          className="flex items-center gap-2.5 mb-2 pb-1.5 border-b-2 border-border"
                         >
                           <div className="shrink-0 w-7 h-7 md:w-14 md:h-14">
                             <TeamLogo slug={team.teamSlug} name={team.teamName} size={56} className="!w-full !h-full object-contain" />
@@ -1126,7 +1125,7 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
                                   <span className="relative hidden md:inline shrink-0 text-[10px] font-medium text-muted-foreground tabular-nums w-16 text-right truncate" title={skillLevel}>
                                     {skillLevel || "—"}
                                   </span>
-                                  <span className={`relative hidden md:inline shrink-0 text-[10px] font-medium tabular-nums w-8 text-center ${playoffShort === "Y" ? "text-green-600" : playoffShort === "N" ? "text-red-500" : "text-muted-foreground"}`} title={playoffAvail}>
+                                  <span className="relative hidden md:inline shrink-0 text-[10px] font-medium text-muted-foreground tabular-nums w-8 text-center" title={playoffAvail}>
                                     {playoffShort}
                                   </span>
                                 </div>
