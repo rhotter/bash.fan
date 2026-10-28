@@ -183,6 +183,22 @@ describe("fetchTeamStats aggregation logic", () => {
     expect(goalieQuery!.sql).toContain("COALESCE(ggs.team_slug, ps.team_slug)")
   })
 
+  it("filters season teams without a franchise only for fall seasons", async () => {
+    mocks.rawSql.mockResolvedValue([])
+
+    const seasonTeamsQuery = () =>
+      mocks.rawSql.mock.calls
+        .map(([query]) => query as Query)
+        .find((q) => q.sql.includes("FROM season_teams st"))
+
+    await fetchTeamStats("bash-2026-2027", false, "fall")
+    expect(seasonTeamsQuery()!.sql).toContain("st.franchise_slug IS NOT NULL")
+
+    mocks.rawSql.mockClear()
+    await fetchTeamStats("bash-2026-2027", false, "summer")
+    expect(seasonTeamsQuery()!.sql).not.toContain("franchise_slug")
+  })
+
   it("aggregates by (team, season) in All-Time mode and incorporates stats_only historical seasons", async () => {
     mocks.rawSql.mockImplementation(async ({ sql }: Query) => {
       if (sql.includes("SELECT slug, name FROM teams")) {
