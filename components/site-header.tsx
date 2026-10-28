@@ -23,27 +23,17 @@ function HeaderContent({ activeTab, season }: { activeTab?: string; season?: str
         <div className="mx-auto flex h-12 max-w-6xl items-center gap-1.5 px-2 sm:gap-3 sm:px-4 md:h-14">
           <Link href={`/${seasonQuery}`} className="flex items-center gap-1.5 sm:gap-2 group shrink-0 min-w-0">
             <Image
-              src={getOptimizedLogoUrl("/logo.png", 36)}
+              src={getOptimizedLogoUrl("/logo-35th.png", 128)}
               unoptimized
               alt="BASH logo"
-              width={28}
+              width={133}
               height={28}
               loading="eager"
               fetchPriority="high"
-              sizes="(min-width: 768px) 36px, (min-width: 640px) 32px, 28px"
-              className="shrink-0 sm:w-8 sm:h-8 md:w-9 md:h-9"
+              sizes="(min-width: 768px) 190px, (min-width: 640px) 171px, 133px"
+              className="h-7 w-auto shrink-0 sm:h-9 md:h-10"
             />
-            <div className="hidden sm:flex flex-col">
-              <span className="text-[13px] font-bold leading-tight tracking-tight text-foreground md:text-sm">
-                Bay Area Street Hockey
-              </span>
-              <span className="text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground/70 md:text-[10px]">
-                BASH
-              </span>
-            </div>
-            <span className="sm:hidden text-xs font-bold tracking-tight text-foreground">
-              BASH
-            </span>
+            <span className="sr-only">Bay Area Street Hockey — 35 Years of BASH (1991–2026)</span>
           </Link>
           <nav className="ml-auto flex items-center gap-0 sm:gap-1">
             <PlayerSearch />
