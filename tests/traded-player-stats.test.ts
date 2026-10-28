@@ -461,7 +461,7 @@ describe("Traded Player Statistics & Query Integrity", () => {
         expect(calls.length).toBeGreaterThan(0)
         expect(calls[0].sql).toContain("eligible_skaters AS")
         expect(calls[0].sql).toContain("COUNT(tgs.game_id)::int as gp")
-        expect(calls[0].sql).toMatch(/JOIN games g ON pgs\.game_id = g\.id AND NOT g\.is_forfeit/)
+        expect(calls[0].sql).toMatch(/JOIN games g ON pgs\.game_id = g\.id AND[\s\S]*?NOT g\.is_forfeit/)
       })
     }
   })

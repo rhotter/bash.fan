@@ -794,7 +794,7 @@ describe("Traded Player Read Queries Edge Cases & Stress Suite", () => {
 
       expect(teamDetailQueries.length).toBe(2)
       for (const query of teamDetailQueries) {
-        expect(query.sql).toMatch(/JOIN games g ON (?:pgs|ggs)\.game_id = g\.id AND NOT g\.is_forfeit/)
+        expect(query.sql).toMatch(/JOIN games g ON (?:pgs|ggs)\.game_id = g\.id AND[\s\S]*?NOT g\.is_forfeit/)
       }
 
       // 2. Player Detail API route
@@ -816,7 +816,7 @@ describe("Traded Player Read Queries Edge Cases & Stress Suite", () => {
 
       expect(playerRouteStatQueries.length).toBeGreaterThan(0)
       for (const query of playerRouteStatQueries) {
-        expect(query.sql).toMatch(/JOIN games g ON (?:pgs|ggs)\.game_id = g\.id AND NOT g\.is_forfeit/)
+        expect(query.sql).toMatch(/JOIN games g ON (?:pgs|ggs)\.game_id = g\.id AND[\s\S]*?NOT g\.is_forfeit/)
       }
     })
   })

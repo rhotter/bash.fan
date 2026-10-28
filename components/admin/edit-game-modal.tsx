@@ -21,6 +21,7 @@ import {
 import { toast } from "sonner"
 import { Plus, X, Search, Database } from "lucide-react"
 import { toHHMM } from "@/lib/format-time"
+import { applyForfeitPreset, inferForfeitingSide, type ForfeitingSide } from "@/lib/forfeit-sync"
 
 export interface GameFormData {
   id?: string
@@ -36,6 +37,7 @@ export interface GameFormData {
   isOvertime: boolean
   hasShootout: boolean
   isForfeit: boolean
+  hasBoxscore?: boolean
   title?: string | null
   notes: string | null
   homeNotes: string | null
@@ -101,6 +103,14 @@ export function EditGameModal({
   })
 
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [forfeitingSide, setForfeitingSide] = useState<ForfeitingSide>("away")
+  const preForfeitSnapshotRef = useRef<{
+    status: string
+    homeScore: number | null
+    awayScore: number | null
+    isOvertime: boolean
+    hasShootout: boolean
+  } | null>(null)
 
   // Inline team picker mode: null = dropdown, "create" = new team form, "search" = global team search
   const [pickerState, setPickerState] = useState<{
@@ -134,7 +144,25 @@ export function EditGameModal({
       hasFetchedGlobal.current = false
       if (game) {
         setFormData(game)
+        setForfeitingSide(inferForfeitingSide(game))
+        preForfeitSnapshotRef.current = game.isForfeit
+          ? null
+          : {
+              status: game.status,
+              homeScore: game.homeScore,
+              awayScore: game.awayScore,
+              isOvertime: game.isOvertime,
+              hasShootout: game.hasShootout,
+            }
       } else {
+        setForfeitingSide("away")
+        preForfeitSnapshotRef.current = {
+          status: "upcoming",
+          homeScore: null,
+          awayScore: null,
+          isOvertime: false,
+          hasShootout: false,
+        }
         setFormData({
           date: new Date().toISOString().split("T")[0],
           time: "12:00",
@@ -629,7 +657,7 @@ export function EditGameModal({
             </div>
           </div>
 
-          <div className="bg-muted/10 p-4 rounded-lg border">
+          <div className="bg-muted/10 p-4 rounded-lg border space-y-4">
             <div className="flex flex-wrap gap-8 items-center justify-between sm:justify-start">
               <div className="flex items-center gap-2">
                 <Switch
@@ -651,11 +679,90 @@ export function EditGameModal({
                 <Switch
                   id="forfeit"
                   checked={formData.isForfeit}
-                  onCheckedChange={(checked) => setFormData({ ...formData, isForfeit: checked })}
+                  onCheckedChange={(checked) => {
+                    if (checked) {
+                      preForfeitSnapshotRef.current = {
+                        status: formData.status,
+                        homeScore: formData.homeScore,
+                        awayScore: formData.awayScore,
+                        isOvertime: formData.isOvertime,
+                        hasShootout: formData.hasShootout,
+                      }
+                      const inferred = inferForfeitingSide(formData)
+                      setForfeitingSide(inferred)
+                      setFormData({ ...formData, ...applyForfeitPreset(inferred) })
+                    } else if (preForfeitSnapshotRef.current) {
+                      const snap = preForfeitSnapshotRef.current
+                      setFormData({
+                        ...formData,
+                        isForfeit: false,
+                        status: snap.status,
+                        homeScore: snap.homeScore,
+                        awayScore: snap.awayScore,
+                        isOvertime: snap.isOvertime,
+                        hasShootout: snap.hasShootout,
+                      })
+                    } else if (!game?.hasBoxscore) {
+                      setFormData({
+                        ...formData,
+                        isForfeit: false,
+                        status: "upcoming",
+                        homeScore: null,
+                        awayScore: null,
+                      })
+                    } else {
+                      setFormData({ ...formData, isForfeit: false })
+                    }
+                  }}
                 />
                 <Label htmlFor="forfeit" className="text-destructive">Forfeit</Label>
               </div>
             </div>
+
+            {formData.isForfeit && (
+              <div className="pt-3 border-t border-border/60 space-y-2">
+                <Label className="text-xs text-muted-foreground">Forfeiting Team (auto-sets official 5–0 score &amp; Final status)</Label>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  {(
+                    [
+                      {
+                        side: "away" as const,
+                        label: `${localTeams.find((t) => t.teamSlug === formData.awayTeam)?.teamName || "Away Team"} (Away)`,
+                        sublabel: "Home wins 5–0",
+                      },
+                      {
+                        side: "home" as const,
+                        label: `${localTeams.find((t) => t.teamSlug === formData.homeTeam)?.teamName || "Home Team"} (Home)`,
+                        sublabel: "Away wins 5–0",
+                      },
+                      {
+                        side: "both" as const,
+                        label: "Both Teams (Double Forfeit)",
+                        sublabel: "Both lose 0–5 in standings",
+                      },
+                    ]
+                  ).map((opt) => {
+                    const active = forfeitingSide === opt.side
+                    return (
+                      <Button
+                        key={opt.side}
+                        type="button"
+                        variant={active ? "secondary" : "outline"}
+                        size="sm"
+                        className={active ? "border-foreground/40 font-semibold h-auto py-2 flex flex-col items-start" : "h-auto py-2 flex flex-col items-start text-muted-foreground"}
+                        onClick={() => {
+                          setForfeitingSide(opt.side)
+                          setFormData((prev) => ({ ...prev, ...applyForfeitPreset(opt.side) }))
+                        }}
+                      >
+                        <span className="text-xs truncate w-full text-left">{opt.label}</span>
+                        <span className="text-[10px] text-muted-foreground font-normal">{opt.sublabel}</span>
+                      </Button>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
           </div>
 
           <Tabs defaultValue="league">

@@ -4,6 +4,7 @@ import { eq, and } from "drizzle-orm"
 import { getSession } from "@/lib/admin-session"
 import { revalidateTag } from "next/cache"
 import { normalizeTimeForStorage } from "@/lib/format-time"
+import { syncForfeitRosterStats } from "@/lib/forfeit-sync"
 
 interface RouteContext {
   params: Promise<{ id: string; gameId: string }>
@@ -49,13 +50,40 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     if (body.awayPlaceholder !== undefined) updateData.awayPlaceholder = body.awayPlaceholder
     if (isPlayoff !== undefined) updateData.isPlayoff = isPlayoff
 
-    // 1. Update the target game
+    // 1. Fetch existing game row before updating so we only run forfeit roster sync
+    // when forfeit-relevant fields actually change.
+    const [existingGame] = await db.select()
+      .from(schema.games)
+      .where(and(
+        eq(schema.games.id, gameId),
+        eq(schema.games.seasonId, seasonId)
+      ))
+      .limit(1)
+
     await db.update(schema.games)
       .set(updateData)
       .where(and(
         eq(schema.games.id, gameId),
         eq(schema.games.seasonId, seasonId)
       ))
+
+    const forfeitStateChanged =
+      !existingGame ||
+      (updateData.isForfeit !== undefined && Boolean(updateData.isForfeit) !== Boolean(existingGame.isForfeit)) ||
+      (Boolean(updateData.isForfeit ?? existingGame.isForfeit) && (
+        (updateData.status !== undefined && updateData.status !== existingGame.status) ||
+        (updateData.homeScore !== undefined && updateData.homeScore !== existingGame.homeScore) ||
+        (updateData.awayScore !== undefined && updateData.awayScore !== existingGame.awayScore) ||
+        (updateData.homeTeam !== undefined && updateData.homeTeam !== existingGame.homeTeam) ||
+        (updateData.awayTeam !== undefined && updateData.awayTeam !== existingGame.awayTeam) ||
+        (updateData.date !== undefined && updateData.date !== existingGame.date) ||
+        (updateData.hasBoxscore !== undefined && Boolean(updateData.hasBoxscore) !== Boolean(existingGame.hasBoxscore)) ||
+        (updateData.gameType !== undefined && updateData.gameType !== existingGame.gameType)
+      ))
+
+    if (forfeitStateChanged) {
+      await syncForfeitRosterStats(gameId)
+    }
 
     // 2. Series-aware auto-advancement logic
     // If the game is a playoff game, it is now "final", and has a seriesId, we need to check if the series is clinched.
@@ -79,8 +107,8 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 
         const winCounts: Record<string, number> = {}
         for (const sg of seriesGames) {
-          if (sg.status === "final" && !sg.isForfeit) {
-            // Determine winner of this game
+          if (sg.status === "final") {
+            // Determine winner of this game (including single-team forfeits)
             const homeScore = sg.homeScore || 0
             const awayScore = sg.awayScore || 0
             
@@ -90,7 +118,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
             } else if (awayScore > homeScore) {
               winnerSlug = sg.awayTeam
             }
-            // Ignore ties (shouldn't happen in playoffs, but just in case)
+            // Ignore ties / double forfeits
 
             if (winnerSlug) {
               winCounts[winnerSlug] = (winCounts[winnerSlug] || 0) + 1
