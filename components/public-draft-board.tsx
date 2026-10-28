@@ -15,7 +15,7 @@ import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip"
-import { Search, Clock, Users, Volume2, VolumeX, CalendarPlus, Layers, X, ChevronsRight, Eye, EyeOff, Trophy, LayoutList, LayoutGrid, ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react"
+import { Search, Clock, Users, Volume2, VolumeX, CalendarPlus, Layers, X, ChevronsRight, Eye, EyeOff, Trophy, LayoutList, LayoutGrid, ArrowUp, ArrowDown, ArrowUpDown, ArrowLeft, ArrowRight } from "lucide-react"
 import { PlayerCardModal } from "@/components/player-card-modal"
 import { DraftPlayerBadge } from "@/components/draft-player-badge"
 import { TeamLogo } from "@/components/team-logo"
@@ -103,6 +103,19 @@ function formatBoardPlayerName(name: string | null) {
   const parts = trimmedName.split(/\s+/)
   if (parts.length < 2) return trimmedName
   return `${parts[0][0]}. ${parts.slice(1).join(" ")}`
+}
+
+function DraftRoundLabel({ round, draftType }: { round: number; draftType?: string | null }) {
+  const reversed = draftType !== "linear" && round % 2 === 0
+  const DirectionArrow = reversed ? ArrowLeft : ArrowRight
+  const label = `Round ${round}: picks go ${reversed ? "right to left" : "left to right"}`
+
+  return (
+    <span className="inline-flex items-center justify-center gap-1 whitespace-nowrap" title={label} aria-label={label}>
+      <span aria-hidden="true">{round}</span>
+      <DirectionArrow className="h-3 w-3 shrink-0" aria-hidden="true" />
+    </span>
+  )
 }
 
 function PositionBadges({ raw }: { raw?: string | null }) {
@@ -1155,7 +1168,7 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
                   <table className="w-full min-w-[720px] text-[11px] table-fixed border-collapse">
                     <thead>
                       <tr className="text-muted-foreground/50 text-[9px] uppercase tracking-wider">
-                        <th className="text-center font-medium py-2.5 sticky left-0 z-10 bg-background pl-4 sm:pl-0 w-12 border-b border-border/50 after:absolute after:right-0 after:top-0 after:bottom-0 after:w-4 after:bg-gradient-to-r after:from-background/80 after:to-transparent after:pointer-events-none">
+                        <th className="text-center font-medium py-2.5 sticky left-0 z-10 bg-background pl-4 sm:pl-0 w-16 border-b border-border/50 after:absolute after:right-0 after:top-0 after:bottom-0 after:w-4 after:bg-gradient-to-r after:from-background/80 after:to-transparent after:pointer-events-none">
                           Rd
                         </th>
                         {teams.map((team) => (
@@ -1186,7 +1199,7 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
                           )}
                         >
                           <td className="text-center tabular-nums py-2 px-3 text-muted-foreground/70 font-medium sticky left-0 z-10 bg-background pl-4 sm:pl-0 group-hover:bg-muted/50 border-b border-border/20 after:absolute after:right-0 after:top-0 after:bottom-0 after:w-4 after:bg-gradient-to-r after:from-background/80 after:to-transparent after:pointer-events-none group-hover:after:from-muted/50">
-                            {round}
+                            <DraftRoundLabel round={round} draftType={draft.draftType} />
                           </td>
                           {teams.map((team) => {
                             const pick = boardGrid[round]?.[team.teamSlug]
@@ -1252,7 +1265,7 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
                     <table className="w-full min-w-[700px] text-xs md:table-fixed">
                       <thead>
                         <tr className="border-b bg-muted/50">
-                          <th className="px-2 py-2 text-left font-bold text-[10px] uppercase tracking-[0.06em] text-muted-foreground w-10 sticky left-0 bg-muted z-20" style={{ boxShadow: '2px 0 4px -2px rgba(0,0,0,0.1)' }}>Rd</th>
+                          <th className="px-2 py-2 text-left font-bold text-[10px] uppercase tracking-[0.06em] text-muted-foreground w-14 sticky left-0 bg-muted z-20" style={{ boxShadow: '2px 0 4px -2px rgba(0,0,0,0.1)' }}>Rd</th>
                           {teams.map((team) => (
                             <th
                               key={team.teamSlug}
@@ -1270,7 +1283,7 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
                         {Array.from({ length: draft.rounds }, (_, i) => i + 1).map((round) => (
                           <tr key={round} className="border-b last:border-b-0 hover:bg-muted/20">
                             <td className="px-2 py-1.5 font-mono font-medium text-muted-foreground sticky left-0 bg-background z-20 tabular-nums" style={{ boxShadow: '2px 0 4px -2px rgba(0,0,0,0.1)' }}>
-                              {round}
+                              <DraftRoundLabel round={round} draftType={draft.draftType} />
                             </td>
                             {teams.map((team) => {
                               const pick = boardGrid[round]?.[team.teamSlug]
