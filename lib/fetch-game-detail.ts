@@ -76,8 +76,19 @@ async function fetchGameDetailInternal(id: string): Promise<BashGameDetail | nul
 
   const game = gameResult[0]
   const isAdhocGame = game.game_type === 'exhibition' || game.game_type === 'tryout'
+  const isForfeit = Boolean(game.is_forfeit) && game.status === 'final'
+  const forfeitWinnerSlug = isForfeit
+    ? game.home_score != null && game.away_score != null && game.home_score > game.away_score
+      ? game.home_team
+      : game.home_score != null && game.away_score != null && game.away_score > game.home_score
+        ? game.away_team
+        : null
+    : null
 
   async function getPlayerStats(gameId: string, teamSlug: string, seasonId: string, teamSide: 'home' | 'away'): Promise<PlayerBoxScore[]> {
+    if (isForfeit && teamSlug !== forfeitWinnerSlug) {
+      return []
+    }
     // For adhoc games (exhibition/tryout), the per-game roster is the only
     // source of truth. For regular games, players belong via player_seasons,
     // but any adhoc roster entry (a sub for this game) is also included.
@@ -119,16 +130,28 @@ async function fetchGameDetailInternal(id: string): Promise<BashGameDetail | nul
             )
           ORDER BY pgs.is_sub ASC, pgs.points DESC, pgs.goals DESC, p.name ASC
         `)
-    return result.map((r) => ({
-      id: r.id, name: r.name,
-      goals: r.goals, assists: r.assists, points: r.points,
-      gwg: r.gwg, ppg: r.ppg, shg: r.shg, eng: r.eng,
-      hatTricks: r.hat_tricks, pen: r.pen, pim: r.pim,
-      isSub: !!r.is_sub,
-    }))
+    return result
+      .filter((r) => !isForfeit || !r.is_sub)
+      .map((r) => ({
+        id: r.id, name: r.name,
+        goals: isForfeit ? 0 : r.goals,
+        assists: isForfeit ? 0 : r.assists,
+        points: isForfeit ? 0 : r.points,
+        gwg: isForfeit ? 0 : r.gwg,
+        ppg: isForfeit ? 0 : r.ppg,
+        shg: isForfeit ? 0 : r.shg,
+        eng: isForfeit ? 0 : r.eng,
+        hatTricks: isForfeit ? 0 : r.hat_tricks,
+        pen: isForfeit ? 0 : r.pen,
+        pim: isForfeit ? 0 : r.pim,
+        isSub: !!r.is_sub,
+      }))
   }
 
   async function getGoalieStats(gameId: string, teamSlug: string, seasonId: string, teamSide: 'home' | 'away'): Promise<GoalieBoxScore[]> {
+    if (isForfeit && teamSlug !== forfeitWinnerSlug) {
+      return []
+    }
     const result = isAdhocGame
       ? await rawSql(sql`
           SELECT p.id, p.name,
@@ -163,20 +186,26 @@ async function fetchGameDetailInternal(id: string): Promise<BashGameDetail | nul
               )
             )
         `)
-    return result.map((r) => ({
-      id: r.id, name: r.name,
-      seconds: r.seconds,
-      goalsAgainst: r.goals_against,
-      shotsAgainst: r.shots_against,
-      saves: r.saves,
-      savePercentage: r.shots_against > 0
-        ? (r.saves / r.shots_against).toFixed(3)
-        : "0.000",
-      shutouts: r.shutouts,
-      goalieAssists: r.goalie_assists,
-      result: r.result,
-      isSub: !!r.is_sub,
-    }))
+    return result
+      .filter((r) => !isForfeit || !r.is_sub)
+      .map((r) => {
+        const shotsAgainst = isForfeit ? 0 : r.shots_against
+        const saves = isForfeit ? 0 : r.saves
+        return {
+          id: r.id, name: r.name,
+          seconds: isForfeit ? 0 : r.seconds,
+          goalsAgainst: isForfeit ? 0 : r.goals_against,
+          shotsAgainst,
+          saves,
+          savePercentage: shotsAgainst > 0
+            ? (saves / shotsAgainst).toFixed(3)
+            : "0.000",
+          shutouts: isForfeit ? 0 : r.shutouts,
+          goalieAssists: isForfeit ? 0 : r.goalie_assists,
+          result: isForfeit ? null : r.result,
+          isSub: !!r.is_sub,
+        }
+      })
   }
 
   const [homePlayers, awayPlayers, homeGoalies, awayGoalies, officialRows, seasonRows] = await Promise.all([

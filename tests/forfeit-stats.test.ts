@@ -32,6 +32,8 @@ vi.mock("@/lib/seasons", async (importOriginal) => ({
 import { fetchPlayerStats } from "@/lib/fetch-player-stats"
 import { fetchPlayerDetail } from "@/lib/fetch-player-detail"
 import { fetchTeamDetail } from "@/lib/fetch-team-detail"
+import { fetchTeamStats } from "@/lib/fetch-team-stats"
+import { fetchGameDetail } from "@/lib/fetch-game-detail"
 import { GET as getPlayer } from "@/app/api/bash/player/[slug]/route"
 import { GET as getDraftStats } from "@/app/api/bash/draft/player-stats/[playerId]/route"
 
@@ -70,25 +72,30 @@ function statQueries(): Query[] {
     .filter(({ sql }) => /(?:player|goalie)_game_stats/.test(sql))
 }
 
-function expectEligibleGameJoins(queries: Query[], count: number) {
+function expectWinningTeamForfeitEligibility(queries: Query[], count: number) {
   expect(queries).toHaveLength(count)
   for (const { sql } of queries) {
     const alias = /goalie_game_stats/.test(sql) ? "ggs" : "pgs"
-    expect(sql).toMatch(new RegExp(`JOIN games g ON ${alias}\\.game_id = g\\.id AND NOT g\\.is_forfeit`))
-    // The forfeit exclusion must not replace the existing substitution filter.
+    expect(sql).toContain("NOT g.is_forfeit")
+    // Exhibition/tryout queries remain strictly NOT g.is_forfeit; competitive queries include winning-team forfeit predicate
+    if (!sql.includes("exhibition")) {
+      expect(sql).toContain("g.home_score > g.away_score")
+      expect(sql).toContain("g.away_score > g.home_score")
+      expect(sql).toMatch(/FILTER \(WHERE NOT (g|tgs|tgg)\.is_forfeit\)/)
+    }
     expect(sql).toContain(`NOT ${alias}.is_sub`)
     expect(sql).toContain("g.game_type")
   }
 }
 
-describe("forfeit exclusion from player leaderboards", () => {
+describe("forfeit winning-team GP inclusion and counting-stat zeroing on player leaderboards", () => {
   it.each([
     { label: "regular season", playoff: false },
     { label: "playoffs", playoff: true },
-  ])("filters both positions for $label without changing the season/game type", async ({ playoff }) => {
+  ])("includes winning-team forfeit GP while zeroing counting stats for $label", async ({ playoff }) => {
     await fetchPlayerStats(seasonId, playoff)
     const queries = statQueries()
-    expectEligibleGameJoins(queries, 2)
+    expectWinningTeamForfeitEligibility(queries, 2)
     for (const query of queries) {
       expect(query.params).toContain(seasonId)
       expect(query.sql).toContain(playoff ? "AND g.is_playoff" : "AND NOT g.is_playoff")
@@ -98,10 +105,51 @@ describe("forfeit exclusion from player leaderboards", () => {
     }
   })
 
+  it("protects skater PTS/G by dividing by played_gp (non-forfeit GP), including traded players and 0 played_gp edge cases", async () => {
+    mocks.rawSql.mockImplementation(async ({ sql }: Query) => {
+      if (sql.includes("FROM players p") && sql.includes("JOIN player_game_stats pgs")) {
+        return [
+          // Player 1: 2 played games on Red (4 pts) + 1 forfeit game on Red (0 pts) => gp=3, played_gp=2, ptsPg="2.00"
+          {
+            id: 1, name: "Traded Skater", game_team: "Red", game_team_slug: "red",
+            team: "Blue", team_slug: "blue",
+            gp: 3, played_gp: 2, goals: 2, assists: 2, points: 4,
+            gwg: 0, ppg: 0, shg: 0, eng: 0, hat_tricks: 0, pen: 0, pim: 0,
+          },
+          // Player 1 after trade: 2 played games on Blue (2 pts) => combined gp=5, played_gp=4, points=6 => ptsPg="1.50"
+          {
+            id: 1, name: "Traded Skater", game_team: "Blue", game_team_slug: "blue",
+            team: "Blue", team_slug: "blue",
+            gp: 2, played_gp: 2, goals: 1, assists: 1, points: 2,
+            gwg: 0, ppg: 0, shg: 0, eng: 0, hat_tricks: 0, pen: 0, pim: 0,
+          },
+          // Player 2: Only 1 forfeit GP (0 played_gp) => gp=1, played_gp=0, ptsPg="0.00"
+          {
+            id: 2, name: "Forfeit Only", game_team: "Red", game_team_slug: "red",
+            team: "Red", team_slug: "red",
+            gp: 1, played_gp: 0, goals: 0, assists: 0, points: 0,
+            gwg: 0, ppg: 0, shg: 0, eng: 0, hat_tricks: 0, pen: 0, pim: 0,
+          },
+        ]
+      }
+      return []
+    })
+
+    const res = await fetchPlayerStats(seasonId, false)
+    const traded = res.skaters.find((s) => s.id === 1)!
+    expect(traded.gp).toBe(5)
+    expect(traded.points).toBe(6)
+    expect(traded.ptsPg).toBe("1.50")
+
+    const forfeitOnly = res.skaters.find((s) => s.id === 2)!
+    expect(forfeitOnly.gp).toBe(1)
+    expect(forfeitOnly.ptsPg).toBe("0.00")
+  })
+
   it.each(["regular", "playoffs", "all"])("filters all-time %s stats and preserves historical totals", async (gameType) => {
     await fetchPlayerStats("all", false, "all", gameType)
     const queries = statQueries()
-    expectEligibleGameJoins(queries, 2)
+    expectWinningTeamForfeitEligibility(queries, 2)
     expect(queries[0].sql).toContain("FROM player_season_stats pss")
     for (const query of queries) {
       expect(query.sql).toContain("s.season_type IN ('fall', 'summer')")
@@ -119,7 +167,7 @@ describe("forfeit exclusion from player leaderboards", () => {
     expect(statQueries().every(({ params }) => params.includes("fall"))).toBe(true)
     mocks.rawSql.mockClear()
     await fetchPlayerStats("all", false, "summer")
-    expectEligibleGameJoins(statQueries(), 2)
+    expectWinningTeamForfeitEligibility(statQueries(), 2)
     expect(statQueries().every(({ params }) => params.includes("summer"))).toBe(true)
   })
 
@@ -135,7 +183,7 @@ describe("forfeit exclusion from player leaderboards", () => {
   })
 })
 
-describe("forfeit exclusion from player detail reads", () => {
+describe("forfeit handling in player detail reads and game logs", () => {
   it("covers server season/all-time/per-season totals and regular/playoff/exhibition/tryout logs", async () => {
     expect(await fetchPlayerDetail("alex-player")).not.toBeNull()
     const queries = statQueries()
@@ -143,7 +191,10 @@ describe("forfeit exclusion from player detail reads", () => {
     const query = queries[0].sql
     const gameJoins = [...query.matchAll(/JOIN games g ON (?:pgs|ggs)\.game_id = g\.id[^\n]*/g)]
     expect(gameJoins).toHaveLength(20)
-    for (const [join] of gameJoins) expect(join).toContain("AND NOT g.is_forfeit")
+    expect(query).toContain("g.home_score > g.away_score")
+    expect(query).toContain("FILTER (WHERE NOT g.is_forfeit)")
+    expect(query).toContain("CASE WHEN g.is_forfeit THEN 0 ELSE pgs.goals END")
+    expect(query).toContain("CASE WHEN g.is_forfeit THEN NULL ELSE ggs.result END")
     expect(query).toContain("FROM player_game_stats WHERE player_id =")
     expect(query).toContain("FROM goalie_game_stats WHERE player_id =")
     expect(query.match(/AND NOT is_sub/g)).toHaveLength(2)
@@ -157,15 +208,16 @@ describe("forfeit exclusion from player detail reads", () => {
       { params: Promise.resolve({ slug: "alex-player" }) },
     )
     expect(response.status).toBe(200)
-    expectEligibleGameJoins(statQueries(), 16)
-    expect(statQueries().filter(({ sql }) => sql.includes("g.game_type = 'exhibition'"))).toHaveLength(2)
+    const queries = statQueries()
+    expect(queries).toHaveLength(16)
+    expect(queries.filter(({ sql }) => sql.includes("g.game_type = 'exhibition'"))).toHaveLength(2)
   })
 })
 
-describe("forfeit exclusion from team and draft player totals", () => {
-  it("filters the team roster's individual stats while keeping forfeit team results in standings", async () => {
+describe("forfeit handling in team, team-stats, and draft player totals", () => {
+  it("includes winning-team forfeit GP on team rosters while protecting PTS/G and keeping forfeit team results in standings", async () => {
     expect(await fetchTeamDetail("red", seasonId)).not.toBeNull()
-    expectEligibleGameJoins(statQueries(), 2)
+    expectWinningTeamForfeitEligibility(statQueries(), 2)
     for (const { sql, params } of statQueries()) {
       expect(sql).toContain("g.game_type IN ('regular', 'playoff', 'championship')")
       expect(params).toContain(seasonId)
@@ -175,10 +227,47 @@ describe("forfeit exclusion from team and draft player totals", () => {
       .map(([query]) => query as Query)
       .filter(({ sql }) => /FROM games g\b|FROM games g2\b/.test(sql))
     expect(teamResultQueries).toHaveLength(2)
-    expect(teamResultQueries.every(({ sql }) => !sql.includes("is_forfeit"))).toBe(true)
   })
 
-  it("compiles both draft aggregate queries with forfeit/sub exclusions and all competitive game types", async () => {
+  it("protects team PTS/G and SA/G in fetchTeamStats by dividing by played_gp", async () => {
+    mocks.rawSql.mockImplementation(async ({ sql }: Query) => {
+      if (sql.includes("SELECT id, name, game_length, stats_only FROM seasons")) {
+        return [{ id: seasonId, name: "Fall 2026", game_length: 45, stats_only: false }]
+      }
+      if (sql.includes("FROM player_game_stats pgs")) {
+        return [
+          {
+            team_slug: "red", team: "Red",
+            gp: 5, played_gp: 4, pgp: 45,
+            goals: 20, assists: 20, points: 40,
+            gwg: 3, ppg: 2, shg: 0, eng: 1, hat_tricks: 1, pen: 2, pim: 4,
+          },
+        ]
+      }
+      if (sql.includes("FROM goalie_game_stats ggs")) {
+        return [
+          {
+            team_slug: "red", team: "Red",
+            gp: 5, played_gp: 4, pgp: 5,
+            seconds: 10800, goals_against: 8, shots_against: 100, saves: 92,
+            shutouts: 1, goalie_assists: 0, game_length: 45, wins: 3, losses: 1,
+          },
+        ]
+      }
+      if (sql.includes("FROM season_teams st")) {
+        return [{ slug: "red", name: "Red" }]
+      }
+      return []
+    })
+
+    const teamStats = await fetchTeamStats(seasonId, false)
+    expect(teamStats.teamSkaters[0].gp).toBe(5)
+    expect(teamStats.teamSkaters[0].ptsPg).toBe("10.00") // 40 / 4 played_gp, not 40 / 5
+    expect(teamStats.teamGoalies[0].gp).toBe(5)
+    expect(teamStats.teamGoalies[0].saPg).toBe("25.00") // 100 / 4 played_gp, not 100 / 5
+  })
+
+  it("compiles both draft aggregate queries with winning-team forfeit GP and zeroed counting stats", async () => {
     const response = await getDraftStats(
       new Request("http://localhost/api/bash/draft/player-stats/7?currentSeason=2027-summer"),
       { params: Promise.resolve({ playerId: "7" }) },
@@ -189,9 +278,7 @@ describe("forfeit exclusion from team and draft player totals", () => {
       .filter(({ sql }) => /from "(?:player|goalie)_game_stats"/.test(sql))
     expect(queries).toHaveLength(2)
     for (const { sql, params } of queries) {
-      const forfeitParam = sql.match(/"games"\."is_forfeit" = \$(\d+)/)
-      expect(forfeitParam).not.toBeNull()
-      expect(params[Number(forfeitParam![1]) - 1]).toBe(false)
+      expect(sql).toContain("FILTER (WHERE NOT")
       const subParam = sql.match(/"is_sub" = \$(\d+)/)
       expect(subParam).not.toBeNull()
       expect(params[Number(subParam![1]) - 1]).toBe(false)
@@ -200,5 +287,66 @@ describe("forfeit exclusion from team and draft player totals", () => {
     }
     const rosterQuery = mocks.query.mock.calls[0][0] as Query
     expect(rosterQuery.params).toContain("2027-summer")
+  })
+
+  it("zeroes counting stats and excludes losing team boxscore on forfeited games in fetchGameDetail", async () => {
+    mocks.rawSql.mockImplementation(async ({ sql }: Query) => {
+      if (sql.includes("FROM games g")) {
+        return [{
+          id: "g-forfeit",
+          season_id: seasonId,
+          date: "2026-10-10",
+          time: "7:00 PM",
+          home_team: "red",
+          away_team: "blue",
+          home_team_name: "Red",
+          away_team_name: "Blue",
+          home_score: 5,
+          away_score: 0,
+          status: "final",
+          is_overtime: false,
+          is_playoff: false,
+          is_forfeit: true,
+          location: "Rink A",
+          game_type: "regular",
+        }]
+      }
+      if (sql.includes("FROM player_game_stats pgs")) {
+        return [
+          { id: 10, name: "Skater One", goals: 2, assists: 1, points: 3, gwg: 1, ppg: 0, shg: 0, eng: 0, hat_tricks: 0, pen: 1, pim: 2, is_sub: false },
+          { id: 11, name: "Sub Skater", goals: 1, assists: 0, points: 1, gwg: 0, ppg: 0, shg: 0, eng: 0, hat_tricks: 0, pen: 0, pim: 0, is_sub: true },
+        ]
+      }
+      if (sql.includes("FROM goalie_game_stats ggs")) {
+        return [
+          { id: 20, name: "Goalie One", seconds: 2700, goals_against: 1, shots_against: 20, saves: 19, shutouts: 0, goalie_assists: 1, result: "W", is_sub: false },
+        ]
+      }
+      return []
+    })
+
+    const detail = await fetchGameDetail("g-forfeit")
+    expect(detail).not.toBeNull()
+    expect(detail!.isForfeit).toBe(true)
+    // Winning team ("red") gets non-sub players with zeroed stats
+    expect(detail!.homePlayers).toEqual([
+      {
+        id: 10, name: "Skater One",
+        goals: 0, assists: 0, points: 0,
+        gwg: 0, ppg: 0, shg: 0, eng: 0, hatTricks: 0, pen: 0, pim: 0,
+        isSub: false,
+      },
+    ])
+    expect(detail!.homeGoalies).toEqual([
+      {
+        id: 20, name: "Goalie One",
+        seconds: 0, goalsAgainst: 0, shotsAgainst: 0, saves: 0,
+        savePercentage: "0.000", shutouts: 0, goalieAssists: 0,
+        result: null, isSub: false,
+      },
+    ])
+    // Forfeiting team ("blue") gets empty boxscore
+    expect(detail!.awayPlayers).toEqual([])
+    expect(detail!.awayGoalies).toEqual([])
   })
 })

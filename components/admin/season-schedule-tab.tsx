@@ -73,6 +73,7 @@ export interface ScheduleGame {
   isOvertime: boolean
   hasShootout: boolean
   isForfeit: boolean
+  hasBoxscore?: boolean
   isPlayoff: boolean
   title: string | null
   notes: string | null
@@ -771,6 +772,7 @@ export function SeasonScheduleTab({ seasonId, seasonStatus, initialTeams, defaul
           isOvertime: editingGame.isOvertime,
           hasShootout: editingGame.hasShootout,
           isForfeit: editingGame.isForfeit,
+          hasBoxscore: editingGame.hasBoxscore,
           title: editingGame.title,
           notes: editingGame.notes,
           homeNotes: editingGame.homeNotes,

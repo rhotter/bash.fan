@@ -299,8 +299,8 @@ describe("Traded Player End-to-End Integration & Safety Suite", () => {
       const teamDetailPath = path.resolve(__dirname, "../lib/fetch-team-detail.ts")
       const content = fs.readFileSync(teamDetailPath, "utf-8")
 
-      expect(content).toContain("JOIN games g ON pgs.game_id = g.id AND NOT g.is_forfeit")
-      expect(content).toContain("JOIN games g ON ggs.game_id = g.id AND NOT g.is_forfeit")
+      expect(content).toContain("JOIN games g ON pgs.game_id = g.id AND ${teamForfeitPred}")
+      expect(content).toContain("JOIN games g ON ggs.game_id = g.id AND ${teamForfeitPred}")
       expect(content).toContain("COUNT(tgs.game_id)::int as gp")
     })
 

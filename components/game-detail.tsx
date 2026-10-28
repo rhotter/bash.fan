@@ -231,8 +231,8 @@ export function GameDetail({ game, initialDetail, initialLiveData, homeRoster, a
         </div>
       )}
 
-      {/* Normal read-only content — hidden when in edit mode */}
-      {!editMode && (
+      {/* Normal read-only content — hidden when in edit mode or when game is a forfeit */}
+      {!editMode && !game.isForfeit && (
         <>
           {/* Three Stars */}
           {liveState?.threeStars && liveState.threeStars.some(id => id > 0) && (

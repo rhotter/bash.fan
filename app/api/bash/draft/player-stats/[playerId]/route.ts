@@ -65,6 +65,9 @@ export async function GET(
       })
     }
 
+    const skaterEffectiveTeamSql = sql`COALESCE(${schema.playerGameStats.teamSlug}, (SELECT ps.team_slug FROM player_seasons ps WHERE ps.player_id = ${schema.playerGameStats.playerId} AND ps.season_id = ${schema.games.seasonId} LIMIT 1))`
+    const goalieEffectiveTeamSql = sql`COALESCE(${schema.goalieGameStats.teamSlug}, (SELECT ps.team_slug FROM player_seasons ps WHERE ps.player_id = ${schema.goalieGameStats.playerId} AND ps.season_id = ${schema.games.seasonId} LIMIT 1))`
+
     // Batch query all skater and goalie game stats grouped by season and playoff status in parallel
     const [skaterRows, goalieRows] = await Promise.all([
       db
@@ -72,10 +75,10 @@ export async function GET(
           seasonId: schema.games.seasonId,
           isPlayoff: schema.games.isPlayoff,
           gp: sql<number>`count(*)`,
-          goals: sql<number>`sum(${schema.playerGameStats.goals})`,
-          assists: sql<number>`sum(${schema.playerGameStats.assists})`,
-          points: sql<number>`sum(${schema.playerGameStats.points})`,
-          pim: sql<number>`sum(${schema.playerGameStats.pim})`,
+          goals: sql<number>`coalesce(sum(${schema.playerGameStats.goals}) FILTER (WHERE NOT ${schema.games.isForfeit}), 0)`,
+          assists: sql<number>`coalesce(sum(${schema.playerGameStats.assists}) FILTER (WHERE NOT ${schema.games.isForfeit}), 0)`,
+          points: sql<number>`coalesce(sum(${schema.playerGameStats.points}) FILTER (WHERE NOT ${schema.games.isForfeit}), 0)`,
+          pim: sql<number>`coalesce(sum(${schema.playerGameStats.pim}) FILTER (WHERE NOT ${schema.games.isForfeit}), 0)`,
         })
         .from(schema.playerGameStats)
         .innerJoin(schema.games, eq(schema.playerGameStats.gameId, schema.games.id))
@@ -83,7 +86,17 @@ export async function GET(
           and(
             eq(schema.playerGameStats.playerId, playerId),
             eq(schema.playerGameStats.isSub, false),
-            eq(schema.games.isForfeit, false),
+            sql`(
+              NOT ${schema.games.isForfeit}
+              OR (
+                ${schema.games.isForfeit}
+                AND ${schema.games.status} = 'final'
+                AND (
+                  (${schema.games.homeScore} > ${schema.games.awayScore} AND ${skaterEffectiveTeamSql} = ${schema.games.homeTeam})
+                  OR (${schema.games.awayScore} > ${schema.games.homeScore} AND ${skaterEffectiveTeamSql} = ${schema.games.awayTeam})
+                )
+              )
+            )`,
             inArray(schema.games.gameType, ["regular", "playoff", "championship"])
           )
         )
@@ -94,10 +107,10 @@ export async function GET(
           seasonId: schema.games.seasonId,
           isPlayoff: schema.games.isPlayoff,
           gp: sql<number>`count(*)`,
-          goalsAgainst: sql<number>`sum(${schema.goalieGameStats.goalsAgainst})`,
-          shotsAgainst: sql<number>`sum(${schema.goalieGameStats.shotsAgainst})`,
-          saves: sql<number>`sum(${schema.goalieGameStats.saves})`,
-          shutouts: sql<number>`sum(${schema.goalieGameStats.shutouts})`,
+          goalsAgainst: sql<number>`coalesce(sum(${schema.goalieGameStats.goalsAgainst}) FILTER (WHERE NOT ${schema.games.isForfeit}), 0)`,
+          shotsAgainst: sql<number>`coalesce(sum(${schema.goalieGameStats.shotsAgainst}) FILTER (WHERE NOT ${schema.games.isForfeit}), 0)`,
+          saves: sql<number>`coalesce(sum(${schema.goalieGameStats.saves}) FILTER (WHERE NOT ${schema.games.isForfeit}), 0)`,
+          shutouts: sql<number>`coalesce(sum(${schema.goalieGameStats.shutouts}) FILTER (WHERE NOT ${schema.games.isForfeit}), 0)`,
         })
         .from(schema.goalieGameStats)
         .innerJoin(schema.games, eq(schema.goalieGameStats.gameId, schema.games.id))
@@ -105,7 +118,17 @@ export async function GET(
           and(
             eq(schema.goalieGameStats.playerId, playerId),
             eq(schema.goalieGameStats.isSub, false),
-            eq(schema.games.isForfeit, false),
+            sql`(
+              NOT ${schema.games.isForfeit}
+              OR (
+                ${schema.games.isForfeit}
+                AND ${schema.games.status} = 'final'
+                AND (
+                  (${schema.games.homeScore} > ${schema.games.awayScore} AND ${goalieEffectiveTeamSql} = ${schema.games.homeTeam})
+                  OR (${schema.games.awayScore} > ${schema.games.homeScore} AND ${goalieEffectiveTeamSql} = ${schema.games.awayTeam})
+                )
+              )
+            )`,
             inArray(schema.games.gameType, ["regular", "playoff", "championship"])
           )
         )

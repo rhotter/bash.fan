@@ -5,6 +5,7 @@ import { getSession } from "@/lib/admin-session"
 import { revalidateTag } from "next/cache"
 import { nextGameId } from "@/lib/db/game-id"
 import { normalizeTimeForStorage } from "@/lib/format-time"
+import { syncForfeitRosterStats } from "@/lib/forfeit-sync"
 
 interface RouteContext {
   params: Promise<{ id: string }>
@@ -115,6 +116,10 @@ export async function POST(request: NextRequest, context: RouteContext) {
       homeNotes: homeNotes || null,
       awayNotes: awayNotes || null,
     })
+
+    if (isForfeit) {
+      await syncForfeitRosterStats(gameId)
+    }
 
     // @ts-expect-error - Next.js canary changed revalidateTag signature // TODO: Remove after Next.js stabilizes
     revalidateTag("seasons")

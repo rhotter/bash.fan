@@ -35,6 +35,16 @@ export function computeStandings(games: BashGame[]): Standing[] {
     const away = teamMap.get(game.awaySlug)!
 
     home.gp++; away.gp++
+
+    if (game.isForfeit && game.homeScore === game.awayScore) {
+      // Double forfeit: both teams receive a 0-5 regulation loss
+      home.ga += 5
+      away.ga += 5
+      home.l++
+      away.l++
+      continue
+    }
+
     home.gf += game.homeScore; home.ga += game.awayScore
     away.gf += game.awayScore; away.ga += game.homeScore
 
