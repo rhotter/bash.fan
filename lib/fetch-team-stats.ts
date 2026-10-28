@@ -88,6 +88,7 @@ export async function fetchTeamStats(
   const seasonTypeFragment = seasonType === "all"
     ? sql`s.season_type IN ('fall', 'summer')`
     : sql`s.season_type = ${seasonType}`
+  const franchiseFilter = seasonType === "fall" ? sql` AND st.franchise_slug IS NOT NULL` : sql``
 
   let resolvedSeasonId = seasonId
   let statsOnly = false
@@ -369,7 +370,7 @@ export async function fetchTeamStats(
         SELECT t.slug, t.name
         FROM season_teams st
         JOIN teams t ON st.team_slug = t.slug
-        WHERE st.season_id = ${resolvedSeasonId}
+        WHERE st.season_id = ${resolvedSeasonId}${franchiseFilter}
         ORDER BY t.name
       `),
     ])
@@ -478,7 +479,7 @@ export async function fetchTeamStats(
       SELECT t.slug, t.name
       FROM season_teams st
       JOIN teams t ON st.team_slug = t.slug
-      WHERE st.season_id = ${resolvedSeasonId}
+      WHERE st.season_id = ${resolvedSeasonId}${franchiseFilter}
       ORDER BY t.name
     `),
   ])
