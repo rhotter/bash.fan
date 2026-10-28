@@ -1,4 +1,5 @@
 import { useState, useCallback } from "react"
+import { StatLabel } from "@/components/stat-label"
 import { cn } from "@/lib/utils"
 import { ChevronDown, ChevronUp } from "lucide-react"
 
@@ -52,11 +53,15 @@ export function SortableTh<K extends string>({ label, sortKey, currentKey, dir, 
     <th
       className={cn("text-center font-medium py-2.5 w-10 cursor-pointer select-none whitespace-nowrap", className)}
       onClick={() => onToggle(sortKey)}
+      scope="col"
+      aria-sort={currentKey === sortKey ? (dir === "asc" ? "ascending" : "descending") : undefined}
     >
-      <div className="flex items-center justify-center gap-0.5">
-        <span className={cn(currentKey === sortKey ? "font-bold text-foreground" : bold && "font-bold")}>{label}</span>
-        <SortIcon active={currentKey === sortKey} dir={dir} />
-      </div>
+      <StatLabel label={label}>
+        <button type="button" className="flex w-full cursor-pointer items-center justify-center gap-0.5 rounded-sm focus-visible:outline-2 focus-visible:outline-ring">
+          <span className={cn(currentKey === sortKey ? "font-bold text-foreground" : bold && "font-bold")}>{label}</span>
+          <SortIcon active={currentKey === sortKey} dir={dir} />
+        </button>
+      </StatLabel>
     </th>
   )
 }

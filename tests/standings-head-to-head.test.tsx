@@ -260,6 +260,7 @@ describe("Standings and Head-to-Head UI Integration", () => {
     const selectOptions = Array.from(container.querySelectorAll<HTMLOptionElement>('select[aria-label="Team"] option')).map((o) => o.textContent)
     expect(selectOptions).toEqual(["Reign", "Seals", "Yetis"])
     const pillButtons = Array.from(container.querySelectorAll<HTMLButtonElement>(".overflow-x-auto button"))
+      .filter((b) => !b.closest("table"))
       .map((b) => b.textContent?.trim())
       .filter(Boolean)
     expect(pillButtons).toEqual(["Reign", "Seals", "Yetis"])

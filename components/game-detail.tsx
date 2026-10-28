@@ -1,5 +1,6 @@
 "use client"
 
+import { StatLabel } from "@/components/stat-label"
 import { ErrorNotice } from "@/components/error-notice"
 import { LoadingState } from "@/components/loading-state"
 import { useState, useMemo, useEffect } from "react"
@@ -782,14 +783,14 @@ function GoalieBoxScoreTable({ goalies }: { goalies: GoalieBoxScore[] }) {
         <thead>
           <tr className="text-muted-foreground/50 text-[9px] uppercase tracking-wider">
             <th className="text-left font-medium py-2 sticky left-0 z-10 bg-background pl-4 sm:pl-2 w-[140px] max-w-[140px] after:absolute after:right-0 after:top-0 after:bottom-0 after:w-4 after:bg-gradient-to-r after:from-background/80 after:to-transparent after:pointer-events-none">Goalie</th>
-            <th className="text-center font-medium py-2 w-10">MIN</th>
-            <th className="text-center font-medium py-2 w-10">SA</th>
-            <th className="text-center font-medium py-2 w-10">SV</th>
-            <th className="text-center font-medium py-2 w-10">GA</th>
-            <th className="text-center font-medium py-2 w-12 font-bold">SV%</th>
-            <th className="text-center font-medium py-2 w-10">SO</th>
-            <th className="text-center font-medium py-2 w-10">A</th>
-            <th className="text-center font-medium py-2 w-10">DEC</th>
+            <th className="text-center font-medium py-2 w-10"><StatLabel label="MIN" /></th>
+            <th className="text-center font-medium py-2 w-10"><StatLabel label="SA" /></th>
+            <th className="text-center font-medium py-2 w-10"><StatLabel label="SV" /></th>
+            <th className="text-center font-medium py-2 w-10"><StatLabel label="GA" /></th>
+            <th className="text-center font-medium py-2 w-12 font-bold"><StatLabel label="SV%" /></th>
+            <th className="text-center font-medium py-2 w-10"><StatLabel label="SO" /></th>
+            <th className="text-center font-medium py-2 w-10"><StatLabel label="A" /></th>
+            <th className="text-center font-medium py-2 w-10"><StatLabel label="DEC" /></th>
           </tr>
         </thead>
         <tbody>

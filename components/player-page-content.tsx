@@ -1,5 +1,6 @@
 "use client"
 
+import { StatLabel } from "@/components/stat-label"
 import { formatGameDateShort } from "@/lib/format-time"
 import { cn } from "@/lib/utils"
 import { IntentLink as Link } from "@/components/intent-link"
@@ -209,17 +210,17 @@ function SkaterStatsTable({ title, perSeasonStats, allTimeFallStats, allTimeAllS
             <tr className="text-muted-foreground/50 text-[9px] uppercase tracking-wider">
               <th className="text-left font-medium py-2.5 w-[16%] whitespace-nowrap pr-3">Season</th>
               <th className="text-left font-medium py-2.5 w-[14%] whitespace-nowrap pr-3">Team</th>
-              <th className="text-center font-medium py-2.5 w-10">GP</th>
-              <th className="text-center font-medium py-2.5 w-10">G</th>
-              <th className="text-center font-medium py-2.5 w-10">A</th>
-              <th className="text-center font-medium py-2.5 w-10 font-bold">PTS</th>
-              <th className="text-center font-medium py-2.5 w-12">PTS/G</th>
-              <th className="text-center font-medium py-2.5 w-10">GWG</th>
-              <th className="text-center font-medium py-2.5 w-10">PPG</th>
-              <th className="text-center font-medium py-2.5 w-10">SHG</th>
-              <th className="text-center font-medium py-2.5 w-10">ENG</th>
-              <th className="text-center font-medium py-2.5 w-10">HAT</th>
-              <th className="text-center font-medium py-2.5 w-10">PIM</th>
+              <th className="text-center font-medium py-2.5 w-10"><StatLabel label="GP" /></th>
+              <th className="text-center font-medium py-2.5 w-10"><StatLabel label="G" /></th>
+              <th className="text-center font-medium py-2.5 w-10"><StatLabel label="A" /></th>
+              <th className="text-center font-medium py-2.5 w-10 font-bold"><StatLabel label="PTS" /></th>
+              <th className="text-center font-medium py-2.5 w-12"><StatLabel label="PTS/G" /></th>
+              <th className="text-center font-medium py-2.5 w-10"><StatLabel label="GWG" /></th>
+              <th className="text-center font-medium py-2.5 w-10"><StatLabel label="PPG" /></th>
+              <th className="text-center font-medium py-2.5 w-10"><StatLabel label="SHG" /></th>
+              <th className="text-center font-medium py-2.5 w-10"><StatLabel label="ENG" /></th>
+              <th className="text-center font-medium py-2.5 w-10"><StatLabel label="HAT" /></th>
+              <th className="text-center font-medium py-2.5 w-10"><StatLabel label="PIM" /></th>
             </tr>
           </thead>
           <tbody>
@@ -300,16 +301,16 @@ function GoalieStatsTable({ title, perSeasonStats, allTimeFallStats, allTimeAllS
             <tr className="text-muted-foreground/50 text-[9px] uppercase tracking-wider">
               <th className="text-left font-medium py-2.5 w-[16%] whitespace-nowrap pr-3">Season</th>
               <th className="text-left font-medium py-2.5 w-[14%] whitespace-nowrap pr-3">Team</th>
-              <th className="text-center font-medium py-2.5 w-10">GP</th>
-              <th className="text-center font-medium py-2.5 w-10">W</th>
-              <th className="text-center font-medium py-2.5 w-10">L</th>
-              <th className="text-center font-medium py-2.5 w-12 font-bold">SV%</th>
-              <th className="text-center font-medium py-2.5 w-12">GAA</th>
-              <th className="text-center font-medium py-2.5 w-10">SO</th>
-              <th className="text-center font-medium py-2.5 w-10">SV</th>
-              <th className="text-center font-medium py-2.5 w-10">GA</th>
-              <th className="text-center font-medium py-2.5 w-10">SA</th>
-              <th className="text-center font-medium py-2.5 w-10">A</th>
+              <th className="text-center font-medium py-2.5 w-10"><StatLabel label="GP" /></th>
+              <th className="text-center font-medium py-2.5 w-10"><StatLabel label="W" /></th>
+              <th className="text-center font-medium py-2.5 w-10"><StatLabel label="L" /></th>
+              <th className="text-center font-medium py-2.5 w-12 font-bold"><StatLabel label="SV%" /></th>
+              <th className="text-center font-medium py-2.5 w-12"><StatLabel label="GAA" /></th>
+              <th className="text-center font-medium py-2.5 w-10"><StatLabel label="SO" /></th>
+              <th className="text-center font-medium py-2.5 w-10"><StatLabel label="SV" /></th>
+              <th className="text-center font-medium py-2.5 w-10"><StatLabel label="GA" /></th>
+              <th className="text-center font-medium py-2.5 w-10"><StatLabel label="SA" /></th>
+              <th className="text-center font-medium py-2.5 w-10"><StatLabel label="A" /></th>
             </tr>
           </thead>
           <tbody>
@@ -381,17 +382,17 @@ function SkaterGameLogTable({ title, games, showTryoutBadge }: { title: string; 
           <thead>
             <tr className="text-muted-foreground/50 text-[9px] uppercase tracking-wider">
               <th className="text-left font-medium py-2.5 w-[10%] whitespace-nowrap pr-1">Date</th>
-              <th className="text-left font-medium py-2.5 w-[16%] whitespace-nowrap pr-3">Opp</th>
+              <th className="text-left font-medium py-2.5 w-[16%] whitespace-nowrap pr-3"><StatLabel label="Opp" /></th>
               <th className="text-center font-medium py-2.5 w-14">Score</th>
-              <th className="text-center font-medium py-2.5 w-10">G</th>
-              <th className="text-center font-medium py-2.5 w-10">A</th>
-              <th className="text-center font-medium py-2.5 w-10 font-bold">PTS</th>
-              <th className="text-center font-medium py-2.5 w-10">GWG</th>
-              <th className="text-center font-medium py-2.5 w-10">PPG</th>
-              <th className="text-center font-medium py-2.5 w-10">SHG</th>
-              <th className="text-center font-medium py-2.5 w-10">ENG</th>
-              <th className="text-center font-medium py-2.5 w-10">HAT</th>
-              <th className="text-center font-medium py-2.5 w-10">PIM</th>
+              <th className="text-center font-medium py-2.5 w-10"><StatLabel label="G" /></th>
+              <th className="text-center font-medium py-2.5 w-10"><StatLabel label="A" /></th>
+              <th className="text-center font-medium py-2.5 w-10 font-bold"><StatLabel label="PTS" /></th>
+              <th className="text-center font-medium py-2.5 w-10"><StatLabel label="GWG" /></th>
+              <th className="text-center font-medium py-2.5 w-10"><StatLabel label="PPG" /></th>
+              <th className="text-center font-medium py-2.5 w-10"><StatLabel label="SHG" /></th>
+              <th className="text-center font-medium py-2.5 w-10"><StatLabel label="ENG" /></th>
+              <th className="text-center font-medium py-2.5 w-10"><StatLabel label="HAT" /></th>
+              <th className="text-center font-medium py-2.5 w-10"><StatLabel label="PIM" /></th>
             </tr>
           </thead>
           <tbody>
@@ -444,15 +445,15 @@ function GoalieGameLogTable({ title, games, showTryoutBadge }: { title: string; 
           <thead>
             <tr className="text-muted-foreground/50 text-[9px] uppercase tracking-wider">
               <th className="text-left font-medium py-2.5 w-[10%] whitespace-nowrap pr-1">Date</th>
-              <th className="text-left font-medium py-2.5 w-[16%] whitespace-nowrap pr-3">Opp</th>
+              <th className="text-left font-medium py-2.5 w-[16%] whitespace-nowrap pr-3"><StatLabel label="Opp" /></th>
               <th className="text-center font-medium py-2.5 w-14">Score</th>
-              <th className="text-center font-medium py-2.5 w-10">DEC</th>
-              <th className="text-center font-medium py-2.5 w-10">SA</th>
-              <th className="text-center font-medium py-2.5 w-10">SV</th>
-              <th className="text-center font-medium py-2.5 w-10">GA</th>
-              <th className="text-center font-medium py-2.5 w-12 font-bold">SV%</th>
-              <th className="text-center font-medium py-2.5 w-10">SO</th>
-              <th className="text-center font-medium py-2.5 w-10">A</th>
+              <th className="text-center font-medium py-2.5 w-10"><StatLabel label="DEC" /></th>
+              <th className="text-center font-medium py-2.5 w-10"><StatLabel label="SA" /></th>
+              <th className="text-center font-medium py-2.5 w-10"><StatLabel label="SV" /></th>
+              <th className="text-center font-medium py-2.5 w-10"><StatLabel label="GA" /></th>
+              <th className="text-center font-medium py-2.5 w-12 font-bold"><StatLabel label="SV%" /></th>
+              <th className="text-center font-medium py-2.5 w-10"><StatLabel label="SO" /></th>
+              <th className="text-center font-medium py-2.5 w-10"><StatLabel label="A" /></th>
             </tr>
           </thead>
           <tbody>
