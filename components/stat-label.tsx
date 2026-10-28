@@ -5,6 +5,9 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 
 const descriptions: Record<string, string> = {
   GP: "Games played",
+  TGP: "Team games played",
+  PGP: "Player games played (total appearances)",
+  "SA/G": "Shots against per game",
   G: "Goals",
   A: "Assists",
   PTS: "Points",
