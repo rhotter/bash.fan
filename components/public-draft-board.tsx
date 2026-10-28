@@ -1174,7 +1174,7 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
                         {teams.map((team) => (
                           <th
                             key={team.teamSlug}
-                            className="text-left font-medium py-2.5 px-3 align-bottom normal-case tracking-tight border-b border-border/50 border-l border-border/20 border-t-2 border-t-border"
+                            className="text-left font-medium py-2.5 px-3 align-bottom normal-case tracking-tight border-b border-border/50 border-l border-border/20"
                           >
                             <div className="flex items-center gap-1.5">
                               <TeamLogo slug={team.teamSlug} name={team.teamName} size={20} className="shrink-0" />
@@ -1269,7 +1269,7 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
                           {teams.map((team) => (
                             <th
                               key={team.teamSlug}
-                              className="px-2 py-2 text-left font-semibold min-w-[100px] border-t-[3px] border-t-border overflow-hidden"
+                              className="px-2 py-2 text-left font-semibold min-w-[100px] overflow-hidden"
                             >
                               <div className="flex items-center gap-1.5">
                                 <TeamLogo slug={team.teamSlug} name={team.teamName} size={18} />
