@@ -743,7 +743,7 @@ export function StatsTab({ initialData }: { initialData?: PlayerStatsData }) {
                   <tr className="text-muted-foreground/50 text-[9px] uppercase tracking-wider">
                     <th className="text-left font-medium py-2.5 sticky left-0 z-10 bg-background pl-4 sm:pl-2 w-[168px] sm:w-[168px] after:absolute after:right-0 after:top-0 after:bottom-0 after:w-4 after:bg-gradient-to-r after:from-background/80 after:to-transparent after:pointer-events-none">Team</th>
                     {season === "all" && (
-                      <SortableTh label="Season" sortKey="seasonName" currentKey={teamSkaterSortKey} dir={teamSkaterSortDir} onToggle={toggleTeamSkaterSort} className="text-left px-1.5 sm:px-3 w-14 sm:w-28 [&>div]:justify-start" />
+                      <SortableTh label="Season" sortKey="seasonName" currentKey={teamSkaterSortKey} dir={teamSkaterSortDir} onToggle={toggleTeamSkaterSort} className="text-left px-1.5 sm:px-3 w-14 sm:w-28 [&>button]:justify-start" />
                     )}
                     <SortableTh label="TGP" sortKey="gp" currentKey={teamSkaterSortKey} dir={teamSkaterSortDir} onToggle={toggleTeamSkaterSort} />
                     <SortableTh label="PGP" sortKey="pgp" currentKey={teamSkaterSortKey} dir={teamSkaterSortDir} onToggle={toggleTeamSkaterSort} />
@@ -850,7 +850,7 @@ export function StatsTab({ initialData }: { initialData?: PlayerStatsData }) {
                     <tr className="text-muted-foreground/50 text-[9px] uppercase tracking-wider">
                       <th className="text-left font-medium py-2.5 sticky left-0 z-10 bg-background pl-4 sm:pl-2 w-[168px] sm:w-[168px] after:absolute after:right-0 after:top-0 after:bottom-0 after:w-4 after:bg-gradient-to-r after:from-background/80 after:to-transparent after:pointer-events-none">Team</th>
                       {season === "all" && (
-                        <SortableTh label="Season" sortKey="seasonName" currentKey={teamGoalieSortKey} dir={teamGoalieSortDir} onToggle={toggleTeamGoalieSort} className="text-left px-1.5 sm:px-3 w-14 sm:w-28 [&>div]:justify-start" />
+                        <SortableTh label="Season" sortKey="seasonName" currentKey={teamGoalieSortKey} dir={teamGoalieSortDir} onToggle={toggleTeamGoalieSort} className="text-left px-1.5 sm:px-3 w-14 sm:w-28 [&>button]:justify-start" />
                       )}
                       <SortableTh label="TGP" sortKey="gp" currentKey={teamGoalieSortKey} dir={teamGoalieSortDir} onToggle={toggleTeamGoalieSort} />
                       <SortableTh label="PGP" sortKey="pgp" currentKey={teamGoalieSortKey} dir={teamGoalieSortDir} onToggle={toggleTeamGoalieSort} />
