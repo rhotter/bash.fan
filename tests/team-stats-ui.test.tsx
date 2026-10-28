@@ -281,6 +281,26 @@ describe("StatsTab - Teams View UI", () => {
     expect(container.textContent).not.toContain("Min Games")
   })
 
+  it("defaults to goals for rather than points and sorts goals against with missing values last", async () => {
+    route.season = "2026-summer"
+    currentMockStats.teamSkaters = [
+      { ...mockTeamSkaters[0], goals: 10, points: 100, goalsAgainst: null },
+      { ...mockTeamSkaters[1], goals: 30, points: 40, goalsAgainst: 8 },
+      { ...mockTeamSkaters[2], goals: 20, points: 30, goalsAgainst: 12 },
+    ]
+    await act(async () => root.render(<StatsTab />))
+    const table = container.querySelector("table")!
+    const names = () => Array.from(table.querySelectorAll("tbody tr td:first-child")).map((td) => td.textContent)
+    expect(names()[0]).toContain("Seals")
+    const ga = Array.from(table.querySelectorAll("th")).find((th) => th.textContent === "GA")!
+    await act(async () => ga.click())
+    expect(names()[0]).toContain("Narwhals")
+    expect(names()[2]).toContain("Yetis")
+    await act(async () => ga.click())
+    expect(names()[0]).toContain("Seals")
+    expect(names()[2]).toContain("Yetis")
+  })
+
   it("renders stacked Skaters table on top and Goalies table below with proper headers and default sorts", async () => {
     route.season = "2026-summer"
     await act(async () => root.render(<StatsTab />))
@@ -293,11 +313,11 @@ describe("StatsTab - Teams View UI", () => {
 
     // Skaters Table checks
     const skaterThs = Array.from(tables[0].querySelectorAll("th")).map((th) => th.textContent?.trim())
-    expect(skaterThs).toEqual(["Team", "TGP", "PGP", "G", "A", "PTS", "PTS/G", "GWG", "PPG", "SHG", "ENG", "HAT", "PIM"])
+    expect(skaterThs).toEqual(["Team", "GP", "PGP", "GF", "GA", "A", "PTS", "PTS/G", "PPG", "SHG", "ENG", "HAT", "PIM"])
 
     const skaterRows = tables[0].querySelectorAll("tbody tr")
     expect(skaterRows).toHaveLength(3)
-    // Default sorted by PTS desc: Yetis (45), Seals (30), Narwhals (20)
+    // Default sorted by GF desc: Yetis (25), Seals (15), Narwhals (10)
     expect(skaterRows[0].textContent).toContain("Yetis")
     expect(skaterRows[0].textContent).toContain("45")
     expect(skaterRows[1].textContent).toContain("Seals")
@@ -305,7 +325,7 @@ describe("StatsTab - Teams View UI", () => {
 
     // Goalie Table checks
     const goalieThs = Array.from(tables[1].querySelectorAll("th")).map((th) => th.textContent?.trim())
-    expect(goalieThs).toEqual(["Team", "TGP", "PGP", "SV%", "GAA", "SO", "SV", "GA", "SA", "SA/G", "A"])
+    expect(goalieThs).toEqual(["Team", "GP", "PGP", "SV%", "GAA", "SO", "SV", "GA", "SA", "SA/G", "A"])
 
     const goalieRows = tables[1].querySelectorAll("tbody tr")
     expect(goalieRows).toHaveLength(2)
@@ -421,10 +441,10 @@ describe("StatsTab - Teams View UI", () => {
     const searchInput = container.querySelector<HTMLInputElement>('input[placeholder="Search teams or seasons..."]')
     expect(searchInput).not.toBeNull()
 
-    // Game Type, Season Type, and Min TGP controls are rendered
+    // Game Type, Season Type, and Min GP controls are rendered
     expect(container.textContent).toContain("Game Type")
     expect(container.textContent).toContain("Season Type")
-    expect(container.textContent).toContain("Min TGP")
+    expect(container.textContent).toContain("Min GP")
     const minTgpInput = container.querySelector<HTMLInputElement>('input[type="number"]')
     expect(minTgpInput?.value).toBe("12")
     // Team filter and player Min Games are omitted in Teams view
@@ -690,7 +710,7 @@ describe("StatsTab - Teams View UI", () => {
     const gameTypeSelect = selects[0]
     const seasonTypeSelect = selects[1]
 
-    // Change game type to playoffs -> updates URL and sets Min TGP to 2
+    // Change game type to playoffs -> updates URL and sets Min GP to 2
     await act(async () => {
       gameTypeSelect.value = "playoffs"
       gameTypeSelect.dispatchEvent(new Event("change", { bubbles: true }))
@@ -708,7 +728,7 @@ describe("StatsTab - Teams View UI", () => {
       { scroll: false }
     )
 
-    // Change season type to summer -> updates URL and sets Min TGP to 8
+    // Change season type to summer -> updates URL and sets Min GP to 8
     await act(async () => {
       seasonTypeSelect.value = "summer"
       seasonTypeSelect.dispatchEvent(new Event("change", { bubbles: true }))

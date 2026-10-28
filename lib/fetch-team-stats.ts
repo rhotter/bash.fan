@@ -17,6 +17,7 @@ export interface TeamSkaterStat {
   gp: number
   pgp: number
   goals: number
+  goalsAgainst?: number | null
   assists: number
   points: number
   ptsPg: string
@@ -118,8 +119,23 @@ export async function fetchTeamStats(
     }
   }
 
+  // Count opponent scores once per game, including goals conceded into an empty net.
+  const goalsAgainstQuery = sql`
+    SELECT g.season_id, side.team_slug, SUM(side.goals_against)::int AS goals_against
+    FROM games g
+    JOIN seasons s ON s.id = g.season_id
+    CROSS JOIN LATERAL (VALUES
+      (g.home_team, g.away_score), (g.away_team, g.home_score)
+    ) AS side(team_slug, goals_against)
+    WHERE g.status = 'final' AND NOT g.is_forfeit
+      AND g.home_score IS NOT NULL AND g.away_score IS NOT NULL
+      AND ${playoffFilter} AND ${gameTypeFragment}
+      AND ${isAllTime ? seasonTypeFragment : sql`g.season_id = ${resolvedSeasonId}`}
+    GROUP BY g.season_id, side.team_slug
+  `
+
   if (isAllTime) {
-    const [skaterRows, histSkaterRows, goalieRows, championRows, franchiseRows] = await Promise.all([
+    const [skaterRows, histSkaterRows, goalieRows, championRows, franchiseRows, goalsAgainstRows] = await Promise.all([
       rawSql(sql`
         SELECT
           COALESCE(pgs.team_slug, ps.team_slug) as team_slug,
@@ -234,7 +250,10 @@ export async function fetchTeamStats(
         JOIN franchises f ON st.franchise_slug = f.slug
         WHERE st.franchise_slug IS NOT NULL
       `),
+      rawSql(goalsAgainstQuery),
     ])
+
+    const goalsAgainstByTeam = new Map((goalsAgainstRows ?? []).map((r) => [`${r.season_id}:${r.team_slug}`, Number(r.goals_against)]))
 
     const championBySeason = new Map<string, string>()
     const finalistBySeason = new Map<string, string>()
@@ -281,6 +300,7 @@ export async function fetchTeamStats(
           gp,
           pgp,
           goals: Number(r.goals) || 0,
+          goalsAgainst: goalsAgainstByTeam.get(`${r.season_id}:${r.team_slug}`) ?? (gp === 0 ? 0 : null),
           assists: Number(r.assists) || 0,
           points,
           ptsPg: gp > 0 ? (points / gp).toFixed(2) : "0.00",
@@ -343,7 +363,7 @@ export async function fetchTeamStats(
   // Single season mode
   if (statsOnly) {
     const playoffFragment = isPlayoff ? sql`pss.is_playoff` : sql`NOT pss.is_playoff`
-    const [skaterRows, seasonTeamRows] = await Promise.all([
+    const [skaterRows, seasonTeamRows, goalsAgainstRows] = await Promise.all([
       rawSql(sql`
         SELECT
           pss.team_slug,
@@ -372,7 +392,10 @@ export async function fetchTeamStats(
         WHERE st.season_id = ${resolvedSeasonId}
         ORDER BY t.name
       `),
+      rawSql(goalsAgainstQuery),
     ])
+
+    const goalsAgainstByTeam = new Map((goalsAgainstRows ?? []).map((r) => [`${r.season_id}:${r.team_slug}`, Number(r.goals_against)]))
 
     const activeTeams = filterLegacyTeams(seasonTeamRows as { slug: string; name: string }[])
     const teamSlugSet = new Set(activeTeams.map((t) => t.slug))
@@ -401,6 +424,7 @@ export async function fetchTeamStats(
         gp,
         pgp,
         goals: r ? Number(r.goals) || 0 : 0,
+        goalsAgainst: goalsAgainstByTeam.get(`${resolvedSeasonId}:${t.slug}`) ?? (gp === 0 ? 0 : null),
         assists: r ? Number(r.assists) || 0 : 0,
         points,
         ptsPg: gp > 0 ? (points / gp).toFixed(2) : "0.00",
@@ -419,7 +443,7 @@ export async function fetchTeamStats(
 
   // Normal single season mode
   const playoffFragment = isPlayoff ? sql`g.is_playoff` : sql`NOT g.is_playoff`
-  const [skaterRows, goalieRows, seasonTeamRows] = await Promise.all([
+  const [skaterRows, goalieRows, seasonTeamRows, goalsAgainstRows] = await Promise.all([
     rawSql(sql`
       SELECT
         COALESCE(pgs.team_slug, ps.team_slug) as team_slug,
@@ -481,7 +505,10 @@ export async function fetchTeamStats(
       WHERE st.season_id = ${resolvedSeasonId}
       ORDER BY t.name
     `),
+    rawSql(goalsAgainstQuery),
   ])
+
+  const goalsAgainstByTeam = new Map((goalsAgainstRows ?? []).map((r) => [`${r.season_id}:${r.team_slug}`, Number(r.goals_against)]))
 
   const activeTeams = filterLegacyTeams(seasonTeamRows as { slug: string; name: string }[])
   const teamSlugSet = new Set(activeTeams.map((t) => t.slug))
@@ -517,6 +544,7 @@ export async function fetchTeamStats(
       gp,
       pgp,
       goals: r ? Number(r.goals) || 0 : 0,
+      goalsAgainst: goalsAgainstByTeam.get(`${resolvedSeasonId}:${t.slug}`) ?? (gp === 0 ? 0 : null),
       assists: r ? Number(r.assists) || 0 : 0,
       points,
       ptsPg: gp > 0 ? (points / gp).toFixed(2) : "0.00",

@@ -40,6 +40,11 @@ describe("fetchTeamStats aggregation logic", () => {
 
   it("calculates distinct team GP, PTS/G, and includes substitute and traded player stats in single-season mode", async () => {
     mocks.rawSql.mockImplementation(async ({ sql, params: _params }: Query) => {
+      if (sql.includes("AS side(team_slug, goals_against)")) {
+        expect(sql).toContain("g.status = 'final' AND NOT g.is_forfeit")
+        expect(sql).toContain("g.home_score IS NOT NULL AND g.away_score IS NOT NULL")
+        return [{ season_id: "bash-2026-2027", team_slug: "seals", goals_against: 6 }]
+      }
       if (sql.includes("FROM seasons WHERE id =")) {
         return [{ id: "bash-2026-2027", name: "Fall 2026-2027", game_length: 60, stats_only: false }]
       }
@@ -121,6 +126,7 @@ describe("fetchTeamStats aggregation logic", () => {
     // Ranked by points desc
     const sealsSkater = res.teamSkaters.find((t) => t.teamSlug === "seals")!
     expect(sealsSkater).toBeDefined()
+    expect(sealsSkater.goalsAgainst).toBe(6) // Includes team goals conceded beyond goalie totals.
     expect(sealsSkater.gp).toBe(2)
     expect(sealsSkater.pgp).toBe(22)
     expect(sealsSkater.points).toBe(10)
@@ -129,6 +135,7 @@ describe("fetchTeamStats aggregation logic", () => {
 
     const reignSkater = res.teamSkaters.find((t) => t.teamSlug === "reign")!
     expect(reignSkater).toBeDefined()
+    expect(reignSkater.goalsAgainst).toBeNull()
     expect(reignSkater.gp).toBe(1)
     expect(reignSkater.pgp).toBe(11)
     expect(reignSkater.points).toBe(4)

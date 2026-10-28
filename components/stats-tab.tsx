@@ -16,7 +16,7 @@ import { TeamLogo } from "@/components/team-logo"
 
 type SortKey = "points" | "goals" | "assists" | "pim" | "gp" | "gwg" | "ppg" | "shg" | "eng" | "hatTricks" | "pen" | "ptsPg"
 type GoalieSortKey = "savePercentage" | "gaa" | "wins" | "losses" | "saves" | "goalsAgainst" | "shotsAgainst" | "gp" | "shutouts" | "goalieAssists"
-type TeamSkaterSortKey = "points" | "goals" | "assists" | "pim" | "gp" | "pgp" | "gwg" | "ppg" | "shg" | "eng" | "hatTricks" | "pen" | "ptsPg" | "seasonName"
+type TeamSkaterSortKey = "points" | "goalsAgainst" | "goals" | "assists" | "pim" | "gp" | "pgp" | "gwg" | "ppg" | "shg" | "eng" | "hatTricks" | "pen" | "ptsPg" | "seasonName"
 type TeamGoalieSortKey = "savePercentage" | "gaa" | "saves" | "goalsAgainst" | "shotsAgainst" | "saPg" | "gp" | "pgp" | "shutouts" | "goalieAssists" | "seasonName"
 
 const goalieAscKeys = new Set<GoalieSortKey>(["gaa"])
@@ -145,7 +145,7 @@ export function StatsTab({ initialData }: { initialData?: PlayerStatsData }) {
   }, [teamSkaters, teamGoalies])
   const { sortKey, sortDir, toggleSort } = useSort<SortKey>("points")
   const { sortKey: goalieSortKey, sortDir: goalieSortDir, toggleSort: toggleGoalieSort } = useSort<GoalieSortKey>("savePercentage", "desc", goalieAscKeys)
-  const { sortKey: teamSkaterSortKey, sortDir: teamSkaterSortDir, toggleSort: toggleTeamSkaterSort } = useSort<TeamSkaterSortKey>("points")
+  const { sortKey: teamSkaterSortKey, sortDir: teamSkaterSortDir, toggleSort: toggleTeamSkaterSort } = useSort<TeamSkaterSortKey>("goals")
   const { sortKey: teamGoalieSortKey, sortDir: teamGoalieSortDir, toggleSort: toggleTeamGoalieSort } = useSort<TeamGoalieSortKey>("savePercentage", "desc", teamGoalieAscKeys)
   const [skaterPage, setSkaterPage] = useState(1)
   const [goaliePage, setGoaliePage] = useState(1)
@@ -205,6 +205,10 @@ export function StatsTab({ initialData }: { initialData?: PlayerStatsData }) {
         return teamSkaterSortDir === "desc"
           ? (bv - av || b.points - a.points || b.goals - a.goals || stableTiebreaker)
           : (av - bv || b.points - a.points || b.goals - a.goals || stableTiebreaker)
+      }
+      if (teamSkaterSortKey === "goalsAgainst") {
+        if (a.goalsAgainst == null) return b.goalsAgainst == null ? stableTiebreaker : 1
+        if (b.goalsAgainst == null) return -1
       }
       const av = (a[teamSkaterSortKey] ?? 0) as number
       const bv = (b[teamSkaterSortKey] ?? 0) as number
@@ -553,7 +557,7 @@ export function StatsTab({ initialData }: { initialData?: PlayerStatsData }) {
                   </div>
                 ) : (
                   <div className="flex flex-col gap-1.5 w-[70px] sm:w-24">
-                    <span className="text-[9px] uppercase tracking-wider text-muted-foreground/50 font-bold pl-0.5">Min TGP</span>
+                    <span className="text-[9px] uppercase tracking-wider text-muted-foreground/50 font-bold pl-0.5">Min GP</span>
                     <input
                       type="number"
                       min={0}
@@ -745,13 +749,13 @@ export function StatsTab({ initialData }: { initialData?: PlayerStatsData }) {
                     {season === "all" && (
                       <SortableTh label="Season" sortKey="seasonName" currentKey={teamSkaterSortKey} dir={teamSkaterSortDir} onToggle={toggleTeamSkaterSort} className="text-left px-1.5 sm:px-3 w-14 sm:w-28 [&>button]:justify-start" />
                     )}
-                    <SortableTh label="TGP" sortKey="gp" currentKey={teamSkaterSortKey} dir={teamSkaterSortDir} onToggle={toggleTeamSkaterSort} />
+                    <SortableTh label="GP" sortKey="gp" currentKey={teamSkaterSortKey} dir={teamSkaterSortDir} onToggle={toggleTeamSkaterSort} />
                     <SortableTh label="PGP" sortKey="pgp" currentKey={teamSkaterSortKey} dir={teamSkaterSortDir} onToggle={toggleTeamSkaterSort} />
-                    <SortableTh label="G" sortKey="goals" currentKey={teamSkaterSortKey} dir={teamSkaterSortDir} onToggle={toggleTeamSkaterSort} />
+                    <SortableTh label="GF" sortKey="goals" currentKey={teamSkaterSortKey} dir={teamSkaterSortDir} onToggle={toggleTeamSkaterSort} />
+                    <SortableTh label="GA" sortKey="goalsAgainst" currentKey={teamSkaterSortKey} dir={teamSkaterSortDir} onToggle={toggleTeamSkaterSort} />
                     <SortableTh label="A" sortKey="assists" currentKey={teamSkaterSortKey} dir={teamSkaterSortDir} onToggle={toggleTeamSkaterSort} />
                     <SortableTh label="PTS" sortKey="points" currentKey={teamSkaterSortKey} dir={teamSkaterSortDir} onToggle={toggleTeamSkaterSort} />
                     <SortableTh label="PTS/G" sortKey="ptsPg" currentKey={teamSkaterSortKey} dir={teamSkaterSortDir} onToggle={toggleTeamSkaterSort} />
-                    <SortableTh label="GWG" sortKey="gwg" currentKey={teamSkaterSortKey} dir={teamSkaterSortDir} onToggle={toggleTeamSkaterSort} />
                     <SortableTh label="PPG" sortKey="ppg" currentKey={teamSkaterSortKey} dir={teamSkaterSortDir} onToggle={toggleTeamSkaterSort} />
                     <SortableTh label="SHG" sortKey="shg" currentKey={teamSkaterSortKey} dir={teamSkaterSortDir} onToggle={toggleTeamSkaterSort} />
                     <SortableTh label="ENG" sortKey="eng" currentKey={teamSkaterSortKey} dir={teamSkaterSortDir} onToggle={toggleTeamSkaterSort} />
@@ -808,10 +812,10 @@ export function StatsTab({ initialData }: { initialData?: PlayerStatsData }) {
                       <td className={sortedStatCellClass("gp", teamSkaterSortKey)}>{t.gp}</td>
                       <td className={sortedStatCellClass("pgp", teamSkaterSortKey)}>{t.pgp ?? t.gp}</td>
                       <td className={sortedStatCellClass("goals", teamSkaterSortKey)}>{t.goals}</td>
+                      <td className={sortedStatCellClass("goalsAgainst", teamSkaterSortKey)}>{t.goalsAgainst ?? "—"}</td>
                       <td className={sortedStatCellClass("assists", teamSkaterSortKey)}>{t.assists}</td>
                       <td className={sortedStatCellClass("points", teamSkaterSortKey)}>{t.points}</td>
                       <td className={sortedStatCellClass("ptsPg", teamSkaterSortKey)}>{t.ptsPg}</td>
-                      <td className={sortedStatCellClass("gwg", teamSkaterSortKey)}>{t.gwg}</td>
                       <td className={sortedStatCellClass("ppg", teamSkaterSortKey)}>{t.ppg}</td>
                       <td className={sortedStatCellClass("shg", teamSkaterSortKey)}>{t.shg}</td>
                       <td className={sortedStatCellClass("eng", teamSkaterSortKey)}>{t.eng}</td>
@@ -852,7 +856,7 @@ export function StatsTab({ initialData }: { initialData?: PlayerStatsData }) {
                       {season === "all" && (
                         <SortableTh label="Season" sortKey="seasonName" currentKey={teamGoalieSortKey} dir={teamGoalieSortDir} onToggle={toggleTeamGoalieSort} className="text-left px-1.5 sm:px-3 w-14 sm:w-28 [&>button]:justify-start" />
                       )}
-                      <SortableTh label="TGP" sortKey="gp" currentKey={teamGoalieSortKey} dir={teamGoalieSortDir} onToggle={toggleTeamGoalieSort} />
+                      <SortableTh label="GP" sortKey="gp" currentKey={teamGoalieSortKey} dir={teamGoalieSortDir} onToggle={toggleTeamGoalieSort} />
                       <SortableTh label="PGP" sortKey="pgp" currentKey={teamGoalieSortKey} dir={teamGoalieSortDir} onToggle={toggleTeamGoalieSort} />
                       <SortableTh label="SV%" sortKey="savePercentage" currentKey={teamGoalieSortKey} dir={teamGoalieSortDir} onToggle={toggleTeamGoalieSort} />
                       <SortableTh label="GAA" sortKey="gaa" currentKey={teamGoalieSortKey} dir={teamGoalieSortDir} onToggle={toggleTeamGoalieSort} />
