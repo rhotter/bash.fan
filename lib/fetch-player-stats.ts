@@ -4,6 +4,9 @@ import { getCurrentSeason, isStatsOnlySeason } from "@/lib/seasons"
 import { filterLegacyTeams } from "@/lib/team-filters"
 import { DEFAULT_GAME_LENGTH_MIN } from "@/lib/game-rules"
 
+export type { TeamSkaterStat, TeamGoalieStat, TeamStatsData } from "@/lib/fetch-team-stats"
+import type { TeamSkaterStat, TeamGoalieStat } from "@/lib/fetch-team-stats"
+
 export interface SkaterStat {
   id: number
   name: string
@@ -48,6 +51,8 @@ export interface PlayerStatsData {
   goalies: GoalieStat[]
   skatersByTeam?: SkaterStat[]
   goaliesByTeam?: GoalieStat[]
+  teamSkaters?: TeamSkaterStat[]
+  teamGoalies?: TeamGoalieStat[]
   teams: { slug: string; name: string }[]
   lastUpdated: string
   hasPlayoffs?: boolean
@@ -63,7 +68,7 @@ export async function fetchPlayerStats(
   const seasonId = !isAllTime ? (seasonParam || (await getCurrentSeason()).id) : null
   const isPlayoff = playoff === true
 
-  const gameType = gameTypeParam || (isPlayoff ? "playoffs" : "regular")
+  const gameType = isAllTime ? (gameTypeParam || (isPlayoff ? "playoffs" : "regular")) : (isPlayoff ? "playoffs" : "regular")
 
   let playoffFilter = sql`g.is_playoff = false`
   let gameTypeFragment = sql`g.game_type = 'regular'`

@@ -79,6 +79,7 @@ Each page follows: async Server Component (data fetch via `React.cache` / `lib/c
 - `app/api/bash/admin/seasons/[id]/draft/` — Draft management API (22 endpoints)
 - `app/api/bash/admin/seasons/[id]/trades/` — Mid-season player & future draft pick trade execution API (atomic single-statement CTE)
 - `lib/fetch-*.ts` — Server-side data fetching functions wrapped in `React.cache()`
+- `lib/fetch-team-stats.ts` — Team-level skater & goalie stat aggregation (`TGP`, `PGP`, `PTS/G`, `SA/G`), championship/finalist resolution, and franchise mapping for `/stats?view=teams`
 - `lib/fetch-player-query-group.ts` — Single-round-trip `MATERIALIZED` CTE batch runner for player detail stats
 - `lib/cached-page-data.ts` — Cross-request `unstable_cache` wrappers for public page snapshots
 - `lib/player-slug-sql.ts` — SQL equivalent of `playerSlug()` for in-database slug filtering
@@ -114,7 +115,7 @@ Standings (`lib/standings.ts`) and pairwise Head-to-Head breakdowns (`lib/head-t
 
 - `/` — Home (scores grouped by date/week)
 - `/register` — Player registration flow (temporary — will be removed)
-- `/standings`, `/stats` — List pages filtered by `?season=YYYY-YYYY` (`/standings` also supports `?view=h2h&team=<slug>` for Head to Head)
+- `/standings`, `/stats` — List pages filtered by `?season=YYYY-YYYY` (`/standings` also supports `?view=h2h&team=<slug>` for Head to Head; `/stats` supports `?view=goalies` and `?view=teams`)
 - `/player/[slug]`, `/team/[slug]`, `/game/[id]` — Detail pages
 - `/draft/[season]` — Public draft board (e.g., `/draft/2026-summer`)
 - `/scorekeeper/[id]` — Live game scorekeeper
