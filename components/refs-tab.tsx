@@ -3,7 +3,7 @@
 import { ErrorNotice } from "@/components/error-notice"
 import { LoadingState } from "@/components/loading-state"
 import { useRefStats } from "@/lib/hockey-data"
-import { useSort, SortableTh, statsRowClass } from "@/components/stats-table"
+import { sortedStatCellClass, useSort, SortableTh, statsRowClass } from "@/components/stats-table"
 
 type SortKey = "games" | "totalPen" | "totalPim" | "avgPimPerGame"
 
@@ -39,7 +39,7 @@ export function RefsTab() {
           <tr className="text-muted-foreground/50 text-[9px] uppercase tracking-wider">
             <th className="text-center font-medium py-2.5 w-8">#</th>
             <th className="text-left font-medium py-2.5 min-w-[140px]">Referee</th>
-            <SortableTh label="Games" sortKey="games" currentKey={sortKey} dir={sortDir} onToggle={toggleSort} bold className="w-14" />
+            <SortableTh label="Games" sortKey="games" currentKey={sortKey} dir={sortDir} onToggle={toggleSort} className="w-14" />
             <SortableTh label="Pen" sortKey="totalPen" currentKey={sortKey} dir={sortDir} onToggle={toggleSort} className="w-14" />
             <SortableTh label="PIM" sortKey="totalPim" currentKey={sortKey} dir={sortDir} onToggle={toggleSort} className="w-14" />
             <SortableTh label="PIM/G" sortKey="avgPimPerGame" currentKey={sortKey} dir={sortDir} onToggle={toggleSort} className="w-14" />
@@ -55,10 +55,10 @@ export function RefsTab() {
               <td className="py-2 pr-2 whitespace-nowrap">
                 <span className="text-xs font-semibold leading-tight text-foreground">{r.name}</span>
               </td>
-              <td className="text-center tabular-nums py-2 px-3 font-bold">{r.games}</td>
-              <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{r.totalPen}</td>
-              <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{r.totalPim}</td>
-              <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{r.avgPimPerGame}</td>
+              <td className={sortedStatCellClass("games", sortKey)}>{r.games}</td>
+              <td className={sortedStatCellClass("totalPen", sortKey)}>{r.totalPen}</td>
+              <td className={sortedStatCellClass("totalPim", sortKey)}>{r.totalPim}</td>
+              <td className={sortedStatCellClass("avgPimPerGame", sortKey)}>{r.avgPimPerGame}</td>
             </tr>
           ))}
         </tbody>

@@ -5,7 +5,7 @@ import { ChevronRight } from "lucide-react"
 import { LoadingState } from "@/components/loading-state"
 import { TeamLogo } from "@/components/team-logo"
 import { IntentLink as Link } from "@/components/intent-link"
-import { useSort, SortableTh, SortIcon, statsRowClass } from "@/components/stats-table"
+import { sortedStatCellClass, useSort, SortableTh, SortIcon, statsRowClass } from "@/components/stats-table"
 import { cn } from "@/lib/utils"
 import {
   computeHeadToHead,
@@ -219,7 +219,7 @@ export function HeadToHeadTab({
               </th>
               <SortableTh label="GP" sortKey="gp" currentKey={sortKey} dir={sortDir} onToggle={toggleSort} />
               <SortableTh label="Record" sortKey="record" currentKey={sortKey} dir={sortDir} onToggle={toggleSort} className="w-20" />
-              <SortableTh label="PTS" sortKey="pts" currentKey={sortKey} dir={sortDir} onToggle={toggleSort} bold />
+              <SortableTh label="PTS" sortKey="pts" currentKey={sortKey} dir={sortDir} onToggle={toggleSort} />
               <SortableTh label="GF" sortKey="gf" currentKey={sortKey} dir={sortDir} onToggle={toggleSort} />
               <SortableTh label="GA" sortKey="ga" currentKey={sortKey} dir={sortDir} onToggle={toggleSort} />
               <SortableTh label="+/-" sortKey="gd" currentKey={sortKey} dir={sortDir} onToggle={toggleSort} />
@@ -233,6 +233,7 @@ export function HeadToHeadTab({
                   key={row.opponentSlug}
                   row={row}
                   index={i}
+                  sortKey={sortKey}
                   isExpanded={isExpanded}
                   onToggleExpand={() => toggleExpand(row.opponentSlug)}
                 />
@@ -271,11 +272,13 @@ export function HeadToHeadTab({
 function OpponentRowsGroup({
   row,
   index,
+  sortKey,
   isExpanded,
   onToggleExpand,
 }: {
   row: HeadToHeadOpponentRecord
   index: number
+  sortKey: H2HSortKey
   isExpanded: boolean
   onToggleExpand: () => void
 }) {
@@ -320,20 +323,20 @@ function OpponentRowsGroup({
               className="flex items-center gap-2 group/team min-w-0"
             >
               <TeamLogo slug={row.opponentSlug} name={row.opponentTeam} size={26} className="shrink-0" />
-              <span className="text-xs font-semibold group-hover/team:text-primary transition-colors line-clamp-2">
+              <span className={cn("text-xs group-hover/team:text-primary transition-colors line-clamp-2", sortKey === "opponent" ? "font-bold" : "font-semibold")}>
                 {row.opponentTeam}
               </span>
             </Link>
           </div>
         </td>
-        <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{row.gp}</td>
-        <td className="text-center tabular-nums py-2 px-3 text-muted-foreground whitespace-nowrap">
+        <td className={sortedStatCellClass("gp", sortKey)}>{row.gp}</td>
+        <td className={cn(sortedStatCellClass("record", sortKey), "whitespace-nowrap")}>
           {row.w}-{row.otw}-{row.otl}-{row.l}
         </td>
-        <td className="text-center tabular-nums py-2 px-3 font-bold text-foreground">{row.pts}</td>
-        <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{row.gf}</td>
-        <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{row.ga}</td>
-        <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">
+        <td className={sortedStatCellClass("pts", sortKey)}>{row.pts}</td>
+        <td className={sortedStatCellClass("gf", sortKey)}>{row.gf}</td>
+        <td className={sortedStatCellClass("ga", sortKey)}>{row.ga}</td>
+        <td className={sortedStatCellClass("gd", sortKey)}>
           {row.gd > 0 ? `+${row.gd}` : row.gd}
         </td>
       </tr>

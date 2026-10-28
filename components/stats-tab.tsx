@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils"
 import { SearchIcon } from "lucide-react"
 import { IntentLink as Link } from "@/components/intent-link"
 import { playerSlug } from "@/lib/player-slug"
-import { useSort, SortableTh } from "@/components/stats-table"
+import { sortedStatCellClass, useSort, SortableTh } from "@/components/stats-table"
 import { compareSkaterStats, compareGoalieStats } from "@/lib/stats-sort"
 import { TeamLogo } from "@/components/team-logo"
 
@@ -316,7 +316,7 @@ export function StatsTab({ initialData }: { initialData?: PlayerStatsData }) {
                   <SortableTh label="GP" sortKey="gp" currentKey={sortKey} dir={sortDir} onToggle={toggleSort} />
                   <SortableTh label="G" sortKey="goals" currentKey={sortKey} dir={sortDir} onToggle={toggleSort} />
                   <SortableTh label="A" sortKey="assists" currentKey={sortKey} dir={sortDir} onToggle={toggleSort} />
-                  <SortableTh label="PTS" sortKey="points" currentKey={sortKey} dir={sortDir} onToggle={toggleSort} bold />
+                  <SortableTh label="PTS" sortKey="points" currentKey={sortKey} dir={sortDir} onToggle={toggleSort} />
                   <SortableTh label="PTS/G" sortKey="ptsPg" currentKey={sortKey} dir={sortDir} onToggle={toggleSort} />
                   <SortableTh label="GWG" sortKey="gwg" currentKey={sortKey} dir={sortDir} onToggle={toggleSort} />
                   <SortableTh label="PPG" sortKey="ppg" currentKey={sortKey} dir={sortDir} onToggle={toggleSort} />
@@ -342,17 +342,17 @@ export function StatsTab({ initialData }: { initialData?: PlayerStatsData }) {
                         <Link href={`/player/${playerSlug(p.name)}`} prefetch={true} className="text-xs font-semibold leading-tight text-foreground hover:text-primary transition-colors truncate">{p.name}</Link>
                       </div>
                     </td>
-                    <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{p.gp}</td>
-                    <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{p.goals}</td>
-                    <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{p.assists}</td>
-                    <td className="text-center tabular-nums py-2 px-3 font-bold">{p.points}</td>
-                    <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{p.ptsPg}</td>
-                    <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{p.gwg}</td>
-                    <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{p.ppg}</td>
-                    <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{p.shg}</td>
-                    <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{p.eng}</td>
-                    <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{p.hatTricks}</td>
-                    <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{p.pim}</td>
+                    <td className={sortedStatCellClass("gp", sortKey)}>{p.gp}</td>
+                    <td className={sortedStatCellClass("goals", sortKey)}>{p.goals}</td>
+                    <td className={sortedStatCellClass("assists", sortKey)}>{p.assists}</td>
+                    <td className={sortedStatCellClass("points", sortKey)}>{p.points}</td>
+                    <td className={sortedStatCellClass("ptsPg", sortKey)}>{p.ptsPg}</td>
+                    <td className={sortedStatCellClass("gwg", sortKey)}>{p.gwg}</td>
+                    <td className={sortedStatCellClass("ppg", sortKey)}>{p.ppg}</td>
+                    <td className={sortedStatCellClass("shg", sortKey)}>{p.shg}</td>
+                    <td className={sortedStatCellClass("eng", sortKey)}>{p.eng}</td>
+                    <td className={sortedStatCellClass("hatTricks", sortKey)}>{p.hatTricks}</td>
+                    <td className={sortedStatCellClass("pim", sortKey)}>{p.pim}</td>
                   </tr>
                 ))}
               </tbody>
@@ -380,7 +380,7 @@ export function StatsTab({ initialData }: { initialData?: PlayerStatsData }) {
                   <SortableTh label="GP" sortKey="gp" currentKey={goalieSortKey} dir={goalieSortDir} onToggle={toggleGoalieSort} />
                   <SortableTh label="W" sortKey="wins" currentKey={goalieSortKey} dir={goalieSortDir} onToggle={toggleGoalieSort} />
                   <SortableTh label="L" sortKey="losses" currentKey={goalieSortKey} dir={goalieSortDir} onToggle={toggleGoalieSort} />
-                  <SortableTh label="SV%" sortKey="savePercentage" currentKey={goalieSortKey} dir={goalieSortDir} onToggle={toggleGoalieSort} bold />
+                  <SortableTh label="SV%" sortKey="savePercentage" currentKey={goalieSortKey} dir={goalieSortDir} onToggle={toggleGoalieSort} />
                   <SortableTh label="GAA" sortKey="gaa" currentKey={goalieSortKey} dir={goalieSortDir} onToggle={toggleGoalieSort} />
                   <SortableTh label="SO" sortKey="shutouts" currentKey={goalieSortKey} dir={goalieSortDir} onToggle={toggleGoalieSort} />
                   <SortableTh label="SV" sortKey="saves" currentKey={goalieSortKey} dir={goalieSortDir} onToggle={toggleGoalieSort} />
@@ -405,20 +405,20 @@ export function StatsTab({ initialData }: { initialData?: PlayerStatsData }) {
                         <Link href={`/player/${playerSlug(p.name)}`} prefetch={true} className="text-xs font-semibold leading-tight text-foreground hover:text-primary transition-colors truncate">{p.name}</Link>
                       </div>
                     </td>
-                    <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{p.gp}</td>
-                    <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{p.wins}</td>
-                    <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{p.losses}</td>
-                    <td className="text-center tabular-nums py-2 px-3 font-bold">
+                    <td className={sortedStatCellClass("gp", goalieSortKey)}>{p.gp}</td>
+                    <td className={sortedStatCellClass("wins", goalieSortKey)}>{p.wins}</td>
+                    <td className={sortedStatCellClass("losses", goalieSortKey)}>{p.losses}</td>
+                    <td className={sortedStatCellClass("savePercentage", goalieSortKey)}>
                       {p.savePercentage !== undefined ? p.savePercentage.toFixed(3) : "-"}
                     </td>
-                    <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">
+                    <td className={sortedStatCellClass("gaa", goalieSortKey)}>
                       {p.gaa !== undefined ? p.gaa.toFixed(2) : "-"}
                     </td>
-                    <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{p.shutouts}</td>
-                    <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{p.saves}</td>
-                    <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{p.goalsAgainst}</td>
-                    <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{p.shotsAgainst}</td>
-                    <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{p.goalieAssists}</td>
+                    <td className={sortedStatCellClass("shutouts", goalieSortKey)}>{p.shutouts}</td>
+                    <td className={sortedStatCellClass("saves", goalieSortKey)}>{p.saves}</td>
+                    <td className={sortedStatCellClass("goalsAgainst", goalieSortKey)}>{p.goalsAgainst}</td>
+                    <td className={sortedStatCellClass("shotsAgainst", goalieSortKey)}>{p.shotsAgainst}</td>
+                    <td className={sortedStatCellClass("goalieAssists", goalieSortKey)}>{p.goalieAssists}</td>
                   </tr>
                 ))}
               </tbody>

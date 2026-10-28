@@ -13,7 +13,7 @@ import { IntentLink as Link } from "@/components/intent-link"
 import { playerSlug } from "@/lib/player-slug"
 import { formatGoalieTime } from "@/lib/format-goalie-time"
 import type { PlayerBoxScore, GoalieBoxScore } from "@/app/api/bash/game/[id]/route"
-import { useSort, SortableTh, SectionHeader } from "@/components/stats-table"
+import { sortedStatCellClass, useSort, SortableTh, SectionHeader } from "@/components/stats-table"
 import type { LiveGameState, GoalEvent, RosterPlayer } from "@/lib/scorekeeper-types"
 import { periodLabel, formatClock, computeCurrentClock, parseClockString, clockToElapsedDisplay } from "@/lib/scorekeeper-types"
 import { PeriodSummary } from "@/components/scorekeeper/shared/period-summary"
@@ -733,7 +733,7 @@ function SkaterBoxScore({ players }: { players: PlayerBoxScore[] }) {
             <th className="text-left font-medium py-2 sticky left-0 z-10 bg-background pl-4 sm:pl-2 w-[140px] max-w-[140px] after:absolute after:right-0 after:top-0 after:bottom-0 after:w-4 after:bg-gradient-to-r after:from-background/80 after:to-transparent after:pointer-events-none">Player</th>
             <SortableTh label="G" sortKey="goals" currentKey={sortKey} dir={sortDir} onToggle={toggleSort} className="w-8 py-2" />
             <SortableTh label="A" sortKey="assists" currentKey={sortKey} dir={sortDir} onToggle={toggleSort} className="w-8 py-2" />
-            <SortableTh label="PTS" sortKey="points" currentKey={sortKey} dir={sortDir} onToggle={toggleSort} bold className="w-8 py-2" />
+            <SortableTh label="PTS" sortKey="points" currentKey={sortKey} dir={sortDir} onToggle={toggleSort} className="w-8 py-2" />
             <SortableTh label="GWG" sortKey="gwg" currentKey={sortKey} dir={sortDir} onToggle={toggleSort} className="w-8 py-2" />
             <SortableTh label="PPG" sortKey="ppg" currentKey={sortKey} dir={sortDir} onToggle={toggleSort} className="w-8 py-2" />
             <SortableTh label="SHG" sortKey="shg" currentKey={sortKey} dir={sortDir} onToggle={toggleSort} className="w-8 py-2" />
@@ -759,15 +759,15 @@ function SkaterBoxScore({ players }: { players: PlayerBoxScore[] }) {
                   )}
                 </Link>
               </td>
-              <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{p.goals}</td>
-              <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{p.assists}</td>
-              <td className="text-center tabular-nums py-2 px-3 font-bold">{p.points}</td>
-              <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{p.gwg ?? 0}</td>
-              <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{p.ppg ?? 0}</td>
-              <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{p.shg ?? 0}</td>
-              <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{p.eng ?? 0}</td>
-              <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{p.hatTricks ?? 0}</td>
-              <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{p.pim}</td>
+              <td className={sortedStatCellClass("goals", sortKey)}>{p.goals}</td>
+              <td className={sortedStatCellClass("assists", sortKey)}>{p.assists}</td>
+              <td className={sortedStatCellClass("points", sortKey)}>{p.points}</td>
+              <td className={sortedStatCellClass("gwg", sortKey)}>{p.gwg ?? 0}</td>
+              <td className={sortedStatCellClass("ppg", sortKey)}>{p.ppg ?? 0}</td>
+              <td className={sortedStatCellClass("shg", sortKey)}>{p.shg ?? 0}</td>
+              <td className={sortedStatCellClass("eng", sortKey)}>{p.eng ?? 0}</td>
+              <td className={sortedStatCellClass("hatTricks", sortKey)}>{p.hatTricks ?? 0}</td>
+              <td className={sortedStatCellClass("pim", sortKey)}>{p.pim}</td>
             </tr>
           ))}
         </tbody>

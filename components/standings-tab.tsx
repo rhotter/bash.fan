@@ -5,7 +5,7 @@ import { useMemo } from "react"
 import { type Standing } from "@/lib/hockey-data"
 import { cn } from "@/lib/utils"
 import { IntentLink as Link } from "@/components/intent-link"
-import { useSort, SortableTh, statsRowClass } from "@/components/stats-table"
+import { sortedStatCellClass, useSort, SortableTh, statsRowClass } from "@/components/stats-table"
 import { TeamLogo } from "@/components/team-logo"
 
 type SortKey = "pts" | "gp" | "w" | "otw" | "l" | "otl" | "gf" | "ga" | "gd"
@@ -51,7 +51,7 @@ export function StandingsTab({
               <SortableTh label="OTW" sortKey="otw" currentKey={sortKey} dir={sortDir} onToggle={toggleSort} />
               <SortableTh label="L" sortKey="l" currentKey={sortKey} dir={sortDir} onToggle={toggleSort} />
               <SortableTh label="OTL" sortKey="otl" currentKey={sortKey} dir={sortDir} onToggle={toggleSort} />
-              <SortableTh label="PTS" sortKey="pts" currentKey={sortKey} dir={sortDir} onToggle={toggleSort} bold />
+              <SortableTh label="PTS" sortKey="pts" currentKey={sortKey} dir={sortDir} onToggle={toggleSort} />
               <SortableTh label="GF" sortKey="gf" currentKey={sortKey} dir={sortDir} onToggle={toggleSort} />
               <SortableTh label="GA" sortKey="ga" currentKey={sortKey} dir={sortDir} onToggle={toggleSort} />
               <SortableTh label="+/-" sortKey="gd" currentKey={sortKey} dir={sortDir} onToggle={toggleSort} />
@@ -74,15 +74,15 @@ export function StandingsTab({
                     </Link>
                   </div>
                 </td>
-                <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{row.gp}</td>
-                <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{row.w}</td>
-                <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{row.otw}</td>
-                <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{row.l}</td>
-                <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{row.otl}</td>
-                <td className="text-center tabular-nums py-2 px-3 font-bold">{row.pts}</td>
-                <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{row.gf}</td>
-                <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{row.ga}</td>
-                <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">
+                <td className={sortedStatCellClass("gp", sortKey)}>{row.gp}</td>
+                <td className={sortedStatCellClass("w", sortKey)}>{row.w}</td>
+                <td className={sortedStatCellClass("otw", sortKey)}>{row.otw}</td>
+                <td className={sortedStatCellClass("l", sortKey)}>{row.l}</td>
+                <td className={sortedStatCellClass("otl", sortKey)}>{row.otl}</td>
+                <td className={sortedStatCellClass("pts", sortKey)}>{row.pts}</td>
+                <td className={sortedStatCellClass("gf", sortKey)}>{row.gf}</td>
+                <td className={sortedStatCellClass("ga", sortKey)}>{row.ga}</td>
+                <td className={sortedStatCellClass("gd", sortKey)}>
                   {row.gd > 0 ? `+${row.gd}` : row.gd}
                 </td>
               </tr>

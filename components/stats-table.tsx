@@ -40,13 +40,12 @@ export function SortIcon({ active, dir }: { active: boolean; dir: SortDir }) {
 
 // ─── SortableTh ──────────────────────────────────────────────────────────────
 
-export function SortableTh<K extends string>({ label, sortKey, currentKey, dir, onToggle, bold, className }: {
+export function SortableTh<K extends string>({ label, sortKey, currentKey, dir, onToggle, className }: {
   label: string
   sortKey: K
   currentKey: K
   dir: SortDir
   onToggle: (k: K) => void
-  bold?: boolean
   className?: string
 }) {
   return (
@@ -58,7 +57,7 @@ export function SortableTh<K extends string>({ label, sortKey, currentKey, dir, 
     >
       <StatLabel label={label}>
         <button type="button" className="flex w-full cursor-pointer items-center justify-center gap-0.5 rounded-sm focus-visible:outline-2 focus-visible:outline-ring">
-          <span className={cn(currentKey === sortKey ? "font-bold text-foreground" : bold && "font-bold")}>{label}</span>
+          <span className={cn(currentKey === sortKey && "font-bold text-foreground")}>{label}</span>
           <SortIcon active={currentKey === sortKey} dir={dir} />
         </button>
       </StatLabel>
@@ -85,5 +84,13 @@ export function SectionHeader({ children }: { children: React.ReactNode }) {
       </h4>
       <div className="h-px flex-1 bg-border/60" />
     </div>
+  )
+}
+
+// Keep numeric cell emphasis aligned with the active sort header.
+export function sortedStatCellClass(key: string, currentKey: string) {
+  return cn(
+    "text-center tabular-nums py-2 px-3",
+    key === currentKey ? "font-bold text-foreground" : "text-muted-foreground"
   )
 }
