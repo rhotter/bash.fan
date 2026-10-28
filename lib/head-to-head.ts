@@ -236,8 +236,11 @@ export function computeHeadToHead(
 
     for (const g of matchupGames) {
       const isHome = (g.homeSlug || "").trim().toLowerCase() === activeSlug
-      const teamScore = isHome ? g.homeScore : g.awayScore
-      const oppScore = isHome ? g.awayScore : g.homeScore
+      const rawTeamScore = isHome ? g.homeScore : g.awayScore
+      const rawOppScore = isHome ? g.awayScore : g.homeScore
+      const isDoubleForfeit = g.status === "final" && g.isForfeit && rawTeamScore !== null && rawOppScore !== null && rawTeamScore === rawOppScore
+      const teamScore = isDoubleForfeit ? 0 : rawTeamScore
+      const oppScore = isDoubleForfeit ? 5 : rawOppScore
 
       let result: HeadToHeadGame["result"]
 
@@ -246,8 +249,8 @@ export function computeHeadToHead(
         gf += teamScore
         ga += oppScore
 
-        const won = teamScore > oppScore
-        const overtime = g.isOvertime || g.hasShootout
+        const won = !isDoubleForfeit && teamScore > oppScore
+        const overtime = !isDoubleForfeit && (g.isOvertime || g.hasShootout)
 
         if (won) {
           if (overtime) {

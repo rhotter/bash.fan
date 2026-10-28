@@ -383,7 +383,7 @@ function SkaterGameLogTable({ title, games, showTryoutBadge }: { title: string; 
             <tr className="text-muted-foreground/50 text-[9px] uppercase tracking-wider">
               <th className="text-left font-medium py-2.5 w-[10%] whitespace-nowrap pr-1">Date</th>
               <th className="text-left font-medium py-2.5 w-[16%] whitespace-nowrap pr-3"><StatLabel label="Opp" /></th>
-              <th className="text-center font-medium py-2.5 w-14">Score</th>
+              <th className="text-center font-medium py-2.5 w-20">Score</th>
               <th className="text-center font-medium py-2.5 w-10"><StatLabel label="G" /></th>
               <th className="text-center font-medium py-2.5 w-10"><StatLabel label="A" /></th>
               <th className="text-center font-medium py-2.5 w-10 font-bold"><StatLabel label="PTS" /></th>
@@ -410,13 +410,18 @@ function SkaterGameLogTable({ title, games, showTryoutBadge }: { title: string; 
                     {g.opponent}
                   </Link>
                 </td>
-                <td className="text-center py-2 text-[10px] tabular-nums text-muted-foreground">
+                <td className="text-center py-2 text-[10px] tabular-nums text-muted-foreground whitespace-nowrap">
                   {g.teamScore != null ? (
                     <Link href={`/game/${g.gameId}`} className="hover:underline transition-colors">
                       {g.teamScore}-{g.opponentScore}
                       {g.result && <span className="ml-1">{g.result}</span>}
                     </Link>
                   ) : "-"}
+                  {g.isForfeit && (
+                    <span className="ml-1 inline-flex items-center rounded bg-muted px-1 py-0.5 text-[9px] font-medium text-muted-foreground">
+                      Forfeit
+                    </span>
+                  )}
                 </td>
                 <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{g.goals}</td>
                 <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{g.assists}</td>
@@ -446,7 +451,7 @@ function GoalieGameLogTable({ title, games, showTryoutBadge }: { title: string; 
             <tr className="text-muted-foreground/50 text-[9px] uppercase tracking-wider">
               <th className="text-left font-medium py-2.5 w-[10%] whitespace-nowrap pr-1">Date</th>
               <th className="text-left font-medium py-2.5 w-[16%] whitespace-nowrap pr-3"><StatLabel label="Opp" /></th>
-              <th className="text-center font-medium py-2.5 w-14">Score</th>
+              <th className="text-center font-medium py-2.5 w-20">Score</th>
               <th className="text-center font-medium py-2.5 w-10"><StatLabel label="DEC" /></th>
               <th className="text-center font-medium py-2.5 w-10"><StatLabel label="SA" /></th>
               <th className="text-center font-medium py-2.5 w-10"><StatLabel label="SV" /></th>
@@ -471,12 +476,17 @@ function GoalieGameLogTable({ title, games, showTryoutBadge }: { title: string; 
                     {g.opponent}
                   </Link>
                 </td>
-                <td className="text-center py-2 text-[10px] tabular-nums text-muted-foreground">
+                <td className="text-center py-2 text-[10px] tabular-nums text-muted-foreground whitespace-nowrap">
                   {g.teamScore != null ? (
                     <Link href={`/game/${g.gameId}`} className="hover:underline transition-colors">
                       {g.teamScore}-{g.opponentScore}
                     </Link>
                   ) : "-"}
+                  {g.isForfeit && (
+                    <span className="ml-1 inline-flex items-center rounded bg-muted px-1 py-0.5 text-[9px] font-medium text-muted-foreground">
+                      Forfeit
+                    </span>
+                  )}
                 </td>
                 <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{g.result ?? "-"}</td>
                 <td className="text-center tabular-nums py-2 px-3 text-muted-foreground">{g.shotsAgainst}</td>

@@ -4,6 +4,7 @@ import { sql } from "drizzle-orm"
 import { getCurrentSeason, getAllSeasons, compareSeasonsDesc } from "@/lib/seasons"
 import { playerSlug } from "@/lib/player-slug"
 import { computeGaa, DEFAULT_GAME_LENGTH_MIN } from "@/lib/game-rules"
+import { forfeitEligibleGamePredicate, effectiveRowTeamSlugSql } from "@/lib/forfeit-sql"
 import type {
   PlayerDetail,
   SkaterStats,
@@ -125,11 +126,14 @@ export async function GET(
     let hallOfFame: PlayerDetail["hallOfFame"] = null
 
     const gameLogSeasonId = seasonParam && !isAllTime ? seasonParam : currentSeasonId
+    const skaterForfeitPred = forfeitEligibleGamePredicate(effectiveRowTeamSlugSql("pgs"))
+    const goalieForfeitPred = forfeitEligibleGamePredicate(effectiveRowTeamSlugSql("ggs"))
 
     function buildSkaterStats(s: Record<string, number>): SkaterStats {
+      const playedGp = (s.played_gp !== undefined ? Number(s.played_gp) : Number(s.gp)) || 0
       return {
         gp: s.gp, goals: s.goals, assists: s.assists, points: s.points,
-        ptsPg: s.gp > 0 ? (s.points / s.gp).toFixed(2) : "0.00",
+        ptsPg: playedGp > 0 ? (s.points / playedGp).toFixed(2) : "0.00",
         gwg: s.gwg, ppg: s.ppg, shg: s.shg, eng: s.eng,
         hatTricks: s.hat_tricks, pen: s.pen, pim: s.pim,
       }
@@ -162,24 +166,38 @@ export async function GET(
       rawSql(sql`
         SELECT
           COUNT(*)::int as gp,
-          SUM(pgs.goals)::int as goals, SUM(pgs.assists)::int as assists, SUM(pgs.points)::int as points,
-          SUM(pgs.gwg)::int as gwg, SUM(pgs.ppg)::int as ppg, SUM(pgs.shg)::int as shg,
-          SUM(pgs.eng)::int as eng, SUM(pgs.hat_tricks)::int as hat_tricks,
-          SUM(pgs.pen)::int as pen, SUM(pgs.pim)::int as pim
+          COUNT(*) FILTER (WHERE NOT g.is_forfeit)::int as played_gp,
+          COALESCE(SUM(pgs.goals) FILTER (WHERE NOT g.is_forfeit), 0)::int as goals,
+          COALESCE(SUM(pgs.assists) FILTER (WHERE NOT g.is_forfeit), 0)::int as assists,
+          COALESCE(SUM(pgs.points) FILTER (WHERE NOT g.is_forfeit), 0)::int as points,
+          COALESCE(SUM(pgs.gwg) FILTER (WHERE NOT g.is_forfeit), 0)::int as gwg,
+          COALESCE(SUM(pgs.ppg) FILTER (WHERE NOT g.is_forfeit), 0)::int as ppg,
+          COALESCE(SUM(pgs.shg) FILTER (WHERE NOT g.is_forfeit), 0)::int as shg,
+          COALESCE(SUM(pgs.eng) FILTER (WHERE NOT g.is_forfeit), 0)::int as eng,
+          COALESCE(SUM(pgs.hat_tricks) FILTER (WHERE NOT g.is_forfeit), 0)::int as hat_tricks,
+          COALESCE(SUM(pgs.pen) FILTER (WHERE NOT g.is_forfeit), 0)::int as pen,
+          COALESCE(SUM(pgs.pim) FILTER (WHERE NOT g.is_forfeit), 0)::int as pim
         FROM player_game_stats pgs
-        JOIN games g ON pgs.game_id = g.id AND NOT g.is_forfeit AND g.season_id = ${gameLogSeasonId} AND NOT g.is_playoff AND g.game_type = 'regular'
+        JOIN games g ON pgs.game_id = g.id AND ${skaterForfeitPred} AND g.season_id = ${gameLogSeasonId} AND NOT g.is_playoff AND g.game_type = 'regular'
         WHERE pgs.player_id = ${player.id} AND NOT pgs.is_sub
       `),
       // Skater all-time stats (regular season, fall only)
       rawSql(sql`
         SELECT
           COUNT(*)::int as gp,
-          SUM(pgs.goals)::int as goals, SUM(pgs.assists)::int as assists, SUM(pgs.points)::int as points,
-          SUM(pgs.gwg)::int as gwg, SUM(pgs.ppg)::int as ppg, SUM(pgs.shg)::int as shg,
-          SUM(pgs.eng)::int as eng, SUM(pgs.hat_tricks)::int as hat_tricks,
-          SUM(pgs.pen)::int as pen, SUM(pgs.pim)::int as pim
+          COUNT(*) FILTER (WHERE NOT g.is_forfeit)::int as played_gp,
+          COALESCE(SUM(pgs.goals) FILTER (WHERE NOT g.is_forfeit), 0)::int as goals,
+          COALESCE(SUM(pgs.assists) FILTER (WHERE NOT g.is_forfeit), 0)::int as assists,
+          COALESCE(SUM(pgs.points) FILTER (WHERE NOT g.is_forfeit), 0)::int as points,
+          COALESCE(SUM(pgs.gwg) FILTER (WHERE NOT g.is_forfeit), 0)::int as gwg,
+          COALESCE(SUM(pgs.ppg) FILTER (WHERE NOT g.is_forfeit), 0)::int as ppg,
+          COALESCE(SUM(pgs.shg) FILTER (WHERE NOT g.is_forfeit), 0)::int as shg,
+          COALESCE(SUM(pgs.eng) FILTER (WHERE NOT g.is_forfeit), 0)::int as eng,
+          COALESCE(SUM(pgs.hat_tricks) FILTER (WHERE NOT g.is_forfeit), 0)::int as hat_tricks,
+          COALESCE(SUM(pgs.pen) FILTER (WHERE NOT g.is_forfeit), 0)::int as pen,
+          COALESCE(SUM(pgs.pim) FILTER (WHERE NOT g.is_forfeit), 0)::int as pim
         FROM player_game_stats pgs
-        JOIN games g ON pgs.game_id = g.id AND NOT g.is_forfeit AND NOT g.is_playoff AND g.game_type = 'regular'
+        JOIN games g ON pgs.game_id = g.id AND ${skaterForfeitPred} AND NOT g.is_playoff AND g.game_type = 'regular'
         JOIN seasons s ON g.season_id = s.id AND s.season_type = 'fall'
         WHERE pgs.player_id = ${player.id} AND NOT pgs.is_sub
       `),
@@ -193,12 +211,19 @@ export async function GET(
           ) AS team_slug,
           t.name as team_name,
           COUNT(*)::int as gp,
-          SUM(pgs.goals)::int as goals, SUM(pgs.assists)::int as assists, SUM(pgs.points)::int as points,
-          SUM(pgs.gwg)::int as gwg, SUM(pgs.ppg)::int as ppg, SUM(pgs.shg)::int as shg,
-          SUM(pgs.eng)::int as eng, SUM(pgs.hat_tricks)::int as hat_tricks,
-          SUM(pgs.pen)::int as pen, SUM(pgs.pim)::int as pim
+          COUNT(*) FILTER (WHERE NOT g.is_forfeit)::int as played_gp,
+          COALESCE(SUM(pgs.goals) FILTER (WHERE NOT g.is_forfeit), 0)::int as goals,
+          COALESCE(SUM(pgs.assists) FILTER (WHERE NOT g.is_forfeit), 0)::int as assists,
+          COALESCE(SUM(pgs.points) FILTER (WHERE NOT g.is_forfeit), 0)::int as points,
+          COALESCE(SUM(pgs.gwg) FILTER (WHERE NOT g.is_forfeit), 0)::int as gwg,
+          COALESCE(SUM(pgs.ppg) FILTER (WHERE NOT g.is_forfeit), 0)::int as ppg,
+          COALESCE(SUM(pgs.shg) FILTER (WHERE NOT g.is_forfeit), 0)::int as shg,
+          COALESCE(SUM(pgs.eng) FILTER (WHERE NOT g.is_forfeit), 0)::int as eng,
+          COALESCE(SUM(pgs.hat_tricks) FILTER (WHERE NOT g.is_forfeit), 0)::int as hat_tricks,
+          COALESCE(SUM(pgs.pen) FILTER (WHERE NOT g.is_forfeit), 0)::int as pen,
+          COALESCE(SUM(pgs.pim) FILTER (WHERE NOT g.is_forfeit), 0)::int as pim
         FROM player_game_stats pgs
-        JOIN games g ON pgs.game_id = g.id AND NOT g.is_forfeit AND NOT g.is_playoff AND g.game_type = 'regular'
+        JOIN games g ON pgs.game_id = g.id AND ${skaterForfeitPred} AND NOT g.is_playoff AND g.game_type = 'regular'
         LEFT JOIN teams t ON t.slug = COALESCE(
           pgs.team_slug,
           (SELECT ps.team_slug FROM player_seasons ps WHERE ps.player_id = pgs.player_id AND ps.season_id = g.season_id LIMIT 1)
@@ -213,13 +238,21 @@ export async function GET(
       // Skater game log (regular season)
       rawSql(sql`
         SELECT
-          pgs.game_id, g.date, g.home_team, g.away_team, g.home_score, g.away_score, g.is_overtime,
+          pgs.game_id, g.date, g.home_team, g.away_team, g.home_score, g.away_score, g.is_overtime, g.is_forfeit,
           COALESCE(ht.name, g.home_team) as home_name, COALESCE(awt.name, g.away_team) as away_name,
-          pgs.goals, pgs.assists, pgs.points, pgs.gwg, pgs.ppg, pgs.shg,
-          pgs.eng, pgs.hat_tricks, pgs.pen, pgs.pim,
+          CASE WHEN g.is_forfeit THEN 0 ELSE pgs.goals END as goals,
+          CASE WHEN g.is_forfeit THEN 0 ELSE pgs.assists END as assists,
+          CASE WHEN g.is_forfeit THEN 0 ELSE pgs.points END as points,
+          CASE WHEN g.is_forfeit THEN 0 ELSE pgs.gwg END as gwg,
+          CASE WHEN g.is_forfeit THEN 0 ELSE pgs.ppg END as ppg,
+          CASE WHEN g.is_forfeit THEN 0 ELSE pgs.shg END as shg,
+          CASE WHEN g.is_forfeit THEN 0 ELSE pgs.eng END as eng,
+          CASE WHEN g.is_forfeit THEN 0 ELSE pgs.hat_tricks END as hat_tricks,
+          CASE WHEN g.is_forfeit THEN 0 ELSE pgs.pen END as pen,
+          CASE WHEN g.is_forfeit THEN 0 ELSE pgs.pim END as pim,
           pgs.team_slug AS player_team_slug
         FROM player_game_stats pgs
-        JOIN games g ON pgs.game_id = g.id AND NOT g.is_forfeit AND g.season_id = ${gameLogSeasonId} AND NOT g.is_playoff AND g.game_type = 'regular'
+        JOIN games g ON pgs.game_id = g.id AND ${skaterForfeitPred} AND g.season_id = ${gameLogSeasonId} AND NOT g.is_playoff AND g.game_type = 'regular'
         LEFT JOIN teams ht ON g.home_team = ht.slug
         LEFT JOIN teams awt ON g.away_team = awt.slug
         WHERE pgs.player_id = ${player.id} AND NOT pgs.is_sub
@@ -229,14 +262,17 @@ export async function GET(
       rawSql(sql`
         SELECT
           COUNT(*)::int as gp,
-          SUM(goals_against)::int as ga, SUM(saves)::int as saves,
-          SUM(shots_against)::int as sa, SUM(seconds)::int as seconds,
-          SUM(shutouts)::int as shutouts, SUM(goalie_assists)::int as goalie_assists,
-          COUNT(*) FILTER (WHERE result = 'W')::int as wins,
-          COUNT(*) FILTER (WHERE result = 'L')::int as losses,
+          COALESCE(SUM(goals_against) FILTER (WHERE NOT g.is_forfeit), 0)::int as ga,
+          COALESCE(SUM(saves) FILTER (WHERE NOT g.is_forfeit), 0)::int as saves,
+          COALESCE(SUM(shots_against) FILTER (WHERE NOT g.is_forfeit), 0)::int as sa,
+          COALESCE(SUM(seconds) FILTER (WHERE NOT g.is_forfeit), 0)::int as seconds,
+          COALESCE(SUM(shutouts) FILTER (WHERE NOT g.is_forfeit), 0)::int as shutouts,
+          COALESCE(SUM(goalie_assists) FILTER (WHERE NOT g.is_forfeit), 0)::int as goalie_assists,
+          COUNT(*) FILTER (WHERE NOT g.is_forfeit AND result = 'W')::int as wins,
+          COUNT(*) FILTER (WHERE NOT g.is_forfeit AND result = 'L')::int as losses,
           COALESCE(MAX(s.game_length), ${DEFAULT_GAME_LENGTH_MIN})::int as game_length
         FROM goalie_game_stats ggs
-        JOIN games g ON ggs.game_id = g.id AND NOT g.is_forfeit AND g.season_id = ${gameLogSeasonId} AND NOT g.is_playoff AND g.game_type = 'regular'
+        JOIN games g ON ggs.game_id = g.id AND ${goalieForfeitPred} AND g.season_id = ${gameLogSeasonId} AND NOT g.is_playoff AND g.game_type = 'regular'
         LEFT JOIN seasons s ON g.season_id = s.id
         WHERE ggs.player_id = ${player.id} AND NOT ggs.is_sub
       `),
@@ -244,13 +280,16 @@ export async function GET(
       rawSql(sql`
         SELECT
           COUNT(*)::int as gp,
-          SUM(goals_against)::int as ga, SUM(saves)::int as saves,
-          SUM(shots_against)::int as sa, SUM(seconds)::int as seconds,
-          SUM(shutouts)::int as shutouts, SUM(goalie_assists)::int as goalie_assists,
-          COUNT(*) FILTER (WHERE result = 'W')::int as wins,
-          COUNT(*) FILTER (WHERE result = 'L')::int as losses
+          COALESCE(SUM(goals_against) FILTER (WHERE NOT g.is_forfeit), 0)::int as ga,
+          COALESCE(SUM(saves) FILTER (WHERE NOT g.is_forfeit), 0)::int as saves,
+          COALESCE(SUM(shots_against) FILTER (WHERE NOT g.is_forfeit), 0)::int as sa,
+          COALESCE(SUM(seconds) FILTER (WHERE NOT g.is_forfeit), 0)::int as seconds,
+          COALESCE(SUM(shutouts) FILTER (WHERE NOT g.is_forfeit), 0)::int as shutouts,
+          COALESCE(SUM(goalie_assists) FILTER (WHERE NOT g.is_forfeit), 0)::int as goalie_assists,
+          COUNT(*) FILTER (WHERE NOT g.is_forfeit AND result = 'W')::int as wins,
+          COUNT(*) FILTER (WHERE NOT g.is_forfeit AND result = 'L')::int as losses
         FROM goalie_game_stats ggs
-        JOIN games g ON ggs.game_id = g.id AND NOT g.is_forfeit AND NOT g.is_playoff AND g.game_type = 'regular'
+        JOIN games g ON ggs.game_id = g.id AND ${goalieForfeitPred} AND NOT g.is_playoff AND g.game_type = 'regular'
         JOIN seasons s ON g.season_id = s.id AND s.season_type = 'fall'
         WHERE ggs.player_id = ${player.id} AND NOT ggs.is_sub
       `),
@@ -264,14 +303,17 @@ export async function GET(
           ) AS team_slug,
           t.name as team_name,
           COUNT(*)::int as gp,
-          SUM(goals_against)::int as ga, SUM(saves)::int as saves,
-          SUM(shots_against)::int as sa, SUM(seconds)::int as seconds,
-          SUM(shutouts)::int as shutouts, SUM(goalie_assists)::int as goalie_assists,
-          COUNT(*) FILTER (WHERE result = 'W')::int as wins,
-          COUNT(*) FILTER (WHERE result = 'L')::int as losses,
+          COALESCE(SUM(goals_against) FILTER (WHERE NOT g.is_forfeit), 0)::int as ga,
+          COALESCE(SUM(saves) FILTER (WHERE NOT g.is_forfeit), 0)::int as saves,
+          COALESCE(SUM(shots_against) FILTER (WHERE NOT g.is_forfeit), 0)::int as sa,
+          COALESCE(SUM(seconds) FILTER (WHERE NOT g.is_forfeit), 0)::int as seconds,
+          COALESCE(SUM(shutouts) FILTER (WHERE NOT g.is_forfeit), 0)::int as shutouts,
+          COALESCE(SUM(goalie_assists) FILTER (WHERE NOT g.is_forfeit), 0)::int as goalie_assists,
+          COUNT(*) FILTER (WHERE NOT g.is_forfeit AND result = 'W')::int as wins,
+          COUNT(*) FILTER (WHERE NOT g.is_forfeit AND result = 'L')::int as losses,
           COALESCE(MAX(s.game_length), ${DEFAULT_GAME_LENGTH_MIN})::int as game_length
         FROM goalie_game_stats ggs
-        JOIN games g ON ggs.game_id = g.id AND NOT g.is_forfeit AND NOT g.is_playoff AND g.game_type = 'regular'
+        JOIN games g ON ggs.game_id = g.id AND ${goalieForfeitPred} AND NOT g.is_playoff AND g.game_type = 'regular'
         LEFT JOIN teams t ON t.slug = COALESCE(
           ggs.team_slug,
           (SELECT ps.team_slug FROM player_seasons ps WHERE ps.player_id = ggs.player_id AND ps.season_id = g.season_id LIMIT 1)
@@ -287,13 +329,18 @@ export async function GET(
       // Goalie game log (regular season)
       rawSql(sql`
         SELECT
-          ggs.game_id, g.date, g.home_team, g.away_team, g.home_score, g.away_score,
+          ggs.game_id, g.date, g.home_team, g.away_team, g.home_score, g.away_score, g.is_forfeit,
           COALESCE(ht.name, g.home_team) as home_name, COALESCE(awt.name, g.away_team) as away_name,
-          ggs.seconds, ggs.goals_against, ggs.shots_against, ggs.saves,
-          ggs.shutouts, ggs.goalie_assists, ggs.result,
+          CASE WHEN g.is_forfeit THEN 0 ELSE ggs.seconds END as seconds,
+          CASE WHEN g.is_forfeit THEN 0 ELSE ggs.goals_against END as goals_against,
+          CASE WHEN g.is_forfeit THEN 0 ELSE ggs.shots_against END as shots_against,
+          CASE WHEN g.is_forfeit THEN 0 ELSE ggs.saves END as saves,
+          CASE WHEN g.is_forfeit THEN 0 ELSE ggs.shutouts END as shutouts,
+          CASE WHEN g.is_forfeit THEN 0 ELSE ggs.goalie_assists END as goalie_assists,
+          CASE WHEN g.is_forfeit THEN NULL ELSE ggs.result END as result,
           ggs.team_slug AS player_team_slug
         FROM goalie_game_stats ggs
-        JOIN games g ON ggs.game_id = g.id AND NOT g.is_forfeit AND g.season_id = ${gameLogSeasonId} AND NOT g.is_playoff AND g.game_type = 'regular'
+        JOIN games g ON ggs.game_id = g.id AND ${goalieForfeitPred} AND g.season_id = ${gameLogSeasonId} AND NOT g.is_playoff AND g.game_type = 'regular'
         LEFT JOIN teams ht ON g.home_team = ht.slug
         LEFT JOIN teams awt ON g.away_team = awt.slug
         WHERE ggs.player_id = ${player.id} AND NOT ggs.is_sub
@@ -303,12 +350,19 @@ export async function GET(
       rawSql(sql`
         SELECT
           COUNT(*)::int as gp,
-          SUM(pgs.goals)::int as goals, SUM(pgs.assists)::int as assists, SUM(pgs.points)::int as points,
-          SUM(pgs.gwg)::int as gwg, SUM(pgs.ppg)::int as ppg, SUM(pgs.shg)::int as shg,
-          SUM(pgs.eng)::int as eng, SUM(pgs.hat_tricks)::int as hat_tricks,
-          SUM(pgs.pen)::int as pen, SUM(pgs.pim)::int as pim
+          COUNT(*) FILTER (WHERE NOT g.is_forfeit)::int as played_gp,
+          COALESCE(SUM(pgs.goals) FILTER (WHERE NOT g.is_forfeit), 0)::int as goals,
+          COALESCE(SUM(pgs.assists) FILTER (WHERE NOT g.is_forfeit), 0)::int as assists,
+          COALESCE(SUM(pgs.points) FILTER (WHERE NOT g.is_forfeit), 0)::int as points,
+          COALESCE(SUM(pgs.gwg) FILTER (WHERE NOT g.is_forfeit), 0)::int as gwg,
+          COALESCE(SUM(pgs.ppg) FILTER (WHERE NOT g.is_forfeit), 0)::int as ppg,
+          COALESCE(SUM(pgs.shg) FILTER (WHERE NOT g.is_forfeit), 0)::int as shg,
+          COALESCE(SUM(pgs.eng) FILTER (WHERE NOT g.is_forfeit), 0)::int as eng,
+          COALESCE(SUM(pgs.hat_tricks) FILTER (WHERE NOT g.is_forfeit), 0)::int as hat_tricks,
+          COALESCE(SUM(pgs.pen) FILTER (WHERE NOT g.is_forfeit), 0)::int as pen,
+          COALESCE(SUM(pgs.pim) FILTER (WHERE NOT g.is_forfeit), 0)::int as pim
         FROM player_game_stats pgs
-        JOIN games g ON pgs.game_id = g.id AND NOT g.is_forfeit AND g.is_playoff AND g.game_type IN ('playoff', 'championship', 'regular')
+        JOIN games g ON pgs.game_id = g.id AND ${skaterForfeitPred} AND g.is_playoff AND g.game_type IN ('playoff', 'championship', 'regular')
         JOIN seasons s ON g.season_id = s.id AND s.season_type = 'fall'
         WHERE pgs.player_id = ${player.id} AND NOT pgs.is_sub
       `),
@@ -322,12 +376,19 @@ export async function GET(
           ) AS team_slug,
           t.name as team_name,
           COUNT(*)::int as gp,
-          SUM(pgs.goals)::int as goals, SUM(pgs.assists)::int as assists, SUM(pgs.points)::int as points,
-          SUM(pgs.gwg)::int as gwg, SUM(pgs.ppg)::int as ppg, SUM(pgs.shg)::int as shg,
-          SUM(pgs.eng)::int as eng, SUM(pgs.hat_tricks)::int as hat_tricks,
-          SUM(pgs.pen)::int as pen, SUM(pgs.pim)::int as pim
+          COUNT(*) FILTER (WHERE NOT g.is_forfeit)::int as played_gp,
+          COALESCE(SUM(pgs.goals) FILTER (WHERE NOT g.is_forfeit), 0)::int as goals,
+          COALESCE(SUM(pgs.assists) FILTER (WHERE NOT g.is_forfeit), 0)::int as assists,
+          COALESCE(SUM(pgs.points) FILTER (WHERE NOT g.is_forfeit), 0)::int as points,
+          COALESCE(SUM(pgs.gwg) FILTER (WHERE NOT g.is_forfeit), 0)::int as gwg,
+          COALESCE(SUM(pgs.ppg) FILTER (WHERE NOT g.is_forfeit), 0)::int as ppg,
+          COALESCE(SUM(pgs.shg) FILTER (WHERE NOT g.is_forfeit), 0)::int as shg,
+          COALESCE(SUM(pgs.eng) FILTER (WHERE NOT g.is_forfeit), 0)::int as eng,
+          COALESCE(SUM(pgs.hat_tricks) FILTER (WHERE NOT g.is_forfeit), 0)::int as hat_tricks,
+          COALESCE(SUM(pgs.pen) FILTER (WHERE NOT g.is_forfeit), 0)::int as pen,
+          COALESCE(SUM(pgs.pim) FILTER (WHERE NOT g.is_forfeit), 0)::int as pim
         FROM player_game_stats pgs
-        JOIN games g ON pgs.game_id = g.id AND NOT g.is_forfeit AND g.is_playoff AND g.game_type IN ('playoff', 'championship', 'regular')
+        JOIN games g ON pgs.game_id = g.id AND ${skaterForfeitPred} AND g.is_playoff AND g.game_type IN ('playoff', 'championship', 'regular')
         LEFT JOIN teams t ON t.slug = COALESCE(
           pgs.team_slug,
           (SELECT ps.team_slug FROM player_seasons ps WHERE ps.player_id = pgs.player_id AND ps.season_id = g.season_id LIMIT 1)
@@ -342,13 +403,21 @@ export async function GET(
       // Playoff skater game log
       rawSql(sql`
         SELECT
-          pgs.game_id, g.date, g.home_team, g.away_team, g.home_score, g.away_score, g.is_overtime,
+          pgs.game_id, g.date, g.home_team, g.away_team, g.home_score, g.away_score, g.is_overtime, g.is_forfeit,
           COALESCE(ht.name, g.home_team) as home_name, COALESCE(awt.name, g.away_team) as away_name,
-          pgs.goals, pgs.assists, pgs.points, pgs.gwg, pgs.ppg, pgs.shg,
-          pgs.eng, pgs.hat_tricks, pgs.pen, pgs.pim,
+          CASE WHEN g.is_forfeit THEN 0 ELSE pgs.goals END as goals,
+          CASE WHEN g.is_forfeit THEN 0 ELSE pgs.assists END as assists,
+          CASE WHEN g.is_forfeit THEN 0 ELSE pgs.points END as points,
+          CASE WHEN g.is_forfeit THEN 0 ELSE pgs.gwg END as gwg,
+          CASE WHEN g.is_forfeit THEN 0 ELSE pgs.ppg END as ppg,
+          CASE WHEN g.is_forfeit THEN 0 ELSE pgs.shg END as shg,
+          CASE WHEN g.is_forfeit THEN 0 ELSE pgs.eng END as eng,
+          CASE WHEN g.is_forfeit THEN 0 ELSE pgs.hat_tricks END as hat_tricks,
+          CASE WHEN g.is_forfeit THEN 0 ELSE pgs.pen END as pen,
+          CASE WHEN g.is_forfeit THEN 0 ELSE pgs.pim END as pim,
           pgs.team_slug AS player_team_slug
         FROM player_game_stats pgs
-        JOIN games g ON pgs.game_id = g.id AND NOT g.is_forfeit AND g.season_id = ${gameLogSeasonId} AND g.is_playoff AND g.game_type IN ('playoff', 'championship', 'regular')
+        JOIN games g ON pgs.game_id = g.id AND ${skaterForfeitPred} AND g.season_id = ${gameLogSeasonId} AND g.is_playoff AND g.game_type IN ('playoff', 'championship', 'regular')
         LEFT JOIN teams ht ON g.home_team = ht.slug
         LEFT JOIN teams awt ON g.away_team = awt.slug
         WHERE pgs.player_id = ${player.id} AND NOT pgs.is_sub
@@ -358,13 +427,16 @@ export async function GET(
       rawSql(sql`
         SELECT
           COUNT(*)::int as gp,
-          SUM(goals_against)::int as ga, SUM(saves)::int as saves,
-          SUM(shots_against)::int as sa, SUM(seconds)::int as seconds,
-          SUM(shutouts)::int as shutouts, SUM(goalie_assists)::int as goalie_assists,
-          COUNT(*) FILTER (WHERE result = 'W')::int as wins,
-          COUNT(*) FILTER (WHERE result = 'L')::int as losses
+          COALESCE(SUM(goals_against) FILTER (WHERE NOT g.is_forfeit), 0)::int as ga,
+          COALESCE(SUM(saves) FILTER (WHERE NOT g.is_forfeit), 0)::int as saves,
+          COALESCE(SUM(shots_against) FILTER (WHERE NOT g.is_forfeit), 0)::int as sa,
+          COALESCE(SUM(seconds) FILTER (WHERE NOT g.is_forfeit), 0)::int as seconds,
+          COALESCE(SUM(shutouts) FILTER (WHERE NOT g.is_forfeit), 0)::int as shutouts,
+          COALESCE(SUM(goalie_assists) FILTER (WHERE NOT g.is_forfeit), 0)::int as goalie_assists,
+          COUNT(*) FILTER (WHERE NOT g.is_forfeit AND result = 'W')::int as wins,
+          COUNT(*) FILTER (WHERE NOT g.is_forfeit AND result = 'L')::int as losses
         FROM goalie_game_stats ggs
-        JOIN games g ON ggs.game_id = g.id AND NOT g.is_forfeit AND g.is_playoff AND g.game_type IN ('playoff', 'championship', 'regular')
+        JOIN games g ON ggs.game_id = g.id AND ${goalieForfeitPred} AND g.is_playoff AND g.game_type IN ('playoff', 'championship', 'regular')
         JOIN seasons s ON g.season_id = s.id AND s.season_type = 'fall'
         WHERE ggs.player_id = ${player.id} AND NOT ggs.is_sub
       `),
@@ -378,14 +450,17 @@ export async function GET(
           ) AS team_slug,
           t.name as team_name,
           COUNT(*)::int as gp,
-          SUM(goals_against)::int as ga, SUM(saves)::int as saves,
-          SUM(shots_against)::int as sa, SUM(seconds)::int as seconds,
-          SUM(shutouts)::int as shutouts, SUM(goalie_assists)::int as goalie_assists,
-          COUNT(*) FILTER (WHERE result = 'W')::int as wins,
-          COUNT(*) FILTER (WHERE result = 'L')::int as losses,
+          COALESCE(SUM(goals_against) FILTER (WHERE NOT g.is_forfeit), 0)::int as ga,
+          COALESCE(SUM(saves) FILTER (WHERE NOT g.is_forfeit), 0)::int as saves,
+          COALESCE(SUM(shots_against) FILTER (WHERE NOT g.is_forfeit), 0)::int as sa,
+          COALESCE(SUM(seconds) FILTER (WHERE NOT g.is_forfeit), 0)::int as seconds,
+          COALESCE(SUM(shutouts) FILTER (WHERE NOT g.is_forfeit), 0)::int as shutouts,
+          COALESCE(SUM(goalie_assists) FILTER (WHERE NOT g.is_forfeit), 0)::int as goalie_assists,
+          COUNT(*) FILTER (WHERE NOT g.is_forfeit AND result = 'W')::int as wins,
+          COUNT(*) FILTER (WHERE NOT g.is_forfeit AND result = 'L')::int as losses,
           COALESCE(MAX(s.game_length), ${DEFAULT_GAME_LENGTH_MIN})::int as game_length
         FROM goalie_game_stats ggs
-        JOIN games g ON ggs.game_id = g.id AND NOT g.is_forfeit AND g.is_playoff AND g.game_type IN ('playoff', 'championship', 'regular')
+        JOIN games g ON ggs.game_id = g.id AND ${goalieForfeitPred} AND g.is_playoff AND g.game_type IN ('playoff', 'championship', 'regular')
         LEFT JOIN teams t ON t.slug = COALESCE(
           ggs.team_slug,
           (SELECT ps.team_slug FROM player_seasons ps WHERE ps.player_id = ggs.player_id AND ps.season_id = g.season_id LIMIT 1)
@@ -401,13 +476,18 @@ export async function GET(
       // Playoff goalie game log
       rawSql(sql`
         SELECT
-          ggs.game_id, g.date, g.home_team, g.away_team, g.home_score, g.away_score,
+          ggs.game_id, g.date, g.home_team, g.away_team, g.home_score, g.away_score, g.is_forfeit,
           COALESCE(ht.name, g.home_team) as home_name, COALESCE(awt.name, g.away_team) as away_name,
-          ggs.seconds, ggs.goals_against, ggs.shots_against, ggs.saves,
-          ggs.shutouts, ggs.goalie_assists, ggs.result,
+          CASE WHEN g.is_forfeit THEN 0 ELSE ggs.seconds END as seconds,
+          CASE WHEN g.is_forfeit THEN 0 ELSE ggs.goals_against END as goals_against,
+          CASE WHEN g.is_forfeit THEN 0 ELSE ggs.shots_against END as shots_against,
+          CASE WHEN g.is_forfeit THEN 0 ELSE ggs.saves END as saves,
+          CASE WHEN g.is_forfeit THEN 0 ELSE ggs.shutouts END as shutouts,
+          CASE WHEN g.is_forfeit THEN 0 ELSE ggs.goalie_assists END as goalie_assists,
+          CASE WHEN g.is_forfeit THEN NULL ELSE ggs.result END as result,
           ggs.team_slug AS player_team_slug
         FROM goalie_game_stats ggs
-        JOIN games g ON ggs.game_id = g.id AND NOT g.is_forfeit AND g.season_id = ${gameLogSeasonId} AND g.is_playoff AND g.game_type IN ('playoff', 'championship', 'regular')
+        JOIN games g ON ggs.game_id = g.id AND ${goalieForfeitPred} AND g.season_id = ${gameLogSeasonId} AND g.is_playoff AND g.game_type IN ('playoff', 'championship', 'regular')
         LEFT JOIN teams ht ON g.home_team = ht.slug
         LEFT JOIN teams awt ON g.away_team = awt.slug
         WHERE ggs.player_id = ${player.id} AND NOT ggs.is_sub
@@ -509,6 +589,7 @@ export async function GET(
         goals: r.goals, assists: r.assists, points: r.points,
         gwg: r.gwg, ppg: r.ppg, shg: r.shg,
         eng: r.eng, hatTricks: r.hat_tricks, pen: r.pen, pim: r.pim,
+        isForfeit: Boolean(r.is_forfeit),
       }
     })
 
@@ -543,6 +624,7 @@ export async function GET(
         savePercentage: r.shots_against > 0 ? (r.saves / r.shots_against).toFixed(3) : "0.000",
         shutouts: r.shutouts, goalieAssists: r.goalie_assists,
         result: r.result,
+        isForfeit: Boolean(r.is_forfeit),
       }
     })
 
@@ -577,6 +659,7 @@ export async function GET(
         goals: r.goals, assists: r.assists, points: r.points,
         gwg: r.gwg, ppg: r.ppg, shg: r.shg,
         eng: r.eng, hatTricks: r.hat_tricks, pen: r.pen, pim: r.pim,
+        isForfeit: Boolean(r.is_forfeit),
       }
     })
 
@@ -608,6 +691,7 @@ export async function GET(
         savePercentage: r.shots_against > 0 ? (r.saves / r.shots_against).toFixed(3) : "0.000",
         shutouts: r.shutouts, goalieAssists: r.goalie_assists,
         result: r.result,
+        isForfeit: Boolean(r.is_forfeit),
       }
     })
 

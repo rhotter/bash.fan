@@ -429,6 +429,10 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
         WHERE g.season_id = ${seasonId}
           AND pgs.player_id = tp.player_id
           AND pgs.team_slug = tp.to_team_slug
+          AND NOT (
+            g.is_forfeit
+            AND g.date < to_char(tt.traded_at AT TIME ZONE 'America/Los_Angeles', 'YYYY-MM-DD')
+          )
           AND (
             NOT tp.had_prior_stint_on_to_team
             OR g.date >= to_char(tt.traded_at AT TIME ZONE 'America/Los_Angeles', 'YYYY-MM-DD')
@@ -441,6 +445,10 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
         WHERE g.season_id = ${seasonId}
           AND ggs.player_id = tp.player_id
           AND ggs.team_slug = tp.to_team_slug
+          AND NOT (
+            g.is_forfeit
+            AND g.date < to_char(tt.traded_at AT TIME ZONE 'America/Los_Angeles', 'YYYY-MM-DD')
+          )
           AND (
             NOT tp.had_prior_stint_on_to_team
             OR g.date >= to_char(tt.traded_at AT TIME ZONE 'America/Los_Angeles', 'YYYY-MM-DD')
@@ -587,6 +595,10 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
         WHERE g.season_id = ${seasonId}
           AND pgs.player_id = pi.player_id
           AND pgs.team_slug = pi.to_team_slug
+          AND NOT (
+            g.is_forfeit
+            AND g.date < to_char(lt.traded_at AT TIME ZONE 'America/Los_Angeles', 'YYYY-MM-DD')
+          )
           AND (
             NOT pi.had_prior_stint_on_to_team
             OR g.date >= to_char(lt.traded_at AT TIME ZONE 'America/Los_Angeles', 'YYYY-MM-DD')
@@ -599,6 +611,10 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
         WHERE g.season_id = ${seasonId}
           AND ggs.player_id = pi.player_id
           AND ggs.team_slug = pi.to_team_slug
+          AND NOT (
+            g.is_forfeit
+            AND g.date < to_char(lt.traded_at AT TIME ZONE 'America/Los_Angeles', 'YYYY-MM-DD')
+          )
           AND (
             NOT pi.had_prior_stint_on_to_team
             OR g.date >= to_char(lt.traded_at AT TIME ZONE 'America/Los_Angeles', 'YYYY-MM-DD')

@@ -4,6 +4,7 @@ import { db, schema, rawSql } from "@/lib/db"
 import { sql, eq } from "drizzle-orm"
 import { getCurrentSeason } from "@/lib/seasons"
 import { computeGaa, DEFAULT_GAME_LENGTH_MIN } from "@/lib/game-rules"
+import { forfeitEligibleGamePredicate } from "@/lib/forfeit-sql"
 
 export interface GoalieRoster {
   id: number
@@ -79,6 +80,7 @@ export interface TeamDetail {
 
 async function fetchTeamDetailInternal(slug: string, seasonParam?: string | null): Promise<TeamDetail | null> {
   const seasonId = seasonParam && seasonParam !== "all" ? seasonParam : (await getCurrentSeason()).id
+  const teamForfeitPred = forfeitEligibleGamePredicate(sql`${slug}`)
   const [seasonRows, teamRows, skaterRows, goalieRows, gameRows, allTeamResults, totalTeams] = await Promise.all([
     db.select({
       name: schema.seasons.name,
@@ -88,9 +90,9 @@ async function fetchTeamDetailInternal(slug: string, seasonParam?: string | null
     db.select().from(schema.teams).where(eq(schema.teams.slug, slug)),
     rawSql(sql`
       WITH team_game_stats AS (
-        SELECT pgs.*
+        SELECT pgs.*, g.is_forfeit
         FROM player_game_stats pgs
-        JOIN games g ON pgs.game_id = g.id AND NOT g.is_forfeit AND g.season_id = ${seasonId} AND g.game_type IN ('regular', 'playoff', 'championship')
+        JOIN games g ON pgs.game_id = g.id AND ${teamForfeitPred} AND g.season_id = ${seasonId} AND g.game_type IN ('regular', 'playoff', 'championship')
         WHERE NOT pgs.is_sub
           AND COALESCE(
             pgs.team_slug,
@@ -105,16 +107,17 @@ async function fetchTeamDetailInternal(slug: string, seasonParam?: string | null
       SELECT
         p.id, p.name,
         COUNT(tgs.game_id)::int as gp,
-        COALESCE(SUM(tgs.goals), 0)::int as goals,
-        COALESCE(SUM(tgs.assists), 0)::int as assists,
-        COALESCE(SUM(tgs.points), 0)::int as points,
-        COALESCE(SUM(tgs.gwg), 0)::int as gwg,
-        COALESCE(SUM(tgs.ppg), 0)::int as ppg,
-        COALESCE(SUM(tgs.shg), 0)::int as shg,
-        COALESCE(SUM(tgs.eng), 0)::int as eng,
-        COALESCE(SUM(tgs.hat_tricks), 0)::int as hat_tricks,
-        COALESCE(SUM(tgs.pen), 0)::int as pen,
-        COALESCE(SUM(tgs.pim), 0)::int as pim
+        COUNT(tgs.game_id) FILTER (WHERE NOT tgs.is_forfeit)::int as played_gp,
+        COALESCE(SUM(tgs.goals) FILTER (WHERE NOT tgs.is_forfeit), 0)::int as goals,
+        COALESCE(SUM(tgs.assists) FILTER (WHERE NOT tgs.is_forfeit), 0)::int as assists,
+        COALESCE(SUM(tgs.points) FILTER (WHERE NOT tgs.is_forfeit), 0)::int as points,
+        COALESCE(SUM(tgs.gwg) FILTER (WHERE NOT tgs.is_forfeit), 0)::int as gwg,
+        COALESCE(SUM(tgs.ppg) FILTER (WHERE NOT tgs.is_forfeit), 0)::int as ppg,
+        COALESCE(SUM(tgs.shg) FILTER (WHERE NOT tgs.is_forfeit), 0)::int as shg,
+        COALESCE(SUM(tgs.eng) FILTER (WHERE NOT tgs.is_forfeit), 0)::int as eng,
+        COALESCE(SUM(tgs.hat_tricks) FILTER (WHERE NOT tgs.is_forfeit), 0)::int as hat_tricks,
+        COALESCE(SUM(tgs.pen) FILTER (WHERE NOT tgs.is_forfeit), 0)::int as pen,
+        COALESCE(SUM(tgs.pim) FILTER (WHERE NOT tgs.is_forfeit), 0)::int as pim
       FROM eligible_skaters es
       JOIN players p ON p.id = es.player_id
       LEFT JOIN team_game_stats tgs ON tgs.player_id = p.id
@@ -123,9 +126,9 @@ async function fetchTeamDetailInternal(slug: string, seasonParam?: string | null
     `),
     rawSql(sql`
       WITH team_goalie_stats AS (
-        SELECT ggs.*, s.game_length
+        SELECT ggs.*, g.is_forfeit, s.game_length
         FROM goalie_game_stats ggs
-        JOIN games g ON ggs.game_id = g.id AND NOT g.is_forfeit AND g.season_id = ${seasonId} AND g.game_type IN ('regular', 'playoff', 'championship')
+        JOIN games g ON ggs.game_id = g.id AND ${teamForfeitPred} AND g.season_id = ${seasonId} AND g.game_type IN ('regular', 'playoff', 'championship')
         LEFT JOIN seasons s ON g.season_id = s.id
         WHERE NOT ggs.is_sub
           AND COALESCE(
@@ -141,14 +144,14 @@ async function fetchTeamDetailInternal(slug: string, seasonParam?: string | null
       SELECT
         p.id, p.name,
         COUNT(tgs.game_id)::int as gp,
-        COALESCE(SUM(tgs.goals_against), 0)::int as ga,
-        COALESCE(SUM(tgs.saves), 0)::int as saves,
-        COALESCE(SUM(tgs.shots_against), 0)::int as sa,
-        COALESCE(SUM(tgs.seconds), 0)::int as seconds,
-        COALESCE(SUM(tgs.shutouts), 0)::int as shutouts,
-        COALESCE(SUM(tgs.goalie_assists), 0)::int as goalie_assists,
-        COUNT(*) FILTER (WHERE tgs.result = 'W')::int as wins,
-        COUNT(*) FILTER (WHERE tgs.result = 'L')::int as losses,
+        COALESCE(SUM(tgs.goals_against) FILTER (WHERE NOT tgs.is_forfeit), 0)::int as ga,
+        COALESCE(SUM(tgs.saves) FILTER (WHERE NOT tgs.is_forfeit), 0)::int as saves,
+        COALESCE(SUM(tgs.shots_against) FILTER (WHERE NOT tgs.is_forfeit), 0)::int as sa,
+        COALESCE(SUM(tgs.seconds) FILTER (WHERE NOT tgs.is_forfeit), 0)::int as seconds,
+        COALESCE(SUM(tgs.shutouts) FILTER (WHERE NOT tgs.is_forfeit), 0)::int as shutouts,
+        COALESCE(SUM(tgs.goalie_assists) FILTER (WHERE NOT tgs.is_forfeit), 0)::int as goalie_assists,
+        COUNT(*) FILTER (WHERE NOT tgs.is_forfeit AND tgs.result = 'W')::int as wins,
+        COUNT(*) FILTER (WHERE NOT tgs.is_forfeit AND tgs.result = 'L')::int as losses,
         COALESCE(MAX(tgs.game_length), (SELECT se.game_length FROM seasons se WHERE se.id = ${seasonId}), ${DEFAULT_GAME_LENGTH_MIN})::int as game_length
       FROM eligible_goalies eg
       JOIN players p ON p.id = eg.player_id
@@ -159,7 +162,7 @@ async function fetchTeamDetailInternal(slug: string, seasonParam?: string | null
     rawSql(sql`
       SELECT
         g.id, g.date, g.time, g.home_score, g.away_score,
-        g.status, g.is_overtime,
+        g.status, g.is_overtime, g.is_forfeit,
         g.home_team, g.away_team, g.location,
         ht.name as home_name, awt.name as away_name
       FROM games g
@@ -193,8 +196,16 @@ async function fetchTeamDetailInternal(slug: string, seasonParam?: string | null
           WHEN g.away_team = t.team_slug AND g.away_score < g.home_score AND g.is_overtime THEN 1
           ELSE 0
         END)::int as pts,
-        SUM(CASE WHEN g.home_team = t.team_slug THEN g.home_score ELSE g.away_score END)::int as gf,
-        SUM(CASE WHEN g.home_team = t.team_slug THEN g.away_score ELSE g.home_score END)::int as ga
+        SUM(CASE
+          WHEN g.is_forfeit AND g.home_score = g.away_score THEN 0
+          WHEN g.home_team = t.team_slug THEN g.home_score
+          ELSE g.away_score
+        END)::int as gf,
+        SUM(CASE
+          WHEN g.is_forfeit AND g.home_score = g.away_score THEN 5
+          WHEN g.home_team = t.team_slug THEN g.away_score
+          ELSE g.home_score
+        END)::int as ga
       FROM season_teams t
       CROSS JOIN LATERAL (
         SELECT * FROM games g2
@@ -203,7 +214,10 @@ async function fetchTeamDetailInternal(slug: string, seasonParam?: string | null
       ) g
       WHERE t.season_id = ${seasonId}
       GROUP BY t.team_slug
-      ORDER BY pts DESC, (SUM(CASE WHEN g.home_team = t.team_slug THEN g.home_score ELSE g.away_score END) - SUM(CASE WHEN g.home_team = t.team_slug THEN g.away_score ELSE g.home_score END)) DESC
+      ORDER BY pts DESC, (
+        SUM(CASE WHEN g.is_forfeit AND g.home_score = g.away_score THEN 0 WHEN g.home_team = t.team_slug THEN g.home_score ELSE g.away_score END)
+        - SUM(CASE WHEN g.is_forfeit AND g.home_score = g.away_score THEN 5 WHEN g.home_team = t.team_slug THEN g.away_score ELSE g.home_score END)
+      ) DESC
     `),
     rawSql(sql`SELECT COUNT(*)::int as count FROM season_teams WHERE season_id = ${seasonId}`),
   ])
@@ -214,23 +228,26 @@ async function fetchTeamDetailInternal(slug: string, seasonParam?: string | null
   const seasonLocation = seasonRows.length > 0 ? seasonRows[0].defaultLocation : null
   const gameLength = seasonRows.length > 0 ? seasonRows[0].gameLength : 60
 
-  const skaters: SkaterRoster[] = skaterRows.map((r) => ({
-    id: r.id,
-    name: r.name,
-    isGoalie: false as const,
-    gp: r.gp,
-    goals: r.goals,
-    assists: r.assists,
-    points: r.points,
-    ptsPg: r.gp > 0 ? (r.points / r.gp).toFixed(2) : "0.00",
-    gwg: r.gwg,
-    ppg: r.ppg,
-    shg: r.shg,
-    eng: r.eng,
-    hatTricks: r.hat_tricks,
-    pen: r.pen,
-    pim: r.pim,
-  }))
+  const skaters: SkaterRoster[] = skaterRows.map((r) => {
+    const playedGp = (r.played_gp !== undefined ? Number(r.played_gp) : Number(r.gp)) || 0
+    return {
+      id: r.id,
+      name: r.name,
+      isGoalie: false as const,
+      gp: r.gp,
+      goals: r.goals,
+      assists: r.assists,
+      points: r.points,
+      ptsPg: playedGp > 0 ? (r.points / playedGp).toFixed(2) : "0.00",
+      gwg: r.gwg,
+      ppg: r.ppg,
+      shg: r.shg,
+      eng: r.eng,
+      hatTricks: r.hat_tricks,
+      pen: r.pen,
+      pim: r.pim,
+    }
+  })
 
   const goalies: GoalieRoster[] = goalieRows.map((r) => {
     const svPct = r.sa > 0 ? (r.saves / r.sa) : 0
@@ -254,14 +271,17 @@ async function fetchTeamDetailInternal(slug: string, seasonParam?: string | null
 
   const games = gameRows.map((r) => {
     const isHome = r.home_team === slug
-    const teamScore = isHome ? r.home_score : r.away_score
-    const opponentScore = isHome ? r.away_score : r.home_score
+    const rawTeamScore = isHome ? r.home_score : r.away_score
+    const rawOpponentScore = isHome ? r.away_score : r.home_score
+    const isDoubleForfeit = r.status === "final" && Boolean(r.is_forfeit) && rawTeamScore != null && rawOpponentScore != null && rawTeamScore === rawOpponentScore
+    const teamScore = isDoubleForfeit ? 0 : rawTeamScore
+    const opponentScore = isDoubleForfeit ? 5 : rawOpponentScore
     let result: "W" | "L" | "OTW" | "OTL" | null = null
     if (r.status === "final" && teamScore != null && opponentScore != null) {
-      if (teamScore > opponentScore) {
+      if (!isDoubleForfeit && teamScore > opponentScore) {
         result = r.is_overtime ? "OTW" : "W"
       } else {
-        result = r.is_overtime ? "OTL" : "L"
+        result = !isDoubleForfeit && r.is_overtime ? "OTL" : "L"
       }
     }
     return {

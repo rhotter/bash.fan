@@ -164,14 +164,16 @@ describe("fetchTeamStats aggregation logic", () => {
     const goalieQuery = calls.find((q) => q.sql.includes("FROM goalie_game_stats ggs"))
 
     expect(skaterQuery).toBeDefined()
-    expect(skaterQuery!.sql).toContain("JOIN games g ON pgs.game_id = g.id AND NOT g.is_forfeit")
+    expect(skaterQuery!.sql).toContain("JOIN games g ON pgs.game_id = g.id AND")
+    expect(skaterQuery!.sql).toContain("NOT g.is_forfeit")
     // Team stats must NOT filter out subs
     expect(skaterQuery!.sql).not.toContain("NOT pgs.is_sub")
     // Traded player support via COALESCE
     expect(skaterQuery!.sql).toContain("COALESCE(pgs.team_slug, ps.team_slug)")
 
     expect(goalieQuery).toBeDefined()
-    expect(goalieQuery!.sql).toContain("JOIN games g ON ggs.game_id = g.id AND NOT g.is_forfeit")
+    expect(goalieQuery!.sql).toContain("JOIN games g ON ggs.game_id = g.id AND")
+    expect(goalieQuery!.sql).toContain("NOT g.is_forfeit")
     expect(goalieQuery!.sql).not.toContain("NOT ggs.is_sub")
     expect(goalieQuery!.sql).toContain("COALESCE(ggs.team_slug, ps.team_slug)")
   })
@@ -412,8 +414,8 @@ describe("fetchTeamStats aggregation logic", () => {
     const goalieQuery = calls.find((q) => q.sql.includes("FROM goalie_game_stats ggs"))
 
     expect(goalieQuery).toBeDefined()
-    expect(goalieQuery!.sql).toContain("COUNT(DISTINCT ggs.game_id) FILTER (WHERE ggs.result = 'W')")
-    expect(goalieQuery!.sql).toContain("COUNT(DISTINCT ggs.game_id) FILTER (WHERE ggs.result = 'L')")
+    expect(goalieQuery!.sql).toContain("COUNT(DISTINCT ggs.game_id) FILTER (WHERE NOT g.is_forfeit AND ggs.result = 'W')")
+    expect(goalieQuery!.sql).toContain("COUNT(DISTINCT ggs.game_id) FILTER (WHERE NOT g.is_forfeit AND ggs.result = 'L')")
   })
 
   it("handles empty database where no seasons exist without throwing, keeping seasonId undefined", async () => {

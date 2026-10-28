@@ -380,4 +380,67 @@ describe("computeHeadToHead calculations", () => {
     expect(summary.ga).toBe(sealsStanding.ga)
     expect(summary.gd).toBe(sealsStanding.gd)
   })
+
+  it("awards BOTH teams a 0-5 regulation loss in standings and head-to-head on a double forfeit (0-0 isForfeit)", () => {
+    const games = [
+      createMockGame({
+        id: "g-dbl",
+        homeSlug: "seals",
+        awaySlug: "reign",
+        homeScore: 0,
+        awayScore: 0,
+        status: "final",
+        isForfeit: true,
+        isOvertime: false,
+      }),
+    ]
+
+    const standings = computeStandings(games)
+    const sealsStanding = standings.find((s) => s.slug === "seals")!
+    const reignStanding = standings.find((s) => s.slug === "reign")!
+
+    expect(sealsStanding).toMatchObject({
+      gp: 1,
+      w: 0,
+      otw: 0,
+      otl: 0,
+      l: 1,
+      gf: 0,
+      ga: 5,
+      gd: -5,
+      pts: 0,
+    })
+    expect(reignStanding).toMatchObject({
+      gp: 1,
+      w: 0,
+      otw: 0,
+      otl: 0,
+      l: 1,
+      gf: 0,
+      ga: 5,
+      gd: -5,
+      pts: 0,
+    })
+
+    const sealsH2h = computeHeadToHead(games, "seals")!
+    const vsReign = sealsH2h.opponents.find((o) => o.opponentSlug === "reign")!
+    expect(vsReign).toMatchObject({
+      gp: 1,
+      w: 0,
+      otw: 0,
+      otl: 0,
+      l: 1,
+      gf: 0,
+      ga: 5,
+      gd: -5,
+      pts: 0,
+      streak: "L1",
+    })
+    expect(vsReign.games[0]).toMatchObject({
+      result: "L",
+      teamScore: 0,
+      opponentScore: 5,
+      isForfeit: true,
+    })
+  })
 })
