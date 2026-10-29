@@ -151,6 +151,8 @@ struct LeagueRoot: View {
     @Environment(\.scenePhase) private var phase
     @Environment(\.dynamicTypeSize) private var typeSize
     @ScaledMetric(relativeTo: .subheadline) private var weekLabelHeight = 20.0
+    @AppStorage("completedAlertOnboarding") private var completedAlertOnboarding = false
+    @State private var showingAlertOnboarding = false
     @State private var openedGame: Game?
     @State private var selectedWeek: String?
     @State private var selectedGame: Game?
@@ -165,6 +167,11 @@ struct LeagueRoot: View {
         .environment(\.symbolVariants, .none)
         .tint(.primary)
         .task {
+            if !completedAlertOnboarding && GameAlerts.shared.teams.isEmpty && GameAlerts.shared.games.isEmpty {
+                showingAlertOnboarding = true
+            } else {
+                completedAlertOnboarding = true
+            }
             // Retire legacy local reminders; live alerts are delivered by APNs.
             await store.setReminders(false)
             await GameAlerts.shared.refreshAuthorization()
@@ -188,6 +195,12 @@ struct LeagueRoot: View {
             if phase == .active { Task { await GameAlerts.shared.refreshAuthorization(); await store.refresh(); openPendingGame() } }
         }
         .onReceive(NotificationCenter.default.publisher(for: NotificationRouter.openGame)) { _ in openPendingGame() }
+        .fullScreenCover(isPresented: $showingAlertOnboarding, onDismiss: { openPendingGame() }) {
+            GameAlertsScreen(games: store.snapshot?.games ?? [], onComplete: {
+                completedAlertOnboarding = true
+                showingAlertOnboarding = false
+            })
+        }
         .sheet(item: $openedGame) { game in
             NavigationStack {
                 GameScreen(game: game, store: store)
@@ -197,6 +210,7 @@ struct LeagueRoot: View {
     }
 
     private func openPendingGame() {
+        guard completedAlertOnboarding && !showingAlertOnboarding else { return }
         guard let id = UserDefaults.standard.string(forKey: "pendingGame") else { return }
         if let game = store.snapshot?.games.first(where: { $0.id == id }) {
             openedGame = game

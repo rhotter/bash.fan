@@ -1,8 +1,58 @@
 import XCTest
 
 final class GameAlertsUITests: XCTestCase {
+    @MainActor func testAlertOnboarding() {
+        let app = XCUIApplication()
+        app.launchArguments = ["-completedAlertOnboarding", "NO", "-pushTeams", "()", "-pushGames", "()"]
+        app.launch()
+        XCTAssertTrue(app.staticTexts["Which alerts do you want?"].waitForExistence(timeout: 40))
+        XCTAssertTrue(app.switches["alertKind-goal"].exists)
+        XCTAssertTrue(app.switches["alertKind-start"].exists)
+        XCTAssertTrue(app.switches["alertKind-final"].exists)
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "Alert onboarding"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+        app.buttons["Not now"].tap()
+        XCTAssertTrue(app.tabBars.buttons["Scores"].waitForExistence(timeout: 10))
+        app.terminate()
+        app.launchArguments = []
+        app.launch()
+        XCTAssertTrue(app.tabBars.buttons["Scores"].waitForExistence(timeout: 15))
+        XCTAssertFalse(app.staticTexts["Which alerts do you want?"].exists)
+    }
+
+    @MainActor func testOnboardingSavesAlertTypes() {
+        let app = XCUIApplication()
+        app.launchArguments = ["-completedAlertOnboarding", "NO", "-pushTeams", "()", "-pushGames", "()"]
+        app.launch()
+        XCTAssertTrue(app.staticTexts["Which alerts do you want?"].waitForExistence(timeout: 40))
+        for kind in ["goal", "start", "final"] {
+            let toggle = app.switches["alertKind-\(kind)"]
+            if toggle.value as? String == "1" {
+                toggle.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
+            }
+        }
+        app.buttons["Continue"].tap()
+        XCTAssertTrue(app.tabBars.buttons["Scores"].waitForExistence(timeout: 10))
+        app.terminate()
+        app.launchArguments = []
+        app.launch()
+        let menu = app.buttons["operatorMenu"].firstMatch
+        XCTAssertTrue(menu.waitForExistence(timeout: 30))
+        XCTAssertFalse(app.staticTexts["Which alerts do you want?"].exists)
+        menu.tap()
+        app.buttons["Game alerts"].tap()
+        for kind in ["goal", "start", "final"] {
+            let toggle = app.switches["alertKind-\(kind)"]
+            XCTAssertTrue(toggle.waitForExistence(timeout: 10))
+            XCTAssertEqual(toggle.value as? String, "0")
+        }
+    }
+
     @MainActor func testAlertSwitchContrast() {
         let app = XCUIApplication()
+        app.launchArguments = ["-completedAlertOnboarding", "YES"]
         app.launch()
         let menu = app.buttons["operatorMenu"].firstMatch
         XCTAssertTrue(menu.waitForExistence(timeout: 30))
@@ -26,6 +76,7 @@ final class GameAlertsUITests: XCTestCase {
 
     @MainActor func testAlertsMenuAndTeams() {
         let app = XCUIApplication()
+        app.launchArguments = ["-completedAlertOnboarding", "YES"]
         app.launch()
         let menu = app.buttons["operatorMenu"].firstMatch
         XCTAssertTrue(menu.waitForExistence(timeout: 30))

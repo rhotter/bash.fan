@@ -130,6 +130,7 @@ enum GameAlertKind: String, CaseIterable {
 struct GameAlertsScreen: View {
     let games: [Game]
     var game: Game?
+    var onComplete: (() -> Void)?
     @ObservedObject private var alerts = GameAlerts.shared
     @Environment(\.dismiss) private var dismiss
     @State private var leagueTeams: [Standing] = []
@@ -150,6 +151,15 @@ struct GameAlertsScreen: View {
     var body: some View {
         NavigationStack {
             List {
+                if onComplete != nil {
+                    Section {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Which alerts do you want?").font(.title2.bold())
+                            Text("Choose alert types and the teams you follow. You can change these anytime in Game alerts.")
+                                .foregroundStyle(.secondary)
+                        }.padding(.vertical, 8)
+                    }
+                }
                 Section {
                     ForEach(GameAlertKind.allCases, id: \.rawValue) { kind in
                         Toggle(kind.title, isOn: Binding(
@@ -159,8 +169,7 @@ struct GameAlertsScreen: View {
                                 else { selectedKinds.remove(kind.rawValue) }
                             }
                         ))
-                        // Keep the white switch thumb distinct from the enabled track in both appearances.
-                        .tint(Color(uiColor: .systemGray))
+                        .tint(Color(uiColor: .systemYellow))
                         .disabled(saving)
                         .accessibilityIdentifier("alertKind-\(kind.rawValue)")
                     }
@@ -172,7 +181,7 @@ struct GameAlertsScreen: View {
                         }
                     }
                 }
-                Section("Teams") {
+                Section {
                     ForEach(teams, id: \.slug) { team in
                         Button {
                             if !selectedTeams.insert(team.slug).inserted { selectedTeams.remove(team.slug) }
@@ -186,6 +195,8 @@ struct GameAlertsScreen: View {
                         }.disabled(saving)
                         .accessibilityValue(selectedTeams.contains(team.slug) ? "Following" : "Not following")
                     }
+                } header: { Text("Teams") } footer: {
+                    Text("Select teams to receive their game alerts.")
                 }
                 let otherGames = alerts.games.filter { $0 != game?.id }.sorted()
                 if !otherGames.isEmpty {
@@ -207,11 +218,18 @@ struct GameAlertsScreen: View {
             .overlay { if saving { ProgressView().padding(20).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16)) } }
             .navigationTitle("Game alerts").navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                if let onComplete {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Not now", action: onComplete).disabled(saving)
+                    }
+                }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") {
+                    Button(onComplete == nil ? "Done" : "Continue") {
                         saving = true
                         Task {
-                            if await alerts.update(teams: selectedTeams, games: selectedGames, kinds: selectedKinds) { dismiss() }
+                            if await alerts.update(teams: selectedTeams, games: selectedGames, kinds: selectedKinds) {
+                                if let onComplete { onComplete() } else { dismiss() }
+                            }
                             saving = false
                         }
                     }.disabled(saving)
