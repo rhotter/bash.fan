@@ -138,15 +138,12 @@ struct GameAlertsScreen: View {
     @State private var selectedGames = GameAlerts.shared.games
     @State private var selectedKinds = GameAlerts.shared.kinds
     @State private var saving = false
-    private var teams: [(slug: String, name: String)] {
-        var names: [String: String] = [:]
-        for match in games + (game.map { [$0] } ?? []) {
-            if let slug = match.homeSlug { names[slug] = match.homeTeam }
-            if let slug = match.awaySlug { names[slug] = match.awayTeam }
-        }
-        for team in leagueTeams { names[team.slug] = team.team }
-        for slug in alerts.teams where names[slug] == nil { names[slug] = slug.replacingOccurrences(of: "-", with: " ").capitalized }
-        return names.map { (slug: $0.key, name: $0.value) }.sorted { $0.name < $1.name }
+    @State private var loadingTeams = true
+    @State private var teamLoadError: String?
+    private var teams: [Standing] {
+        // The unfiltered league endpoint resolves the current season. Game context
+        // and saved subscriptions can contain placeholders or historical teams.
+        leagueTeams.sorted { $0.team < $1.team }
     }
     var body: some View {
         NavigationStack {
@@ -182,20 +179,29 @@ struct GameAlertsScreen: View {
                     }
                 }
                 Section {
+                    if loadingTeams {
+                        ProgressView("Loading current-season teams…")
+                    } else if let teamLoadError {
+                        Text(teamLoadError).foregroundStyle(.secondary)
+                        Button("Retry loading teams") { Task { await loadTeams() } }
+                    } else if teams.isEmpty {
+                        Text("No teams are available for the current season yet.").foregroundStyle(.secondary)
+                    }
                     ForEach(teams, id: \.slug) { team in
                         Button {
                             if !selectedTeams.insert(team.slug).inserted { selectedTeams.remove(team.slug) }
                         } label: {
                             HStack(spacing: 12) {
                                 TeamLogo(slug: team.slug, size: 36)
-                                Text(team.name).foregroundStyle(.primary)
+                                Text(team.team).foregroundStyle(.primary)
                                 Spacer()
                                 if selectedTeams.contains(team.slug) { Image(systemName: "checkmark").foregroundStyle(.primary) }
                             }
                         }.disabled(saving)
                         .accessibilityValue(selectedTeams.contains(team.slug) ? "Following" : "Not following")
+                        .accessibilityIdentifier("alertTeam-\(team.slug)")
                     }
-                } header: { Text("Teams") } footer: {
+                } header: { Text("Current-season teams") } footer: {
                     Text("Select teams to receive their game alerts.")
                 }
                 let otherGames = alerts.games.filter { $0 != game?.id }.sorted()
@@ -238,9 +244,20 @@ struct GameAlertsScreen: View {
             .interactiveDismissDisabled(saving)
             .task {
                 await alerts.refreshAuthorization()
-                if let snapshot: LeagueSnapshot = try? await LeagueAPI.fetch("", maxAge: 120) { leagueTeams = snapshot.standings }
+                await loadTeams()
             }
         }.tint(.primary)
+    }
+    private func loadTeams() async {
+        loadingTeams = true
+        teamLoadError = nil
+        defer { loadingTeams = false }
+        do {
+            let snapshot: LeagueSnapshot = try await LeagueAPI.fetch("", maxAge: 120)
+            leagueTeams = snapshot.standings
+        } catch {
+            teamLoadError = "Couldn’t load current-season teams. Please try again."
+        }
     }
     private func toggleGame(_ id: String) {
         if !selectedGames.insert(id).inserted { selectedGames.remove(id) }

@@ -9,6 +9,9 @@ final class GameAlertsUITests: XCTestCase {
         XCTAssertTrue(app.switches["alertKind-goal"].exists)
         XCTAssertTrue(app.switches["alertKind-start"].exists)
         XCTAssertTrue(app.switches["alertKind-final"].exists)
+        XCTAssertTrue(app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'alertTeam-'")).firstMatch.waitForExistence(timeout: 20))
+        XCTAssertFalse(app.buttons["alertTeam-tbd"].exists)
+        XCTAssertFalse(app.staticTexts["(TBD)"].exists)
         let screenshot = XCTAttachment(screenshot: app.screenshot())
         screenshot.name = "Alert onboarding"
         screenshot.lifetime = .keepAlways
@@ -76,7 +79,7 @@ final class GameAlertsUITests: XCTestCase {
 
     @MainActor func testAlertsMenuAndTeams() {
         let app = XCUIApplication()
-        app.launchArguments = ["-completedAlertOnboarding", "YES"]
+        app.launchArguments = ["-completedAlertOnboarding", "YES", "-pushTeams", "(tbd,seed-1,retired-team)"]
         app.launch()
         let menu = app.buttons["operatorMenu"].firstMatch
         XCTAssertTrue(menu.waitForExistence(timeout: 30))
@@ -91,6 +94,9 @@ final class GameAlertsUITests: XCTestCase {
         goals.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
         XCTAssertNotEqual(goals.value as? String, originalGoals)
         XCTAssertTrue(app.buttons.matching(NSPredicate(format: "value == 'Not following'")).firstMatch.waitForExistence(timeout: 20))
+        XCTAssertFalse(app.buttons["alertTeam-tbd"].exists)
+        XCTAssertFalse(app.buttons["alertTeam-seed-1"].exists)
+        XCTAssertFalse(app.buttons["alertTeam-retired-team"].exists)
         let team = app.buttons.matching(NSPredicate(format: "value == 'Not following'")).firstMatch
         let teamLabel = team.label
         team.tap()
