@@ -403,9 +403,9 @@ private extension View {
         }
     }
 
-    func leagueHeader(_ title: String, season: SeasonMenu, operatorGames: [Game]? = nil, searchAction: (() -> Void)? = nil, searching: Bool = false) -> some View {
+    func leagueHeader(_ title: String, season: SeasonMenu, operatorGames: [Game]? = nil, searchAction: (() -> Void)? = nil, searching: Bool = false, searchText: Binding<String>? = nil) -> some View {
         VStack(spacing: 0) {
-            LeagueHeader(title: title, operatorGames: operatorGames, searchAction: searchAction, searching: searching)
+            LeagueHeader(title: title, operatorGames: operatorGames, searchAction: searchAction, searching: searching, searchText: searchText)
             SeasonHeaderRow(menu: season)
             self
         }
@@ -430,16 +430,23 @@ private struct LeagueHeader: View {
     var operatorGames: [Game]?
     var searchAction: (() -> Void)?
     var searching = false
+    var searchText: Binding<String>?
 
     var body: some View {
         HStack(spacing: 8) {
-            Color.clear.frame(width: 44, height: 44).accessibilityHidden(true)
-            Text(title)
-            .font(.headline)
-            .foregroundStyle(.primary)
-            .fixedSize(horizontal: false, vertical: true)
-            .multilineTextAlignment(.center)
-            .frame(maxWidth: .infinity)
+            if searching, let searchText {
+                NativePlayerSearch(text: searchText, autofocus: true)
+                    .frame(height: 44)
+                    .frame(maxWidth: .infinity)
+            } else {
+                Color.clear.frame(width: 44, height: 44).accessibilityHidden(true)
+                Text(title)
+                    .font(.headline)
+                    .foregroundStyle(.primary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: .infinity)
+            }
             ZStack {
                 Color.clear.frame(width: 44, height: 44).accessibilityHidden(true)
                 if let operatorGames { OperatorMenu(games: operatorGames) }
@@ -757,7 +764,7 @@ private struct StatsScreen: View {
             .background(LeagueStyle.background)
             RefreshScrollView(action: { if allTime { await loadAllTime(force: true) } else { await store.refresh() } }) {
                 // This content is a single List row. Lazy stacks change its measured
-                // height while scrolling, which can shift the list past the search bar.
+                // height while scrolling, which can shift the list unexpectedly.
                 VStack(alignment: .leading, spacing: 12) {
                     if allTime {
                         Text("Fall regular seasons only")
@@ -766,7 +773,6 @@ private struct StatsScreen: View {
                             .padding(.horizontal, 12)
                             .accessibilityIdentifier("allTimeScope")
                     }
-                    if searching { NativePlayerSearch(text: $search, autofocus: true).frame(height: 44) }
                     if let error = statsError { Text(error).font(.footnote).foregroundStyle(.secondary) }
                     filterLayout {
                         if !allTime { Menu {
@@ -853,7 +859,7 @@ private struct StatsScreen: View {
             .background(LeagueStyle.background).leagueHeader("Stats", season: SeasonMenu(store: store, allowsAllTime: true, allTime: $allTime), searchAction: {
                 searching.toggle()
                 if !searching { search = "" }
-            }, searching: searching)
+            }, searching: searching, searchText: $search)
             .scrollDismissesKeyboard(.interactively)
             .navigationDestination(optional: $selectedPlayer) { PlayerScreen(player: $0, store: store, prefersGoalieStats: showGoalies) }
             .task(id: allTime) { await loadAllTime() }

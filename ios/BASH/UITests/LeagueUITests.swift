@@ -25,11 +25,15 @@ final class LeagueUITests: XCTestCase {
         let button = app.buttons["statsSearchButton"]
         XCTAssertTrue(button.waitForExistence(timeout: 10))
         XCTAssertFalse(app.searchFields["playerSearch"].exists)
+        let headerY = button.frame.midY
+        let tabsY = app.segmentedControls["statsPlayerType"].frame.minY
         capture("Stats search button")
         button.tap()
         let search = app.searchFields["playerSearch"]
         XCTAssertTrue(search.waitForExistence(timeout: 5))
         XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
+        XCTAssertEqual(search.frame.midY, headerY, accuracy: 3, "Search stays in the heading")
+        XCTAssertEqual(app.segmentedControls["statsPlayerType"].frame.minY, tabsY, accuracy: 1, "Opening search must not shift content")
         search.typeText("zzzznomatch")
         XCTAssertTrue(app.staticTexts["No matching players"].waitForExistence(timeout: 10))
         capture("Stats search open")
