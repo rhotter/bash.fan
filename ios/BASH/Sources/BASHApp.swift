@@ -264,7 +264,6 @@ struct LeagueRoot: View {
 
     private var gamesScreen: some View {
         VStack(spacing: 0) {
-            LeagueHeader(title: "Scores", operatorGames: weekGames)
             VStack(spacing: 4) {
                 SeasonHeaderRow(menu: SeasonMenu(store: store))
                 if !weeks.isEmpty { weekSlider }
@@ -294,8 +293,7 @@ struct LeagueRoot: View {
             }
         }
         .background(LeagueStyle.background)
-        .navigationTitle("Scores")
-        .toolbar(.hidden, for: .navigationBar)
+        .modifier(LeagueNavigation(title: "Scores", operatorGames: weekGames))
     }
 
     private func scoresPage(_ week: GameWeek?) -> some View {
@@ -419,12 +417,11 @@ private extension View {
 
     func leagueHeader(_ title: String, season: SeasonMenu, operatorGames: [Game]? = nil, searchAction: (() -> Void)? = nil, searching: Bool = false, searchText: Binding<String>? = nil) -> some View {
         VStack(spacing: 0) {
-            LeagueHeader(title: title, operatorGames: operatorGames, searchAction: searchAction, searching: searching, searchText: searchText)
             SeasonHeaderRow(menu: season)
             self
         }
-        .navigationTitle(title)
-        .toolbar(.hidden, for: .navigationBar)
+        .modifier(LeagueNavigation(title: title, operatorGames: operatorGames,
+                                   searchAction: searchAction, searching: searching, searchText: searchText))
     }
 }
 
@@ -439,49 +436,47 @@ private struct SeasonHeaderRow: View {
     }
 }
 
-private struct LeagueHeader: View {
+/// Use the system navigation surface so toolbar controls inherit the current
+/// iOS material, contrast, hit targets, and presentation animations.
+private struct LeagueNavigation: ViewModifier {
     let title: String
     var operatorGames: [Game]?
     var searchAction: (() -> Void)?
     var searching = false
     var searchText: Binding<String>?
 
-    var body: some View {
-        HStack(spacing: 8) {
-            if searching, let searchText {
-                NativePlayerSearch(text: searchText, autofocus: true)
-                    .frame(height: 44)
-                    .frame(maxWidth: .infinity)
-            } else {
-                Color.clear.frame(width: 44, height: 44).accessibilityHidden(true)
-                Text(title)
-                    .font(.headline)
-                    .foregroundStyle(.primary)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .multilineTextAlignment(.center)
-                    .frame(maxWidth: .infinity)
-            }
-            ZStack {
-                Color.clear.frame(width: 44, height: 44).accessibilityHidden(true)
-                if let operatorGames { OperatorMenu(games: operatorGames) }
-                if let searchAction {
-                    Button(action: searchAction) {
-                        Image(systemName: searching ? "xmark" : "magnifyingglass")
-                            .font(.system(size: 20, weight: .semibold))
-                            .foregroundStyle(.primary)
-                            .frame(width: 44, height: 44)
-                            .background(.quaternary, in: Circle())
-                            .overlay(Circle().strokeBorder(.primary.opacity(0.1), lineWidth: 1))
+    @State private var availableWidth: CGFloat = 320
+
+    func body(content: Content) -> some View {
+        content
+            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { availableWidth = $0 }
+            .navigationTitle(title)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar(.visible, for: .navigationBar)
+            .toolbar {
+                ToolbarItem(placement: .principal) {
+                    if searching, let searchText {
+                        NativePlayerSearch(text: searchText, autofocus: true)
+                            .frame(width: max(120, availableWidth - 120), height: 44)
+                    } else {
+                        Text(title).font(.headline).accessibilityAddTraits(.isHeader)
                     }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel(searching ? "Close search" : "Search players")
-                    .accessibilityIdentifier("statsSearchButton")
+                }
+                if let operatorGames {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        OperatorMenu(games: operatorGames, inToolbar: true)
+                    }
+                }
+                if let searchAction {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button(action: searchAction) {
+                            Label(searching ? "Close search" : "Search players",
+                                  systemImage: searching ? "xmark" : "magnifyingglass")
+                        }
+                        .accessibilityIdentifier("statsSearchButton")
+                    }
                 }
             }
-        }
-            .frame(minHeight: 44)
-            .padding(.horizontal, 12).padding(.top, 8).padding(.bottom, 12)
-        .background(LeagueStyle.background)
     }
 }
 
