@@ -169,7 +169,7 @@ struct GameAlertsScreen: View {
                                 else { selectedKinds.remove(kind.rawValue) }
                             }
                         ))
-                        .tint(Color(uiColor: .systemYellow))
+                        .tint(Color(uiColor: .systemGreen))
                         .disabled(saving)
                         .accessibilityIdentifier("alertKind-\(kind.rawValue)")
                     }
