@@ -44,6 +44,10 @@ final class CaptureController: ObservableObject {
         didSet { UserDefaults.standard.set(quality.rawValue, forKey: "recordingQuality") }
     }
     var framesPerSecond: Int { quality.fps }
+    // Opposite mount orientations put both rear camera clusters at the center.
+    var requiredOrientation: UIDeviceOrientation { pairing?.side == "right" ? .landscapeLeft : .landscapeRight }
+    var videoOrientation: AVCaptureVideoOrientation { pairing?.side == "right" ? .landscapeRight : .landscapeLeft }
+    var mountInstruction: String { "Landscape, with the volume buttons facing \(pairing?.side == "right" ? "down" : "up")." }
     private var preparedQuality: RecordingQuality?
     let demo: Bool
     var liveEnabled: Bool { !demo }
@@ -94,6 +98,7 @@ final class CaptureController: ObservableObject {
     }
     func prepare() async {
         guard !recording else { return }
+        await mixer.setVideoOrientation(videoOrientation)
         if prepared && ready && preparedQuality == quality { await mixer.startRunning(); return }
         ready = false
         error = nil
@@ -113,8 +118,8 @@ final class CaptureController: ObservableObject {
                 guard session.canSetSessionPreset(preset) else { throw CaptureError.message("This iPhone’s 0.5× camera does not support \(selectedQuality.title). Choose another recording quality.") }
                 session.sessionPreset = preset
             }
-            // Volume buttons up: device landscapeRight maps to capture landscapeLeft.
-            await mixer.setVideoOrientation(.landscapeLeft)
+            // Device and capture landscape directions are opposite.
+            await mixer.setVideoOrientation(videoOrientation)
             guard let format = camera.formats.first(where: { format in
                 let size = CMVideoFormatDescriptionGetDimensions(format.formatDescription)
                 return size.width == selectedQuality.width && size.height == selectedQuality.height && format.videoSupportedFrameRateRanges.contains {
@@ -156,8 +161,8 @@ final class CaptureController: ObservableObject {
     }
     func start() async {
         guard let pairing, ready, preparedQuality == quality, !recording, !busy else { return }
-        guard UIDevice.current.orientation == .landscapeRight else {
-            error = "Rotate to landscape with the volume buttons facing up."
+        guard UIDevice.current.orientation == requiredOrientation else {
+            error = mountInstruction
             return
         }
         busy = true; error = nil
@@ -174,8 +179,8 @@ final class CaptureController: ObservableObject {
                 clockAnchor = try await CaptureAPI.synchronize(pairing); clockChecked = true
             }
             try await mixer.setFrameRate(Double(framesPerSecond))
-            guard UIDevice.current.orientation == .landscapeRight else {
-                throw CaptureError.message("Rotate to landscape with the volume buttons facing up.")
+            guard UIDevice.current.orientation == requiredOrientation else {
+                throw CaptureError.message(mountInstruction)
             }
             try await beginSegment(pairing)
             recordingStartedAt = Date(); recording = true; status = "Recording \(quality.title) locally"; UIApplication.shared.isIdleTimerDisabled = true
@@ -194,7 +199,7 @@ final class CaptureController: ObservableObject {
                 }
                 do { try await finishSegment() } catch { self.error = "Could not finalize the last segment. Existing files are preserved." }
                 recording = false; recordingStartedAt = nil; UIApplication.shared.isIdleTimerDisabled = false
-                status = "Recording saved on this phone"
+                status = self.pairing == nil ? "Camera disconnected; recording saved on this phone" : "Recording saved on this phone"
                 serviceTask?.cancel(); _ = try? await stream.close(); try? await connection.close(); streaming = false
                 await sendHeartbeat(pairing)
                 if !demo { Task { await library.uploadPending() } }
@@ -202,7 +207,7 @@ final class CaptureController: ObservableObject {
             serviceTask = Task { [weak self] in
                 guard let self, !demo else { return }
                 while !Task.isCancelled && recording {
-                    await sendHeartbeat(pairing)
+                    guard await sendHeartbeat(pairing) else { break }
                     if !recording || Task.isCancelled { break }
                     if liveEnabled {
                         do {
@@ -246,12 +251,26 @@ final class CaptureController: ObservableObject {
         _ = try await recorder.stopRecording()
         try await library.finalize(current)
     }
-    private func sendHeartbeat(_ pairing: Pairing) async {
-        guard !demo else { return }
+    @discardableResult
+    func sendHeartbeat(_ pairing: Pairing,
+                       send: (@MainActor (Pairing, [String: Any]) async throws -> HeartbeatResponse)? = nil) async -> Bool {
+        guard !demo else { return true }
         do {
-            let response: HeartbeatResponse = try await CaptureAPI.call(pairing, body: ["action": "heartbeat", "deviceName": UIDevice.current.name, "recording": recording, "streaming": streaming, "battery": UIDevice.current.batteryLevel, "error": error.map { String($0.prefix(300)) } as Any? ?? NSNull()])
-            if response.ended { recordingTask?.cancel() }
-        } catch { /* Loss of telemetry must not stop local capture. */ }
+            let request: @MainActor (Pairing, [String: Any]) async throws -> HeartbeatResponse = send ?? { pairing, body in try await CaptureAPI.call(pairing, body: body) }
+            let response = try await request(pairing, ["action": "heartbeat", "deviceName": UIDevice.current.name, "recording": recording, "streaming": streaming, "battery": UIDevice.current.batteryLevel, "error": error.map { String($0.prefix(300)) } as Any? ?? NSNull()])
+            if response.ended { recordingTask?.cancel(); return false }
+        } catch let failure as CaptureAPIError where failure.statusCode == 401 {
+            // A replacement rotates the token. Stop the old capture, but keep its files
+            // and keychain entry so saved clips are never deleted by disconnection.
+            recordingTask?.cancel()
+            serviceTask?.cancel()
+            self.pairing = nil
+            configuration = nil
+            UserDefaults.standard.removeObject(forKey: "pairingKey")
+            error = "This camera was replaced or its pairing expired. Recording stopped; saved clips remain on this phone."
+            return false
+        } catch { /* Temporary network/telemetry failures must not stop local capture. */ }
+        return true
     }
     func stop() async {
         guard recording else { return }

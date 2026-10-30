@@ -29,7 +29,7 @@ struct NativeCameraView: View {
     @State private var orientation = UIDevice.current.orientation
     private var rotationInstruction: String {
         switch orientation {
-        case .landscapeLeft: return "Turn the phone 180°"
+        case .landscapeLeft, .landscapeRight: return "Turn the phone 180°"
         case .faceUp, .faceDown: return "Stand the phone upright"
         default: return "Rotate your iPhone"
         }
@@ -37,7 +37,7 @@ struct NativeCameraView: View {
     var body: some View {
             GeometryReader { geometry in
                 // Device orientation is physical; layout alone cannot distinguish the two landscape directions.
-                let correctlyOriented = orientation == .landscapeRight && geometry.size.width > geometry.size.height
+                let correctlyOriented = orientation == camera.requiredOrientation && geometry.size.width > geometry.size.height
                 ZStack {
                     Color.black.ignoresSafeArea()
                     CapturePreview(mixer: camera.mixer)
@@ -58,9 +58,9 @@ struct NativeCameraView: View {
                             Spacer()
                             VStack(spacing: 6) {
                                 Label(rotationInstruction, systemImage: "rotate.right").font(.headline)
-                                Text("Landscape, with the volume buttons facing up.").font(.callout)
+                                Text(camera.mountInstruction).font(.callout)
                                 if camera.recording { Text("Still recording — return the phone to its mount position.").font(.caption) }
-                                else if orientation == .landscapeRight { Text("Turn off Portrait Orientation Lock if the screen stays upright.").font(.caption) }
+                                else if orientation == camera.requiredOrientation { Text("Turn off Portrait Orientation Lock if the screen stays upright.").font(.caption) }
                             }
                             .multilineTextAlignment(.center)
                             .foregroundStyle(.yellow)

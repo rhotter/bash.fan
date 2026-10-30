@@ -98,6 +98,12 @@ struct UploadTicket: Decodable { let url: String?; let alreadyUploaded: Bool }
 struct UploadConfirmation: Decodable { let verified: Bool }
 struct HeartbeatResponse: Decodable { let ended: Bool; let serverTime: Double }
 
+struct CaptureAPIError: LocalizedError {
+    let statusCode: Int
+    let message: String
+    var errorDescription: String? { message }
+}
+
 @MainActor
 enum CaptureAPI {
     static func call<T: Decodable>(_ pairing: Pairing, body: [String: Any]? = nil) async throws -> T {
@@ -109,7 +115,7 @@ enum CaptureAPI {
         let (data, response) = try await URLSession.shared.data(for: request)
         guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
             let message = (try? JSONSerialization.jsonObject(with: data) as? [String: String])?["error"] ?? "Could not reach BASH. Recording remains on this phone."
-            throw CaptureError.message(message)
+            throw CaptureAPIError(statusCode: (response as? HTTPURLResponse)?.statusCode ?? 0, message: message)
         }
         return try JSONDecoder().decode(T.self, from: data)
     }

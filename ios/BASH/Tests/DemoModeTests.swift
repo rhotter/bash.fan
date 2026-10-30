@@ -1,4 +1,5 @@
 import XCTest
+import SwiftUI
 @testable import BASH
 
 final class DemoModeTests: XCTestCase {
@@ -52,5 +53,75 @@ final class DemoModeTests: XCTestCase {
         XCTAssertTrue(production.needsUpload)
         production.duration = nil
         XCTAssertFalse(production.needsUpload)
+    }
+}
+
+final class CaptureMountTests: XCTestCase {
+    private func pairing(_ side: String) throws -> Pairing {
+        try Pairing(link: "bashcapture://pair?server=https://example.com&session=00000000-0000-0000-0000-000000000001&side=\(side)&token=abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQ")
+    }
+
+    @MainActor func testMountSidesUseOppositePhysicalAndVideoOrientations() throws {
+        let camera = CaptureController()
+        camera.pairing = try pairing("left")
+        XCTAssertEqual(camera.requiredOrientation, .landscapeRight)
+        XCTAssertEqual(camera.videoOrientation, .landscapeLeft)
+        XCTAssertTrue(camera.mountInstruction.contains("up"))
+        camera.pairing = try pairing("right")
+        XCTAssertEqual(camera.requiredOrientation, .landscapeLeft)
+        XCTAssertEqual(camera.videoOrientation, .landscapeRight)
+        XCTAssertTrue(camera.mountInstruction.contains("down"))
+    }
+
+    @MainActor func testRejectedHeartbeatDisconnectsButNetworkFailuresKeepCaptureAlive() async throws {
+        let camera = CaptureController()
+        let pair = try pairing("right")
+        camera.pairing = pair
+        for failure in [URLError(.notConnectedToInternet) as Error,
+                        CaptureAPIError(statusCode: 503, message: "Unavailable")] {
+            let keepRunning = await camera.sendHeartbeat(pair) { _, _ in throw failure }
+            XCTAssertTrue(keepRunning)
+            XCTAssertNotNil(camera.pairing)
+        }
+        let keepRunning = await camera.sendHeartbeat(pair) { _, body in
+            XCTAssertEqual(body["action"] as? String, "heartbeat")
+            throw CaptureAPIError(statusCode: 401, message: "Pair this camera again")
+        }
+        XCTAssertFalse(keepRunning)
+        XCTAssertNil(camera.pairing)
+        XCTAssertNil(camera.configuration)
+        XCTAssertTrue(camera.error?.contains("replaced") == true)
+        XCTAssertNil(UserDefaults.standard.string(forKey: "pairingKey"))
+    }
+
+    @MainActor func testEndedHeartbeatPreventsLivestreamReconnect() async throws {
+        let camera = CaptureController()
+        let keepRunning = await camera.sendHeartbeat(try pairing("left")) { _, _ in
+            HeartbeatResponse(ended: true, serverTime: 0)
+        }
+        XCTAssertFalse(keepRunning)
+    }
+}
+
+final class CaptureScreenshotTests: XCTestCase {
+    @MainActor func testMountGuidanceScreenshots() async throws {
+        let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.first as? UIWindowScene)
+        let window = UIWindow(windowScene: scene)
+        window.frame = scene.coordinateSpace.bounds
+        defer { window.isHidden = true }
+        for side in ["left", "right"] {
+            let camera = CaptureController(demo: true)
+            camera.pairing = try Pairing(link: "bashcapture://pair?server=https://example.com&session=00000000-0000-0000-0000-000000000001&side=\(side)&token=abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQ")
+            window.rootViewController = UIHostingController(rootView: NativeCameraView(camera: camera, library: camera.library))
+            window.makeKeyAndVisible()
+            try await Task.sleep(for: .seconds(2))
+            let screenshot = UIGraphicsImageRenderer(bounds: window.bounds).image { _ in
+                window.drawHierarchy(in: window.bounds, afterScreenUpdates: true)
+            }
+            let attachment = XCTAttachment(image: screenshot)
+            attachment.name = "\(side)-camera-mount"
+            attachment.lifetime = .keepAlways
+            add(attachment)
+        }
     }
 }
