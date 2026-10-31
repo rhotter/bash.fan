@@ -227,6 +227,36 @@ describe("completed-game scorekeeper corrections", () => {
       shotSnapshot: { period: 2, clock: "8:00", opponentShots: [4, 2, 0] } })
   })
 
+  it("removes a substitution and restores the previous goalie in the saved state", async () => {
+    await render({ ...fixture(), homeGoalieId: 3, goalieChanges: [{
+      id: "sub", team: "home", period: 2, clock: "8:00", outGoalieId: 1, inGoalieId: 3,
+    }] })
+    await click("Edit Game")
+    await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="Remove Home goalie substitution"]')!.click())
+    await click("Remove")
+    expect(draft().state.homeGoalieId).toBe(1)
+    expect(draft().state.goalieChanges).toEqual([])
+    expect(container.textContent).not.toContain("SUB")
+  })
+
+  it.each([null, "7:59"])("shows and removes a goalie pull with return time %s", async (returnedAt) => {
+    await render({ ...fixture(), goals: [], goaliePulls: [{
+      id: "pull", team: "home", period: 2, pulledAt: "8:00", returnedAt,
+    }] })
+    await click("Edit Game")
+    expect(container.textContent).toContain("Goalie pulled")
+    expect(container.textContent).toContain(returnedAt === null ? "Still pulled" : "Returned at 12:01")
+    expect(container.textContent).not.toContain("No events yet")
+    await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="Remove Home goalie pull"]')!.click())
+    await click("Cancel")
+    expect(container.textContent).toContain("Goalie pulled")
+    await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="Remove Home goalie pull"]')!.click())
+    await click("Remove")
+    expect(draft().state.goaliePulls).toEqual([])
+    expect(container.textContent).toContain("No events yet")
+    expect(container.textContent).not.toContain("Return Goalie")
+  })
+
   it("explains missing legacy shot evidence without restoring manual finalization fields", async () => {
     fetchMock.mockImplementation(async () => reply(400, { error: "Home needs an explicit shots-against total for every goalie; shots cannot be split from time played" }))
     await render()

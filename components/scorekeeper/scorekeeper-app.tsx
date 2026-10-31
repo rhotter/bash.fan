@@ -42,6 +42,7 @@ import { ScorekeeperSectionHeader as SectionHeader } from "@/components/scorekee
 import { AddPlayerModal } from "@/components/scorekeeper/add-player-modal"
 import { authenticateScorekeeper } from "@/lib/scorekeeper-login"
 import { captureGoalieShotSnapshot, prepareScorekeeperFinalization } from "@/lib/automatic-goalie-shots"
+import { removeGoalieChange } from "@/lib/scorekeeper-goalie-events"
 import { SubBadge } from "@/components/scorekeeper/shared/sub-badge"
 import { TeamLogo } from "@/components/team-logo"
 
@@ -196,7 +197,7 @@ export function ScorekeeperApp({
   const [editingTimeoutId, setEditingTimeoutId] = useState<string | null>(null)
 
   // Undo confirmation
-  const [confirmUndo, setConfirmUndo] = useState<{ id: string; type: "goal" | "penalty" | "timeout" | "goalieChange" } | null>(null)
+  const [confirmUndo, setConfirmUndo] = useState<{ id: string; type: "goal" | "penalty" | "timeout" | "goalieChange" | "goaliePull" } | null>(null)
 
   // Goalie change prompt (mid-game vs correction)
   const [goalieChangePrompt, setGoalieChangePrompt] = useState<{
@@ -1456,11 +1457,12 @@ export function ScorekeeperApp({
         {!isPreGame && (
           <div className="mt-5">
             <SectionHeader>Events</SectionHeader>
-            {state.goals.length === 0 && state.penalties.length === 0 && (state.timeouts ?? []).length === 0 && (state.goalieChanges ?? []).length === 0 && (
+            {state.goals.length === 0 && state.penalties.length === 0 && (state.timeouts ?? []).length === 0 && (state.goalieChanges ?? []).length === 0 && (state.goaliePulls ?? []).length === 0 && (
               <p className="text-[11px] text-muted-foreground/40 text-center py-6">No events yet</p>
             )}
             <div className="space-y-0">
               {[
+                ...(state.goaliePulls ?? []).map((p) => ({ type: "goaliePull" as const, event: p, period: p.period, clock: p.pulledAt })),
                 ...state.goals.map((g) => ({ type: "goal" as const, event: g, period: g.period, clock: g.clock })),
                 ...state.penalties.map((p) => ({ type: "penalty" as const, event: p, period: p.period, clock: p.clock })),
                 ...(state.timeouts ?? []).map((t) => ({ type: "timeout" as const, event: t, period: t.period, clock: t.clock })),
@@ -1529,6 +1531,28 @@ export function ScorekeeperApp({
                         </button>
                       </div>
                     )
+                  } else if (item.type === "goaliePull") {
+                    const pull = item.event
+                    const teamName = pull.team === homeSlug ? homeTeam : awayTeam
+                    return (
+                      <div key={pull.id} className="flex items-center gap-2 py-2 border-t border-border/20">
+                        <div className="flex-1 min-w-0">
+                          <span className="text-[11px] font-medium">Goalie pulled</span>
+                          <span className="block text-[10px] text-muted-foreground">
+                            {pull.returnedAt === null ? "Still pulled" : `Returned at ${clockToElapsedDisplay(pull.returnedAt, pull.period, defaultPeriodLength, isPlayoff ? defaultPeriodLength : 300)}`}
+                          </span>
+                        </div>
+                        <span className="text-[10px] text-muted-foreground shrink-0">{teamName}</span>
+                        <span className="text-[10px] text-muted-foreground tabular-nums font-mono shrink-0">{periodLabel(pull.period, isPlayoff)} {clockToElapsedDisplay(pull.pulledAt, pull.period, defaultPeriodLength, isPlayoff ? defaultPeriodLength : 300)}</span>
+                        <button
+                          aria-label={`Remove ${teamName} goalie pull`}
+                          onClick={() => setConfirmUndo({ id: pull.id, type: "goaliePull" })}
+                          className="shrink-0 p-1 rounded text-muted-foreground hover:text-foreground transition-colors"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                    )
                   } else {
                     const c = item.event as GoalieChangeEvent
                     const teamName = c.team === homeSlug ? homeTeam : awayTeam
@@ -1543,6 +1567,7 @@ export function ScorekeeperApp({
                         <span className="text-[10px] text-muted-foreground/50 shrink-0">{teamName}</span>
                         <span className="text-[10px] text-muted-foreground/40 tabular-nums font-mono shrink-0">{periodLabel(c.period, isPlayoff)} {clockToElapsedDisplay(c.clock, c.period, defaultPeriodLength, isPlayoff ? defaultPeriodLength : 300)}</span>
                         <button
+                          aria-label={`Remove ${teamName} goalie substitution`}
                           onClick={(e) => { e.stopPropagation(); setConfirmUndo({ id: c.id, type: "goalieChange" }) }}
                           className="shrink-0 p-1 rounded text-muted-foreground/30 hover:text-foreground transition-colors"
                         >
@@ -2071,7 +2096,7 @@ export function ScorekeeperApp({
       <Dialog open={!!confirmUndo} onOpenChange={(open) => { if (!open) setConfirmUndo(null) }}>
         <DialogContent className="max-w-xs">
           <DialogHeader>
-            <DialogTitle>Remove {confirmUndo?.type === "goal" ? "goal" : confirmUndo?.type === "penalty" ? "penalty" : confirmUndo?.type === "goalieChange" ? "goalie change" : "timeout"}?</DialogTitle>
+            <DialogTitle>Remove {confirmUndo?.type === "goal" ? "goal" : confirmUndo?.type === "penalty" ? "penalty" : confirmUndo?.type === "goalieChange" ? "goalie change" : confirmUndo?.type === "goaliePull" ? "goalie pull" : "timeout"}?</DialogTitle>
           </DialogHeader>
           <DialogFooter className="flex gap-2">
             <Button variant="outline" onClick={() => setConfirmUndo(null)} className="flex-1">
@@ -2082,7 +2107,8 @@ export function ScorekeeperApp({
               onClick={() => {
                 if (confirmUndo?.type === "goal") undoGoal(confirmUndo.id)
                 else if (confirmUndo?.type === "penalty") undoPenalty(confirmUndo.id)
-                else if (confirmUndo?.type === "goalieChange") updateState((prev) => ({ ...prev, goalieChanges: (prev.goalieChanges ?? []).filter((x) => x.id !== confirmUndo.id) }))
+                else if (confirmUndo?.type === "goalieChange") updateState((prev) => removeGoalieChange(prev, confirmUndo.id, homeSlug))
+                else if (confirmUndo?.type === "goaliePull") updateState((prev) => ({ ...prev, goaliePulls: (prev.goaliePulls ?? []).filter((x) => x.id !== confirmUndo.id) }))
                 else if (confirmUndo?.type === "timeout") updateState((prev) => ({ ...prev, timeouts: (prev.timeouts ?? []).filter((x) => x.id !== confirmUndo.id) }))
                 setConfirmUndo(null)
               }}
