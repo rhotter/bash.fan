@@ -108,3 +108,13 @@ Automatic day capture replaces the earlier schedule-picker flow described in his
 Automatic matching was verified against the development API and R2 with two synthetic games and three uploaded clips from one shared daily session. Each game exposed only its own clip; both the between-game clip and the other game’s clip were rejected by signed playback. The same check passed after moving observations into the append-only timing table and clearing legacy inline entries. Synthetic schedule fixtures were then removed. The updated app built and its PIN-to-side-selection UI was verified in the iOS simulator. Production schema and app deployment remain pending.
 
 Background upload recovery checks: `scripts/test-ios-upload-recovery.sh` runs the actual manifest and file-cleanup code in a booted simulator with stubbed server verification (successful upload, failed transfer, verification interrupted by restart, and legacy manifests). It does not validate OS scheduling or real R2 transfers while locked.
+
+## Development recording library
+
+On the `video` branch, `/test-recordings` is a PIN-protected, preview/development-only library of recording days. It shows left/right live cameras, uploaded clips in capture order, and pending-upload counts. Dates and times use America/Los_Angeles. Empty recording days remain selectable. Metadata refreshes every ten seconds; live and recorded playback use expiring signed URLs. The page and `/api/bash/recordings` return 404 in production.
+
+Set `VIDEO_VIEWER_DATABASE_URL` to a **read-only production connection** with SELECT permission on `video_sessions`, `video_cameras`, and `video_segments`. This connection is used only by the library; leave `DB_TARGET=dev` for the rest of the preview. The library deliberately does not fall back to another database. Its Cloudflare/R2 configuration must point to the storage and Stream account used by the recording phones. In the BASH `video` preview, the existing storage account/bucket also contains the production phone uploads. Never expose database credentials or storage keys to the browser.
+
+The existing league operator PIN signs in through `/api/bash/admin/login`; the App Review sample PIN does not grant library access. No recording, camera, or upload mutations are offered by the library API. Original HEVC playback depends on browser support; failed playback offers an original-file link and suggests Safari. A camera must report a streaming heartbeat within 25 seconds before live playback is offered.
+
+Validation: `VIDEO_REVIEW_SESSION_ID='' pnpm exec vitest run tests/recording-library.test.ts tests/video.test.ts tests/game-video.test.ts` (clear the local sample-session setting because the legacy tests do not mock its cookie lookup).
