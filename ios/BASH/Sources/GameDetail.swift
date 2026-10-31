@@ -65,6 +65,9 @@ struct GameLive: Decodable {
     let subPlayerIds: [Int]
     struct State: Decodable {
         let period: Int
+        var clockSeconds: Double? = nil
+        var clockRunning: Bool? = nil
+        var clockStartedAt: Double? = nil
         let goals: [GameGoal]
         let penalties: [GamePenalty]
         let homeShots: [Int]
@@ -156,7 +159,11 @@ struct GameScreen: View {
         return Game(id: base.id, date: base.date, time: base.time, homeTeam: base.homeTeam, awayTeam: base.awayTeam,
                     homeSlug: base.homeSlug, awaySlug: base.awaySlug, homeScore: live?.homeScore ?? detail.homeScore,
                     awayScore: live?.awayScore ?? detail.awayScore, status: live?.status ?? detail.status,
-                    location: base.location, isOvertime: detail.isOvertime, isPlayoff: base.isPlayoff)
+                    location: base.location, isOvertime: detail.isOvertime, isPlayoff: base.isPlayoff,
+                    livePeriod: live?.state.period ?? base.livePeriod,
+                    liveClockSeconds: live?.state.clockSeconds ?? base.liveClockSeconds,
+                    liveClockRunning: live?.state.clockRunning ?? base.liveClockRunning,
+                    liveClockStartedAt: live?.state.clockSeconds != nil ? live?.state.clockStartedAt : base.liveClockStartedAt)
     }
     private var team: String { homeSelected ? current.homeTeam : current.awayTeam }
     private var slug: String? { homeSelected ? current.homeSlug : current.awaySlug }
