@@ -20,7 +20,6 @@ import SwiftUI
                     VStack(spacing: 3) {
                         if context.state.final { Text("Final").font(.caption) }
                         else { SportsClock(state: context.state, stale: context.isStale).font(.caption) }
-                        Text(context.state.scorer).font(.caption).lineLimit(1)
                     }
                 }
             } compactLeading: {

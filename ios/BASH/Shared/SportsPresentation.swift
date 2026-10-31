@@ -45,12 +45,6 @@ struct LiveScoreCard: View {
                 }.fixedSize(horizontal: false, vertical: true)
                 team(attributes.homeTeam, slug: attributes.homeSlug)
             }
-            if !state.scorer.isEmpty {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(state.scorer).font(.subheadline.weight(.semibold)).lineLimit(1)
-                    if !state.assists.isEmpty { Text(state.assists).font(.caption).foregroundStyle(.white.opacity(0.8)).lineLimit(1) }
-                }.frame(maxWidth: .infinity, alignment: .leading)
-            }
         }.foregroundStyle(.white).padding(.horizontal, 16).padding(.vertical, 12)
             .background(LinearGradient(colors: [TeamPalette.color(attributes.awaySlug, shade: 0.60), TeamPalette.color(attributes.homeSlug, shade: 0.55)], startPoint: .leading, endPoint: .trailing))
     }
