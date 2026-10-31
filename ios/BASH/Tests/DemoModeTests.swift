@@ -286,3 +286,49 @@ final class CaptureDiagnosticsTests: XCTestCase {
         XCTAssertEqual(resetStream["encodedFPS"] as? Int, 0)
     }
 }
+
+final class LiveDeliveryTests: XCTestCase {
+    func testRequiresAdvancingSegmentsAndExpiresOldConfirmation() {
+        var state = LiveDeliveryState()
+        let start = Date(timeIntervalSince1970: 1000)
+        state.observe(.init(available: true, segment: "one"), now: start)
+        XCTAssertFalse(state.isFlowing(now: start))
+        state.observe(.init(available: true, segment: "two"), now: start.addingTimeInterval(15))
+        XCTAssertTrue(state.isFlowing(now: start.addingTimeInterval(15)))
+        state.observe(.init(available: true, segment: "two"), now: start.addingTimeInterval(45))
+        XCTAssertEqual(state.label(now: start.addingTimeInterval(45)), "Livestream stalled")
+        XCTAssertEqual(state.label(now: start.addingTimeInterval(90)), "Livestream not verified")
+        state.observe(.init(available: false, segment: nil), now: start.addingTimeInterval(91))
+        XCTAssertFalse(state.isFlowing(now: start.addingTimeInterval(91)))
+    }
+}
+
+final class CameraStatusScreenshotTests: XCTestCase {
+    @MainActor func testCameraStatusPanelScreenshot() async throws {
+        let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.first as? UIWindowScene)
+        let window = UIWindow(windowScene: scene)
+        window.frame = CGRect(x: 0, y: 0, width: 844, height: 390)
+        let camera = CaptureController()
+        camera.recording = true; camera.streaming = true
+        camera.recordingStartedAt = Date().addingTimeInterval(-125)
+        let now = Date()
+        camera.liveDelivery.observe(.init(available: true, segment: "one"), now: now.addingTimeInterval(-15))
+        camera.liveDelivery.observe(.init(available: true, segment: "two"), now: now)
+        let library = camera.library
+        let oldError = library.error
+        defer { window.isHidden = true; library.error = oldError }
+        library.error = "Upload paused. Footage remains on this iPhone."
+        window.rootViewController = UIHostingController(rootView:
+            ZStack(alignment: .topTrailing) {
+                Color(white: 0.12).ignoresSafeArea()
+                CameraStatusPanel(camera: camera, library: library, showUploads: {})
+                    .frame(width: 290).padding(16)
+            }.preferredColorScheme(.dark))
+        window.makeKeyAndVisible()
+        try await Task.sleep(for: .seconds(1))
+        let screenshot = UIGraphicsImageRenderer(bounds: window.bounds).image { _ in window.drawHierarchy(in: window.bounds, afterScreenUpdates: true) }
+        let attachment = XCTAttachment(image: screenshot)
+        attachment.name = "camera-recording-live-and-upload-status"; attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+}

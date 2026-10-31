@@ -90,3 +90,31 @@ final class CaptureDiagnostics {
                 "uploads": ["pending": pending, "taskCount": tasks.count, "tasks": taskRows], "events": events]
     }
 }
+
+
+struct LiveDeliveryState {
+    private var segment: String?
+    private var firstSeenAt: Date?
+    private var lastAdvancedAt: Date?
+    private var checkedAt: Date?
+    private var available = false
+    mutating func observe(_ response: LiveHealthResponse, now: Date) {
+        checkedAt = now
+        available = response.available && response.segment != nil
+        guard available, let next = response.segment else {
+            segment = nil; firstSeenAt = nil; lastAdvancedAt = nil
+            return
+        }
+        if segment == nil { firstSeenAt = now }
+        else if segment != next { lastAdvancedAt = now }
+        segment = next
+    }
+    func label(now: Date) -> String {
+        guard let checkedAt else { return "Checking livestream" }
+        guard now.timeIntervalSince(checkedAt) < 40, available else { return "Livestream not verified" }
+        if let lastAdvancedAt, now.timeIntervalSince(lastAdvancedAt) < 30 { return "Live video flowing" }
+        if now.timeIntervalSince(lastAdvancedAt ?? firstSeenAt ?? checkedAt) >= 30 { return "Livestream stalled" }
+        return "Checking livestream"
+    }
+    func isFlowing(now: Date) -> Bool { label(now: now) == "Live video flowing" }
+}

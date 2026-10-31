@@ -26,6 +26,7 @@ struct NativeCameraView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var phase
     @State private var confirmStop = false
+    @State private var showUploads = false
     @State private var orientation = UIDevice.current.orientation
     private var rotationInstruction: String {
         switch orientation {
@@ -94,6 +95,18 @@ struct NativeCameraView: View {
                     }.padding(.horizontal, 20).padding(.vertical, 12).padding(.bottom, 8)
                 }
             }
+            .overlay(alignment: .topTrailing) {
+                CameraStatusPanel(camera: camera, library: library) { showUploads = true }
+                    .frame(maxWidth: 290)
+                    .padding(.leading, 76).padding(.trailing, 12).padding(.top, 12)
+            }
+            .sheet(isPresented: $showUploads) { UploadStatusSheet(library: library) }
+            .task {
+                while !Task.isCancelled {
+                    await library.refreshTransferProgress()
+                    do { try await Task.sleep(for: .seconds(2)) } catch { return }
+                }
+            }
             .overlay(alignment: .topLeading) {
                 if !camera.recording {
                     Button { dismiss() } label: {
@@ -144,14 +157,55 @@ struct UploadStatusSheet: View {
         NavigationStack {
             List {
                 Section {
-                    Label(library.uploading ? "Uploading to BASH" : library.pending > 0 ? "Waiting to upload" : "All footage uploaded", systemImage: library.pending == 0 ? "checkmark.icloud" : "icloud.and.arrow.up").font(.headline)
+                    Label(library.uploadStatus, systemImage: library.pending == 0 ? "checkmark.icloud" : "icloud.and.arrow.up").font(.headline)
                     if library.pending > 0 { Text("\(library.pending) \(library.pending == 1 ? "clip" : "clips") remaining").foregroundStyle(.secondary) }
-                    if library.uploading { ProgressView() }
+                    if let fraction = library.transferFraction, library.pending > 0 {
+                        ProgressView(value: fraction)
+                        Text("Queued transfers: \(Int(fraction * 100))%").font(.caption).foregroundStyle(.secondary)
+                    } else if library.uploading { ProgressView() }
+                    if library.transferStalled { Text("No upload progress for 30 seconds. Recording on this phone continues.").font(.callout).foregroundStyle(.orange) }
                     if let error = library.error { Text(error).font(.callout).foregroundStyle(.red) }
                     if !library.uploading && library.pending > 0 { Button("Retry upload") { Task { await library.uploadPending() } } }
                 } footer: { Text("Uploads can continue with BASH in the background. Reopen BASH if you force-quit it. Clips are removed after BASH verifies the upload.") }
             }.navigationTitle("Uploads").navigationBarTitleDisplayMode(.inline)
                 .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
         }.presentationDetents([.medium, .large])
+    }
+}
+
+
+struct CameraStatusPanel: View {
+    @ObservedObject var camera: CaptureController
+    @ObservedObject var library: RecordingLibrary
+    var showUploads: () -> Void
+    var body: some View {
+        TimelineView(.periodic(from: .now, by: 1)) { context in
+            VStack(alignment: .leading, spacing: 7) {
+                HStack(spacing: 6) {
+                    Image(systemName: camera.recording ? "record.circle" : "circle").foregroundStyle(camera.recording ? .red : .white)
+                    Text(camera.recording ? "Recording to phone" : "Not recording")
+                    Spacer(minLength: 0)
+                    if let start = camera.recordingStartedAt { Text(start, style: .timer).monospacedDigit() }
+                }
+                HStack(spacing: 6) {
+                    Image(systemName: "antenna.radiowaves.left.and.right")
+                        .foregroundStyle(camera.liveDelivery.isFlowing(now: context.date) && camera.recording && camera.streaming ? .green : .white)
+                    Text(camera.demo ? "Demo · no livestream" : !camera.recording ? "Livestream off" : !camera.streaming ? "Connecting livestream" : camera.liveDelivery.label(now: context.date))
+                }
+                Button(action: showUploads) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "icloud.and.arrow.up")
+                        Text(camera.demo ? "Demo · saved on this phone" : library.uploadStatus)
+                        Spacer(minLength: 0)
+                        Image(systemName: "chevron.right").font(.caption2)
+                    }.contentShape(Rectangle())
+                }.buttonStyle(.plain).accessibilityHint("View upload progress and errors")
+                if !camera.demo, let fraction = library.transferFraction, library.pending > 0 {
+                    ProgressView(value: fraction).tint(.white)
+                }
+            }
+            .font(.caption.weight(.medium)).foregroundStyle(.white)
+            .padding(10).background(.black.opacity(0.75), in: RoundedRectangle(cornerRadius: 12))
+        }
     }
 }

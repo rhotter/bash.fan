@@ -58,6 +58,7 @@ final class CaptureController: ObservableObject {
     @Published var ready = false
     @Published var recording = false
     @Published var streaming = false
+    @Published var liveDelivery = LiveDeliveryState()
     @Published var busy = false
     @Published var error: String?
     @Published var status = "Pair this phone to a recording session"
@@ -80,6 +81,7 @@ final class CaptureController: ObservableObject {
     private var recordingTask: Task<Void, Never>?
     private var serviceTask: Task<Void, Never>?
     private var interruptionTask: Task<Void, Never>?
+    private var liveHealthTask: Task<Void, Never>?
     private var diagnosticsTask: Task<Void, Never>?
     private var publishStatusTask: Task<Void, Never>?
     private var streamStatusTask: Task<Void, Never>?
@@ -282,6 +284,24 @@ final class CaptureController: ObservableObject {
                 }
             }
             recordingStartedAt = Date(); recording = true; status = "Recording \(quality.title) locally"; UIApplication.shared.isIdleTimerDisabled = true
+            liveDelivery = LiveDeliveryState()
+            if !demo {
+                liveHealthTask?.cancel()
+                liveHealthTask = Task { [weak self] in
+                    while !Task.isCancelled {
+                        guard let self, self.recording else { return }
+                        do {
+                            let health: LiveHealthResponse = try await CaptureAPI.call(pairing, body: ["action": "liveHealth"])
+                            if Task.isCancelled { return }
+                            liveDelivery.observe(health, now: Date())
+                        } catch {
+                            if Task.isCancelled { return }
+                            liveDelivery.observe(.init(available: false, segment: nil), now: Date())
+                        }
+                        do { try await Task.sleep(for: .seconds(15)) } catch { return }
+                    }
+                }
+            }
             recordingTask = Task { [weak self] in
                 guard let self else { return }
                 while !Task.isCancelled {
@@ -297,7 +317,7 @@ final class CaptureController: ObservableObject {
                 }
                 do { try await finishSegment() } catch { self.error = "Could not finalize the last segment. Existing files are preserved." }
                 if !demo { CaptureDiagnostics.shared.event("recording_stopped") }
-                diagnosticsTask?.cancel(); streamStatusTask?.cancel(); publishStatusTask?.cancel()
+                liveHealthTask?.cancel(); diagnosticsTask?.cancel(); streamStatusTask?.cancel(); publishStatusTask?.cancel()
                 recording = false; recordingStartedAt = nil; UIApplication.shared.isIdleTimerDisabled = false
                 status = self.pairing == nil ? "Camera disconnected; recording saved on this phone" : "Recording saved on this phone"
                 let previousService = serviceTask

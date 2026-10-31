@@ -96,6 +96,7 @@ struct CameraConfiguration: Decodable {
 }
 struct UploadTicket: Decodable { let url: String?; let alreadyUploaded: Bool }
 struct UploadConfirmation: Decodable { let verified: Bool }
+struct LiveHealthResponse: Decodable { let available: Bool; let segment: String? }
 struct HeartbeatResponse: Decodable { let ended: Bool; let serverTime: Double }
 
 struct CaptureAPIError: LocalizedError {

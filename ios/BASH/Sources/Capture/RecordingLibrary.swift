@@ -25,6 +25,30 @@ final class RecordingLibrary: ObservableObject {
     @Published private(set) var recordings: [LocalRecording] = []
     @Published var uploading = false
     @Published var error: String?
+    @Published private(set) var transferFraction: Double?
+    @Published private(set) var transferStalled = false
+    private var progressSamples: [Int: Int64] = [:]
+    private var lastTransferProgress = Date()
+
+    func refreshTransferProgress() async {
+        let tasks = await BackgroundUploads.shared.session.allTasks
+        let samples = Dictionary(uniqueKeysWithValues: tasks.map { ($0.taskIdentifier, $0.countOfBytesSent) })
+        if samples.isEmpty || samples.contains(where: { $0.value > (progressSamples[$0.key] ?? 0) }) || Set(samples.keys) != Set(progressSamples.keys) {
+            lastTransferProgress = Date()
+        }
+        progressSamples = samples
+        let expected = tasks.reduce(Int64(0)) { $0 + max(0, $1.countOfBytesExpectedToSend) }
+        let sent = tasks.reduce(Int64(0)) { $0 + max(0, $1.countOfBytesSent) }
+        transferFraction = expected > 0 ? min(1, Double(sent) / Double(expected)) : nil
+        transferStalled = !tasks.isEmpty && Date().timeIntervalSince(lastTransferProgress) >= 30
+    }
+    var uploadStatus: String {
+        if error != nil { return pending > 0 ? "Upload issue · \(pending) left" : "Upload issue · tap for details" }
+        if pending == 0 { return recordings.contains(where: { $0.duration != nil && $0.localOnly != true }) ? "All saved clips uploaded" : "No completed clips yet" }
+        if transferStalled { return "Uploads stalled · \(pending) left" }
+        return "\(uploading ? "Uploading" : "Waiting to upload") · \(pending) left"
+    }
+
     private var manifestLoaded = true
     private var manifest: URL { Self.directory.appending(path: "manifest.json") }
     var pending: Int { recordings.filter { $0.needsUpload }.count }

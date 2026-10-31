@@ -3,6 +3,7 @@ import Foundation
 import Combine
 import UIKit
 
+struct LiveHealthResponse { let available: Bool; let segment: String? }
 struct CaptureAPIError: Error { let statusCode: Int }
 struct CaptureClockAnchor: Codable, Sendable {}
 struct Pairing { let key: String; var isDemo: Bool { false } }

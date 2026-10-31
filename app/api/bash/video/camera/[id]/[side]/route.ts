@@ -1,3 +1,4 @@
+import { liveHealth } from "@/lib/video/live-health"
 import { cameraDiagnostics } from "@/lib/video/diagnostics"
 import { sql } from "drizzle-orm"
 import { z } from "zod"
@@ -18,6 +19,7 @@ export async function GET(request: Request, context: Context) { return videoHand
 }) }
 const operation = z.discriminatedUnion("action", [
   z.object({ action: z.literal("clock") }),
+  z.object({ action: z.literal("liveHealth") }),
   z.object({ action: z.literal("heartbeat"), deviceName: z.string().max(80), recording: z.boolean(), streaming: z.boolean(), battery: z.number().min(-1).max(1), error: z.string().max(300).nullable(), diagnostics: cameraDiagnostics.optional() }),
   z.object({ action: z.literal("upload"), segmentId: z.string().uuid(), startedAt: z.string().datetime(), duration: z.number().positive().max(180), bytes: z.number().int().positive().max(536870912) }),
   z.object({ action: z.literal("complete"), segmentId: z.string().uuid() }),
@@ -27,6 +29,8 @@ export async function POST(request: Request, context: Context) { return videoHan
   const { id, side } = await context.params
   const camera = await cameraVideo(request, id, side)
   const body = operation.parse(await request.json())
+  if (body.action === "liveHealth") return Response.json(camera.stream_input_id && !camera.ended_at
+    ? await liveHealth(camera.stream_input_id) : { available: false })
   if (body.action === "clock") return Response.json({ receivedAt, sentAt: Date.now() })
   if (body.action === "heartbeat") {
     if (body.diagnostics) {
