@@ -1,6 +1,6 @@
 export const INFRACTIONS = [
   "Holding", "Hooking", "Tripping", "Slashing", "Interference",
-  "High-Sticking", "Roughing", "Cross-Checking", "Boarding",
+  "High-Sticking", "Roughing", "Elbowing", "Cross-Checking", "Boarding",
   "Delay of Game", "Too Many Players", "Unsportsmanlike", "Fighting",
 ]
 
