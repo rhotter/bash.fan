@@ -34,6 +34,20 @@ describe("push delivery", () => {
   expect((await dispatchGameAlerts()).sent).toBe(1)
   expect(send).toHaveBeenCalledWith(expect.objectContaining({ title: kind === "final" ? "Final score" : "Game started" }))
  })
+ it.each([[2, false, "Period 2 started"], [3, false, "Period 3 started"], [4, false, "Overtime started"], [5, false, "Shootout started"], [5, true, "2OT started"], [6, true, "3OT started"]])("announces period %s (playoffs: %s)", async (period, isPlayoff, title) => {
+  setup({ ...event, kind: "start", goal_id: "", ...{ event_key: `period:${period}`, status: "live", is_playoff: isPlayoff }, state: { ...event.state, ...{ period } } })
+  send.mockResolvedValue({ status: 200 })
+  expect((await dispatchGameAlerts()).sent).toBe(1)
+  expect(send).toHaveBeenCalledWith(expect.objectContaining({ title, gameID: "g1" }))
+ })
+ it.each([{ period: 1, status: "live" }, { period: 3, status: "live" }, { period: 2, status: "final" }])("skips stale or retracted period alerts: %j", async ({ period, status }) => {
+  setup({ ...event, kind: "start", goal_id: "", ...{ event_key: "period:2", status }, state: { ...event.state, ...{ period } } })
+  await dispatchGameAlerts(); expect(send).not.toHaveBeenCalled()
+ })
+ it("respects the existing puck-drop opt-out for period alerts", async () => {
+  setup({ ...event, kind: "start", kinds: ["goal", "final"], ...{ event_key: "period:2", status: "live" }, state: { ...event.state, ...{ period: 2 } } })
+  await dispatchGameAlerts(); expect(send).not.toHaveBeenCalled()
+ })
  it("skips a goal removed before delivery", async () => { setup({ ...event, state: { goals: [] } }); await dispatchGameAlerts(); expect(send).not.toHaveBeenCalled() })
  it("skips expired notifications", async () => { setup({ ...event, created_at: "2020-01-01" }); await dispatchGameAlerts(); expect(send).not.toHaveBeenCalled() })
  it("rechecks unfollowed games before sending", async () => { setup({ ...event, teams: [] }); await dispatchGameAlerts(); expect(send).not.toHaveBeenCalled() })

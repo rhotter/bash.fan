@@ -7,7 +7,7 @@ enum GameAlertKind: String, CaseIterable {
     var title: String {
         switch self {
         case .goal: "Goals"
-        case .start: "Puck drop"
+        case .start: "Game and period starts"
         case .final: "Final scores"
         }
     }

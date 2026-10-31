@@ -20,7 +20,7 @@ export async function dispatchGameAlerts() {
   try {
    const [row] = await rawSql(sql`
     SELECT e.*,d.token,d.environment,d.enabled,d.teams,d.games,d.kinds,g.home_team,g.away_team,
-     g.home_score,g.away_score,g.status,h.name home_name,a.name away_name,l.state
+     g.home_score,g.away_score,g.status,g.is_playoff,h.name home_name,a.name away_name,l.state
     FROM push_events e JOIN push_devices d ON d.id=${job.device_id}::uuid
     JOIN games g ON g.id=e.game_id JOIN teams h ON h.slug=g.home_team JOIN teams a ON a.slug=g.away_team
     LEFT JOIN game_live l ON l.game_id=g.id WHERE e.id=${job.event_id}::uuid
@@ -31,8 +31,18 @@ export async function dispatchGameAlerts() {
    if (!row.enabled || !following || !row.kinds.includes(row.kind) || expired) { await complete("expired_or_unfollowed"); return }
    const goal = row.state?.goals?.find((g: { id: string }) => g.id === row.goal_id)
    if ((row.kind === "goal" && !goal) || (row.kind === "final" && (row.status !== "final" || row.state?.finalizationPending))) { await complete("event_retracted"); return }
+   const period = row.kind === "start" && /^period:([2-9]|[1-9][0-9]+)$/.test(row.event_key ?? "")
+    ? Number(row.event_key.slice(7)) : null
+   if (period !== null && (row.status !== "live" || row.state?.period !== period || row.state?.finalizationPending)) {
+    await complete("event_retracted"); return
+   }
    // Read the latest committed result so a queued goal never advertises an obsolete score.
    let title = row.kind === "final" ? "Final score" : "Game started"
+   if (period !== null) {
+    title = period <= 3 ? `Period ${period} started`
+     : period === 4 ? "Overtime started"
+     : row.is_playoff ? `${period - 3}OT started` : period === 5 ? "Shootout started" : `Period ${period} started`
+   }
    let detail = `${row.away_name} ${row.away_score ?? 0} · ${row.home_name} ${row.home_score ?? 0}`
    if (goal) {
     title = `${goal.team === row.home_team ? row.home_name : row.away_name} goal!`

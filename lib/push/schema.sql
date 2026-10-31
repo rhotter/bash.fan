@@ -46,6 +46,12 @@ BEGIN
   IF coalesce((prior->>'period')::int,0)=0 AND coalesce((NEW.state->>'period')::int,0)>0 THEN
    PERFORM bash_enqueue_push(NEW.game_id,'start','start');
   END IF;
+  -- Share the existing puck-drop subscription. Stable keys suppress repeats after
+  -- clock pauses, retries, or correcting the period backwards and forwards.
+  IF coalesce((prior->>'period')::int,0)>0
+     AND (NEW.state->>'period')::int>(prior->>'period')::int THEN
+   PERFORM bash_enqueue_push(NEW.game_id,'period:'||(NEW.state->>'period'),'start');
+  END IF;
   FOR goal IN SELECT value FROM jsonb_array_elements(coalesce(NEW.state->'goals','[]')) LOOP
    IF goal->>'id' IS NOT NULL AND NOT EXISTS (
     SELECT 1 FROM jsonb_array_elements(coalesce(prior->'goals','[]')) oldgoal WHERE oldgoal->>'id'=goal->>'id'
