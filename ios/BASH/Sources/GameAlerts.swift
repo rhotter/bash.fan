@@ -105,6 +105,27 @@ enum GameAlertKind: String, CaseIterable {
             return true
         } catch { message = error.localizedDescription; return false }
     }
+    func updateActivity(id activityID: String, gameID: String, token: String?) async throws {
+        let (id, secret) = try identity()
+        var body: [String: Any] = ["id": id, "activityID": activityID]
+        if let token {
+#if DEBUG
+            let environment = "sandbox"
+#else
+            let environment = "production"
+#endif
+            body.merge(["gameID": gameID, "token": token, "environment": environment]) { _, new in new }
+        }
+        var request = URLRequest(url: URL(string: "https://www.bayareastreethockey.com/api/bash/notifications/activities")!)
+        request.httpMethod = token == nil ? "DELETE" : "PUT"
+        request.timeoutInterval = 15
+        request.setValue("Bearer \(secret)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        let (_, response) = try await URLSession.shared.data(for: request)
+        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+        guard status == 200 else { throw NSError(domain: "LiveScores", code: status) }
+    }
     private func save(teams: Set<String>, games: Set<String>, kinds: Set<String>, enabled: Bool) async throws {
         guard let token else { throw AlertError.unavailable }
         let (id, secret) = try identity()

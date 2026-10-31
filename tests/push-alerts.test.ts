@@ -56,6 +56,16 @@ describe("push delivery", () => {
   expect(await dispatchGameAlerts()).toEqual({ configured: true, sent: 1 })
   expect(send).toHaveBeenCalledWith(expect.objectContaining({ eventID: "e1", gameID: "g1", title: "Seals goal!" }))
  })
+ it("includes both assists and bundled-logo metadata in goal alerts", async () => {
+  setup({ ...event, state: { goals: [{ ...event.state.goals[0], ...{ period: 2, clock: "18:35", assist1Id: 8, assist2Id: 9 } }] } })
+  query.mockResolvedValueOnce([{ id: 7, name: "Scorer" }, { id: 8, name: "First Assist" }, { id: 9, name: "Second Assist" }])
+  send.mockResolvedValue({ status: 200 })
+  await dispatchGameAlerts()
+  expect(send).toHaveBeenCalledWith(expect.objectContaining({
+   goal: { teamSlug: "seals", scoreLine: "Yetis 0 · Seals 1", scorerLine: "Scorer · P2 18:35", assistLine: "Assists: First Assist, Second Assist" },
+   body: "Yetis 0 · Seals 1\nScorer · P2 18:35\nAssists: First Assist, Second Assist",
+  }))
+ })
  it("deactivates invalid tokens", async () => { setup(); send.mockResolvedValue({ status: 410, reason: "Unregistered" }); await dispatchGameAlerts(); expect(query).toHaveBeenCalledTimes(6) })
  it("retries provider failures without reporting success", async () => { setup(); send.mockResolvedValue({ status: 503, reason: "ServiceUnavailable" }); expect((await dispatchGameAlerts()).sent).toBe(0) })
 })

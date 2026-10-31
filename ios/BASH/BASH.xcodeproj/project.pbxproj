@@ -8,27 +8,54 @@
 
 /* Begin PBXBuildFile section */
 		032F302117BCDEFB6FFBDCC1 /* CaptureViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E17D8AA735379B6F3A8D414 /* CaptureViews.swift */; };
+		03FB57EE90D209406E4C0F1D /* GameActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 366AA231EEA25032A13377B7 /* GameActivityAttributes.swift */; };
+		06D2F4E7D4D22FCDC88A1BD9 /* SportsPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8835E0A6AD3DD88162C12A4 /* SportsPresentation.swift */; };
 		0A86B4E21CD50F2BA027C72E /* GameDetail.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52ACE26F057E028385067236 /* GameDetail.swift */; };
+		0B2A62F4F28D4A8FD2101D80 /* BASHGoalNotification.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 5B664E1D09C07DD12FF667E8 /* BASHGoalNotification.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		0DE3C6522212C705E9411721 /* DemoRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CA465A309787AF04FBEEEE4 /* DemoRecorder.swift */; };
+		0E5B4B35C808D70A79E26158 /* GoalNotificationController.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7AE51CF2FC2307E3875AD21 /* GoalNotificationController.swift */; };
 		10892EBDCEE271B0BE4BA436 /* GameAlertsUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EDA96DAC324111C18ABB61B1 /* GameAlertsUITests.swift */; };
+		14056A61D63F0313BEA1216A /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 71A31660490BA4CF941A8532 /* Assets.xcassets */; };
 		149E1699EE1CAE56AF2B0C75 /* ScoreCardBackground.swift in Sources */ = {isa = PBXBuildFile; fileRef = 662C64D85BE6FD363C3581D3 /* ScoreCardBackground.swift */; };
+		240CA0D2F3BDD3D519260C96 /* BASHLiveScore.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 638730AD3A4B4D5DBAD719B9 /* BASHLiveScore.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		2C471C9E41F5FA5C3FD769AA /* DetailCacheTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB857EE7D89D2A05A34DCCB0 /* DetailCacheTests.swift */; };
+		2F6903D7857347868B95C536 /* GameActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 366AA231EEA25032A13377B7 /* GameActivityAttributes.swift */; };
+		337A5D12D88479ADBE3C1FEC /* SportsPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8835E0A6AD3DD88162C12A4 /* SportsPresentation.swift */; };
 		3556D4A65D5684C095A8F805 /* LeagueUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07FDC56F0407FD50B0F416C2 /* LeagueUITests.swift */; };
+		380D939A7D3DCDFCA63D1314 /* BASHNotificationService.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 51FDAFB16F9DD48CE6BCBBA7 /* BASHNotificationService.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		3AA41BB7B395C1E1D6000A96 /* HaishinKit in Frameworks */ = {isa = PBXBuildFile; productRef = F7663D54D895D3ADB6596E23 /* HaishinKit */; };
+		3C52D55591E49D2B177E5D4B /* ScoreCardBackground.swift in Sources */ = {isa = PBXBuildFile; fileRef = 662C64D85BE6FD363C3581D3 /* ScoreCardBackground.swift */; };
 		3C7038CB3FBEC3612DB1365D /* LoadingPlaceholder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79083B7C7ABD5B118F2B97C1 /* LoadingPlaceholder.swift */; };
 		449F3829F015AB040E3F25AD /* GameTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 904765BCCE7AB289BB8F4650 /* GameTests.swift */; };
+		4734B98E273D9D3A937BA04A /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 71A31660490BA4CF941A8532 /* Assets.xcassets */; };
+		4A909B773F36FCC16DACE137 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 71A31660490BA4CF941A8532 /* Assets.xcassets */; };
 		4DC3E8F40AD8DD932BEA6969 /* LeagueData.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5B5841D29973CEA288CD15A /* LeagueData.swift */; };
+		4DFEEA9F06FBE375B1D1AC3B /* ScoreCardBackground.swift in Sources */ = {isa = PBXBuildFile; fileRef = 662C64D85BE6FD363C3581D3 /* ScoreCardBackground.swift */; };
 		599543D724067159EADD7412 /* DetailResponseCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88C2A3FA0E4C687A4DA58FAE /* DetailResponseCache.swift */; };
 		60E4C9397500D1B8C2C73DFF /* CaptureController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B00660DB3C0F4FB6F49E9A5 /* CaptureController.swift */; };
+		60FBF868DC5AD5DB9FECABCA /* SharedAssets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 7077E881462E838E779F0D15 /* SharedAssets.xcassets */; };
 		683800C593084D9745ABEFF5 /* BASHApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0EC877F5A9341250108252B4 /* BASHApp.swift */; };
+		7457B6AB1C74C3CDF568F1E2 /* SportsPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8835E0A6AD3DD88162C12A4 /* SportsPresentation.swift */; };
+		78C62DF2D2CC775028008CEA /* SportsAlertsUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 170A1DE55AD0E5D2539A3220 /* SportsAlertsUITests.swift */; };
+		7B3F148FFABABAE1BDA9A38B /* GameActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 366AA231EEA25032A13377B7 /* GameActivityAttributes.swift */; };
+		7E98B36C039BB4CE0FD9D078 /* LiveScores.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8535111C8A72993164AD2608 /* LiveScores.swift */; };
+		80CB62F19CE101D35815EBFC /* LiveScoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F70AC193DCB2845AC3F7A25 /* LiveScoreTests.swift */; };
 		8F63C217A2CEE08DF708D093 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 71A31660490BA4CF941A8532 /* Assets.xcassets */; };
 		93A10E852F136FC6C4182D8E /* OperatorAccessTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F78C40951431C5D097AF5745 /* OperatorAccessTests.swift */; };
 		963389DAC4CB4340A209DF0D /* RTMPHaishinKit in Frameworks */ = {isa = PBXBuildFile; productRef = 40B6D5260CCB5E34E1027EEA /* RTMPHaishinKit */; };
+		99F7830A5204D2E07232B378 /* GameActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 366AA231EEA25032A13377B7 /* GameActivityAttributes.swift */; };
+		9FF03067F93C9A9CDAB808DB /* NotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1693B79B63E1AE5A07EE72F9 /* NotificationService.swift */; };
 		A5B0BE8248F9BA1A098E367D /* WebsiteConnection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C2871B8810F65CBCF625772 /* WebsiteConnection.swift */; };
+		A731AC72AD625C1158EC705A /* SharedAssets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 7077E881462E838E779F0D15 /* SharedAssets.xcassets */; };
+		A889225A4B2B174E36DC79C9 /* ScoreCardBackground.swift in Sources */ = {isa = PBXBuildFile; fileRef = 662C64D85BE6FD363C3581D3 /* ScoreCardBackground.swift */; };
 		AD22E9611CDC75565EC0D12F /* PlayerHistory.swift in Sources */ = {isa = PBXBuildFile; fileRef = B28834DA8ABAFE900240AFA9 /* PlayerHistory.swift */; };
 		B0105F668FB4C85B29F3CCBF /* NativeScorekeeperTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5FF2103145FC904D6DB1225 /* NativeScorekeeperTests.swift */; };
+		B5D307ABA96CBD325451A46F /* SportsPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8835E0A6AD3DD88162C12A4 /* SportsPresentation.swift */; };
 		BB2E0BF81E2009D2FE96AD5D /* DemoModeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C96234CFD9CFB38EE00B475E /* DemoModeTests.swift */; };
+		BB3E6AE9939BFAF78656735D /* SharedAssets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 7077E881462E838E779F0D15 /* SharedAssets.xcassets */; };
+		C6A7529C533CBD49FE93C354 /* SharedAssets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 7077E881462E838E779F0D15 /* SharedAssets.xcassets */; };
 		D64214FE21E88CDF880918E3 /* CaptureAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CFF10921270376F02F7F62D /* CaptureAPI.swift */; };
+		E383A66354AF238D9B61F932 /* LiveScoreWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 424A6E5DCA77057203A69A46 /* LiveScoreWidget.swift */; };
 		F2B1208EBAC886CECDA9E7EA /* NativeScorekeeper.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9F0304B777B7EDEA935F9D1 /* NativeScorekeeper.swift */; };
 		F511D484D0BB2DFCAC29381B /* GameAlerts.swift in Sources */ = {isa = PBXBuildFile; fileRef = C13DA21F98BB845FF0C32A01 /* GameAlerts.swift */; };
 		F52E2C4072904EB3420A359C /* OperatorTools.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4039A73077351F50AF7E2E87 /* OperatorTools.swift */; };
@@ -36,6 +63,20 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
+		2B102344D8B5A81760D9D3CA /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = ED90862B5C22CD9C31EDCF7B /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = A239E1864AA0B1D3DA1A04BA;
+			remoteInfo = BASHLiveScore;
+		};
+		67D1850761E0C16ABBBBC6E8 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = ED90862B5C22CD9C31EDCF7B /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = F6C353740A6106D82A84AB41;
+			remoteInfo = BASHNotificationService;
+		};
 		946566924879EED030C57034 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = ED90862B5C22CD9C31EDCF7B /* Project object */;
@@ -50,27 +91,65 @@
 			remoteGlobalIDString = B65F62E543AF5D367782ACC5;
 			remoteInfo = BASH;
 		};
+		C5359ACE1DD26779D8427CA7 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = ED90862B5C22CD9C31EDCF7B /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = E1C6A65B194B4DECC312418B;
+			remoteInfo = BASHGoalNotification;
+		};
 /* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		F3EF352874399D6BE6E4EB97 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				240CA0D2F3BDD3D519260C96 /* BASHLiveScore.appex in Embed Foundation Extensions */,
+				0B2A62F4F28D4A8FD2101D80 /* BASHGoalNotification.appex in Embed Foundation Extensions */,
+				380D939A7D3DCDFCA63D1314 /* BASHNotificationService.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		07FDC56F0407FD50B0F416C2 /* LeagueUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LeagueUITests.swift; sourceTree = "<group>"; };
 		0EC877F5A9341250108252B4 /* BASHApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BASHApp.swift; sourceTree = "<group>"; };
+		100D8C721F4CACEF0F1B1637 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		11DC8C840FE53CD81AA3FD84 /* BASH.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = BASH.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		1693B79B63E1AE5A07EE72F9 /* NotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationService.swift; sourceTree = "<group>"; };
+		170A1DE55AD0E5D2539A3220 /* SportsAlertsUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SportsAlertsUITests.swift; sourceTree = "<group>"; };
 		28810086D5C56AF02117A1D3 /* BASHUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = BASHUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		2CFF10921270376F02F7F62D /* CaptureAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureAPI.swift; sourceTree = "<group>"; };
 		2E17D8AA735379B6F3A8D414 /* CaptureViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureViews.swift; sourceTree = "<group>"; };
+		366AA231EEA25032A13377B7 /* GameActivityAttributes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameActivityAttributes.swift; sourceTree = "<group>"; };
 		3CA465A309787AF04FBEEEE4 /* DemoRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoRecorder.swift; sourceTree = "<group>"; };
 		4039A73077351F50AF7E2E87 /* OperatorTools.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OperatorTools.swift; sourceTree = "<group>"; };
+		424A6E5DCA77057203A69A46 /* LiveScoreWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveScoreWidget.swift; sourceTree = "<group>"; };
+		51FDAFB16F9DD48CE6BCBBA7 /* BASHNotificationService.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = BASHNotificationService.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		52ACE26F057E028385067236 /* GameDetail.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameDetail.swift; sourceTree = "<group>"; };
+		5B664E1D09C07DD12FF667E8 /* BASHGoalNotification.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = BASHGoalNotification.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		5E7CB58AC5DC403DC2E400EC /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		638730AD3A4B4D5DBAD719B9 /* BASHLiveScore.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = BASHLiveScore.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		662C64D85BE6FD363C3581D3 /* ScoreCardBackground.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScoreCardBackground.swift; sourceTree = "<group>"; };
+		7077E881462E838E779F0D15 /* SharedAssets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = SharedAssets.xcassets; sourceTree = "<group>"; };
 		71A31660490BA4CF941A8532 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		79083B7C7ABD5B118F2B97C1 /* LoadingPlaceholder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoadingPlaceholder.swift; sourceTree = "<group>"; };
 		7C2871B8810F65CBCF625772 /* WebsiteConnection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebsiteConnection.swift; sourceTree = "<group>"; };
+		7F70AC193DCB2845AC3F7A25 /* LiveScoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveScoreTests.swift; sourceTree = "<group>"; };
 		84852D7C598CC458FD0FDA53 /* RecordingLibrary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingLibrary.swift; sourceTree = "<group>"; };
+		8535111C8A72993164AD2608 /* LiveScores.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveScores.swift; sourceTree = "<group>"; };
 		88C2A3FA0E4C687A4DA58FAE /* DetailResponseCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DetailResponseCache.swift; sourceTree = "<group>"; };
 		904765BCCE7AB289BB8F4650 /* GameTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameTests.swift; sourceTree = "<group>"; };
 		9B00660DB3C0F4FB6F49E9A5 /* CaptureController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureController.swift; sourceTree = "<group>"; };
+		A8835E0A6AD3DD88162C12A4 /* SportsPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SportsPresentation.swift; sourceTree = "<group>"; };
+		B111E7E33C01D3B611A4EC33 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		B28834DA8ABAFE900240AFA9 /* PlayerHistory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerHistory.swift; sourceTree = "<group>"; };
+		B7AE51CF2FC2307E3875AD21 /* GoalNotificationController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoalNotificationController.swift; sourceTree = "<group>"; };
 		C13DA21F98BB845FF0C32A01 /* GameAlerts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameAlerts.swift; sourceTree = "<group>"; };
 		C3D924346F3638F44EA3D5DE /* BASHTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = BASHTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		C5FF2103145FC904D6DB1225 /* NativeScorekeeperTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeScorekeeperTests.swift; sourceTree = "<group>"; };
@@ -95,11 +174,30 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		103E3B6A987BA2C84C526F5B /* NotificationService */ = {
+			isa = PBXGroup;
+			children = (
+				100D8C721F4CACEF0F1B1637 /* Info.plist */,
+				1693B79B63E1AE5A07EE72F9 /* NotificationService.swift */,
+			);
+			path = NotificationService;
+			sourceTree = "<group>";
+		};
+		1E713095345477C93F4B7214 /* GoalNotification */ = {
+			isa = PBXGroup;
+			children = (
+				B7AE51CF2FC2307E3875AD21 /* GoalNotificationController.swift */,
+				5E7CB58AC5DC403DC2E400EC /* Info.plist */,
+			);
+			path = GoalNotification;
+			sourceTree = "<group>";
+		};
 		2134830CC4CE13636AF61C42 /* UITests */ = {
 			isa = PBXGroup;
 			children = (
 				EDA96DAC324111C18ABB61B1 /* GameAlertsUITests.swift */,
 				07FDC56F0407FD50B0F416C2 /* LeagueUITests.swift */,
+				170A1DE55AD0E5D2539A3220 /* SportsAlertsUITests.swift */,
 			);
 			path = UITests;
 			sourceTree = "<group>";
@@ -108,10 +206,22 @@
 			isa = PBXGroup;
 			children = (
 				11DC8C840FE53CD81AA3FD84 /* BASH.app */,
+				5B664E1D09C07DD12FF667E8 /* BASHGoalNotification.appex */,
+				638730AD3A4B4D5DBAD719B9 /* BASHLiveScore.appex */,
+				51FDAFB16F9DD48CE6BCBBA7 /* BASHNotificationService.appex */,
 				C3D924346F3638F44EA3D5DE /* BASHTests.xctest */,
 				28810086D5C56AF02117A1D3 /* BASHUITests.xctest */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		5A3D49CC7E515DB12B39A357 /* LiveScoreWidget */ = {
+			isa = PBXGroup;
+			children = (
+				B111E7E33C01D3B611A4EC33 /* Info.plist */,
+				424A6E5DCA77057203A69A46 /* LiveScoreWidget.swift */,
+			);
+			path = LiveScoreWidget;
 			sourceTree = "<group>";
 		};
 		5AD2E7A46274B40ECCC4949E /* Tests */ = {
@@ -120,6 +230,7 @@
 				C96234CFD9CFB38EE00B475E /* DemoModeTests.swift */,
 				DB857EE7D89D2A05A34DCCB0 /* DetailCacheTests.swift */,
 				904765BCCE7AB289BB8F4650 /* GameTests.swift */,
+				7F70AC193DCB2845AC3F7A25 /* LiveScoreTests.swift */,
 				C5FF2103145FC904D6DB1225 /* NativeScorekeeperTests.swift */,
 				F78C40951431C5D097AF5745 /* OperatorAccessTests.swift */,
 			);
@@ -136,6 +247,7 @@
 				C13DA21F98BB845FF0C32A01 /* GameAlerts.swift */,
 				52ACE26F057E028385067236 /* GameDetail.swift */,
 				D5B5841D29973CEA288CD15A /* LeagueData.swift */,
+				8535111C8A72993164AD2608 /* LiveScores.swift */,
 				79083B7C7ABD5B118F2B97C1 /* LoadingPlaceholder.swift */,
 				D9F0304B777B7EDEA935F9D1 /* NativeScorekeeper.swift */,
 				4039A73077351F50AF7E2E87 /* OperatorTools.swift */,
@@ -149,11 +261,25 @@
 		A4F7DD691C40859EA75C1099 = {
 			isa = PBXGroup;
 			children = (
+				7077E881462E838E779F0D15 /* SharedAssets.xcassets */,
+				1E713095345477C93F4B7214 /* GoalNotification */,
+				5A3D49CC7E515DB12B39A357 /* LiveScoreWidget */,
+				103E3B6A987BA2C84C526F5B /* NotificationService */,
+				BE1F70E1A88ADB45E7A839EA /* Shared */,
 				6B7540FA76EC017676E71085 /* Sources */,
 				5AD2E7A46274B40ECCC4949E /* Tests */,
 				2134830CC4CE13636AF61C42 /* UITests */,
 				51D88A6AE8E41D2B0C628273 /* Products */,
 			);
+			sourceTree = "<group>";
+		};
+		BE1F70E1A88ADB45E7A839EA /* Shared */ = {
+			isa = PBXGroup;
+			children = (
+				366AA231EEA25032A13377B7 /* GameActivityAttributes.swift */,
+				A8835E0A6AD3DD88162C12A4 /* SportsPresentation.swift */,
+			);
+			path = Shared;
 			sourceTree = "<group>";
 		};
 		FCFBB5E8A864094518D4118A /* Capture */ = {
@@ -207,6 +333,24 @@
 			productReference = 28810086D5C56AF02117A1D3 /* BASHUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
+		A239E1864AA0B1D3DA1A04BA /* BASHLiveScore */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 0A906CE8B847BF21833BE88C /* Build configuration list for PBXNativeTarget "BASHLiveScore" */;
+			buildPhases = (
+				2EF8626EAB9FF64510012327 /* Sources */,
+				07729847A730BC4E0A543F0E /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = BASHLiveScore;
+			packageProductDependencies = (
+			);
+			productName = BASHLiveScore;
+			productReference = 638730AD3A4B4D5DBAD719B9 /* BASHLiveScore.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 		B65F62E543AF5D367782ACC5 /* BASH */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = D58451941055AB51582129A8 /* Build configuration list for PBXNativeTarget "BASH" */;
@@ -214,10 +358,14 @@
 				1CD8B43378D815160F52B2E5 /* Sources */,
 				7CFF3C69ABF292F15B2B1271 /* Resources */,
 				E806AB70AA2500805B5A021F /* Frameworks */,
+				F3EF352874399D6BE6E4EB97 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				63D3044E4E7D04373A1378A2 /* PBXTargetDependency */,
+				8FE609669ABDFA5498AC8A74 /* PBXTargetDependency */,
+				0B37DB04FA2CA19B88760F2A /* PBXTargetDependency */,
 			);
 			name = BASH;
 			packageProductDependencies = (
@@ -227,6 +375,42 @@
 			productName = BASH;
 			productReference = 11DC8C840FE53CD81AA3FD84 /* BASH.app */;
 			productType = "com.apple.product-type.application";
+		};
+		E1C6A65B194B4DECC312418B /* BASHGoalNotification */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 53E1D26958B71B787F7AE510 /* Build configuration list for PBXNativeTarget "BASHGoalNotification" */;
+			buildPhases = (
+				6997237FFC7D34E5C2EEA9D8 /* Sources */,
+				D2DFD1E19D9EE1D3B60EABDA /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = BASHGoalNotification;
+			packageProductDependencies = (
+			);
+			productName = BASHGoalNotification;
+			productReference = 5B664E1D09C07DD12FF667E8 /* BASHGoalNotification.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+		F6C353740A6106D82A84AB41 /* BASHNotificationService */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 703025A8B925ABA1BBB43C5C /* Build configuration list for PBXNativeTarget "BASHNotificationService" */;
+			buildPhases = (
+				F2A0545621F7A5382ED09B22 /* Sources */,
+				42EAE0AA36CFBBDEA0B2DD15 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = BASHNotificationService;
+			packageProductDependencies = (
+			);
+			productName = BASHNotificationService;
+			productReference = 51FDAFB16F9DD48CE6BCBBA7 /* BASHNotificationService.appex */;
+			productType = "com.apple.product-type.app-extension";
 		};
 /* End PBXNativeTarget section */
 
@@ -240,7 +424,19 @@
 					4CC609D74065AE8929145384 = {
 						TestTargetID = B65F62E543AF5D367782ACC5;
 					};
+					A239E1864AA0B1D3DA1A04BA = {
+						DevelopmentTeam = 8GJXSBZAF8;
+						ProvisioningStyle = Automatic;
+					};
 					B65F62E543AF5D367782ACC5 = {
+						DevelopmentTeam = 8GJXSBZAF8;
+						ProvisioningStyle = Automatic;
+					};
+					E1C6A65B194B4DECC312418B = {
+						DevelopmentTeam = 8GJXSBZAF8;
+						ProvisioningStyle = Automatic;
+					};
+					F6C353740A6106D82A84AB41 = {
 						DevelopmentTeam = 8GJXSBZAF8;
 						ProvisioningStyle = Automatic;
 					};
@@ -264,6 +460,9 @@
 			projectRoot = "";
 			targets = (
 				B65F62E543AF5D367782ACC5 /* BASH */,
+				E1C6A65B194B4DECC312418B /* BASHGoalNotification */,
+				A239E1864AA0B1D3DA1A04BA /* BASHLiveScore */,
+				F6C353740A6106D82A84AB41 /* BASHNotificationService */,
 				14D346FA5D4B068DB5920B8B /* BASHTests */,
 				4CC609D74065AE8929145384 /* BASHUITests */,
 			);
@@ -271,11 +470,39 @@
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		07729847A730BC4E0A543F0E /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				4734B98E273D9D3A937BA04A /* Assets.xcassets in Resources */,
+				C6A7529C533CBD49FE93C354 /* SharedAssets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		42EAE0AA36CFBBDEA0B2DD15 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				14056A61D63F0313BEA1216A /* Assets.xcassets in Resources */,
+				60FBF868DC5AD5DB9FECABCA /* SharedAssets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		7CFF3C69ABF292F15B2B1271 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 				8F63C217A2CEE08DF708D093 /* Assets.xcassets in Resources */,
+				A731AC72AD625C1158EC705A /* SharedAssets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D2DFD1E19D9EE1D3B60EABDA /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				4A909B773F36FCC16DACE137 /* Assets.xcassets in Resources */,
+				BB3E6AE9939BFAF78656735D /* SharedAssets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -292,16 +519,41 @@
 				032F302117BCDEFB6FFBDCC1 /* CaptureViews.swift in Sources */,
 				0DE3C6522212C705E9411721 /* DemoRecorder.swift in Sources */,
 				599543D724067159EADD7412 /* DetailResponseCache.swift in Sources */,
+				2F6903D7857347868B95C536 /* GameActivityAttributes.swift in Sources */,
 				F511D484D0BB2DFCAC29381B /* GameAlerts.swift in Sources */,
 				0A86B4E21CD50F2BA027C72E /* GameDetail.swift in Sources */,
 				4DC3E8F40AD8DD932BEA6969 /* LeagueData.swift in Sources */,
+				7E98B36C039BB4CE0FD9D078 /* LiveScores.swift in Sources */,
 				3C7038CB3FBEC3612DB1365D /* LoadingPlaceholder.swift in Sources */,
 				F2B1208EBAC886CECDA9E7EA /* NativeScorekeeper.swift in Sources */,
 				F52E2C4072904EB3420A359C /* OperatorTools.swift in Sources */,
 				AD22E9611CDC75565EC0D12F /* PlayerHistory.swift in Sources */,
 				F5BDFF762CB3CC229154F27D /* RecordingLibrary.swift in Sources */,
 				149E1699EE1CAE56AF2B0C75 /* ScoreCardBackground.swift in Sources */,
+				7457B6AB1C74C3CDF568F1E2 /* SportsPresentation.swift in Sources */,
 				A5B0BE8248F9BA1A098E367D /* WebsiteConnection.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		2EF8626EAB9FF64510012327 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				99F7830A5204D2E07232B378 /* GameActivityAttributes.swift in Sources */,
+				E383A66354AF238D9B61F932 /* LiveScoreWidget.swift in Sources */,
+				A889225A4B2B174E36DC79C9 /* ScoreCardBackground.swift in Sources */,
+				B5D307ABA96CBD325451A46F /* SportsPresentation.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		6997237FFC7D34E5C2EEA9D8 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				7B3F148FFABABAE1BDA9A38B /* GameActivityAttributes.swift in Sources */,
+				0E5B4B35C808D70A79E26158 /* GoalNotificationController.swift in Sources */,
+				4DFEEA9F06FBE375B1D1AC3B /* ScoreCardBackground.swift in Sources */,
+				337A5D12D88479ADBE3C1FEC /* SportsPresentation.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -312,6 +564,7 @@
 				BB2E0BF81E2009D2FE96AD5D /* DemoModeTests.swift in Sources */,
 				2C471C9E41F5FA5C3FD769AA /* DetailCacheTests.swift in Sources */,
 				449F3829F015AB040E3F25AD /* GameTests.swift in Sources */,
+				80CB62F19CE101D35815EBFC /* LiveScoreTests.swift in Sources */,
 				B0105F668FB4C85B29F3CCBF /* NativeScorekeeperTests.swift in Sources */,
 				93A10E852F136FC6C4182D8E /* OperatorAccessTests.swift in Sources */,
 			);
@@ -323,16 +576,43 @@
 			files = (
 				10892EBDCEE271B0BE4BA436 /* GameAlertsUITests.swift in Sources */,
 				3556D4A65D5684C095A8F805 /* LeagueUITests.swift in Sources */,
+				78C62DF2D2CC775028008CEA /* SportsAlertsUITests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		F2A0545621F7A5382ED09B22 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				03FB57EE90D209406E4C0F1D /* GameActivityAttributes.swift in Sources */,
+				9FF03067F93C9A9CDAB808DB /* NotificationService.swift in Sources */,
+				3C52D55591E49D2B177E5D4B /* ScoreCardBackground.swift in Sources */,
+				06D2F4E7D4D22FCDC88A1BD9 /* SportsPresentation.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
+		0B37DB04FA2CA19B88760F2A /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = F6C353740A6106D82A84AB41 /* BASHNotificationService */;
+			targetProxy = 67D1850761E0C16ABBBBC6E8 /* PBXContainerItemProxy */;
+		};
+		63D3044E4E7D04373A1378A2 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = A239E1864AA0B1D3DA1A04BA /* BASHLiveScore */;
+			targetProxy = 2B102344D8B5A81760D9D3CA /* PBXContainerItemProxy */;
+		};
 		6BF77B189EEFF91E26331070 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = B65F62E543AF5D367782ACC5 /* BASH */;
 			targetProxy = 9EBACEDB5B535182A4F949CF /* PBXContainerItemProxy */;
+		};
+		8FE609669ABDFA5498AC8A74 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = E1C6A65B194B4DECC312418B /* BASHGoalNotification */;
+			targetProxy = C5359ACE1DD26779D8427CA7 /* PBXContainerItemProxy */;
 		};
 		B8ECB6921D0606A9F0B0DB30 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
@@ -396,6 +676,78 @@
 			};
 			name = Release;
 		};
+		6467275AF820061FC7288D15 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 19;
+				DEVELOPMENT_TEAM = 8GJXSBZAF8;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = GoalNotification/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "fan.bash.league.goal-notification";
+				PROVISIONING_PROFILE_SPECIFIER = "$(BASH_CONTENT_PROFILE_UUID)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		8362E29933402A0A23CB00B0 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 19;
+				DEVELOPMENT_TEAM = 8GJXSBZAF8;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = GoalNotification/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "fan.bash.league.goal-notification";
+				PROVISIONING_PROFILE_SPECIFIER = "$(BASH_CONTENT_PROFILE_UUID)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
+		A16983360EFBE1EF87365FCF /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 19;
+				DEVELOPMENT_TEAM = 8GJXSBZAF8;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = LiveScoreWidget/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "fan.bash.league.live-score";
+				PROVISIONING_PROFILE_SPECIFIER = "$(BASH_WIDGET_PROFILE_UUID)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
 		A382AA4125B2694C12D245AD /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -411,6 +763,30 @@
 				SWIFT_VERSION = 6.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				TEST_TARGET_NAME = BASH;
+			};
+			name = Release;
+		};
+		A63DA163A5E0E7B892ADE7B7 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 19;
+				DEVELOPMENT_TEAM = 8GJXSBZAF8;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = NotificationService/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "fan.bash.league.notification-service";
+				PROVISIONING_PROFILE_SPECIFIER = "$(BASH_SERVICE_PROFILE_UUID)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = Release;
 		};
@@ -498,8 +874,57 @@
 				);
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = fan.bash.league;
+				PROVISIONING_PROFILE_SPECIFIER = "$(BASH_PROFILE_UUID)";
 				SDKROOT = iphoneos;
 				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		CA662EEE72856E0B0E018B15 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 19;
+				DEVELOPMENT_TEAM = 8GJXSBZAF8;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = LiveScoreWidget/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "fan.bash.league.live-score";
+				PROVISIONING_PROFILE_SPECIFIER = "$(BASH_WIDGET_PROFILE_UUID)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
+		D1CFF82C14BFFF132C27EC5B /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 19;
+				DEVELOPMENT_TEAM = 8GJXSBZAF8;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = NotificationService/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "fan.bash.league.notification-service";
+				PROVISIONING_PROFILE_SPECIFIER = "$(BASH_SERVICE_PROFILE_UUID)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = Debug;
@@ -525,6 +950,7 @@
 				);
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = fan.bash.league;
+				PROVISIONING_PROFILE_SPECIFIER = "$(BASH_PROFILE_UUID)";
 				SDKROOT = iphoneos;
 				SWIFT_VERSION = 6.0;
 				TARGETED_DEVICE_FAMILY = 1;
@@ -590,11 +1016,38 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		0A906CE8B847BF21833BE88C /* Build configuration list for PBXNativeTarget "BASHLiveScore" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A16983360EFBE1EF87365FCF /* Debug */,
+				CA662EEE72856E0B0E018B15 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
 		1992185B4D0CC6863725ABB0 /* Build configuration list for PBXProject "BASH" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				C4125F915B0FC6AB6DEFB6D3 /* Debug */,
 				FC105664CC4577AE8C7EC477 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		53E1D26958B71B787F7AE510 /* Build configuration list for PBXNativeTarget "BASHGoalNotification" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				6467275AF820061FC7288D15 /* Debug */,
+				8362E29933402A0A23CB00B0 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		703025A8B925ABA1BBB43C5C /* Build configuration list for PBXNativeTarget "BASHNotificationService" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				D1CFF82C14BFFF132C27EC5B /* Debug */,
+				A63DA163A5E0E7B892ADE7B7 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;

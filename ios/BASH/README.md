@@ -39,14 +39,16 @@ xcodebuild -project ios/BASH/BASH.xcodeproj -scheme BASH \
 - Foreground refresh every 30 seconds and on return to the app.
 - Native game pages use a pinned score header with Summary, Stats, and Plays tabs. Summary shows period goals and three stars; Stats separates skaters, goalies, and shots; Plays merges goals and penalties chronologically by period, plus shootouts. Game metadata is collapsed by default and the bottom tab bar remains available on game and player pages. Tap a skater for their history. Game pages refresh every 15 seconds while live and every 60 seconds otherwise, only while active. Replays still open the website.
 
-Following and notification controls are deferred. Their underlying local preference/reminder code is retained, but the app disables reminders and removes pending requests on launch while those controls are absent. No remote push notifications are sent.
+Game alerts support goals, game/period starts, and final scores for selected teams or games. Goal alerts include the scorer, period/time, and known assists. A notification service extension attaches the scoring team's bundled logo to the standard banner; holding the alert opens a custom layout with the team logo and small BASH badge. This uses a notification content extension, not communication intents.
+
+During a live game, open its tools menu and choose **Follow on Lock Screen**. The team-color Live Activity shows both teams, scores, a running clock, and the latest scorer/assists. The Dynamic Island shows the score and team logos. Each activity registers a separate authenticated APNs token with the server; scorekeeper saves and the retry cron deliver updates while the app is closed. Stale content stops showing a running clock and displays Updating. Final results end the activity and remain visible for up to 15 minutes. **Stop live score** ends it immediately. Live Activity permission is independent of ordinary notification permission. The database migration in `lib/push/schema.sql` and the `/api/bash/notifications/activities` endpoint must be deployed before distributing this version.
 
 ## Next implementation steps
 
 1. Player game logs, draft board, and native replay playback to reach website parity.
-2. Remote notifications: register APNs device tokens with an installation identifier, persist team/event preferences, and queue idempotent events from scorekeeper, finalization, schedule edits, and draft mutations. Use an outbox with retry/deduplication so a failed push does not fail a score update. Respect the HTTP database driver's lack of interactive transactions. Add credential-backed delivery, token invalidation, rate limits, and preference deletion before enabling production pushes.
-3. Opt-in alerts for game reminders, schedule changes/cancellations, final scores, draft announcements, and optionally goals. Ask for notification permission when enabling alerts, rather than at launch.
-4. ActivityKit live scores on the Lock Screen/Dynamic Island, with explicit stale state and end-of-game expiry. Use APNs updates while backgrounded; never depend on foreground polling or show an invented running clock.
+2. Optional remote-start Live Activities for followed teams, additional alert types, and per-player subscriptions.
+3. Physical-device validation of background ActivityKit updates, alert thumbnails, and expanded notification presentation after installing the new build.
+4. Additional Dynamic Island layouts and richer replay context for scoring events.
 5. WidgetKit next-game/recent-result widgets using a shared App Group cache, calendar export, and associated-domain links that open the relevant game/team in the app.
 6. Integrate Capture behind an authenticated recording flow. Keep its recording/upload lifecycle independent from league browsing so navigation cannot accidentally end a recording. The existing capture project is unchanged.
 

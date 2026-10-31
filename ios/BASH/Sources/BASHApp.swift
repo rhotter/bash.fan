@@ -26,6 +26,9 @@ import UserNotifications
     static let openGame = Notification.Name("BASHOpenGame")
     func application(_ application: UIApplication, didFinishLaunchingWithOptions options: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
         UNUserNotificationCenter.current().delegate = self
+        UNUserNotificationCenter.current().setNotificationCategories([
+            UNNotificationCategory(identifier: "BASH_GOAL", actions: [], intentIdentifiers: [])
+        ])
         return true
     }
     func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
@@ -60,7 +63,9 @@ import UserNotifications
         WindowGroup {
             Group {
 #if DEBUG
-                if ProcessInfo.processInfo.arguments.contains("--native-scorekeeper-preview") {
+                if ProcessInfo.processInfo.arguments.contains("--sports-preview") {
+                    SportsPreviewScreen()
+                } else if ProcessInfo.processInfo.arguments.contains("--native-scorekeeper-preview") {
                     ScorekeeperScreen(model: NativeScorekeeper.sample(
                         period: ProcessInfo.processInfo.arguments.contains("--pregame") ? 0 : ProcessInfo.processInfo.arguments.contains("--period-end") ? 3 : 1,
                         gameOver: ProcessInfo.processInfo.arguments.contains("--game-over")
@@ -72,7 +77,7 @@ import UserNotifications
                 LeagueRoot(store: store)
 #endif
             }.environmentObject(camera)
-                .task { await camera.library.recoverInterrupted() }
+                .task { LiveScores.shared.restore(); await camera.library.recoverInterrupted() }
                 .onChange(of: camera.recording) { _, recording in UIApplication.shared.isIdleTimerDisabled = recording }
                 .onChange(of: phase) { _, next in
                     if next == .background {
@@ -198,6 +203,11 @@ struct LeagueRoot: View {
         }
         .onChange(of: phase) {
             if phase == .active { Task { await GameAlerts.shared.refreshAuthorization(); await store.refresh(); openPendingGame() } }
+        }
+        .onOpenURL { url in
+            guard url.scheme == "bash", url.host == "game", let id = url.pathComponents.last, id != "/" else { return }
+            UserDefaults.standard.set(id, forKey: "pendingGame")
+            openPendingGame()
         }
         .onReceive(NotificationCenter.default.publisher(for: NotificationRouter.openGame)) { _ in openPendingGame() }
         .fullScreenCover(isPresented: $showingAlertOnboarding, onDismiss: { openPendingGame() }) {

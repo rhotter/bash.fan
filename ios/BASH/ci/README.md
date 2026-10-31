@@ -14,6 +14,10 @@ Live API UI tests are run locally rather than blocking releases on changing leag
 
 Signing credentials were configured on October 25, 2026. The CI distribution certificate and provisioning profile expire on October 26, 2027; renew both repository secrets before then.
 
+## Sports extension signing
+
+The package job uses the existing App Store Connect API key to register the Live Score widget, Goal Notification content extension, and Notification Service bundle IDs under `fan.bash.league`. It creates or reuses App Store profiles using the same certificate as the main app's installed profile. All four targets receive their own profile UUID; the export mapping includes every embedded extension. No new certificate or manually copied extension-profile secret is needed. The API key must have access to Certificates, Identifiers & Profiles. A provisioning failure stops packaging before upload.
+
 ## One-time credentials
 
 Add these repository secrets in GitHub Settings → Secrets and variables → Actions:

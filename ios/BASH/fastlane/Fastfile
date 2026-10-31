@@ -1,5 +1,8 @@
 require "yaml"
 require "shellwords"
+require "base64"
+require "json"
+require "fileutils"
 
 default_platform(:ios)
 
@@ -13,22 +16,54 @@ platform :ios do
     )
   end
 
+  desc "Provision embedded sports extensions using the existing distribution certificate"
+  lane :extension_profiles do
+    connect
+    profiles = Spaceship::ConnectAPI::Profile.all(filter: { profileType: "IOS_APP_STORE" }, includes: "bundleId,certificates")
+    main = profiles.find { |p| p.uuid == ENV.fetch("BASH_PROFILE_UUID") && p.valid? }
+    UI.user_error!("The installed main-app profile is not active in this Apple team") unless main
+    certificate_ids = main.certificates.map(&:id)
+    mapping = { "fan.bash.league" => main.uuid }
+    { "live-score" => "WIDGET", "goal-notification" => "CONTENT", "notification-service" => "SERVICE" }.each do |suffix, variable|
+      identifier = "fan.bash.league.#{suffix}"
+      bundle_id = Spaceship::ConnectAPI::BundleId.find(identifier) || Spaceship::ConnectAPI::BundleId.create(
+        name: "BASH #{suffix}", platform: "IOS", identifier: identifier
+      )
+      profile = profiles.find do |p|
+        p.bundle_id&.id == bundle_id.id && p.valid? && (p.certificates.map(&:id) & certificate_ids).any?
+      end
+      profile ||= Spaceship::ConnectAPI::Profile.create(
+        name: "BASH #{suffix} #{Time.now.to_i}", profile_type: "IOS_APP_STORE",
+        bundle_id_id: bundle_id.id, certificate_ids: certificate_ids
+      )
+      directory = File.expand_path("~/Library/MobileDevice/Provisioning Profiles")
+      FileUtils.mkdir_p(directory)
+      File.binwrite(File.join(directory, "#{profile.uuid}.mobileprovision"), Base64.decode64(profile.profile_content))
+      mapping[identifier] = profile.uuid
+      ENV["BASH_#{variable}_PROFILE_UUID"] = profile.uuid
+      File.open(ENV.fetch("GITHUB_ENV"), "a") { |f| f.puts("BASH_#{variable}_PROFILE_UUID=#{profile.uuid}") } if ENV["GITHUB_ENV"]
+    end
+    ENV["BASH_PROFILE_MAP"] = JSON.generate(mapping)
+    File.open(ENV.fetch("GITHUB_ENV"), "a") { |f| f.puts("BASH_PROFILE_MAP=#{ENV['BASH_PROFILE_MAP']}") } if ENV["GITHUB_ENV"]
+  end
+
   desc "Build a signed IPA without uploading (safe to cancel)"
   lane :package do
     root = File.expand_path("..", __dir__)
     number = Integer(ENV.fetch("BASH_BUILD_NUMBER"))
-    profile = ENV.fetch("BASH_PROFILE_UUID")
+    mapping = JSON.parse(ENV.fetch("BASH_PROFILE_MAP"))
+    signing = %w[BASH_PROFILE_UUID BASH_WIDGET_PROFILE_UUID BASH_CONTENT_PROFILE_UUID BASH_SERVICE_PROFILE_UUID].map { |key| "#{key}=#{Shellwords.escape(ENV.fetch(key))}" }.join(" ")
     build_app(
       project: File.join(root, "BASH.xcodeproj"), scheme: "BASH",
       configuration: "Release", clean: false,
       derived_data_path: File.join(root, "DerivedData", "release"),
       output_directory: File.join(root, "build"), output_name: "BASH.ipa",
       export_method: "app-store",
-      xcargs: "CURRENT_PROJECT_VERSION=#{number} CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY='Apple Distribution' PROVISIONING_PROFILE_SPECIFIER=#{Shellwords.escape(profile)}",
+      xcargs: "CURRENT_PROJECT_VERSION=#{number} CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY='Apple Distribution' #{signing}",
       export_options: {
         method: "app-store-connect", signingStyle: "manual",
         teamID: "8GJXSBZAF8", manageAppVersionAndBuildNumber: false,
-        provisioningProfiles: { "fan.bash.league" => profile }
+        provisioningProfiles: mapping
       }
     )
   end
@@ -77,6 +112,7 @@ platform :ios do
       )
       ENV["BASH_BUILD_NUMBER"] = [latest + 1, settings.fetch("CURRENT_PROJECT_VERSION").to_i].max.to_s
     end
+    extension_profiles
     package
     distribute
   end

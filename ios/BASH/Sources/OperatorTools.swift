@@ -27,9 +27,20 @@ struct OperatorMenu: View {
     @State private var tool: OperatorTool?
     @State private var showAlerts = false
     @State private var showAbout = false
+    @ObservedObject private var liveScores = LiveScores.shared
     var body: some View {
         Menu {
             Button { showAlerts = true } label: { Label("Game alerts", systemImage: "bell") }
+            if let game, game.status == "live" || liveScores.games.contains(game.id) {
+                Button {
+                    Task {
+                        if liveScores.games.contains(game.id) { await liveScores.stop(game.id) }
+                        else { await liveScores.start(game) }
+                    }
+                } label: {
+                    Label(liveScores.games.contains(game.id) ? "Stop live score" : "Follow on Lock Screen", systemImage: "sportscourt")
+                }.disabled(liveScores.busy)
+            }
             Divider()
             Button { tool = .scorekeeper } label: { Label("Scorekeeper", systemImage: "pencil.and.list.clipboard") }
             Button { tool = .recorder } label: { Label("Record game", systemImage: "video") }
@@ -50,6 +61,9 @@ struct OperatorMenu: View {
         }
         .accessibilityLabel("Game tools")
         .accessibilityIdentifier("operatorMenu")
+        .alert("Live scores", isPresented: Binding(get: { game != nil && liveScores.error != nil }, set: { if !$0 { liveScores.error = nil } })) {
+            Button("OK") { liveScores.error = nil }
+        } message: { Text(liveScores.error ?? "") }
         .sheet(isPresented: $showAbout) { AboutBASHScreen() }
         .sheet(isPresented: $showAlerts) { GameAlertsScreen(games: games, game: game) }
         .fullScreenCover(item: $tool) { tool in

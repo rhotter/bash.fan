@@ -66,3 +66,14 @@ BEGIN
 END $$;
 CREATE OR REPLACE TRIGGER bash_live_push AFTER INSERT OR UPDATE OF state ON game_live
 FOR EACH ROW EXECUTE FUNCTION bash_live_push_events();
+
+-- Live Activity tokens are separate from alert permission and device push tokens.
+CREATE TABLE IF NOT EXISTS push_activities (
+ installation_id uuid NOT NULL, activity_id text NOT NULL, secret_hash text NOT NULL,
+ game_id text NOT NULL REFERENCES games(id), token text NOT NULL,
+ environment text NOT NULL CHECK (environment IN ('sandbox','production')),
+ expires_at timestamptz NOT NULL DEFAULT now()+interval '8 hours',
+ next_attempt_at timestamptz NOT NULL DEFAULT now(), last_signature text,
+ PRIMARY KEY(installation_id,activity_id)
+);
+CREATE INDEX IF NOT EXISTS push_activities_due ON push_activities(next_attempt_at,expires_at);

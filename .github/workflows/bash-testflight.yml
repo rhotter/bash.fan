@@ -32,6 +32,9 @@ jobs:
       CERTIFICATE_BASE64: ${{ secrets.BASH_DISTRIBUTION_P12_BASE64 }}
       CERTIFICATE_PASSWORD: ${{ secrets.BASH_DISTRIBUTION_P12_PASSWORD }}
       PROFILE_BASE64: ${{ secrets.BASH_APPSTORE_PROFILE_BASE64 }}
+      ASC_KEY_ID: ${{ secrets.BASH_ASC_KEY_ID }}
+      ASC_ISSUER_ID: ${{ secrets.BASH_ASC_ISSUER_ID }}
+      ASC_KEY_P8_BASE64: ${{ secrets.BASH_ASC_KEY_P8_BASE64 }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -79,6 +82,8 @@ jobs:
           mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
           cp "$RUNNER_TEMP/bash.mobileprovision" "$HOME/Library/MobileDevice/Provisioning Profiles/$uuid.mobileprovision"
           echo "BASH_PROFILE_UUID=$uuid" >> "$GITHUB_ENV"
+      - name: Provision sports extensions
+        run: bundle exec fastlane ios extension_profiles
       - name: Build signed IPA
         run: BASH_BUILD_NUMBER=$((1000 + GITHUB_RUN_NUMBER)) bundle exec fastlane ios package
       - uses: actions/upload-artifact@v4
@@ -92,9 +97,11 @@ jobs:
         run: |
           security delete-keychain "$RUNNER_TEMP/bash-signing.keychain-db" || true
           rm -f "$RUNNER_TEMP/bash.p12" "$RUNNER_TEMP/bash.mobileprovision" "$RUNNER_TEMP/bash-profile.plist"
-          if [ -n "${BASH_PROFILE_UUID:-}" ]; then
-            rm -f "$HOME/Library/MobileDevice/Provisioning Profiles/$BASH_PROFILE_UUID.mobileprovision"
-          fi
+          for uuid in "${BASH_PROFILE_UUID:-}" "${BASH_WIDGET_PROFILE_UUID:-}" "${BASH_CONTENT_PROFILE_UUID:-}" "${BASH_SERVICE_PROFILE_UUID:-}"; do
+            if [ -n "$uuid" ]; then
+              rm -f "$HOME/Library/MobileDevice/Provisioning Profiles/$uuid.mobileprovision"
+            fi
+          done
 
   distribute:
     needs: [package]

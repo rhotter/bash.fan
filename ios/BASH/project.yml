@@ -13,11 +13,16 @@ targets:
     platform: iOS
     sources:
       - Sources
+      - Shared
+      - SharedAssets.xcassets
     entitlements:
       path: BASH.entitlements
       properties:
         aps-environment: development
     dependencies:
+      - target: BASHLiveScore
+      - target: BASHGoalNotification
+      - target: BASHNotificationService
       - package: HaishinKit
         product: HaishinKit
       - package: HaishinKit
@@ -36,11 +41,16 @@ targets:
         GENERATE_INFOPLIST_FILE: YES
         MARKETING_VERSION: "1.0"
         CURRENT_PROJECT_VERSION: "19"
+        PROVISIONING_PROFILE_SPECIFIER: "$(BASH_PROFILE_UUID)"
         INFOPLIST_KEY_CFBundleDisplayName: BASH
     info:
       path: Info.plist
       properties:
         BASHServerURL: $(BASH_SERVER_URL)
+        NSSupportsLiveActivities: true
+        CFBundleURLTypes:
+          - CFBundleURLName: fan.bash.league.game
+            CFBundleURLSchemes: [bash]
         UIFileSharingEnabled: true
         LSSupportsOpeningDocumentsInPlace: true
         UILaunchScreen: {}
@@ -66,3 +76,93 @@ targets:
       base:
         GENERATE_INFOPLIST_FILE: YES
         SWIFT_VERSION: "6.0"
+  BASHLiveScore:
+    type: app-extension
+    platform: iOS
+    sources:
+      - LiveScoreWidget
+      - Shared
+      - SharedAssets.xcassets
+      - Sources/Assets.xcassets
+      - Sources/ScoreCardBackground.swift
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: fan.bash.league.live-score
+        DEVELOPMENT_TEAM: 8GJXSBZAF8
+        CODE_SIGN_STYLE: Automatic
+        PROVISIONING_PROFILE_SPECIFIER: "$(BASH_WIDGET_PROFILE_UUID)"
+        SWIFT_VERSION: "5.0"
+        TARGETED_DEVICE_FAMILY: "1"
+        MARKETING_VERSION: "1.0"
+        CURRENT_PROJECT_VERSION: "19"
+        GENERATE_INFOPLIST_FILE: YES
+        APPLICATION_EXTENSION_API_ONLY: YES
+        SKIP_INSTALL: YES
+    info:
+      path: LiveScoreWidget/Info.plist
+      properties:
+        CFBundleDisplayName: BASH
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+  BASHGoalNotification:
+    type: app-extension
+    platform: iOS
+    sources:
+      - GoalNotification
+      - Shared
+      - SharedAssets.xcassets
+      - Sources/Assets.xcassets
+      - Sources/ScoreCardBackground.swift
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: fan.bash.league.goal-notification
+        DEVELOPMENT_TEAM: 8GJXSBZAF8
+        CODE_SIGN_STYLE: Automatic
+        PROVISIONING_PROFILE_SPECIFIER: "$(BASH_CONTENT_PROFILE_UUID)"
+        SWIFT_VERSION: "5.0"
+        TARGETED_DEVICE_FAMILY: "1"
+        MARKETING_VERSION: "1.0"
+        CURRENT_PROJECT_VERSION: "19"
+        GENERATE_INFOPLIST_FILE: YES
+        APPLICATION_EXTENSION_API_ONLY: YES
+        SKIP_INSTALL: YES
+    info:
+      path: GoalNotification/Info.plist
+      properties:
+        CFBundleDisplayName: BASH
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.usernotifications.content-extension
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).GoalNotificationController
+          NSExtensionAttributes:
+            UNNotificationExtensionCategory: BASH_GOAL
+            UNNotificationExtensionInitialContentSizeRatio: 0.45
+            UNNotificationExtensionDefaultContentHidden: true
+  BASHNotificationService:
+    type: app-extension
+    platform: iOS
+    sources:
+      - NotificationService
+      - Shared
+      - SharedAssets.xcassets
+      - Sources/Assets.xcassets
+      - Sources/ScoreCardBackground.swift
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: fan.bash.league.notification-service
+        DEVELOPMENT_TEAM: 8GJXSBZAF8
+        CODE_SIGN_STYLE: Automatic
+        PROVISIONING_PROFILE_SPECIFIER: "$(BASH_SERVICE_PROFILE_UUID)"
+        SWIFT_VERSION: "5.0"
+        TARGETED_DEVICE_FAMILY: "1"
+        MARKETING_VERSION: "1.0"
+        CURRENT_PROJECT_VERSION: "19"
+        GENERATE_INFOPLIST_FILE: YES
+        APPLICATION_EXTENSION_API_ONLY: YES
+        SKIP_INSTALL: YES
+    info:
+      path: NotificationService/Info.plist
+      properties:
+        CFBundleDisplayName: BASH
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.usernotifications.service
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).NotificationService

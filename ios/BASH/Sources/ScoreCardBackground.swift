@@ -2,7 +2,7 @@ import SwiftUI
 
 /// Team/franchise hues from the website, tuned for small logo backgrounds.
 /// Unknown teams retain a neutral surface rather than guessing from their artwork.
-private enum TeamPalette {
+enum TeamPalette {
     private static let colors: [(String, UInt32)] = [
         ("coxswain-bawls-hockey-club", 0xFA9B2B),
         ("lazy-skater-dangle", 0xEBEBEB),

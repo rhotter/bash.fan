@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm"
 import { rawSql } from "@/lib/db"
+import { goalText } from "./game-content"
 import { pushConfigured, sendPush } from "./apns"
 
 // A short lease makes concurrent scorekeeper saves and the retry cron safe.
@@ -44,12 +45,17 @@ export async function dispatchGameAlerts() {
      : row.is_playoff ? `${period - 3}OT started` : period === 5 ? "Shootout started" : `Period ${period} started`
    }
    let detail = `${row.away_name} ${row.away_score ?? 0} · ${row.home_name} ${row.home_score ?? 0}`
+   let goalContent
    if (goal) {
     title = `${goal.team === row.home_team ? row.home_name : row.away_name} goal!`
-    const [scorer] = await rawSql(sql`SELECT name FROM players WHERE id=${goal.scorerId}`)
-    if (scorer) detail = `${scorer.name} · ${detail}`
+    const ids = [goal.scorerId, goal.assist1Id, goal.assist2Id].filter((id): id is number => Number.isInteger(id))
+    const players = await rawSql(sql`SELECT id,name FROM players WHERE id IN (SELECT jsonb_array_elements_text(${JSON.stringify(ids)}::jsonb)::int)`)
+    const names = Object.fromEntries(players.map(player => [player.id, player.name]))
+    const text = goalText(goal, names, row.is_playoff)
+    goalContent = { teamSlug: goal.team, scoreLine: detail, scorerLine: text.play, assistLine: text.assists }
+    detail = [detail, text.play, text.assists].filter(Boolean).join("\n")
    }
-   const result = await sendPush({ token: row.token, environment: row.environment, eventID: row.id, gameID: row.game_id, title, body: detail, expires: Math.floor(new Date(row.created_at).getTime()/1000)+900 })
+   const result = await sendPush({ token: row.token, environment: row.environment, eventID: row.id, gameID: row.game_id, title, body: detail, goal: goalContent, expires: Math.floor(new Date(row.created_at).getTime()/1000)+900 })
    if (result.status === 200) { sent++; await complete(null) }
    else if (result.status === 410 || result.reason === "BadDeviceToken" || result.reason === "DeviceTokenNotForTopic") {
     // Do not deactivate a token that was refreshed while this request was in flight.
