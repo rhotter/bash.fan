@@ -245,7 +245,15 @@ describe("completed-game scorekeeper corrections", () => {
     }] })
     await click("Edit Game")
     expect(container.textContent).toContain("Goalie pulled")
-    expect(container.textContent).toContain(returnedAt === null ? "Still pulled" : "Returned at 12:01")
+    expect(container.textContent).not.toContain("Still pulled")
+    expect(container.textContent?.includes("Goalie returned")).toBe(returnedAt !== null)
+    if (returnedAt !== null) {
+      const returnRow = container.querySelector('[aria-label="Remove Home goalie return"]')!.parentElement!
+      expect(returnRow.textContent).toContain("P2 12:01")
+      const pullRow = container.querySelector('[aria-label="Remove Home goalie pull"]')!.parentElement!
+      expect(pullRow.textContent).toContain("P2 12:00")
+      expect(pullRow.textContent).not.toContain("Goalie returned")
+    }
     expect(container.textContent).not.toContain("No events yet")
     await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="Remove Home goalie pull"]')!.click())
     await click("Cancel")
@@ -255,6 +263,19 @@ describe("completed-game scorekeeper corrections", () => {
     expect(draft().state.goaliePulls).toEqual([])
     expect(container.textContent).toContain("No events yet")
     expect(container.textContent).not.toContain("Return Goalie")
+  })
+
+  it("removes the linked interval from the return row after confirmation", async () => {
+    await render({ ...fixture(), goaliePulls: [{
+      id: "pull", team: "home", period: 2, pulledAt: "8:00", returnedAt: "7:59",
+    }] })
+    await click("Edit Game")
+    await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="Remove Home goalie return"]')!.click())
+    expect(container.textContent).toContain("cancelling the entire empty-net interval")
+    await click("Remove")
+    expect(draft().state.goaliePulls).toEqual([])
+    expect(container.textContent).not.toContain("Goalie returned")
+    expect(container.textContent).not.toContain("Goalie pulled")
   })
 
   it("explains missing legacy shot evidence without restoring manual finalization fields", async () => {
