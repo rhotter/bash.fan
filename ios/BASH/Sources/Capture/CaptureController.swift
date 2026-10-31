@@ -302,13 +302,31 @@ final class CaptureController: ObservableObject {
         _ = try await recorder.stopRecording()
         try await library.finalize(current)
     }
+    private var heartbeatError: String? {
+        let errors = [("Camera", error), ("Uploads", library.error)].compactMap { label, message -> String? in
+            guard let message, !message.isEmpty else { return nil }
+            return "\(label): \(message)"
+        }
+        guard !errors.isEmpty else { return nil }
+        // Share the API's 300 UTF-16-unit budget so a long camera error cannot
+        // hide an upload error. Count like JavaScript/Zod, including emoji.
+        let limit = (300 - (errors.count - 1) * 3) / errors.count
+        return errors.map { message in
+            var result = ""
+            for character in message {
+                guard result.utf16.count + String(character).utf16.count <= limit else { break }
+                result.append(character)
+            }
+            return result
+        }.joined(separator: " | ")
+    }
     @discardableResult
     func sendHeartbeat(_ pairing: Pairing,
                        send: (@MainActor (Pairing, [String: Any]) async throws -> HeartbeatResponse)? = nil) async -> Bool {
         guard !demo else { return true }
         do {
             let request: @MainActor (Pairing, [String: Any]) async throws -> HeartbeatResponse = send ?? { pairing, body in try await CaptureAPI.call(pairing, body: body) }
-            let response = try await request(pairing, ["action": "heartbeat", "deviceName": UIDevice.current.name, "recording": recording, "streaming": streaming, "battery": UIDevice.current.batteryLevel, "error": error.map { String($0.prefix(300)) } as Any? ?? NSNull()])
+            let response = try await request(pairing, ["action": "heartbeat", "deviceName": UIDevice.current.name, "recording": recording, "streaming": streaming, "battery": UIDevice.current.batteryLevel, "error": heartbeatError as Any? ?? NSNull()])
             if response.ended { recordingTask?.cancel(); return false }
         } catch let failure as CaptureAPIError where failure.statusCode == 401 {
             // A replacement rotates the token. Stop the old capture, but keep its files

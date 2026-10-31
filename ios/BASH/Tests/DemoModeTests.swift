@@ -94,6 +94,40 @@ final class CaptureMountTests: XCTestCase {
         XCTAssertNil(UserDefaults.standard.string(forKey: "pairingKey"))
     }
 
+    @MainActor func testHeartbeatIncludesUploadErrorsAndClearsRecoveredErrors() async throws {
+        let camera = CaptureController()
+        let originalError = camera.library.error
+        defer { camera.library.error = originalError }
+        let pair = try pairing("right")
+        camera.library.error = "Upload paused"
+        let cases: [(String?, String?, String?)] = [
+            (nil, "Upload paused", "Uploads: Upload paused"),
+            ("Live disconnected", "Upload paused", "Camera: Live disconnected | Uploads: Upload paused"),
+            ("Live disconnected", nil, "Camera: Live disconnected"),
+            (nil, nil, nil),
+        ]
+        for (captureError, uploadError, expected) in cases {
+            camera.error = captureError
+            camera.library.error = uploadError
+            let keepRunning = await camera.sendHeartbeat(pair) { _, body in
+                if let expected { XCTAssertEqual(body["error"] as? String, expected) }
+                else { XCTAssertTrue(body["error"] is NSNull) }
+                return HeartbeatResponse(ended: false, serverTime: 0)
+            }
+            XCTAssertTrue(keepRunning)
+        }
+        camera.error = String(repeating: "🎥", count: 300)
+        camera.library.error = String(repeating: "📤", count: 300)
+        let keepRunning = await camera.sendHeartbeat(pair) { _, body in
+            let message = try XCTUnwrap(body["error"] as? String)
+            XCTAssertLessThanOrEqual(message.utf16.count, 300)
+            XCTAssertTrue(message.contains("Camera: 🎥"))
+            XCTAssertTrue(message.contains("Uploads: 📤"))
+            return HeartbeatResponse(ended: false, serverTime: 0)
+        }
+        XCTAssertTrue(keepRunning)
+    }
+
     @MainActor func testEndedHeartbeatPreventsLivestreamReconnect() async throws {
         let camera = CaptureController()
         let keepRunning = await camera.sendHeartbeat(try pairing("left")) { _, _ in
