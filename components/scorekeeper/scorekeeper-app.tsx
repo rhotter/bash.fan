@@ -1145,6 +1145,7 @@ export function ScorekeeperApp({
               <div className="flex items-center justify-between gap-2 mb-4">
                 <div className="flex flex-col items-center gap-1 flex-1 min-w-0">
                   <span className="text-sm font-bold leading-tight text-center text-background/70">{awayTeam}</span>
+                  <span className="text-[10px] leading-tight text-background/60">Away</span>
                   {ppState.ppTeam === awaySlug && (
                     <span className="text-[9px] font-bold uppercase tracking-widest text-background/50">PP</span>
                   )}
@@ -1156,6 +1157,7 @@ export function ScorekeeperApp({
                 </div>
                 <div className="flex flex-col items-center gap-1 flex-1 min-w-0">
                   <span className="text-sm font-bold leading-tight text-center text-background/70">{homeTeam}</span>
+                  <span className="text-[10px] leading-tight text-background/60">Home</span>
                   {ppState.ppTeam === homeSlug && (
                     <span className="text-[9px] font-bold uppercase tracking-widest text-background/50">PP</span>
                   )}
