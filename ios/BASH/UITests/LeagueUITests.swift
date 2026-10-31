@@ -611,6 +611,9 @@ final class LeagueUITests: XCTestCase {
     @MainActor func testNativeGameBoxScore() throws {
         let app = XCUIApplication()
         app.launch()
+        let week = app.buttons["week-2026-10-19"]
+        XCTAssertTrue(week.waitForExistence(timeout: 30))
+        week.tap()
         let game = app.descendants(matching: .any)["game-g207"].firstMatch
         XCTAssertTrue(game.waitForExistence(timeout: 40))
         game.tap()

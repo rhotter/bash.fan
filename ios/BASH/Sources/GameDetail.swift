@@ -295,7 +295,7 @@ struct GameScreen: View {
                     Text("Player")
                     Spacer(minLength: 4)
                     goalieColumns(["SV", "SA", "GA", "SV%", "TOI"]).padding(.trailing, 22)
-                }.font(.caption2).foregroundStyle(.secondary)
+                }.font(.caption).foregroundStyle(.secondary)
             }
             ForEach(goalies) { goalie in
                 let time = String(format: "%d:%02d", goalie.seconds / 60, goalie.seconds % 60)
@@ -304,12 +304,12 @@ struct GameScreen: View {
                 } label: {
                     HStack(spacing: 6) {
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(goalie.name).font(.caption.weight(.semibold))
+                            Text(goalie.name).font(.subheadline.weight(.semibold))
                             if goalie.isSub { Text("Sub").font(.caption2).foregroundStyle(.secondary) }
                         }
                         Spacer(minLength: 4)
                         goalieColumns(["\(goalie.saves)", "\(goalie.shotsAgainst)", "\(goalie.goalsAgainst)", goalie.savePercentage, time])
-                    }.font(.caption).foregroundStyle(.primary)
+                    }.font(.subheadline).foregroundStyle(.primary)
                 }
                 .accessibilityIdentifier("goalie-stats-\(goalie.id)")
                 .accessibilityLabel("\(goalie.name), \(goalie.saves) saves, \(goalie.shotsAgainst) shots against, \(goalie.goalsAgainst) goals against, save percentage \(goalie.savePercentage), time played \(time)")
