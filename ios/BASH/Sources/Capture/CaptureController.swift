@@ -2,6 +2,7 @@
 import SwiftUI
 import HaishinKit
 import RTMPHaishinKit
+import VideoToolbox
 
 enum RecordingQuality: String, CaseIterable, Identifiable, Decodable {
     case hd30, hd60, uhd30, uhd60
@@ -170,6 +171,9 @@ final class CaptureController: ObservableObject {
             if !prepared { await mixer.addOutput(recorder) }
             var liveSettings = await stream.videoSettings
             liveSettings.videoSize = CGSize(width: 1920, height: 1080)
+            // The library defaults to level 3.1, which cannot encode 1080p.
+            // Let VideoToolbox choose a level for the selected 30/60 fps output.
+            liveSettings.profileLevel = kVTProfileLevel_H264_Baseline_AutoLevel as String
             liveSettings.bitRate = selectedQuality.fps == 60 ? 9_000_000 : 5_000_000
             liveSettings.maxKeyFrameIntervalDuration = 2
             liveSettings.expectedFrameRate = Double(selectedQuality.fps)
