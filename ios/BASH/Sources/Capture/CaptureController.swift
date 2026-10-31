@@ -34,14 +34,18 @@ enum RecordingQuality: String, CaseIterable, Identifiable, Decodable {
 @MainActor
 final class CaptureLifecycle {
     private var tail: Task<Void, Never>?
-    func run(_ operation: @escaping @MainActor () async -> Void) async {
+    @discardableResult
+    func enqueue(_ operation: @escaping @MainActor () async -> Void) -> Task<Void, Never> {
         let previous = tail
         let task = Task {
             await previous?.value
             await operation()
         }
         tail = task
-        await task.value
+        return task
+    }
+    func run(_ operation: @escaping @MainActor () async -> Void) async {
+        await enqueue(operation).value
     }
 }
 
@@ -81,6 +85,7 @@ final class CaptureController: ObservableObject {
     private var clockAnchor: CaptureClockAnchor?
     private var prepared = false
     private let lifecycle = CaptureLifecycle()
+    private let networkCleanup = CaptureLifecycle()
     private var previewVisible = false
 
     init(demo: Bool = false) {
@@ -93,6 +98,7 @@ final class CaptureController: ObservableObject {
     func pair(_ link: String) async {
         guard !demo, !recording && !busy else { return }
         busy = true; defer { busy = false }
+        await networkCleanup.run {}
         do {
             let pair = try Pairing(link: link)
             let config: CameraConfiguration = try await CaptureAPI.call(pair)
@@ -215,13 +221,17 @@ final class CaptureController: ObservableObject {
         await lifecycle.run { await self.startRecording() }
     }
     private func startRecording() async {
-        guard previewVisible, let pairing, ready, preparedQuality == quality, !recording, !busy else { return }
+        guard previewVisible, pairing != nil, ready, preparedQuality == quality, !recording, !busy else { return }
         guard UIDevice.current.orientation == requiredOrientation else {
             error = mountInstruction
             return
         }
         busy = true; error = nil
         defer { busy = false }
+        // A previous livestream must finish closing before we reuse its connection,
+        // but closing the camera should only wait for the local file to be saved.
+        await networkCleanup.run {}
+        guard previewVisible, let pairing else { return }
         do {
             let free = try URL.documentsDirectory.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey]).volumeAvailableCapacityForImportantUsage ?? 0
             guard free > 2_000_000_000 else { throw CaptureError.message("Free at least 2 GB before recording.") }
@@ -255,8 +265,15 @@ final class CaptureController: ObservableObject {
                 do { try await finishSegment() } catch { self.error = "Could not finalize the last segment. Existing files are preserved." }
                 recording = false; recordingStartedAt = nil; UIApplication.shared.isIdleTimerDisabled = false
                 status = self.pairing == nil ? "Camera disconnected; recording saved on this phone" : "Recording saved on this phone"
-                serviceTask?.cancel(); _ = try? await stream.close(); try? await connection.close(); streaming = false
-                await sendHeartbeat(pairing)
+                let previousService = serviceTask
+                previousService?.cancel()
+                streaming = false
+                networkCleanup.enqueue {
+                    await previousService?.value
+                    _ = try? await self.stream.close()
+                    try? await self.connection.close()
+                    await self.sendHeartbeat(pairing)
+                }
                 if !demo { Task { await library.uploadPending() } }
             }
             serviceTask = Task { [weak self] in
@@ -266,16 +283,24 @@ final class CaptureController: ObservableObject {
                     if !recording || Task.isCancelled { break }
                     if liveEnabled {
                         do {
-                            if !(await connection.connected) {
+                            let connected = await connection.connected
+                            if Task.isCancelled { break }
+                            if !connected {
                                 streaming = false
                                 let config: CameraConfiguration = try await CaptureAPI.call(pairing)
+                                if Task.isCancelled { break }
                                 if let url = config.rtmpsUrl, let key = config.streamKey {
                                     _ = try await connection.connect(url)
+                                    if Task.isCancelled { break }
                                     _ = try await stream.publish(key)
+                                    if Task.isCancelled { break }
                                     streaming = true
                                 }
                             } else { streaming = true }
-                        } catch { streaming = false; self.error = "Livestream unavailable. Local recording continues; retrying automatically."; try? await connection.close() }
+                        } catch {
+                            if Task.isCancelled { break }
+                            streaming = false; self.error = "Livestream unavailable. Local recording continues; retrying automatically."; try? await connection.close()
+                        }
                     }
                     do { try await Task.sleep(for: .seconds(8)) } catch { break }
                 }

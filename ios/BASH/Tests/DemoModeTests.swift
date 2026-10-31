@@ -161,6 +161,36 @@ final class CaptureScreenshotTests: XCTestCase {
 }
 
 final class CaptureLifecycleTests: XCTestCase {
+    @MainActor func testNetworkCleanupDoesNotBlockLocalStopButOrdersRestart() async {
+        let cleanup = CaptureLifecycle()
+        let entered = expectation(description: "Network cleanup began")
+        var resume: CheckedContinuation<Void, Never>?
+        var events: [String] = []
+        let stop = Task {
+            cleanup.enqueue {
+                events.append("network")
+                await withCheckedContinuation { continuation in
+                    resume = continuation
+                    entered.fulfill()
+                }
+                events.append("closed")
+            }
+            events.append("local stop complete")
+        }
+        await stop.value
+        await fulfillment(of: [entered], timeout: 2)
+        XCTAssertEqual(events, ["local stop complete", "network"])
+        let restart = Task {
+            await cleanup.run {}
+            events.append("restart")
+        }
+        await Task.yield()
+        XCTAssertFalse(events.contains("restart"))
+        resume?.resume()
+        await restart.value
+        XCTAssertEqual(events, ["local stop complete", "network", "closed", "restart"])
+    }
+
     @MainActor func testCloseAndReopenWaitForPendingSetup() async {
         let lifecycle = CaptureLifecycle()
         let entered = expectation(description: "Setup began")
