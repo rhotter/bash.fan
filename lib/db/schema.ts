@@ -864,6 +864,13 @@ export const videoCameras = pgTable("video_cameras", {
   streamInputId: text("stream_input_id"),
   offsetMs: integer("offset_ms").notNull().default(0),
 }, t => [primaryKey({ columns: [t.sessionId, t.side] }), check("video_cameras_side_check", sql`${t.side} IN ('left', 'right')`)])
+export const videoCameraDiagnostics = pgTable("video_camera_diagnostics", {
+  sessionId: text("session_id").notNull(),
+  side: text("side").notNull(),
+  receivedAt: timestamp("received_at", { withTimezone: true }).notNull().defaultNow(),
+  snapshot: jsonb("snapshot").notNull(),
+}, t => [primaryKey({ columns: [t.sessionId, t.side] }),
+  foreignKey({ columns: [t.sessionId, t.side], foreignColumns: [videoCameras.sessionId, videoCameras.side] })])
 export const videoSegments = pgTable("video_segments", {
   id: uuid("id").primaryKey(),
   sessionId: text("session_id").notNull(),

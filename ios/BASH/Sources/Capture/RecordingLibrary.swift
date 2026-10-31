@@ -108,6 +108,7 @@ final class RecordingLibrary: ObservableObject {
                 }
             } catch {
                 active.remove(item.id)
+                CaptureDiagnostics.shared.failure("upload_scheduling_failed", error)
                 self.error = error.localizedDescription
             }
         }
@@ -179,8 +180,14 @@ final class BackgroundUploads: NSObject, URLSessionTaskDelegate {
         let id = task.taskDescription
         let status = (task.response as? HTTPURLResponse)?.statusCode ?? 0
         let succeeded = error == nil && (200..<300).contains(status)
+        let failureDomain = error.map { ($0 as NSError).domain }
+        let failureCode = error.map { ($0 as NSError).code }
         // Delegate callbacks arrive serially on the main queue. Count before starting async verification.
         MainActor.assumeIsolated {
+            CaptureDiagnostics.shared.event(succeeded ? "upload_completed" : "upload_failed", detail: "HTTP", code: status)
+            if let failureDomain, let failureCode {
+                CaptureDiagnostics.shared.failure("upload_network_error", NSError(domain: failureDomain, code: failureCode))
+            }
             pendingCallbacks += 1
             Task {
                 if let id { await RecordingLibrary.shared.transferCompleted(id: id, succeeded: succeeded) }
@@ -188,6 +195,10 @@ final class BackgroundUploads: NSObject, URLSessionTaskDelegate {
                 finishEventsIfReady()
             }
         }
+    }
+
+    nonisolated func urlSession(_ session: URLSession, taskIsWaitingForConnectivity task: URLSessionTask) {
+        Task { @MainActor in CaptureDiagnostics.shared.event("upload_waiting_for_network", code: task.taskIdentifier) }
     }
 
     nonisolated func urlSessionDidFinishEvents(forBackgroundURLSession session: URLSession) {

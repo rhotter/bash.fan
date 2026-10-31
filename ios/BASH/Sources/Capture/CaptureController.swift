@@ -80,6 +80,9 @@ final class CaptureController: ObservableObject {
     private var recordingTask: Task<Void, Never>?
     private var serviceTask: Task<Void, Never>?
     private var interruptionTask: Task<Void, Never>?
+    private var diagnosticsTask: Task<Void, Never>?
+    private var publishStatusTask: Task<Void, Never>?
+    private var streamStatusTask: Task<Void, Never>?
     private var recorderErrorTask: Task<Void, Never>?
     private var current: LocalRecording?
     private var clockAnchor: CaptureClockAnchor?
@@ -248,6 +251,36 @@ final class CaptureController: ObservableObject {
                 throw CaptureError.message(mountInstruction)
             }
             try await beginSegment(pairing)
+            if !demo {
+                let diagnostics = CaptureDiagnostics.shared
+                diagnostics.event("recording_started", detail: quality.rawValue)
+                diagnostics.resetStream()
+                diagnosticsTask?.cancel()
+                diagnosticsTask = Task { [weak self] in
+                    while !Task.isCancelled {
+                        guard let self else { return }
+                        let info = await stream.info
+                        diagnostics.sampleStream(fps: Int(await stream.currentFPS), bytes: info.byteCount, rate: info.currentBytesPerSecond)
+                        do { try await Task.sleep(for: .seconds(1)) } catch { return }
+                    }
+                }
+                publishStatusTask?.cancel()
+                publishStatusTask = Task { [weak self] in
+                    guard let self else { return }
+                    for await status in await stream.status {
+                        if Task.isCancelled { return }
+                        diagnostics.event("publish_status", detail: status.code)
+                    }
+                }
+                streamStatusTask?.cancel()
+                streamStatusTask = Task { [weak self] in
+                    guard let self else { return }
+                    for await status in await connection.status {
+                        if Task.isCancelled { return }
+                        diagnostics.event("rtmp_status", detail: status.code)
+                    }
+                }
+            }
             recordingStartedAt = Date(); recording = true; status = "Recording \(quality.title) locally"; UIApplication.shared.isIdleTimerDisabled = true
             recordingTask = Task { [weak self] in
                 guard let self else { return }
@@ -263,6 +296,8 @@ final class CaptureController: ObservableObject {
                     } catch { self.error = error.localizedDescription; break }
                 }
                 do { try await finishSegment() } catch { self.error = "Could not finalize the last segment. Existing files are preserved." }
+                if !demo { CaptureDiagnostics.shared.event("recording_stopped") }
+                diagnosticsTask?.cancel(); streamStatusTask?.cancel(); publishStatusTask?.cancel()
                 recording = false; recordingStartedAt = nil; UIApplication.shared.isIdleTimerDisabled = false
                 status = self.pairing == nil ? "Camera disconnected; recording saved on this phone" : "Recording saved on this phone"
                 let previousService = serviceTask
@@ -290,15 +325,18 @@ final class CaptureController: ObservableObject {
                                 let config: CameraConfiguration = try await CaptureAPI.call(pairing)
                                 if Task.isCancelled { break }
                                 if let url = config.rtmpsUrl, let key = config.streamKey {
+                                    CaptureDiagnostics.shared.event("rtmp_connect_attempt")
                                     _ = try await connection.connect(url)
                                     if Task.isCancelled { break }
                                     _ = try await stream.publish(key)
                                     if Task.isCancelled { break }
                                     streaming = true
+                                    CaptureDiagnostics.shared.event("rtmp_published")
                                 }
                             } else { streaming = true }
                         } catch {
                             if Task.isCancelled { break }
+                            CaptureDiagnostics.shared.failure("rtmp_failure", error)
                             streaming = false; self.error = "Livestream unavailable. Local recording continues; retrying automatically."; try? await connection.close()
                         }
                     }
@@ -320,6 +358,7 @@ final class CaptureController: ObservableObject {
         recorderErrorTask = Task { [weak self] in
             guard let self else { return }
             for await _ in await recorder.error {
+                if !demo { CaptureDiagnostics.shared.event("recorder_write_failed") }
                 self.error = "The camera could not write a recording segment. Files have been retained."
                 recordingTask?.cancel()
             }
@@ -330,6 +369,7 @@ final class CaptureController: ObservableObject {
         self.current = nil
         _ = try await recorder.stopRecording()
         try await library.finalize(current)
+        if !demo { CaptureDiagnostics.shared.event("segment_finalized") }
     }
     private var heartbeatError: String? {
         let errors = [("Camera", error), ("Uploads", library.error)].compactMap { label, message -> String? in
@@ -355,7 +395,13 @@ final class CaptureController: ObservableObject {
         guard !demo else { return true }
         do {
             let request: @MainActor (Pairing, [String: Any]) async throws -> HeartbeatResponse = send ?? { pairing, body in try await CaptureAPI.call(pairing, body: body) }
-            let response = try await request(pairing, ["action": "heartbeat", "deviceName": UIDevice.current.name, "recording": recording, "streaming": streaming, "battery": UIDevice.current.batteryLevel, "error": heartbeatError as Any? ?? NSNull()])
+            var body: [String: Any] = ["action": "heartbeat", "deviceName": UIDevice.current.name, "recording": recording, "streaming": streaming, "battery": UIDevice.current.batteryLevel, "error": heartbeatError as Any? ?? NSNull()]
+            // Keep test-injected heartbeats deterministic and free of OS background-session work.
+            if send == nil {
+                let tasks = await BackgroundUploads.shared.session.allTasks
+                body["diagnostics"] = CaptureDiagnostics.shared.snapshot(tasks: tasks, pending: library.pending, quality: quality.rawValue, connected: await connection.connected)
+            }
+            let response = try await request(pairing, body)
             if response.ended { recordingTask?.cancel(); return false }
         } catch let failure as CaptureAPIError where failure.statusCode == 401 {
             // A replacement rotates the token. Stop the old capture, but keep its files
@@ -367,7 +413,10 @@ final class CaptureController: ObservableObject {
             UserDefaults.standard.removeObject(forKey: "pairingKey")
             error = "This camera was replaced or its pairing expired. Recording stopped; saved clips remain on this phone."
             return false
-        } catch { /* Temporary network/telemetry failures must not stop local capture. */ }
+        } catch {
+            CaptureDiagnostics.shared.failure("heartbeat_failed", error)
+            // Temporary network/telemetry failures must not stop local capture.
+        }
         return true
     }
     func stop() async {

@@ -13,5 +13,5 @@ Path(sys.argv[1]).write_text(source)
 PY
 sdk=$(xcrun --sdk iphonesimulator --show-sdk-path)
 xcrun swiftc -swift-version 6 -parse-as-library -sdk "$sdk" -target arm64-apple-ios17.0-simulator \
-  "$work_dir/RecordingLibrary.swift" ios/BASH/UploadRecoveryChecks/UploadRecoveryChecks.swift -o "$work_dir/checks"
+  "$work_dir/RecordingLibrary.swift" ios/BASH/Sources/Capture/CaptureDiagnostics.swift ios/BASH/UploadRecoveryChecks/UploadRecoveryChecks.swift -o "$work_dir/checks"
 xcrun simctl spawn booted "$work_dir/checks"

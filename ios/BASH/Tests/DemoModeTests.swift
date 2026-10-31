@@ -261,3 +261,28 @@ final class CaptureLifecycleTests: XCTestCase {
         XCTAssertTrue(camera.ready)
     }
 }
+
+final class CaptureDiagnosticsTests: XCTestCase {
+    @MainActor func testBoundedDiagnosticsExcludeURLsAndResetStreamProgress() throws {
+        let diagnostics = CaptureDiagnostics()
+        for _ in 0..<30 { diagnostics.event("upload_failed", detail: "HTTP", code: 503) }
+        XCTAssertEqual(diagnostics.events.count, 24)
+        diagnostics.failure("upload_failed", NSError(domain: NSURLErrorDomain, code: -1009,
+            userInfo: [NSLocalizedDescriptionKey: "https://secret.example?token=private"]))
+        diagnostics.sampleStream(fps: 30, bytes: 1000, rate: 500)
+        let snapshot = diagnostics.snapshot(tasks: [], pending: 4, quality: "uhd30", connected: true)
+        let stream = try XCTUnwrap(snapshot["stream"] as? [String: Any])
+        XCTAssertEqual(stream["encodedFPS"] as? Int, 30)
+        XCTAssertEqual(stream["queuedBytes"] as? Int, 1000)
+        XCTAssertNotNil(stream["secondsWithoutVideoProgress"] as? Double)
+        let json = String(decoding: try JSONSerialization.data(withJSONObject: snapshot), as: UTF8.self)
+        XCTAssertFalse(json.contains("secret.example"))
+        XCTAssertFalse(json.contains("private"))
+        XCTAssertTrue(json.contains("NSURLErrorDomain"))
+        diagnostics.resetStream()
+        let reset = diagnostics.snapshot(tasks: [], pending: 0, quality: "hd30", connected: false)
+        let resetStream = try XCTUnwrap(reset["stream"] as? [String: Any])
+        XCTAssertTrue(resetStream["secondsWithoutVideoProgress"] is NSNull)
+        XCTAssertEqual(resetStream["encodedFPS"] as? Int, 0)
+    }
+}

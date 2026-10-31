@@ -3,8 +3,9 @@ import Foundation
 import Combine
 import UIKit
 
+struct CaptureAPIError: Error { let statusCode: Int }
 struct CaptureClockAnchor: Codable, Sendable {}
-struct Pairing { let key: String }
+struct Pairing { let key: String; var isDemo: Bool { false } }
 enum CameraKeychain { static func load(_ key: String) -> Pairing? { Pairing(key: key) } }
 enum CaptureError: LocalizedError {
     case message(String)
