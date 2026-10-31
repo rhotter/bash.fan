@@ -1,6 +1,24 @@
 import XCTest
 
 final class GameAlertsUITests: XCTestCase {
+    @MainActor func testNotificationOpensRegularGamePage() {
+        let app = XCUIApplication()
+        app.launchArguments = ["-completedAlertOnboarding", "YES", "-pendingGame", "g208"]
+        app.launch()
+        XCTAssertTrue(app.buttons["gameTab-Summary"].waitForExistence(timeout: 30))
+        XCTAssertTrue(app.tabBars.buttons["Scores"].isHittable)
+        XCTAssertTrue(app.tabBars.buttons["Scores"].isSelected)
+        XCTAssertFalse(app.buttons["Done"].exists)
+        XCTAssertTrue(app.buttons["gameTab-Stats"].exists)
+        XCTAssertTrue(app.staticTexts["Scoring by period"].firstMatch.waitForExistence(timeout: 30))
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "Notification opens regular game page"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+        app.navigationBars.buttons.firstMatch.tap()
+        XCTAssertTrue(app.buttons["seasonPicker"].waitForExistence(timeout: 5))
+    }
+
     @MainActor func testAlertOnboarding() {
         let app = XCUIApplication()
         app.launchArguments = ["-completedAlertOnboarding", "NO", "-pushTeams", "()", "-pushGames", "()"]

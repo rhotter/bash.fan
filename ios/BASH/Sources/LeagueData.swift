@@ -17,6 +17,33 @@ struct Game: Codable, Identifiable {
     let isOvertime: Bool
     let isPlayoff: Bool
 
+    var livePeriod: Int? = nil
+    var liveClockSeconds: Double? = nil
+    var liveClockRunning: Bool? = nil
+    var liveClockStartedAt: Double? = nil
+
+    func statusLabel(at now: Date = .now) -> String {
+        if status == "final" { return isOvertime ? "Final · OT" : "Final" }
+        guard status == "live" else { return time }
+        guard let period = livePeriod, let clock = liveClockSeconds, clock.isFinite else { return "Live" }
+        let elapsed: Double
+        if liveClockRunning == true, let startedAt = liveClockStartedAt, startedAt.isFinite {
+            elapsed = max(0, (now.timeIntervalSince1970 * 1000 - startedAt) / 1000)
+        } else { elapsed = 0 }
+        let remaining = max(0, clock - elapsed)
+        guard remaining.isFinite, remaining < Double(Int.max) else { return "Live" }
+        let seconds = Int(remaining)
+        let label: String
+        switch period {
+        case 0: label = "Pre-Game"
+        case 1...3: label = "P\(period)"
+        case 4: label = "OT"
+        case 5 where !isPlayoff: label = "SO"
+        default: label = isPlayoff ? "\(period - 3)OT" : "P\(period)"
+        }
+        return "\(label) \(seconds / 60):" + String(format: "%02d", seconds % 60)
+    }
+
     var startsAt: Date? {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")

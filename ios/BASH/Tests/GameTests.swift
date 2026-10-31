@@ -29,6 +29,24 @@ final class GameTests: XCTestCase {
         """
         return try JSONDecoder().decode(Game.self, from: Data(json.utf8))
     }
+    func testLiveClockDecodingAndCountdown() throws {
+        let json = """
+        {"id":"g1","date":"2026-10-31","time":"9:00am","homeTeam":"Home","awayTeam":"Away","homeScore":1,"awayScore":0,"status":"live","location":"The Lick","isOvertime":false,"isPlayoff":false,"livePeriod":2,"liveClockSeconds":185.9,"liveClockRunning":true,"liveClockStartedAt":1000000}
+        """
+        var game = try JSONDecoder().decode(Game.self, from: Data(json.utf8))
+        XCTAssertEqual(game.statusLabel(at: Date(timeIntervalSince1970: 1005)), "P2 3:00")
+        XCTAssertEqual(game.statusLabel(at: Date(timeIntervalSince1970: 2000)), "P2 0:00")
+        game.liveClockRunning = false
+        XCTAssertEqual(game.statusLabel(), "P2 3:05")
+        game.livePeriod = 4
+        XCTAssertEqual(game.statusLabel(), "OT 3:05")
+        game.livePeriod = 5
+        XCTAssertEqual(game.statusLabel(), "SO 3:05")
+        game.liveClockSeconds = nil
+        XCTAssertEqual(game.statusLabel(), "Live")
+        XCTAssertNil(try self.game(time: "9:00am").liveClockSeconds)
+    }
+
     func testPacificGameTimes() throws {
         let expected = ISO8601DateFormatter().date(from: "2026-10-25T16:00:00Z")
         XCTAssertEqual(try game(time: "9:00am").startsAt, expected)

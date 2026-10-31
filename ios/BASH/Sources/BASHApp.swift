@@ -34,16 +34,20 @@ import UserNotifications
     func application(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: Error) {
         GameAlerts.shared.registrationFailed()
     }
-    nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse) async {
-        if let id = response.notification.request.content.userInfo["gameID"] as? String {
-            await MainActor.run {
+    // Apple's delegate callbacks may arrive off the main queue. Keep the Objective-C
+    // entry points nonisolated and move only navigation state onto the main actor.
+    nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse, withCompletionHandler completionHandler: @escaping () -> Void) {
+        let id = response.notification.request.content.userInfo["gameID"] as? String
+        if let id, !id.isEmpty {
+            Task { @MainActor in
                 UserDefaults.standard.set(id, forKey: "pendingGame")
                 NotificationCenter.default.post(name: Self.openGame, object: id)
             }
         }
+        completionHandler()
     }
-    nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification) async -> UNNotificationPresentationOptions {
-        [.banner, .sound]
+    nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification, withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
+        completionHandler([.banner, .sound])
     }
 }
 
@@ -153,16 +157,17 @@ struct LeagueRoot: View {
     @ScaledMetric(relativeTo: .subheadline) private var weekLabelHeight = 20.0
     @AppStorage("completedAlertOnboarding") private var completedAlertOnboarding = false
     @State private var showingAlertOnboarding = false
-    @State private var openedGame: Game?
+    @State private var selectedTab = 0
+    @State private var openingGameID: String?
     @State private var selectedWeek: String?
     @State private var selectedGame: Game?
     @State private var selectedTeam: Standing?
 
     var body: some View {
-        TabView {
-            NavigationStack { gamesScreen.navigationDestination(optional: $selectedGame) { GameScreen(game: $0, store: store) } }.tabItem { Label { Text("Scores") } icon: { Image(systemName: "rectangle.stack").environment(\.symbolVariants, .none) } }
-            NavigationStack { standingsScreen.navigationDestination(optional: $selectedTeam) { TeamScreen(team: $0, store: store) } }.tabItem { Label { Text("Standings") } icon: { Image(systemName: "list.number").environment(\.symbolVariants, .none) } }
-            NavigationStack { StatsScreen(store: store) }.tabItem { Label { Text("Stats") } icon: { Image(systemName: "chart.bar.xaxis").environment(\.symbolVariants, .none) } }
+        TabView(selection: $selectedTab) {
+            NavigationStack { gamesScreen.navigationDestination(optional: $selectedGame) { GameScreen(game: $0, store: store).id($0.id) } }.tag(0).tabItem { Label { Text("Scores") } icon: { Image(systemName: "rectangle.stack").environment(\.symbolVariants, .none) } }
+            NavigationStack { standingsScreen.navigationDestination(optional: $selectedTeam) { TeamScreen(team: $0, store: store) } }.tag(1).tabItem { Label { Text("Standings") } icon: { Image(systemName: "list.number").environment(\.symbolVariants, .none) } }
+            NavigationStack { StatsScreen(store: store) }.tag(2).tabItem { Label { Text("Stats") } icon: { Image(systemName: "chart.bar.xaxis").environment(\.symbolVariants, .none) } }
         }
         .environment(\.symbolVariants, .none)
         .tint(.primary)
@@ -201,26 +206,27 @@ struct LeagueRoot: View {
                 showingAlertOnboarding = false
             })
         }
-        .sheet(item: $openedGame) { game in
-            NavigationStack {
-                GameScreen(game: game, store: store)
-                    .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { openedGame = nil } } }
-            }
-        }
     }
 
     private func openPendingGame() {
-        guard completedAlertOnboarding && !showingAlertOnboarding else { return }
-        guard let id = UserDefaults.standard.string(forKey: "pendingGame") else { return }
-        if let game = store.snapshot?.games.first(where: { $0.id == id }) {
-            openedGame = game
-            UserDefaults.standard.removeObject(forKey: "pendingGame")
-        } else {
-            Task {
-                guard let game: Game = try? await LeagueAPI.fetch("/game/\(id)") else { return }
-                openedGame = game
-                UserDefaults.standard.removeObject(forKey: "pendingGame")
+        guard completedAlertOnboarding && !showingAlertOnboarding,
+              let id = UserDefaults.standard.string(forKey: "pendingGame"),
+              openingGameID != id else { return }
+        openingGameID = id
+        Task { @MainActor in
+            defer { if openingGameID == id { openingGameID = nil } }
+            let game: Game?
+            if let cached = store.snapshot?.games.first(where: { $0.id == id }) {
+                game = cached
+            } else {
+                game = try? await LeagueAPI.fetch("/game/\(id)")
             }
+            // A newer notification may have arrived while this request was running.
+            guard let game, UserDefaults.standard.string(forKey: "pendingGame") == id,
+                  !showingAlertOnboarding else { return }
+            selectedTab = 0
+            selectedGame = game
+            UserDefaults.standard.removeObject(forKey: "pendingGame")
         }
     }
 
@@ -526,14 +532,20 @@ struct TeamLogo: View {
 struct GameRow: View {
     let game: Game
     @Environment(\.dynamicTypeSize) private var typeSize
-    private var status: String {
-        game.status == "final" ? (game.isOvertime ? "Final · OT" : "Final") : game.status == "live" ? "Live" : game.time
+    @ViewBuilder private var statusLabel: some View {
+        if game.status == "live", game.liveClockRunning == true {
+            TimelineView(.periodic(from: .now, by: 1)) { context in
+                Text(game.statusLabel(at: context.date)).monospacedDigit()
+            }
+        } else {
+            Text(game.statusLabel()).monospacedDigit()
+        }
     }
     var body: some View {
         VStack(spacing: 10) {
             if typeSize.isAccessibilitySize {
                 VStack(alignment: .leading, spacing: 16) {
-                    Text(status).font(.caption.weight(.semibold))
+                    statusLabel.font(.caption.weight(.semibold))
                         .foregroundStyle(game.status == "live" ? LeagueStyle.orange : .secondary)
                     accessibleSide(game.awayTeam, slug: game.awaySlug, score: game.awayScore)
                     accessibleSide(game.homeTeam, slug: game.homeSlug, score: game.homeScore)
@@ -542,7 +554,7 @@ struct GameRow: View {
                 HStack(alignment: .center, spacing: 6) {
                     side(game.awayTeam, slug: game.awaySlug)
                     VStack(spacing: 5) {
-                        Text(status).font(.caption.weight(.semibold))
+                        statusLabel.font(.caption.weight(.semibold))
                             .foregroundStyle(game.status == "live" ? LeagueStyle.orange : .secondary)
                         if game.status == "upcoming" {
                             Text("vs").font(.title3.weight(.medium)).foregroundStyle(.tertiary)
@@ -565,7 +577,7 @@ struct GameRow: View {
         .contentShape(Rectangle())
         .accessibilityElement(children: .ignore)
         .accessibilityIdentifier("game-\(game.id)")
-        .accessibilityLabel("\(game.awayTeam), \(game.awayScore.map(String.init) ?? "no score"), at \(game.homeTeam), \(game.homeScore.map(String.init) ?? "no score"), \(status)")
+        .accessibilityLabel("\(game.awayTeam), \(game.awayScore.map(String.init) ?? "no score"), at \(game.homeTeam), \(game.homeScore.map(String.init) ?? "no score"), \(game.statusLabel())")
     }
     private func accessibleSide(_ name: String, slug: String?, score: Int?) -> some View {
         VStack(alignment: .leading, spacing: 6) {
