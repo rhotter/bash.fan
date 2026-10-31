@@ -40,6 +40,8 @@ Open the project in Xcode, select your Apple signing team and a physical iPhone,
 
 Keep ad-hoc signing enabled for simulator runs: unsigned builds compile but cannot save the camera pairing in Keychain.
 
+Camera preparation and preview suspension are serialized across open, close, and foreground events. Reopening explicitly restarts capture, and dismissal clears readiness without tearing down the mixer’s foreground observers. The preview starts before refreshing network configuration. Camera errors remain visible in either orientation; interruptions stop the current recording and restart only the preview when the camera becomes available. Validate repeated open/close, lock/unlock, incoming-call interruption, and sustained capture on a physical iPhone; simulator lifecycle tests cannot establish camera reliability.
+
 The service address is built into the app through `BASH_SERVER_URL`, pointing to `https://www.bayareastreethockey.com` in `ios/BASH/project.yml`. There is no server-address field or settings screen. Override the build setting for development as above; physical phones need an accessible HTTPS dev service or trusted LAN address, since localhost points to the phone itself. Pairing credentials are stored in Keychain, never in the recording manifest. Camera setup cannot replace the active session while recording.
 
 ### Production recording configuration

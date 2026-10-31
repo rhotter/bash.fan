@@ -125,3 +125,75 @@ final class CaptureScreenshotTests: XCTestCase {
         }
     }
 }
+
+final class CaptureLifecycleTests: XCTestCase {
+    @MainActor func testCloseAndReopenWaitForPendingSetup() async {
+        let lifecycle = CaptureLifecycle()
+        let entered = expectation(description: "Setup began")
+        var resume: CheckedContinuation<Void, Never>?
+        var events: [String] = []
+        let setup = Task {
+            await lifecycle.run {
+                events.append("setup")
+                await withCheckedContinuation { continuation in
+                    resume = continuation
+                    entered.fulfill()
+                }
+                events.append("ready")
+            }
+        }
+        await fulfillment(of: [entered], timeout: 2)
+        let close = Task { await lifecycle.run { events.append("stop") } }
+        // Let the close request enqueue while setup is suspended.
+        await Task.yield()
+        let reopen = Task { await lifecycle.run { events.append("restart") } }
+        await Task.yield()
+        XCTAssertEqual(events, ["setup"])
+        resume?.resume()
+        await setup.value
+        await close.value
+        await reopen.value
+        XCTAssertEqual(events, ["setup", "ready", "stop", "restart"])
+    }
+
+    @MainActor func testCancellingViewTaskDoesNotLetCloseOvertakeSetup() async {
+        let lifecycle = CaptureLifecycle()
+        let entered = expectation(description: "Setup began")
+        var resume: CheckedContinuation<Void, Never>?
+        var events: [String] = []
+        let setup = Task {
+            await lifecycle.run {
+                await withCheckedContinuation { continuation in
+                    resume = continuation
+                    entered.fulfill()
+                }
+                events.append("ready")
+            }
+        }
+        await fulfillment(of: [entered], timeout: 2)
+        setup.cancel()
+        let close = Task { await lifecycle.run { events.append("stop") } }
+        await Task.yield()
+        XCTAssertTrue(events.isEmpty)
+        resume?.resume()
+        await setup.value
+        await close.value
+        XCTAssertEqual(events, ["ready", "stop"])
+    }
+
+    @MainActor func testDismissedPreviewIsNotReadyToRecord() async {
+        let camera = CaptureController(demo: true)
+        camera.ready = true
+        await camera.suspendPreview()
+        XCTAssertFalse(camera.ready)
+    }
+
+    @MainActor func testDismissDoesNotStopAnActiveRecording() async {
+        let camera = CaptureController(demo: true)
+        camera.ready = true
+        camera.recording = true
+        await camera.suspendPreview()
+        XCTAssertTrue(camera.recording)
+        XCTAssertTrue(camera.ready)
+    }
+}

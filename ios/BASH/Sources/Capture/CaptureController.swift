@@ -28,6 +28,22 @@ enum RecordingQuality: String, CaseIterable, Identifiable, Decodable {
     }
 }
 
+// MainActor methods can interleave at every await. Keep entire camera lifecycle
+// operations ordered, including a close/reopen while permission or setup is pending.
+@MainActor
+final class CaptureLifecycle {
+    private var tail: Task<Void, Never>?
+    func run(_ operation: @escaping @MainActor () async -> Void) async {
+        let previous = tail
+        let task = Task {
+            await previous?.value
+            await operation()
+        }
+        tail = task
+        await task.value
+    }
+}
+
 @MainActor
 final class CaptureController: ObservableObject {
     @Published var pairing: Pairing?
@@ -63,6 +79,8 @@ final class CaptureController: ObservableObject {
     private var current: LocalRecording?
     private var clockAnchor: CaptureClockAnchor?
     private var prepared = false
+    private let lifecycle = CaptureLifecycle()
+    private var previewVisible = false
 
     init(demo: Bool = false) {
         self.demo = demo
@@ -97,10 +115,23 @@ final class CaptureController: ObservableObject {
         } catch { self.error = error.localizedDescription }
     }
     func prepare() async {
-        guard !recording else { return }
-        await mixer.setVideoOrientation(videoOrientation)
-        if prepared && ready && preparedQuality == quality { await mixer.startRunning(); return }
+        previewVisible = true
+        await lifecycle.run { await self.prepareCapture() }
+    }
+    private func prepareCapture() async {
+        guard previewVisible, !recording else { return }
         ready = false
+        let selectedQuality = quality
+        await mixer.setVideoOrientation(videoOrientation)
+        if prepared && preparedQuality == selectedQuality {
+            // startRunning alone is a no-op when the mixer is running but its
+            // capture session has stopped (dismissal or a system interruption).
+            await mixer.startRunning()
+            await mixer.startCapturing()
+            ready = await mixer.isCapturing
+            if !ready { error = "Camera could not start. Close and reopen the camera to retry." }
+            return
+        }
         error = nil
         if prepared { await mixer.stopRunning() }
         guard await AVCaptureDevice.requestAccess(for: .video), await AVCaptureDevice.requestAccess(for: .audio) else { error = "Allow camera and microphone access in Settings to record."; return }
@@ -112,7 +143,6 @@ final class CaptureController: ObservableObject {
             try audio.setActive(true)
             try await mixer.attachVideo(camera)
             try await mixer.attachAudio(AVCaptureDevice.default(for: .audio))
-            let selectedQuality = quality
             try await mixer.configuration { session in
                 let preset: AVCaptureSession.Preset = selectedQuality.is4K ? .hd4K3840x2160 : .hd1920x1080
                 guard session.canSetSessionPreset(preset) else { throw CaptureError.message("This iPhone’s 0.5× camera does not support \(selectedQuality.title). Choose another recording quality.") }
@@ -128,39 +158,60 @@ final class CaptureController: ObservableObject {
             }) else { throw CaptureError.message("This iPhone’s 0.5× camera does not support \(selectedQuality.title). Choose another recording quality.") }
             // The physical ultra-wide lens is the Camera app's 0.5× view.
             // AVFoundation uses 1.0 for this lens's full, uncropped field of view.
-            try camera.lockForConfiguration()
-            camera.activeFormat = format
-            camera.videoZoomFactor = 1.0
-            camera.unlockForConfiguration()
-            try await mixer.setFrameRate(Double(framesPerSecond))
+            try await mixer.configuration(video: 0) { video in
+                guard let device = video.device else { return }
+                try device.lockForConfiguration()
+                defer { device.unlockForConfiguration() }
+                device.activeFormat = format
+                device.videoZoomFactor = 1.0
+            }
+            try await mixer.setFrameRate(Double(selectedQuality.fps))
             await recorder.setMovieFragmentInterval(10)
             if !prepared { await mixer.addOutput(recorder) }
             var liveSettings = await stream.videoSettings
             liveSettings.videoSize = CGSize(width: 1920, height: 1080)
-            liveSettings.bitRate = framesPerSecond == 60 ? 9_000_000 : 5_000_000
+            liveSettings.bitRate = selectedQuality.fps == 60 ? 9_000_000 : 5_000_000
             liveSettings.maxKeyFrameIntervalDuration = 2
-            liveSettings.expectedFrameRate = Double(framesPerSecond)
+            liveSettings.expectedFrameRate = Double(selectedQuality.fps)
             // Keep the livestream at the selected capture frame rate.
             liveSettings.frameInterval = 0
             try await stream.setVideoSettings(liveSettings)
             if !prepared { await mixer.addOutput(stream) }
             await mixer.startRunning()
-            prepared = true; preparedQuality = quality; ready = true
+            prepared = true; preparedQuality = selectedQuality; ready = await mixer.isCapturing
+            if !ready { error = "Camera could not start. Close and reopen the camera to retry." }
             interruptionTask?.cancel()
             interruptionTask = Task { [weak self] in
                 guard let self else { return }
                 for await interrupted in await mixer.isInterputted {
-                    if interrupted && recording { error = "Camera interrupted. Recording stopped; check saved segments before restarting."; await stop() }
+                    if interrupted {
+                        ready = false
+                        error = recording
+                            ? "Camera interrupted. Recording stopped; check saved segments before restarting."
+                            : "Camera interrupted. The preview will resume when the camera is available."
+                        if recording { await stop() }
+                    } else if previewVisible {
+                        await lifecycle.run { await self.prepareCapture() }
+                    }
                 }
             }
         } catch { self.error = error.localizedDescription }
     }
     func suspendPreview() async {
-        guard !recording else { return }
-        await mixer.stopRunning()
+        previewVisible = false
+        await lifecycle.run {
+            guard !self.previewVisible, !self.recording else { return }
+            self.ready = false
+            // Keep the mixer's foreground observer alive so it can reattach a
+            // camera suspended by iOS while this screen was being dismissed.
+            await self.mixer.stopCapturing()
+        }
     }
     func start() async {
-        guard let pairing, ready, preparedQuality == quality, !recording, !busy else { return }
+        await lifecycle.run { await self.startRecording() }
+    }
+    private func startRecording() async {
+        guard previewVisible, let pairing, ready, preparedQuality == quality, !recording, !busy else { return }
         guard UIDevice.current.orientation == requiredOrientation else {
             error = mountInstruction
             return

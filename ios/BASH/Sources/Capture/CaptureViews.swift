@@ -43,15 +43,20 @@ struct NativeCameraView: View {
                     CapturePreview(mixer: camera.mixer)
                         .ignoresSafeArea()
                     VStack {
-                        if correctlyOriented {
+                        if let error = camera.error {
                             Spacer()
-                            if let error = camera.error {
-                                Text(error)
-                                    .font(.callout)
-                                    .multilineTextAlignment(.center)
-                                    .padding(12)
-                                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
-                            }
+                            Text(error)
+                                .font(.callout)
+                                .multilineTextAlignment(.center)
+                                .padding(12)
+                                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
+                        } else if !camera.ready && !camera.recording {
+                            Spacer()
+                            ProgressView("Starting camera…")
+                                .padding(12)
+                                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
+                        }
+                        if correctlyOriented {
                             Spacer()
                         }
                         if !correctlyOriented {
@@ -107,7 +112,7 @@ struct NativeCameraView: View {
             .statusBarHidden()
             .persistentSystemOverlays(.hidden)
             .confirmationDialog("Stop recording this camera?", isPresented: $confirmStop, titleVisibility: .visible) { Button("Stop recording", role: .destructive) { Task { await camera.stop() } } }
-            .task { await camera.refreshConfiguration(); await camera.prepare() }
+            .task { await camera.prepare(); await camera.refreshConfiguration() }
             .onAppear {
                 UIDevice.current.beginGeneratingDeviceOrientationNotifications()
                 orientation = UIDevice.current.orientation
