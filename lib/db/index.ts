@@ -1,6 +1,9 @@
 import { neon } from "@neondatabase/serverless"
 import { drizzle } from "drizzle-orm/neon-http"
+import { drizzle as drizzleNodePg } from "drizzle-orm/node-postgres"
 import type { SQL } from "drizzle-orm"
+import { Pool } from "pg"
+import { isLocalDbUrl } from "./is-local-db-url"
 import * as schema from "./schema"
 
 function describeDbEndpoint(dbUrl: string): { host: string; label: string } {
@@ -38,9 +41,16 @@ if (typeof window === "undefined") {
   console.log(`[db] Connected to: ${label} [${host}]`)
 }
 
-export const connection = neon(url)
+function createNeonDb(dbUrl: string) {
+  return drizzle(neon(dbUrl), { schema })
+}
 
-export const db = drizzle(connection, { schema })
+// Neon's driver only speaks HTTP, so a local Docker Postgres needs node-postgres.
+// The cast keeps one db type: code stays limited to what neon-http supports, so
+// nothing that only works locally (such as db.transaction) type-checks differently.
+export const db = isLocalDbUrl(url)
+  ? (drizzleNodePg(new Pool({ connectionString: url }), { schema }) as unknown as ReturnType<typeof createNeonDb>)
+  : createNeonDb(url)
 
 /**
  * Execute raw SQL and return rows with loose typing (like the raw neon driver).
