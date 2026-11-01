@@ -15,6 +15,8 @@
     "db:introspect": "drizzle-kit introspect",
     "db:generate": "drizzle-kit generate",
     "db:push": "drizzle-kit push",
+    "db:setup": "bash scripts/setup-local-db.sh",
+    "db:reset": "docker compose down -v && pnpm db:setup",
     "prepare": "husky"
   },
   "dependencies": {
@@ -63,6 +65,7 @@
     "lucide-react": "^0.564.0",
     "next": "16.1.6",
     "next-themes": "^0.4.6",
+    "pg": "^8.23.1",
     "pgsql-ast-parser": "12.0.2",
     "react": "19.2.4",
     "react-colorful": "^5.7.0",
@@ -86,6 +89,7 @@
     "@tailwindcss/postcss": "^4.1.13",
     "@tailwindcss/typography": "^0.5.19",
     "@types/node": "^22",
+    "@types/pg": "^8.23.1",
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
     "@typescript-eslint/eslint-plugin": "^8.59.0",

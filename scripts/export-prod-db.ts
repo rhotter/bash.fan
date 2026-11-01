@@ -9,6 +9,33 @@
 
 import "./env";
 import { neon } from "@neondatabase/serverless";
+import { Pool } from "pg";
+import { isLocalDbUrl } from "../lib/db/is-local-db-url";
+
+// Same tagged-template call shape as neon(), for a Postgres on this machine.
+function localSql(url: string) {
+  const pool = new Pool({ connectionString: url });
+  const query = async (strings: TemplateStringsArray, ...values: unknown[]) => {
+    const text = strings.reduce((sql, part, i) => `${sql}$${i}${part}`);
+    return (await pool.query(text, values)).rows;
+  };
+  return Object.assign(query, { close: () => pool.end() });
+}
+
+function isPermissionDenied(err: unknown) {
+  return (err as { code?: string } | null)?.code === "42501";
+}
+
+// A restricted read-only role can't see every table. Skip the ones stats don't need.
+async function readIfPermitted<T>(table: string, query: PromiseLike<T[]>): Promise<T[]> {
+  try {
+    return await query;
+  } catch (err) {
+    if (!isPermissionDenied(err)) throw err;
+    console.warn(`   ⚠️ Skipping ${table}: no read permission on the source database.`);
+    return [];
+  }
+}
 
 export function parseArgs(customArgs?: string[]) {
   const args = customArgs ?? process.argv.slice(2);
@@ -99,7 +126,8 @@ async function main() {
   console.log(`Seasons:       ${seasons.join(", ")}\n`);
 
   const prod = neon(prodUrl);
-  const dev = neon(devUrl);
+  const local = isLocalDbUrl(devUrl) ? localSql(devUrl) : null;
+  const dev = local ?? neon(devUrl);
 
   // ─── Phase 1: Teams, Franchises & Player Alignment ────────────────────────
   console.log("1. Aligning Teams, Franchises & Players...");
@@ -368,7 +396,10 @@ async function main() {
   let ggsCount = 0;
 
   if (gameIds.length > 0) {
-    const prodOfficials = await prod`SELECT * FROM game_officials WHERE game_id = ANY(${gameIds});`;
+    const prodOfficials = await readIfPermitted(
+      "game_officials",
+      prod`SELECT * FROM game_officials WHERE game_id = ANY(${gameIds});`
+    );
     await dev`DELETE FROM game_officials WHERE game_id = ANY(${gameIds});`;
     for (const o of prodOfficials) {
       await dev`
@@ -417,7 +448,10 @@ async function main() {
     }
 
     // Tryout exhibition attendance rosters
-    const prodAdhoc = await prod`SELECT * FROM adhoc_game_rosters WHERE game_id = ANY(${gameIds});`;
+    const prodAdhoc = await readIfPermitted(
+      "adhoc_game_rosters",
+      prod`SELECT * FROM adhoc_game_rosters WHERE game_id = ANY(${gameIds});`
+    );
     await dev`DELETE FROM adhoc_game_rosters WHERE game_id = ANY(${gameIds});`;
     for (const r of prodAdhoc) {
       const devPlayerId = devIdByProdId.get(r.player_id);
@@ -432,7 +466,10 @@ async function main() {
     }
   }
 
-  const prodAwards = await prod`SELECT * FROM player_awards WHERE season_id = ANY(${seasons});`;
+  const prodAwards = await readIfPermitted(
+    "player_awards",
+    prod`SELECT * FROM player_awards WHERE season_id = ANY(${seasons});`
+  );
   for (const a of prodAwards) {
     const devPlayerId = a.player_id ? devIdByProdId.get(a.player_id) ?? null : null;
     await dev`
@@ -443,7 +480,11 @@ async function main() {
     `;
   }
 
-  const { tradesCount, itemsCount } = await syncTrades(prod, dev, seasons, devIdByProdId);
+  const { tradesCount, itemsCount } = await syncTrades(prod, dev, seasons, devIdByProdId).catch((err) => {
+    if (!isPermissionDenied(err)) throw err;
+    console.warn("   ⚠️ Skipping trades: no read permission on the source database.");
+    return { tradesCount: 0, itemsCount: 0 };
+  });
 
   console.log(
     `   Games: ${prodGames.length}, Officials: ${officialsCount}, Skater Stats: ${pgsCount}, Goalie Stats: ${ggsCount}, Awards: ${prodAwards.length}, Trades: ${tradesCount}, Trade Items: ${itemsCount}.`
@@ -467,6 +508,8 @@ async function main() {
       END IF;
     END $$;
   `;
+
+  await local?.close();
 
   console.log("\n=== Export & Sync Completed Successfully! ===");
 }
