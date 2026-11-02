@@ -9,6 +9,9 @@
  * 5. Performance: queries complete within acceptable timeframes
  */
 
+// Measures a real database, so it opts out of the in-memory one from tests/setup.ts.
+vi.unmock("@/lib/db")
+
 import { describe, it, expect, vi } from "vitest"
 import { db, rawSql, schema } from "@/lib/db"
 import { sql, eq, count } from "drizzle-orm"
