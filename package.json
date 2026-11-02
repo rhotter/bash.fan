@@ -22,6 +22,7 @@
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1156.0",
     "@aws-sdk/s3-request-presigner": "^3.1156.0",
+    "@date-fns/tz": "^1.5.0",
     "@hookform/resolvers": "^3.9.1",
     "@neondatabase/serverless": "^1.0.2",
     "@radix-ui/react-accordion": "1.2.12",
@@ -86,6 +87,7 @@
   "devDependencies": {
     "@electric-sql/pglite": "0.5.11",
     "@eslint/js": "^10.0.1",
+    "@faker-js/faker": "^10.6.0",
     "@tailwindcss/postcss": "^4.1.13",
     "@tailwindcss/typography": "^0.5.19",
     "@types/node": "^22",

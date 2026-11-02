@@ -9,6 +9,9 @@ import BatchScoresheetPage from "@/app/admin/scoresheet/season/[id]/page"
 import * as fetchScoresheetsModule from "@/lib/fetch-scoresheets"
 
 // Mock next/navigation
+// PGlite can't start under jsdom, and these tests stub the fetchers that use the database.
+vi.mock("@/lib/db", () => ({ db: {}, schema: {}, rawSql: vi.fn() }))
+
 vi.mock("next/navigation", () => ({
   useRouter: () => ({
     push: vi.fn(),
