@@ -1,3 +1,4 @@
+import { reassignLineupPlayer } from "@/lib/fantasy/lineups"
 import { rawSql } from "@/lib/db"
 import { sql } from "drizzle-orm"
 
@@ -351,6 +352,8 @@ export async function mergeDuplicatePlayers() {
 
       await rawSql(sql`UPDATE users SET player_id = ${canonicalId} WHERE player_id = ${dupeId}`)
 
+      // Last step before the delete, so a failure here leaves the duplicate in place. Every earlier step is idempotent, so the merge can be re-run.
+      await reassignLineupPlayer(dupeId, canonicalId)
       await rawSql(sql`DELETE FROM players WHERE id = ${dupeId}`)
       totalMerged++
     }
