@@ -1,5 +1,7 @@
 import { cache } from "react"
 import { unstable_cache } from "next/cache"
+import { fetchFantasyManager } from "@/lib/fetch-fantasy"
+import { fetchFantasyStandings } from "@/lib/fetch-fantasy"
 import { fetchTeamDetail } from "@/lib/fetch-team-detail"
 import { fetchPlayerStats } from "@/lib/fetch-player-stats"
 import { fetchTeamStats } from "@/lib/fetch-team-stats"
@@ -29,6 +31,20 @@ const statsPageData = unstable_cache(
   }
 )
 
+// Fantasy pages are built from locked Weeks only, so a stale snapshot can lag the Lock but can't get
+// ahead of it. Admin routes call revalidateTag("fantasy") when their changes should show right away.
+const fantasyPageData = unstable_cache(fetchFantasyStandings, ["fantasy-page-data-v1"], {
+  revalidate: 30,
+  tags: ["fantasy", "public-page-data"],
+})
+
+const fantasyManagerPageData = unstable_cache(fetchFantasyManager, ["fantasy-manager-page-data-v1"], {
+  revalidate: 30,
+  tags: ["fantasy", "public-page-data"],
+})
+
+export const fetchFantasyManagerPageData = cache((managerId: number) => fantasyManagerPageData(managerId))
+export const fetchFantasyPageData = cache((contest?: string) => fantasyPageData(contest))
 export const fetchTeamPageData = cache((slug: string, season?: string) => teamPageData(slug, season ?? null))
 export const fetchStatsPageData = cache((season?: string, seasonType?: string, gameType?: string) =>
   statsPageData(season ?? null, false, seasonType ?? "fall", gameType ?? "regular")
