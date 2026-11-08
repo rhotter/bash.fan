@@ -87,7 +87,7 @@ export async function GET(
             eq(schema.playerGameStats.playerId, playerId),
             eq(schema.playerGameStats.isSub, false),
             sql`(
-              NOT ${schema.games.isForfeit}
+              (NOT ${schema.games.isForfeit} AND ${schema.games.status} != 'upcoming')
               OR (
                 ${schema.games.isForfeit}
                 AND ${schema.games.status} = 'final'
@@ -119,7 +119,7 @@ export async function GET(
             eq(schema.goalieGameStats.playerId, playerId),
             eq(schema.goalieGameStats.isSub, false),
             sql`(
-              NOT ${schema.games.isForfeit}
+              (NOT ${schema.games.isForfeit} AND ${schema.games.status} != 'upcoming')
               OR (
                 ${schema.games.isForfeit}
                 AND ${schema.games.status} = 'final'

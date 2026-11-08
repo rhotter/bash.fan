@@ -586,10 +586,10 @@ export async function GET(
         opponent: isHome ? r.away_name : r.home_name,
         opponentSlug: isHome ? r.away_team : r.home_team,
         isHome, teamScore, opponentScore, result,
+        isForfeit: Boolean(r.is_forfeit),
         goals: r.goals, assists: r.assists, points: r.points,
         gwg: r.gwg, ppg: r.ppg, shg: r.shg,
         eng: r.eng, hatTricks: r.hat_tricks, pen: r.pen, pim: r.pim,
-        isForfeit: Boolean(r.is_forfeit),
       }
     })
 
@@ -619,12 +619,12 @@ export async function GET(
         isHome,
         teamScore: isHome ? r.home_score : r.away_score,
         opponentScore: isHome ? r.away_score : r.home_score,
+        isForfeit: Boolean(r.is_forfeit),
         seconds: r.seconds, goalsAgainst: r.goals_against,
         shotsAgainst: r.shots_against, saves: r.saves,
         savePercentage: r.shots_against > 0 ? (r.saves / r.shots_against).toFixed(3) : "0.000",
         shutouts: r.shutouts, goalieAssists: r.goalie_assists,
         result: r.result,
-        isForfeit: Boolean(r.is_forfeit),
       }
     })
 
@@ -656,10 +656,10 @@ export async function GET(
         opponent: isHome ? r.away_name : r.home_name,
         opponentSlug: isHome ? r.away_team : r.home_team,
         isHome, teamScore, opponentScore, result,
+        isForfeit: Boolean(r.is_forfeit),
         goals: r.goals, assists: r.assists, points: r.points,
         gwg: r.gwg, ppg: r.ppg, shg: r.shg,
         eng: r.eng, hatTricks: r.hat_tricks, pen: r.pen, pim: r.pim,
-        isForfeit: Boolean(r.is_forfeit),
       }
     })
 
@@ -686,12 +686,12 @@ export async function GET(
         isHome,
         teamScore: isHome ? r.home_score : r.away_score,
         opponentScore: isHome ? r.away_score : r.home_score,
+        isForfeit: Boolean(r.is_forfeit),
         seconds: r.seconds, goalsAgainst: r.goals_against,
         shotsAgainst: r.shots_against, saves: r.saves,
         savePercentage: r.shots_against > 0 ? (r.saves / r.shots_against).toFixed(3) : "0.000",
         shutouts: r.shutouts, goalieAssists: r.goalie_assists,
         result: r.result,
-        isForfeit: Boolean(r.is_forfeit),
       }
     })
 

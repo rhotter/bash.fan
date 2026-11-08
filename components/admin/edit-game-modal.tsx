@@ -21,7 +21,7 @@ import {
 import { toast } from "sonner"
 import { Plus, X, Search, Database } from "lucide-react"
 import { toHHMM } from "@/lib/format-time"
-import { applyForfeitPreset, inferForfeitingSide, type ForfeitingSide } from "@/lib/forfeit-sync"
+import { applyForfeitPreset, inferForfeitingSide, type ForfeitingSide } from "@/lib/forfeit-helpers"
 
 export interface GameFormData {
   id?: string
@@ -216,10 +216,13 @@ export function EditGameModal({
         : `/api/bash/admin/seasons/${seasonId}/schedule`
       const method = isEditing ? "PATCH" : "POST"
 
+      // hasBoxscore is server-owned (boxscore sync / forfeit sync); it is only
+      // read here for UI decisions and must never be written back from a stale copy.
+      const { hasBoxscore: _hasBoxscore, ...payload } = formData
       const res = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(payload),
       })
 
       if (!res.ok) {

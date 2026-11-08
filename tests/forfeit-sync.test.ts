@@ -37,6 +37,8 @@ import {
 } from "@/lib/forfeit-sync"
 import { PATCH as patchScheduleGame } from "@/app/api/bash/admin/seasons/[id]/schedule/[gameId]/route"
 import { NextRequest } from "next/server"
+import fs from "node:fs"
+import path from "node:path"
 
 describe("forfeit-sync helpers", () => {
   beforeEach(() => {
@@ -130,96 +132,80 @@ describe("forfeit-sync helpers", () => {
     expect(inferForfeitingSide({ homeScore: null, awayScore: null, status: "upcoming" })).toBe("away")
   })
 
-  it("stamps 0-stat attendance rows for the winning team's full active roster on a single-team forfeit", async () => {
+  function mockGameRow(row: Record<string, unknown>) {
     mocks.rawSql.mockImplementation(async ({ sql }: Query) => {
       if (sql.includes("FROM games WHERE id =")) {
-        return [
-          {
-            id: "g101",
-            season_id: "2026-2027",
-            home_team: "red",
-            away_team: "blue",
-            home_score: 5,
-            away_score: 0,
-            status: "final",
-            is_forfeit: true,
-            has_boxscore: false,
-            game_type: "regular",
-          },
-        ]
+        return [{ season_id: "2026-2027", home_team: "red", away_team: "blue", game_type: "regular", ...row }]
       }
       return []
     })
+  }
+  const statQueries = () =>
+    mocks.rawSql.mock.calls.map(([q]) => q as Query).filter((q) => !q.sql.includes("FROM games WHERE id ="))
+
+  it("stamps 0-stat rows for the winning roster via ON CONFLICT DO NOTHING without ever deleting or updating rows", async () => {
+    mockGameRow({ id: "g101", date: "2026-10-10", home_score: 5, away_score: 0, status: "final", is_forfeit: true })
 
     await syncForfeitRosterStats("g101")
 
-    const queries = mocks.rawSql.mock.calls.map(([q]) => q as Query)
-    // Should delete any stale non-winning rows when !has_boxscore, and insert skaters + goalies from player_seasons
-    const skaterInsert = queries.find((q) => q.sql.includes("INSERT INTO player_game_stats"))
-    const goalieInsert = queries.find((q) => q.sql.includes("INSERT INTO goalie_game_stats"))
-    expect(skaterInsert).toBeDefined()
-    expect(skaterInsert!.params).toEqual(expect.arrayContaining(["g101", "2026-2027", "red"]))
-    expect(goalieInsert).toBeDefined()
-    expect(goalieInsert!.params).toEqual(expect.arrayContaining(["g101", "2026-2027", "red"]))
+    const queries = statQueries()
+    expect(queries).toHaveLength(1)
+    const [stamp] = queries
+    expect(stamp.sql).toContain("WITH winners AS MATERIALIZED")
+    expect(stamp.sql).toContain("GROUP BY ps.player_id")
+    expect(stamp.sql).toContain("INSERT INTO player_game_stats")
+    expect(stamp.sql).toContain("INSERT INTO goalie_game_stats")
+    expect(stamp.sql).toContain("ON CONFLICT (player_id, game_id) DO NOTHING")
+    expect(stamp.sql).not.toContain("DELETE")
+    expect(stamp.sql).not.toContain("DO UPDATE")
+    expect(stamp.params).toEqual(expect.arrayContaining(["g101", "2026-2027", "red", "2026-10-10"]))
   })
 
-  it("cleans up auto-stamped rows on an unplayed game when forfeit is unchecked or double-forfeited", async () => {
-    mocks.rawSql.mockImplementation(async ({ sql }: Query) => {
-      if (sql.includes("FROM games WHERE id =")) {
-        return [
-          {
-            id: "g102",
-            season_id: "2026-2027",
-            home_team: "red",
-            away_team: "blue",
-            home_score: 0,
-            away_score: 0,
-            status: "final",
-            is_forfeit: true,
-            has_boxscore: false,
-            game_type: "regular",
-          },
-        ]
-      }
-      return []
-    })
-
-    await syncForfeitRosterStats("g102")
-
-    const queries = mocks.rawSql.mock.calls.map(([q]) => q as Query)
-    expect(queries.some((q) => q.sql.includes("DELETE FROM player_game_stats WHERE game_id ="))).toBe(true)
-    expect(queries.some((q) => q.sql.includes("DELETE FROM goalie_game_stats WHERE game_id ="))).toBe(true)
-    expect(queries.some((q) => q.sql.includes("INSERT INTO player_game_stats"))).toBe(false)
+  it("does not write or delete stat rows on double forfeits, non-forfeits, or exhibition/tryout games", async () => {
+    const cases = [
+      { id: "g102", date: "2026-10-10", home_score: 0, away_score: 0, status: "final", is_forfeit: true },
+      { id: "g102b", date: "2026-10-10", home_score: null, away_score: null, status: "upcoming", is_forfeit: false },
+      { id: "g105", date: "2026-10-10", home_score: 5, away_score: 0, status: "final", is_forfeit: true, game_type: "exhibition" },
+      { id: "g106", date: "2026-10-10", home_score: 5, away_score: 0, status: "final", is_forfeit: true, game_type: "tryout" },
+    ]
+    for (const row of cases) {
+      mocks.rawSql.mockClear()
+      mockGameRow(row)
+      await syncForfeitRosterStats(String(row.id))
+      expect(statQueries()).toHaveLength(0)
+    }
   })
 
-  it("preserves existing boxscore audit rows on a retroactive played forfeit while adding absent winning-team roster players", async () => {
-    mocks.rawSql.mockImplementation(async ({ sql }: Query) => {
-      if (sql.includes("FROM games WHERE id =")) {
-        return [
-          {
-            id: "g103",
-            season_id: "2026-2027",
-            home_team: "red",
-            away_team: "blue",
-            home_score: 5,
-            away_score: 0,
-            status: "final",
-            is_forfeit: true,
-            has_boxscore: true,
-            game_type: "regular",
-          },
-        ]
+  it("does not re-stamp an unchanged forfeit game on an unrelated re-save", async () => {
+    mocks.query.mockImplementation(async ({ sql }: Query) => {
+      if (sql.includes('from "games"')) {
+        return {
+          rows: [[
+            "g300", "2026-2027", "2026-11-01", "10:00", "red", "blue",
+            5, 0, "final", false, false, true, "The Lick", false,
+            null, null, "regular", false, null, null, null, null, null, null, null, null, null,
+          ]],
+        }
       }
-      return []
+      return { rows: [] }
     })
+    mocks.rawSql.mockResolvedValue([])
 
-    await syncForfeitRosterStats("g103")
+    const req = new NextRequest("http://localhost/api/bash/admin/seasons/2026-2027/schedule/g300", {
+      method: "PATCH",
+      body: JSON.stringify({ status: "final", isForfeit: true, homeScore: 5, awayScore: 0, notes: "typo fix" }),
+    })
+    const res = await patchScheduleGame(req, { params: Promise.resolve({ id: "2026-2027", gameId: "g300" }) })
+    expect(res.status).toBe(200)
+    expect(mocks.rawSql).not.toHaveBeenCalled()
+  })
 
-    const queries = mocks.rawSql.mock.calls.map(([q]) => q as Query)
-    expect(queries.some((q) => q.sql.includes("DELETE FROM player_game_stats") && q.sql.includes("hat_tricks = -1"))).toBe(true)
-    expect(queries.some((q) => q.sql.includes("DELETE FROM goalie_game_stats") && q.sql.includes("result IS NULL"))).toBe(true)
-    expect(queries.some((q) => q.sql.includes("INSERT INTO player_game_stats"))).toBe(true)
-    expect(queries.some((q) => q.sql.includes("INSERT INTO goalie_game_stats"))).toBe(true)
+  it("keeps the client-safe forfeit helpers free of database imports", () => {
+    const helpersSrc = fs.readFileSync(path.resolve(process.cwd(), "lib/forfeit-helpers.ts"), "utf-8")
+    expect(helpersSrc).not.toMatch(/from ["']@\/lib\/db/)
+    const modalSrc = fs.readFileSync(path.resolve(process.cwd(), "components/admin/edit-game-modal.tsx"), "utf-8")
+    expect(modalSrc).toContain('from "@/lib/forfeit-helpers"')
+    expect(modalSrc).not.toContain('from "@/lib/forfeit-sync"')
   })
 
   it("advances a playoff series winner when a game is won via forfeit", async () => {

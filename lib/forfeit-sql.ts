@@ -10,7 +10,7 @@ import { sql, type SQL } from "drizzle-orm"
  */
 export function forfeitEligibleGamePredicate(teamSlugExpr: SQL): SQL {
   return sql`(
-    NOT g.is_forfeit
+    (NOT g.is_forfeit AND g.status != 'upcoming')
     OR (
       g.status = 'final'
       AND (
