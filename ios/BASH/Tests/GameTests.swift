@@ -159,3 +159,151 @@ final class GameTests: XCTestCase {
     }
 
 }
+
+final class LiveGoalieTests: XCTestCase {
+    private func live(_ overrides: [String: Any] = [:], goalieIds: [Int] = [3, 4]) throws -> GameLive {
+        var state: [String: Any] = [
+            "period": 2, "goals": [goal(team: "away")], "penalties": [],
+            "homeShots": [4, 2, 0], "awayShots": [6, 4, 0],
+            "homeAttendance": [1, 3], "awayAttendance": [2, 4],
+            "homeGoalieId": 3, "awayGoalieId": 4
+        ]
+        state.merge(overrides) { _, new in new }
+        let json: [String: Any] = [
+            "state": state, "playerNames": ["1": "Skater", "3": "Home goalie", "4": "Away goalie", "5": "Relief goalie"],
+            "homeScore": 0, "awayScore": 1, "status": "live", "goalieIds": goalieIds, "subPlayerIds": [4]
+        ]
+        return try JSONDecoder().decode(GameLive.self, from: JSONSerialization.data(withJSONObject: json))
+    }
+
+    private func goal(team: String, period: Int = 1, clock: String = "15:00", flags: [String] = []) -> [String: Any] {
+        ["id": "\(team)-\(period)-\(clock)", "team": team, "period": period, "clock": clock,
+         "scorerId": 2, "assist1Id": NSNull(), "assist2Id": NSNull(), "flags": flags]
+    }
+
+    private func change(snapshot: Bool = true) -> [String: Any] {
+        var value: [String: Any] = ["team": "home", "period": 1, "clock": "10:00", "outGoalieId": 3, "inGoalieId": 5]
+        if snapshot { value["shotSnapshot"] = ["period": 1, "clock": "10:00", "opponentShots": [4, 0, 0]] }
+        return value
+    }
+
+    func testBothTeamsShowLiveGoaliesBeforeFinalizedStatsExist() throws {
+        let game = try live()
+        let home = try XCTUnwrap(game.goalies(home: true, slug: "home", opponentSlug: "away").first)
+        XCTAssertEqual(home.id, 3)
+        XCTAssertEqual(home.name, "Home goalie")
+        XCTAssertEqual(home.goalsAgainst, 1)
+        XCTAssertEqual(home.shotsAgainst, 10)
+        XCTAssertEqual(home.saves, 9)
+        XCTAssertEqual(home.savePercentage, "0.900")
+        XCTAssertNil(home.seconds, "Live TOI is unknown, rather than zero")
+        let away = try XCTUnwrap(game.goalies(home: false, slug: "away", opponentSlug: "home").first)
+        XCTAssertEqual(away.id, 4)
+        XCTAssertEqual(away.goalsAgainst, 0)
+        XCTAssertEqual(away.saves, 6)
+        XCTAssertTrue(away.isSub)
+    }
+
+    func testLiveUpdatesReplacePreviousShotTotals() throws {
+        let game = try live(["awayShots": [6, 7, 0]])
+        let goalie = try XCTUnwrap(game.goalies(home: true, slug: "home", opponentSlug: "away").first)
+        XCTAssertEqual(goalie.shotsAgainst, 13)
+        XCTAssertEqual(goalie.saves, 12)
+        XCTAssertEqual(goalie.savePercentage, "0.923")
+    }
+
+    func testEmptyNetAndShootoutGoalsAreNotChargedToGoalie() throws {
+        let goals = [goal(team: "away"), goal(team: "away", period: 3, flags: ["ENG"]), goal(team: "away", period: 5)]
+        let game = try live(["period": 5, "goals": goals, "awayShots": [6, 4, 1, 2]])
+        let goalie = try XCTUnwrap(game.goalies(home: true, slug: "home", opponentSlug: "away").first)
+        XCTAssertEqual(goalie.goalsAgainst, 1)
+        XCTAssertEqual(goalie.shotsAgainst, 12)
+        XCTAssertEqual(goalie.saves, 11)
+    }
+
+    func testPlayoffExtraOvertimeGoalCounts() throws {
+        let game = try live(["period": 5, "goals": [goal(team: "away", period: 5)]])
+        XCTAssertEqual(game.goalies(home: true, slug: "home", opponentSlug: "away", isPlayoff: true).first?.goalsAgainst, 1)
+        XCTAssertEqual(game.goalies(home: true, slug: "home", opponentSlug: "away").first?.goalsAgainst, 0)
+    }
+
+    func testZeroShotsAndAssignedGoalieWithoutAttendance() throws {
+        let game = try live(["goals": [], "awayShots": [0, 0, 0], "homeAttendance": [1]])
+        let goalie = try XCTUnwrap(game.goalies(home: true, slug: "home", opponentSlug: "away").first)
+        XCTAssertEqual(goalie.id, 3)
+        XCTAssertEqual(goalie.saves, 0)
+        XCTAssertEqual(goalie.savePercentage, "0.000")
+    }
+
+    func testLegacyPayloadAndNoAssignedGoalie() throws {
+        let game = try live(["homeGoalieId": NSNull(), "awayGoalieId": NSNull()])
+        XCTAssertEqual(game.goalies(home: true, slug: "home", opponentSlug: "away").map(\.id), [3])
+        let empty = try live(["homeGoalieId": NSNull()], goalieIds: [4])
+        XCTAssertTrue(empty.goalies(home: true, slug: "home", opponentSlug: "away").isEmpty)
+    }
+
+    func testSubstitutionSplitsShotsAndGoalsAndKeepsBothGoaliesOutOfSkaters() throws {
+        let game = try live([
+            "homeGoalieId": 5, "homeAttendance": [1, 3, 5], "goalieChanges": [change()],
+            "goals": [goal(team: "away"), goal(team: "away", clock: "5:00")]
+        ], goalieIds: [5, 4])
+        let goalies = game.goalies(home: true, slug: "home", opponentSlug: "away")
+        XCTAssertEqual(goalies.map(\.id), [3, 5])
+        XCTAssertEqual(goalies.map(\.goalsAgainst), [1, 1])
+        XCTAssertEqual(goalies.map(\.shotsAgainst), [4, 6])
+        XCTAssertEqual(goalies.map(\.saves), [3, 5])
+        XCTAssertEqual(game.skaters(home: true, slug: "home").map(\.id), [1])
+    }
+
+    func testUnknownSubstitutionSplitKeepsNamesWithoutInventingSaves() throws {
+        let game = try live(["homeGoalieId": 5, "goalieChanges": [change(snapshot: false)]])
+        let goalies = game.goalies(home: true, slug: "home", opponentSlug: "away")
+        XCTAssertEqual(goalies.map(\.name), ["Home goalie", "Relief goalie"])
+        XCTAssertTrue(goalies.allSatisfy { $0.shotsAgainst == nil && $0.saves == nil && $0.savePercentage == "–" })
+    }
+
+    func testReturningGoalieCombinesStints() throws {
+        let returning: [String: Any] = ["team": "home", "period": 2, "clock": "18:00", "outGoalieId": 5, "inGoalieId": 3,
+                                        "shotSnapshot": ["period": 2, "clock": "18:00", "opponentShots": [6, 1, 0]]]
+        let game = try live(["goalieChanges": [change(), returning],
+                             "goals": [goal(team: "away"), goal(team: "away", clock: "5:00"), goal(team: "away", period: 2)]])
+        let goalies = game.goalies(home: true, slug: "home", opponentSlug: "away")
+        XCTAssertEqual(goalies.map(\.shotsAgainst), [7, 3])
+        XCTAssertEqual(goalies.map(\.goalsAgainst), [2, 1])
+        XCTAssertEqual(goalies.map(\.saves), [5, 2])
+    }
+
+    func testLegacyShotSplitBecomesUnavailableWhenLiveShotsChange() throws {
+        let split: [String: Any] = ["homeGoalieId": 5, "goalieChanges": [change(snapshot: false)], "goalieShotsAgainst": ["3": 4, "5": 6]]
+        let game = try live(split)
+        XCTAssertEqual(game.goalies(home: true, slug: "home", opponentSlug: "away").map(\.shotsAgainst), [4, 6])
+        var updated = split
+        updated["awayShots"] = [6, 5, 0]
+        let refreshed = try live(updated)
+        XCTAssertTrue(refreshed.goalies(home: true, slug: "home", opponentSlug: "away").allSatisfy { $0.saves == nil })
+    }
+
+    func testEditedSubstitutionDoesNotReuseOldShotSnapshot() throws {
+        var edited = change()
+        edited["clock"] = "11:00"
+        let game = try live(["homeGoalieId": 5, "goalieChanges": [edited]])
+        XCTAssertTrue(game.goalies(home: true, slug: "home", opponentSlug: "away").allSatisfy { $0.shotsAgainst == nil })
+    }
+
+    func testGoalEnteredBeforeShotsDoesNotCreateNegativeSaves() throws {
+        let game = try live(["awayShots": [0, 0, 0]])
+        let goalie = try XCTUnwrap(game.goalies(home: true, slug: "home", opponentSlug: "away").first)
+        XCTAssertEqual(goalie.goalsAgainst, 1)
+        XCTAssertNil(goalie.saves)
+        XCTAssertNil(goalie.shotsAgainst)
+    }
+
+    func testFinalizedGoalieStatsStillDecodeTimeAndFullTotals() throws {
+        let json = #"{"id":3,"name":"Home goalie","seconds":3600,"goalsAgainst":1,"shotsAgainst":20,"saves":19,"savePercentage":"0.950","isSub":false}"#
+        let goalie = try JSONDecoder().decode(BoxGoalie.self, from: Data(json.utf8))
+        XCTAssertEqual(goalie.seconds, 3600)
+        XCTAssertEqual(goalie.shotsAgainst, 20)
+        XCTAssertEqual(goalie.saves, 19)
+        XCTAssertEqual(goalie.savePercentage, "0.950")
+    }
+}

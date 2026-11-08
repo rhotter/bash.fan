@@ -15,10 +15,10 @@ struct BoxSkater: Decodable, Identifiable {
 struct BoxGoalie: Decodable, Identifiable {
     let id: Int
     let name: String
-    let seconds: Int
+    let seconds: Int?
     let goalsAgainst: Int
-    let shotsAgainst: Int
-    let saves: Int
+    let shotsAgainst: Int?
+    let saves: Int?
     let savePercentage: String
     let isSub: Bool
 }
@@ -74,6 +74,10 @@ struct GameLive: Decodable {
         let awayShots: [Int]
         let homeAttendance: [Int]
         let awayAttendance: [Int]
+        var homeGoalieId: Int? = nil
+        var awayGoalieId: Int? = nil
+        var goalieChanges: [GoalieChange]? = nil
+        var goalieShotsAgainst: [String: Int]? = nil
         let threeStars: [Int]?
         let shootout: Shootout?
     }
@@ -82,6 +86,23 @@ struct GameLive: Decodable {
         let awayAttempts: [Attempt]
     }
     struct Attempt: Decodable { let playerId: Int; let scored: Bool }
+    struct GoalieChange: Decodable {
+        let team: String
+        let period: Int
+        let clock: String
+        let outGoalieId: Int
+        let inGoalieId: Int
+        let shotSnapshot: ShotSnapshot?
+        struct ShotSnapshot: Decodable {
+            let period: Int
+            let clock: String
+            let opponentShots: [Int]
+        }
+    }
+    var allGoalieIds: Set<Int> {
+        Set(goalieIds + [state.homeGoalieId, state.awayGoalieId].compactMap { $0 }
+            + (state.goalieChanges ?? []).flatMap { [$0.outGoalieId, $0.inGoalieId] })
+    }
     func name(_ id: Int) -> String { playerNames[String(id)] ?? "Player #\(id)" }
     static func clockSeconds(_ value: String) -> Int {
         let parts = value.split(separator: ":").compactMap { Int($0) }
@@ -98,13 +119,83 @@ struct GameLive: Decodable {
         let goals = state.goals.filter { $0.team == slug && $0.period <= 4 }
         let penalties = state.penalties.filter { $0.team == slug }
         let referenced = goals.flatMap { [$0.scorerId, $0.assist1Id, $0.assist2Id].compactMap { $0 } } + penalties.map(\.playerId)
-        let ids = Set((home ? state.homeAttendance : state.awayAttendance) + referenced).subtracting(goalieIds)
+        let ids = Set((home ? state.homeAttendance : state.awayAttendance) + referenced).subtracting(allGoalieIds)
         return ids.map { id in
             let g = goals.filter { $0.scorerId == id }.count
             let a = goals.filter { $0.assist1Id == id || $0.assist2Id == id }.count
             return BoxSkater(id: id, name: name(id), goals: g, assists: a, points: g + a,
                              pim: penalties.filter { $0.playerId == id }.reduce(0) { $0 + $1.minutes }, isSub: subPlayerIds.contains(id))
         }.sorted { $0.points == $1.points ? $0.name < $1.name : $0.points > $1.points }
+    }
+
+    func goalies(home: Bool, slug: String?, opponentSlug: String?, isPlayoff: Bool = false) -> [BoxGoalie] {
+        guard let slug, let opponentSlug else { return [] }
+        let changes = (state.goalieChanges ?? []).filter { $0.team == slug }.sorted {
+            $0.period == $1.period ? Self.clockSeconds($0.clock) > Self.clockSeconds($1.clock) : $0.period < $1.period
+        }
+        let assigned = home ? state.homeGoalieId : state.awayGoalieId
+        let attendance = home ? state.homeAttendance : state.awayAttendance
+        let ids = Set(assigned.map { [$0] } ?? attendance.filter { goalieIds.contains($0) })
+            .union(changes.flatMap { [$0.outGoalieId, $0.inGoalieId] })
+        let goals = state.goals.filter { $0.team == opponentSlug && (isPlayoff || $0.period <= 4) }
+        let emptyNetGoals = goals.filter { $0.flags.contains("ENG") }
+        let shots = home ? state.awayShots : state.homeShots
+        let totalShots = shots.reduce(0, +) - emptyNetGoals.count
+        let allocation = goalieShotAllocation(changes: changes, shots: shots, emptyNetGoals: emptyNetGoals, currentGoalie: assigned)
+        // Legacy manual allocations are usable only when the complete team split still matches today's live totals.
+        let manual = state.goalieShotsAgainst ?? [:]
+        let completeManual = ids.allSatisfy { manual[String($0)].map { $0 >= 0 } ?? false }
+            && ids.reduce(0) { $0 + (manual[String($1)] ?? 0) } == totalShots
+        return ids.sorted().map { id in
+            let goalsAgainst = goals.filter { goal in
+                guard !goal.flags.contains("ENG") else { return false }
+                let lastChange = changes.last { change in
+                    change.period < goal.period || (change.period == goal.period && Self.clockSeconds(change.clock) >= Self.clockSeconds(goal.clock))
+                }
+                return (lastChange?.inGoalieId ?? changes.first?.outGoalieId ?? id) == id
+            }.count
+            let recordedShots = changes.isEmpty && ids.count == 1 ? totalShots
+                : allocation?[id] ?? (completeManual ? manual[String(id)] : nil)
+            // A scorekeeper can enter a goal before updating SOG; don't display negative saves.
+            let shotsAgainst = recordedShots.flatMap { $0 >= goalsAgainst ? $0 : nil }
+            let saves = shotsAgainst.map { $0 - goalsAgainst }
+            let percentage = shotsAgainst.map { $0 > 0 ? String(format: "%.3f", Double(saves ?? 0) / Double($0)) : "0.000" } ?? "–"
+            // Live time in net isn't in the public feed. Keep TOI unavailable until the finalized box score arrives.
+            return BoxGoalie(id: id, name: name(id), seconds: nil, goalsAgainst: goalsAgainst,
+                            shotsAgainst: shotsAgainst, saves: saves, savePercentage: percentage, isSub: subPlayerIds.contains(id))
+        }
+    }
+
+    private func goalieShotAllocation(changes: [GoalieChange], shots: [Int], emptyNetGoals: [GameGoal], currentGoalie: Int?) -> [Int: Int]? {
+        guard !changes.isEmpty, changes.last?.inGoalieId == currentGoalie,
+              (3...4).contains(shots.count), shots.allSatisfy({ $0 >= 0 }) else { return nil }
+        var previousShots = [Int]()
+        var previousEmptyNetGoals = 0
+        var allocation = [Int: Int]()
+        for (index, change) in changes.enumerated() {
+            guard let snapshot = change.shotSnapshot, snapshot.period == change.period, snapshot.clock == change.clock,
+                  (3...4).contains(snapshot.opponentShots.count),
+                  change.outGoalieId != change.inGoalieId,
+                  index == 0 || changes[index - 1].inGoalieId == change.outGoalieId else { return nil }
+            let periodIndex = min(change.period - 1, 3)
+            guard periodIndex >= 0, snapshot.opponentShots.enumerated().allSatisfy({ i, count in
+                let current = i < shots.count ? shots[i] : 0
+                let previous = i < previousShots.count ? previousShots[i] : 0
+                return count >= previous && count <= current && (i >= periodIndex || count == current) && (i <= periodIndex || count == 0)
+            }), !emptyNetGoals.contains(where: { $0.period == change.period && Self.clockSeconds($0.clock) == Self.clockSeconds(change.clock) }) else { return nil }
+            let emptyBefore = emptyNetGoals.filter {
+                $0.period < change.period || ($0.period == change.period && Self.clockSeconds($0.clock) > Self.clockSeconds(change.clock))
+            }.count
+            let faced = snapshot.opponentShots.reduce(0, +) - previousShots.reduce(0, +) - (emptyBefore - previousEmptyNetGoals)
+            guard faced >= 0 else { return nil }
+            allocation[change.outGoalieId, default: 0] += faced
+            previousShots = snapshot.opponentShots
+            previousEmptyNetGoals = emptyBefore
+        }
+        let faced = shots.reduce(0, +) - previousShots.reduce(0, +) - (emptyNetGoals.count - previousEmptyNetGoals)
+        guard let currentGoalie, faced >= 0 else { return nil }
+        allocation[currentGoalie, default: 0] += faced
+        return allocation
     }
 }
 
@@ -171,7 +262,14 @@ struct GameScreen: View {
         if current.status == "live", let live { return live.skaters(home: homeSelected, slug: slug) }
         return (homeSelected ? detail?.homePlayers : detail?.awayPlayers) ?? []
     }
-    private var goalies: [BoxGoalie] { (homeSelected ? detail?.homeGoalies : detail?.awayGoalies) ?? [] }
+    private var goalies: [BoxGoalie] { goalies(home: homeSelected) }
+    private func goalies(home: Bool) -> [BoxGoalie] {
+        if current.status == "live", let live {
+            return live.goalies(home: home, slug: home ? current.homeSlug : current.awaySlug,
+                                opponentSlug: home ? current.awaySlug : current.homeSlug, isPlayoff: current.isPlayoff)
+        }
+        return (home ? detail?.homeGoalies : detail?.awayGoalies) ?? []
+    }
     var body: some View {
         VStack(spacing: 0) {
             VStack(spacing: 4) {
@@ -298,7 +396,9 @@ struct GameScreen: View {
                 }.font(.caption).foregroundStyle(.secondary)
             }
             ForEach(goalies) { goalie in
-                let time = String(format: "%d:%02d", goalie.seconds / 60, goalie.seconds % 60)
+                let time = goalie.seconds.map { String(format: "%d:%02d", $0 / 60, $0 % 60) } ?? "–"
+                let saves = goalie.saves.map(String.init) ?? "–"
+                let shotsAgainst = goalie.shotsAgainst.map(String.init) ?? "–"
                 NavigationLink {
                     PlayerScreen(player: Skater(teamSlug: slug, id: goalie.id, name: goalie.name, team: team, gp: 1, goals: 0, assists: 0, points: 0), store: store, prefersGoalieStats: true)
                 } label: {
@@ -308,11 +408,11 @@ struct GameScreen: View {
                             if goalie.isSub { Text("Sub").font(.caption2).foregroundStyle(.secondary) }
                         }
                         Spacer(minLength: 4)
-                        goalieColumns(["\(goalie.saves)", "\(goalie.shotsAgainst)", "\(goalie.goalsAgainst)", goalie.savePercentage, time])
+                        goalieColumns([saves, shotsAgainst, "\(goalie.goalsAgainst)", goalie.savePercentage, time])
                     }.font(.subheadline).foregroundStyle(.primary)
                 }
                 .accessibilityIdentifier("goalie-stats-\(goalie.id)")
-                .accessibilityLabel("\(goalie.name), \(goalie.saves) saves, \(goalie.shotsAgainst) shots against, \(goalie.goalsAgainst) goals against, save percentage \(goalie.savePercentage), time played \(time)")
+                .accessibilityLabel("\(goalie.name), \(goalie.saves.map(String.init) ?? "unavailable") saves, \(goalie.shotsAgainst.map(String.init) ?? "unavailable") shots against, \(goalie.goalsAgainst) goals against, save percentage \(goalie.savePercentage), time played \(goalie.seconds == nil ? "unavailable" : time)")
                 .alignmentGuide(.listRowSeparatorLeading) { _ in 0 }
             }
         }
@@ -396,10 +496,10 @@ struct GameScreen: View {
         for home in [false, true] {
             let slug = home ? current.homeSlug : current.awaySlug
             let team = home ? current.homeTeam : current.awayTeam
-            let goalies = (home ? detail?.homeGoalies : detail?.awayGoalies) ?? []
+            let goalies = goalies(home: home)
             if let goalie = goalies.first(where: { $0.id == id }) {
                 let player = Skater(teamSlug: slug, id: id, name: goalie.name, team: team, gp: 1, goals: 0, assists: 0, points: 0)
-                return (player, "\(goalie.saves) SV · \(goalie.goalsAgainst) GA · \(goalie.savePercentage) SV%", true)
+                return (player, "\(goalie.saves.map(String.init) ?? "–") SV · \(goalie.goalsAgainst) GA · \(goalie.savePercentage) SV%", true)
             }
             let players = current.status == "live" ? live.skaters(home: home, slug: slug) : ((home ? detail?.homePlayers : detail?.awayPlayers) ?? [])
             if let player = players.first(where: { $0.id == id }) {
@@ -412,7 +512,7 @@ struct GameScreen: View {
         let slug = home ? current.homeSlug : away ? current.awaySlug : eventTeam
         let team = slug == nil ? "" : slug == current.homeSlug ? current.homeTeam : slug == current.awaySlug ? current.awayTeam : ""
         let player = Skater(teamSlug: slug, id: id, name: live.name(id), team: team, gp: 1, goals: 0, assists: 0, points: 0)
-        return (player, nil, live.goalieIds.contains(id))
+        return (player, nil, live.allGoalieIds.contains(id))
     }
     private func columns(_ values: [String]) -> some View {
         HStack(spacing: 6) { ForEach(Array(values.enumerated()), id: \.offset) { _, value in Text(value).frame(width: 28, alignment: .trailing) } }.monospacedDigit()
