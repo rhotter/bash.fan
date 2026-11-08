@@ -1,0 +1,37 @@
+name: BASH App Store submission
+
+on:
+  push:
+    branches: [main]
+    paths: ['.github/app-store-release.json']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bash-app-store-submission
+  cancel-in-progress: false
+
+jobs:
+  app-store:
+    runs-on: macos-15-intel
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: ios/BASH
+    env:
+      ASC_KEY_ID: ${{ secrets.BASH_ASC_KEY_ID }}
+      ASC_ISSUER_ID: ${{ secrets.BASH_ASC_ISSUER_ID }}
+      ASC_KEY_P8_BASE64: ${{ secrets.BASH_ASC_KEY_P8_BASE64 }}
+      FASTLANE_SKIP_UPDATE_CHECK: 'true'
+      FASTLANE_OPT_OUT_USAGE: 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.3'
+          bundler-cache: true
+          working-directory: ios/BASH
+      - name: Inspect or submit the existing build
+        run: bundle exec ruby ../../.github/scripts/bash-app-store.rb
