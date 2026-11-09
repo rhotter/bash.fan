@@ -5,7 +5,6 @@ import { fetchApi as fetch, readApiJson, errorMessage } from "@/lib/api-errors"
 import { Spinner } from "@/components/ui/spinner"
 import { useState, useEffect, useCallback, useMemo } from "react"
 import { Plus, Calendar, Trash2, Edit, Shuffle, Trophy, ArrowRightLeft, AlertCircle, LayoutGrid, List, Users, Printer } from "lucide-react"
-import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { TeamLogo } from "@/components/team-logo"
 import { Button } from "@/components/ui/button"
@@ -74,6 +73,7 @@ export interface ScheduleGame {
   hasShootout: boolean
   isForfeit: boolean
   hasBoxscore?: boolean
+  hasLiveScorekeeperData?: boolean
   isPlayoff: boolean
   title: string | null
   notes: string | null
@@ -112,6 +112,7 @@ export function SeasonScheduleTab({ seasonId, seasonStatus, initialTeams, defaul
   const [isReplacing, setIsReplacing] = useState(false)
 
   const isEditable = seasonStatus === "draft" || seasonStatus === "active"
+  const canEditGames = isEditable || seasonStatus === "completed"
 
   const fetchGames = useCallback(async () => {
     setIsLoading(true)
@@ -539,7 +540,7 @@ export function SeasonScheduleTab({ seasonId, seasonStatus, initialTeams, defaul
                       <TableHead className="w-[40px] text-center">Score</TableHead>
                       <TableHead>Home</TableHead>
                       <TableHead className="w-[80px]">Status</TableHead>
-                      {isEditable && <TableHead className="w-[80px]" />}
+                      {canEditGames && <TableHead className="w-[80px]" />}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -593,10 +594,10 @@ export function SeasonScheduleTab({ seasonId, seasonStatus, initialTeams, defaul
                             )}
                           </div>
                         </TableCell>
-                        {isEditable && (
+                        {canEditGames && (
                           <TableCell className="py-1.5">
                             <div className="flex items-center gap-0.5">
-                              {(g.gameType === "exhibition" || g.gameType === "tryout") && (
+                              {isEditable && (g.gameType === "exhibition" || g.gameType === "tryout") && (
                                 <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openRosterModal(g)} title="Manage Roster">
                                   <Users className="h-3.5 w-3.5" />
                                 </Button>
@@ -606,17 +607,14 @@ export function SeasonScheduleTab({ seasonId, seasonStatus, initialTeams, defaul
                                   <Printer className="h-3.5 w-3.5" />
                                 </Button>
                               )}
-                              <Button variant="ghost" size="icon" className="h-7 w-7" asChild title="Scorekeeper">
-                                <Link href={`/admin/games/${g.id}/edit`}>
-                                  <Trophy className="h-3.5 w-3.5" />
-                                </Link>
-                              </Button>
                               <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEditGame(g)} title="Edit Game">
                                 <Edit className="h-3.5 w-3.5" />
                               </Button>
-                              <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:bg-destructive/10" onClick={() => setDeleteId(g.id)} title="Delete Game">
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </Button>
+                              {isEditable && (
+                                <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:bg-destructive/10" onClick={() => setDeleteId(g.id)} title="Delete Game">
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </Button>
+                              )}
                             </div>
                           </TableCell>
                         )}
@@ -694,9 +692,9 @@ export function SeasonScheduleTab({ seasonId, seasonStatus, initialTeams, defaul
 
                         </div>
                         
-                        {isEditable && (
+                        {canEditGames && (
                           <div className="flex items-center gap-1 mt-3 sm:mt-0 ml-4">
-                            {(g.gameType === "exhibition" || g.gameType === "tryout") && (
+                            {isEditable && (g.gameType === "exhibition" || g.gameType === "tryout") && (
                               <Button variant="ghost" size="icon" onClick={() => openRosterModal(g)} title="Manage Roster">
                                 <Users className="h-4 w-4" />
                               </Button>
@@ -706,17 +704,14 @@ export function SeasonScheduleTab({ seasonId, seasonStatus, initialTeams, defaul
                                 <Printer className="h-4 w-4" />
                               </Button>
                             )}
-                            <Button variant="ghost" size="icon" asChild title="Scorekeeper">
-                              <Link href={`/admin/games/${g.id}/edit`}>
-                                <Trophy className="h-4 w-4" />
-                              </Link>
-                            </Button>
                             <Button variant="ghost" size="icon" onClick={() => openEditGame(g)} title="Edit Game">
                               <Edit className="h-4 w-4" />
                             </Button>
-                            <Button variant="ghost" size="icon" className="text-destructive hover:bg-destructive/10" onClick={() => setDeleteId(g.id)} title="Delete Game">
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
+                            {isEditable && (
+                              <Button variant="ghost" size="icon" className="text-destructive hover:bg-destructive/10" onClick={() => setDeleteId(g.id)} title="Delete Game">
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            )}
                           </div>
                         )}
                       </div>
@@ -773,6 +768,7 @@ export function SeasonScheduleTab({ seasonId, seasonStatus, initialTeams, defaul
           hasShootout: editingGame.hasShootout,
           isForfeit: editingGame.isForfeit,
           hasBoxscore: editingGame.hasBoxscore,
+          hasLiveScorekeeperData: editingGame.hasLiveScorekeeperData,
           title: editingGame.title,
           notes: editingGame.notes,
           homeNotes: editingGame.homeNotes,
