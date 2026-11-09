@@ -3,6 +3,7 @@ import { sql } from "drizzle-orm"
 import { getCurrentSeason, isStatsOnlySeason } from "@/lib/seasons"
 import { filterLegacyTeams } from "@/lib/team-filters"
 import { DEFAULT_GAME_LENGTH_MIN } from "@/lib/game-rules"
+import { forfeitEligibleGamePredicate, effectiveRowTeamSlugSql } from "@/lib/forfeit-sql"
 
 export type { TeamSkaterStat, TeamGoalieStat, TeamStatsData } from "@/lib/fetch-team-stats"
 import type { TeamSkaterStat, TeamGoalieStat } from "@/lib/fetch-team-stats"
@@ -107,20 +108,28 @@ export async function fetchPlayerStats(
   const hasPlayoffs = playoffCheck[0]?.has_playoffs ?? false
 
   if (isAllTime) {
+    const skaterForfeitPred = forfeitEligibleGamePredicate(effectiveRowTeamSlugSql("pgs"))
+    const goalieForfeitPred = forfeitEligibleGamePredicate(effectiveRowTeamSlugSql("ggs"))
     ;[skaterRows, goalieRows, teamRows] = await Promise.all([
       rawSql(sql`
         WITH game_stats AS (
           SELECT
             pgs.player_id,
             COUNT(DISTINCT pgs.game_id)::int as gp,
-            SUM(pgs.goals)::int as goals, SUM(pgs.assists)::int as assists,
-            SUM(pgs.points)::int as points, SUM(pgs.gwg)::int as gwg,
-            SUM(pgs.ppg)::int as ppg, SUM(pgs.shg)::int as shg,
-            SUM(pgs.eng)::int as eng, SUM(pgs.hat_tricks)::int as hat_tricks,
-            SUM(pgs.pen)::int as pen, SUM(pgs.pim)::int as pim,
+            COUNT(DISTINCT pgs.game_id) FILTER (WHERE NOT g.is_forfeit)::int as played_gp,
+            COALESCE(SUM(pgs.goals) FILTER (WHERE NOT g.is_forfeit), 0)::int as goals,
+            COALESCE(SUM(pgs.assists) FILTER (WHERE NOT g.is_forfeit), 0)::int as assists,
+            COALESCE(SUM(pgs.points) FILTER (WHERE NOT g.is_forfeit), 0)::int as points,
+            COALESCE(SUM(pgs.gwg) FILTER (WHERE NOT g.is_forfeit), 0)::int as gwg,
+            COALESCE(SUM(pgs.ppg) FILTER (WHERE NOT g.is_forfeit), 0)::int as ppg,
+            COALESCE(SUM(pgs.shg) FILTER (WHERE NOT g.is_forfeit), 0)::int as shg,
+            COALESCE(SUM(pgs.eng) FILTER (WHERE NOT g.is_forfeit), 0)::int as eng,
+            COALESCE(SUM(pgs.hat_tricks) FILTER (WHERE NOT g.is_forfeit), 0)::int as hat_tricks,
+            COALESCE(SUM(pgs.pen) FILTER (WHERE NOT g.is_forfeit), 0)::int as pen,
+            COALESCE(SUM(pgs.pim) FILTER (WHERE NOT g.is_forfeit), 0)::int as pim,
             COUNT(DISTINCT g.season_id)::int as seasons_played
           FROM player_game_stats pgs
-          JOIN games g ON pgs.game_id = g.id AND NOT g.is_forfeit AND ${playoffFilter} AND ${gameTypeFragment}
+          JOIN games g ON pgs.game_id = g.id AND ${skaterForfeitPred} AND ${playoffFilter} AND ${gameTypeFragment}
           JOIN seasons s ON g.season_id = s.id AND ${seasonTypeFragment}
           WHERE NOT pgs.is_sub
           GROUP BY pgs.player_id
@@ -142,6 +151,7 @@ export async function fetchPlayerStats(
           SELECT
             COALESCE(gs.player_id, hs.player_id) as player_id,
             COALESCE(gs.gp, 0) + COALESCE(hs.gp, 0) as gp,
+            COALESCE(gs.played_gp, 0) + COALESCE(hs.gp, 0) as played_gp,
             COALESCE(gs.goals, 0) + COALESCE(hs.goals, 0) as goals,
             COALESCE(gs.assists, 0) + COALESCE(hs.assists, 0) as assists,
             COALESCE(gs.points, 0) + COALESCE(hs.points, 0) as points,
@@ -162,7 +172,7 @@ export async function fetchPlayerStats(
            WHERE ps2.player_id = c.player_id ORDER BY ps2.season_id DESC LIMIT 1) as team,
           (SELECT ps2.team_slug FROM player_seasons ps2
            WHERE ps2.player_id = c.player_id ORDER BY ps2.season_id DESC LIMIT 1) as team_slug,
-          c.gp, c.goals, c.assists, c.points, c.gwg, c.ppg, c.shg, c.eng,
+          c.gp, c.played_gp, c.goals, c.assists, c.points, c.gwg, c.ppg, c.shg, c.eng,
           c.hat_tricks, c.pen, c.pim, c.seasons_played
         FROM combined c
         JOIN players p ON c.player_id = p.id
@@ -176,24 +186,24 @@ export async function fetchPlayerStats(
           (SELECT ps2.team_slug FROM player_seasons ps2
            WHERE ps2.player_id = p.id ORDER BY ps2.season_id DESC LIMIT 1) as team_slug,
           COUNT(DISTINCT ggs.game_id)::int as gp,
-          SUM(ggs.seconds)::int as seconds,
-          SUM(ggs.goals_against)::int as goals_against,
-          SUM(ggs.shots_against)::int as shots_against,
-          SUM(ggs.saves)::int as saves,
-          SUM(ggs.shutouts)::int as shutouts,
-          SUM(ggs.goalie_assists)::int as goalie_assists,
-          CASE WHEN SUM(ggs.shots_against) > 0
-            THEN SUM(ggs.saves)::float / SUM(ggs.shots_against)::float
+          COALESCE(SUM(ggs.seconds) FILTER (WHERE NOT g.is_forfeit), 0)::int as seconds,
+          COALESCE(SUM(ggs.goals_against) FILTER (WHERE NOT g.is_forfeit), 0)::int as goals_against,
+          COALESCE(SUM(ggs.shots_against) FILTER (WHERE NOT g.is_forfeit), 0)::int as shots_against,
+          COALESCE(SUM(ggs.saves) FILTER (WHERE NOT g.is_forfeit), 0)::int as saves,
+          COALESCE(SUM(ggs.shutouts) FILTER (WHERE NOT g.is_forfeit), 0)::int as shutouts,
+          COALESCE(SUM(ggs.goalie_assists) FILTER (WHERE NOT g.is_forfeit), 0)::int as goalie_assists,
+          CASE WHEN COALESCE(SUM(ggs.shots_against) FILTER (WHERE NOT g.is_forfeit), 0) > 0
+            THEN (COALESCE(SUM(ggs.saves) FILTER (WHERE NOT g.is_forfeit), 0))::float / (COALESCE(SUM(ggs.shots_against) FILTER (WHERE NOT g.is_forfeit), 0))::float
             ELSE 0 END as save_pct,
-          CASE WHEN SUM(ggs.seconds) > 0
-            THEN (SUM(ggs.goals_against)::float / SUM(ggs.seconds)::float) * 3600
+          CASE WHEN COALESCE(SUM(ggs.seconds) FILTER (WHERE NOT g.is_forfeit), 0) > 0
+            THEN ((COALESCE(SUM(ggs.goals_against) FILTER (WHERE NOT g.is_forfeit), 0))::float / (COALESCE(SUM(ggs.seconds) FILTER (WHERE NOT g.is_forfeit), 0))::float) * 3600
             ELSE 0 END as gaa,
-          COUNT(*) FILTER (WHERE ggs.result = 'W')::int as wins,
-          COUNT(*) FILTER (WHERE ggs.result = 'L')::int as losses,
+          COUNT(*) FILTER (WHERE NOT g.is_forfeit AND ggs.result = 'W')::int as wins,
+          COUNT(*) FILTER (WHERE NOT g.is_forfeit AND ggs.result = 'L')::int as losses,
           COUNT(DISTINCT g.season_id)::int as seasons_played
         FROM players p
         JOIN goalie_game_stats ggs ON p.id = ggs.player_id
-        JOIN games g ON ggs.game_id = g.id AND NOT g.is_forfeit AND ${playoffFilter} AND ${gameTypeFragment}
+        JOIN games g ON ggs.game_id = g.id AND ${goalieForfeitPred} AND ${playoffFilter} AND ${gameTypeFragment}
         JOIN seasons s ON g.season_id = s.id AND ${seasonTypeFragment}
         WHERE NOT ggs.is_sub
         GROUP BY p.id, p.name
@@ -208,7 +218,7 @@ export async function fetchPlayerStats(
         SELECT
           p.id, p.name,
           t.name as team, pss.team_slug,
-          pss.gp, pss.goals, pss.assists, pss.points,
+          pss.gp, pss.gp as played_gp, pss.goals, pss.assists, pss.points,
           pss.gwg, pss.ppg, pss.shg, pss.eng,
           pss.hat_tricks, pss.pen, pss.pim
         FROM player_season_stats pss
@@ -228,6 +238,8 @@ export async function fetchPlayerStats(
     ])
   } else {
     const playoffFragment = isPlayoff ? sql`g.is_playoff` : sql`NOT g.is_playoff`
+    const skaterForfeitPred = forfeitEligibleGamePredicate(effectiveRowTeamSlugSql("pgs"))
+    const goalieForfeitPred = forfeitEligibleGamePredicate(effectiveRowTeamSlugSql("ggs"))
     ;[skaterRows, goalieRows, teamRows] = await Promise.all([
       rawSql(sql`
         SELECT
@@ -237,19 +249,20 @@ export async function fetchPlayerStats(
           COALESCE(ct.name, gt.name) as team,
           COALESCE(ps.team_slug, COALESCE(pgs.team_slug, ps.team_slug)) as team_slug,
           COUNT(DISTINCT pgs.game_id)::int as gp,
-          SUM(pgs.goals)::int as goals,
-          SUM(pgs.assists)::int as assists,
-          SUM(pgs.points)::int as points,
-          SUM(pgs.gwg)::int as gwg,
-          SUM(pgs.ppg)::int as ppg,
-          SUM(pgs.shg)::int as shg,
-          SUM(pgs.eng)::int as eng,
-          SUM(pgs.hat_tricks)::int as hat_tricks,
-          SUM(pgs.pen)::int as pen,
-          SUM(pgs.pim)::int as pim
+          COUNT(DISTINCT pgs.game_id) FILTER (WHERE NOT g.is_forfeit)::int as played_gp,
+          COALESCE(SUM(pgs.goals) FILTER (WHERE NOT g.is_forfeit), 0)::int as goals,
+          COALESCE(SUM(pgs.assists) FILTER (WHERE NOT g.is_forfeit), 0)::int as assists,
+          COALESCE(SUM(pgs.points) FILTER (WHERE NOT g.is_forfeit), 0)::int as points,
+          COALESCE(SUM(pgs.gwg) FILTER (WHERE NOT g.is_forfeit), 0)::int as gwg,
+          COALESCE(SUM(pgs.ppg) FILTER (WHERE NOT g.is_forfeit), 0)::int as ppg,
+          COALESCE(SUM(pgs.shg) FILTER (WHERE NOT g.is_forfeit), 0)::int as shg,
+          COALESCE(SUM(pgs.eng) FILTER (WHERE NOT g.is_forfeit), 0)::int as eng,
+          COALESCE(SUM(pgs.hat_tricks) FILTER (WHERE NOT g.is_forfeit), 0)::int as hat_tricks,
+          COALESCE(SUM(pgs.pen) FILTER (WHERE NOT g.is_forfeit), 0)::int as pen,
+          COALESCE(SUM(pgs.pim) FILTER (WHERE NOT g.is_forfeit), 0)::int as pim
         FROM players p
         JOIN player_game_stats pgs ON p.id = pgs.player_id
-        JOIN games g ON pgs.game_id = g.id AND NOT g.is_forfeit AND g.season_id = ${seasonId} AND ${playoffFragment} AND ${gameTypeFragment}
+        JOIN games g ON pgs.game_id = g.id AND ${skaterForfeitPred} AND g.season_id = ${seasonId} AND ${playoffFragment} AND ${gameTypeFragment}
         LEFT JOIN LATERAL (
           SELECT ps2.team_slug FROM player_seasons ps2
           WHERE ps2.player_id = p.id AND ps2.season_id = ${seasonId}
@@ -269,24 +282,24 @@ export async function fetchPlayerStats(
           COALESCE(ct.name, gt.name) as team,
           COALESCE(ps.team_slug, COALESCE(ggs.team_slug, ps.team_slug)) as team_slug,
           COUNT(DISTINCT ggs.game_id)::int as gp,
-          SUM(ggs.seconds)::int as seconds,
-          SUM(ggs.goals_against)::int as goals_against,
-          SUM(ggs.shots_against)::int as shots_against,
-          SUM(ggs.saves)::int as saves,
-          SUM(ggs.shutouts)::int as shutouts,
-          SUM(ggs.goalie_assists)::int as goalie_assists,
+          COALESCE(SUM(ggs.seconds) FILTER (WHERE NOT g.is_forfeit), 0)::int as seconds,
+          COALESCE(SUM(ggs.goals_against) FILTER (WHERE NOT g.is_forfeit), 0)::int as goals_against,
+          COALESCE(SUM(ggs.shots_against) FILTER (WHERE NOT g.is_forfeit), 0)::int as shots_against,
+          COALESCE(SUM(ggs.saves) FILTER (WHERE NOT g.is_forfeit), 0)::int as saves,
+          COALESCE(SUM(ggs.shutouts) FILTER (WHERE NOT g.is_forfeit), 0)::int as shutouts,
+          COALESCE(SUM(ggs.goalie_assists) FILTER (WHERE NOT g.is_forfeit), 0)::int as goalie_assists,
           COALESCE(MAX(s.game_length), ${DEFAULT_GAME_LENGTH_MIN})::int as game_length,
-          CASE WHEN SUM(ggs.shots_against) > 0
-            THEN SUM(ggs.saves)::float / SUM(ggs.shots_against)::float
+          CASE WHEN COALESCE(SUM(ggs.shots_against) FILTER (WHERE NOT g.is_forfeit), 0) > 0
+            THEN (COALESCE(SUM(ggs.saves) FILTER (WHERE NOT g.is_forfeit), 0))::float / (COALESCE(SUM(ggs.shots_against) FILTER (WHERE NOT g.is_forfeit), 0))::float
             ELSE 0 END as save_pct,
-          CASE WHEN SUM(ggs.seconds) > 0
-            THEN (SUM(ggs.goals_against)::float / SUM(ggs.seconds)::float) * (COALESCE(MAX(s.game_length), ${DEFAULT_GAME_LENGTH_MIN}) * 60)
+          CASE WHEN COALESCE(SUM(ggs.seconds) FILTER (WHERE NOT g.is_forfeit), 0) > 0
+            THEN ((COALESCE(SUM(ggs.goals_against) FILTER (WHERE NOT g.is_forfeit), 0))::float / (COALESCE(SUM(ggs.seconds) FILTER (WHERE NOT g.is_forfeit), 0))::float) * (COALESCE(MAX(s.game_length), ${DEFAULT_GAME_LENGTH_MIN}) * 60)
             ELSE 0 END as gaa,
-          COUNT(*) FILTER (WHERE ggs.result = 'W')::int as wins,
-          COUNT(*) FILTER (WHERE ggs.result = 'L')::int as losses
+          COUNT(*) FILTER (WHERE NOT g.is_forfeit AND ggs.result = 'W')::int as wins,
+          COUNT(*) FILTER (WHERE NOT g.is_forfeit AND ggs.result = 'L')::int as losses
         FROM players p
         JOIN goalie_game_stats ggs ON p.id = ggs.player_id
-        JOIN games g ON ggs.game_id = g.id AND NOT g.is_forfeit AND g.season_id = ${seasonId} AND ${playoffFragment} AND ${gameTypeFragment}
+        JOIN games g ON ggs.game_id = g.id AND ${goalieForfeitPred} AND g.season_id = ${seasonId} AND ${playoffFragment} AND ${gameTypeFragment}
         LEFT JOIN seasons s ON g.season_id = s.id
         LEFT JOIN LATERAL (
           SELECT ps2.team_slug FROM player_seasons ps2
@@ -310,25 +323,31 @@ export async function fetchPlayerStats(
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const mapSkaterRow = (r: any, useGameTeam = false): SkaterStat => ({
-    id: r.id,
-    name: r.name,
-    team: useGameTeam ? (r.game_team ?? r.team) : r.team,
-    teamSlug: useGameTeam ? (r.game_team_slug ?? r.team_slug) : r.team_slug,
-    gp: r.gp,
-    goals: r.goals,
-    assists: r.assists,
-    points: r.points,
-    ptsPg: r.gp > 0 ? (r.points / r.gp).toFixed(2) : "0.00",
-    gwg: r.gwg,
-    ppg: r.ppg,
-    shg: r.shg,
-    eng: r.eng,
-    hatTricks: r.hat_tricks,
-    pen: r.pen,
-    pim: r.pim,
-    ...(isAllTime ? { seasonsPlayed: r.seasons_played } : {}),
-  })
+  const getPlayedGp = (r: any): number => (r.played_gp !== undefined ? Number(r.played_gp) : Number(r.gp)) || 0
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const mapSkaterRow = (r: any, useGameTeam = false): SkaterStat => {
+    const playedGp = getPlayedGp(r)
+    return {
+      id: r.id,
+      name: r.name,
+      team: useGameTeam ? (r.game_team ?? r.team) : r.team,
+      teamSlug: useGameTeam ? (r.game_team_slug ?? r.team_slug) : r.team_slug,
+      gp: r.gp,
+      goals: r.goals,
+      assists: r.assists,
+      points: r.points,
+      ptsPg: playedGp > 0 ? (r.points / playedGp).toFixed(2) : "0.00",
+      gwg: r.gwg,
+      ppg: r.ppg,
+      shg: r.shg,
+      eng: r.eng,
+      hatTricks: r.hat_tricks,
+      pen: r.pen,
+      pim: r.pim,
+      ...(isAllTime ? { seasonsPlayed: r.seasons_played } : {}),
+    }
+  }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const mapGoalieRow = (r: any, useGameTeam = false): GoalieStat => ({
@@ -359,29 +378,34 @@ export async function fetchPlayerStats(
     skatersByTeam = skaterRows.map((r) => mapSkaterRow(r, true))
     goaliesByTeam = goalieRows.map((r) => mapGoalieRow(r, true))
 
-    const skaterById = new Map<number, SkaterStat>()
+    const skaterById = new Map<number, { stat: SkaterStat; playedGp: number }>()
     for (const r of skaterRows) {
+      const rowPlayedGp = getPlayedGp(r)
       const existing = skaterById.get(r.id)
       if (!existing) {
-        skaterById.set(r.id, mapSkaterRow(r, false))
+        skaterById.set(r.id, { stat: mapSkaterRow(r, false), playedGp: rowPlayedGp })
       } else {
-        existing.gp += r.gp
-        existing.goals += r.goals
-        existing.assists += r.assists
-        existing.points += r.points
-        existing.ptsPg = existing.gp > 0 ? (existing.points / existing.gp).toFixed(2) : "0.00"
-        existing.gwg += r.gwg
-        existing.ppg += r.ppg
-        existing.shg += r.shg
-        existing.eng += r.eng
-        existing.hatTricks += r.hat_tricks
-        existing.pen += r.pen
-        existing.pim += r.pim
+        const s = existing.stat
+        s.gp += r.gp
+        existing.playedGp += rowPlayedGp
+        s.goals += r.goals
+        s.assists += r.assists
+        s.points += r.points
+        s.ptsPg = existing.playedGp > 0 ? (s.points / existing.playedGp).toFixed(2) : "0.00"
+        s.gwg += r.gwg
+        s.ppg += r.ppg
+        s.shg += r.shg
+        s.eng += r.eng
+        s.hatTricks += r.hat_tricks
+        s.pen += r.pen
+        s.pim += r.pim
       }
     }
-    skaters = [...skaterById.values()].sort(
-      (a, b) => b.points - a.points || b.goals - a.goals || a.name.localeCompare(b.name),
-    )
+    skaters = [...skaterById.values()]
+      .map((entry) => entry.stat)
+      .sort(
+        (a, b) => b.points - a.points || b.goals - a.goals || a.name.localeCompare(b.name),
+      )
 
     const goalieById = new Map<number, { stat: GoalieStat; gameLength: number }>()
     for (const r of goalieRows) {

@@ -5,6 +5,7 @@ import { getSession } from "@/lib/admin-session"
 import { revalidateTag } from "next/cache"
 import { nextGameId } from "@/lib/db/game-id"
 import { normalizeTimeForStorage } from "@/lib/format-time"
+import { syncForfeitRosterStats } from "@/lib/forfeit-sync"
 
 interface RouteContext {
   params: Promise<{ id: string }>
@@ -31,7 +32,40 @@ export async function GET(_request: NextRequest, context: RouteContext) {
         g.bracket_round as "bracketRound", g.series_id as "seriesId", g.series_game_number as "seriesGameNumber",
         g.title,
         COALESCE(ht.name, g.home_team) as "homeTeam", ht.slug as "homeSlug",
-        COALESCE(awt.name, g.away_team) as "awayTeam", awt.slug as "awaySlug"
+        COALESCE(awt.name, g.away_team) as "awayTeam", awt.slug as "awaySlug",
+        EXISTS (
+          SELECT 1 FROM game_live gl
+          WHERE gl.game_id = g.id
+            AND gl.state IS NOT NULL
+            AND (
+              jsonb_typeof(gl.state->'goals') = 'array' OR
+              jsonb_typeof(gl.state->'homeAttendance') = 'array' OR
+              jsonb_typeof(gl.state->'awayAttendance') = 'array' OR
+              jsonb_typeof(gl.state->'homeShots') = 'array' OR
+              jsonb_typeof(gl.state->'awayShots') = 'array' OR
+              jsonb_typeof(gl.state->'penalties') = 'array'
+            )
+            AND (
+              COALESCE((gl.state->>'period')::int, 0) >= 1
+              OR COALESCE(jsonb_array_length(CASE WHEN jsonb_typeof(gl.state->'goals') = 'array' THEN gl.state->'goals' ELSE '[]'::jsonb END), 0) > 0
+              OR COALESCE(jsonb_array_length(CASE WHEN jsonb_typeof(gl.state->'penalties') = 'array' THEN gl.state->'penalties' ELSE '[]'::jsonb END), 0) > 0
+              OR COALESCE(jsonb_array_length(CASE WHEN jsonb_typeof(gl.state->'homeAttendance') = 'array' THEN gl.state->'homeAttendance' ELSE '[]'::jsonb END), 0) > 0
+              OR COALESCE(jsonb_array_length(CASE WHEN jsonb_typeof(gl.state->'awayAttendance') = 'array' THEN gl.state->'awayAttendance' ELSE '[]'::jsonb END), 0) > 0
+              OR (gl.state->'homeGoalieId' IS NOT NULL AND jsonb_typeof(gl.state->'homeGoalieId') <> 'null')
+              OR (gl.state->'awayGoalieId' IS NOT NULL AND jsonb_typeof(gl.state->'awayGoalieId') <> 'null')
+              OR (gl.state->'shootout' IS NOT NULL AND jsonb_typeof(gl.state->'shootout') = 'object')
+              OR EXISTS (
+                SELECT 1 FROM jsonb_array_elements_text(
+                  CASE WHEN jsonb_typeof(gl.state->'homeShots') = 'array' THEN gl.state->'homeShots' ELSE '[]'::jsonb END
+                ) s WHERE s ~ '^-?[0-9]+$' AND s::int > 0
+              )
+              OR EXISTS (
+                SELECT 1 FROM jsonb_array_elements_text(
+                  CASE WHEN jsonb_typeof(gl.state->'awayShots') = 'array' THEN gl.state->'awayShots' ELSE '[]'::jsonb END
+                ) s WHERE s ~ '^-?[0-9]+$' AND s::int > 0
+              )
+            )
+        ) as "hasLiveScorekeeperData"
       FROM games g
       LEFT JOIN teams ht ON g.home_team = ht.slug
       LEFT JOIN teams awt ON g.away_team = awt.slug
@@ -115,6 +149,10 @@ export async function POST(request: NextRequest, context: RouteContext) {
       homeNotes: homeNotes || null,
       awayNotes: awayNotes || null,
     })
+
+    if (isForfeit) {
+      await syncForfeitRosterStats(gameId)
+    }
 
     // @ts-expect-error - Next.js canary changed revalidateTag signature // TODO: Remove after Next.js stabilizes
     revalidateTag("seasons")

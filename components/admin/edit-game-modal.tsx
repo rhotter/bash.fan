@@ -3,8 +3,8 @@
 import { fetchApi as fetch, readApiJson, errorMessage } from "@/lib/api-errors"
 
 import { Spinner } from "@/components/ui/spinner"
-import { useState, useEffect, useRef } from "react"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import { useState, useEffect, useRef, useCallback, useMemo } from "react"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -19,8 +19,13 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { toast } from "sonner"
-import { Plus, X, Search, Database } from "lucide-react"
+import { Plus, X, Search, Database, Info } from "lucide-react"
 import { toHHMM } from "@/lib/format-time"
+import { applyForfeitPreset, inferForfeitingSide, type ForfeitingSide } from "@/lib/forfeit-helpers"
+import { AdminGameEditor } from "@/components/admin-editor/admin-game-editor"
+import { useAdmin } from "@/lib/admin-context"
+import type { LiveGameState, RosterPlayer } from "@/lib/scorekeeper-types"
+import type { ShotAllocationGoalie } from "@/components/scorekeeper/shared/goalie-shot-allocation"
 
 export interface GameFormData {
   id?: string
@@ -36,6 +41,13 @@ export interface GameFormData {
   isOvertime: boolean
   hasShootout: boolean
   isForfeit: boolean
+  hasBoxscore?: boolean
+  hasLiveScorekeeperData?: boolean
+  liveState?: LiveGameState | null
+  homeRoster?: RosterPlayer[]
+  awayRoster?: RosterPlayer[]
+  playerNames?: Record<number, string>
+  savedGoalies?: ShotAllocationGoalie[]
   title?: string | null
   notes: string | null
   homeNotes: string | null
@@ -58,6 +70,15 @@ interface GlobalTeam {
   name: string
 }
 
+interface EditorData {
+  hasLiveScorekeeperData: boolean
+  liveState: LiveGameState | null
+  homeRoster: RosterPlayer[]
+  awayRoster: RosterPlayer[]
+  playerNames: Record<number, string>
+  savedGoalies: ShotAllocationGoalie[]
+}
+
 function slugify(name: string): string {
   return name
     .toLowerCase()
@@ -66,6 +87,80 @@ function slugify(name: string): string {
 }
 
 const AD_HOC_GAME_TYPES = ["exhibition", "tryout"]
+
+export function deriveBoxscoreStats(
+  state: LiveGameState | null | undefined,
+  homeSlug: string,
+  awaySlug: string,
+  fallback: { homeScore: number | null; awayScore: number | null; isOvertime: boolean; hasShootout: boolean },
+  isPlayoff = false,
+  originalHomeSlug?: string,
+  originalAwaySlug?: string
+) {
+  if (!state) {
+    return {
+      homeScore: fallback.homeScore,
+      awayScore: fallback.awayScore,
+      isOvertime: fallback.isOvertime,
+      hasShootout: fallback.hasShootout,
+    }
+  }
+
+  let homeScore = 0
+  let awayScore = 0
+  for (const goal of state.goals ?? []) {
+    if (isPlayoff || goal.period <= 4) {
+      if (goal.team === "home") homeScore++
+      else if (goal.team === "away") awayScore++
+      else if (goal.team === homeSlug && goal.team !== awaySlug) homeScore++
+      else if (goal.team === awaySlug && goal.team !== homeSlug) awayScore++
+      else if (originalHomeSlug && goal.team === originalHomeSlug && goal.team !== awaySlug) homeScore++
+      else if (originalAwaySlug && goal.team === originalAwaySlug && goal.team !== homeSlug) awayScore++
+    }
+  }
+
+  let hasShootout = Boolean(state.hasShootout)
+  if (state.shootout) {
+    const isSwapped = Boolean(
+      originalHomeSlug &&
+      originalAwaySlug &&
+      homeSlug === originalAwaySlug &&
+      awaySlug === originalHomeSlug
+    )
+    const rawHomeSOGoals = state.shootout.homeAttempts?.filter((a) => a.scored).length ?? 0
+    const rawAwaySOGoals = state.shootout.awayAttempts?.filter((a) => a.scored).length ?? 0
+    const homeSOGoals = isSwapped ? rawAwaySOGoals : rawHomeSOGoals
+    const awaySOGoals = isSwapped ? rawHomeSOGoals : rawAwaySOGoals
+
+    if ((state.shootout.homeAttempts?.length ?? 0) > 0 || (state.shootout.awayAttempts?.length ?? 0) > 0) {
+      hasShootout = true
+    }
+    if (homeSOGoals > awaySOGoals) homeScore++
+    else if (awaySOGoals > homeSOGoals) awayScore++
+  }
+
+  const isOvertime = Boolean(state.isOvertime || state.period >= 4 || state.goals?.some((g) => g.period >= 4) || hasShootout)
+
+  if (
+    (state.goals?.length ?? 0) === 0 &&
+    !hasShootout &&
+    (fallback.homeScore !== null || fallback.awayScore !== null || Number(state.period ?? 0) === 0)
+  ) {
+    return {
+      homeScore: fallback.homeScore,
+      awayScore: fallback.awayScore,
+      isOvertime: fallback.isOvertime,
+      hasShootout: fallback.hasShootout,
+    }
+  }
+
+  return {
+    homeScore,
+    awayScore,
+    isOvertime,
+    hasShootout,
+  }
+}
 
 export function EditGameModal({
   open,
@@ -78,9 +173,15 @@ export function EditGameModal({
   onTeamCreated,
 }: EditGameModalProps) {
   const isEditing = !!game?.id
+  const { pin: adminPin } = useAdmin()
 
   // Local copy of teams that can grow when new teams are created/assigned inline
   const [localTeams, setLocalTeams] = useState(initialTeams)
+
+  const [modalTab, setModalTab] = useState<"boxscore" | "settings">("settings")
+  const [editorData, setEditorData] = useState<EditorData | null>(null)
+  const [isLoadingEditor, setIsLoadingEditor] = useState(false)
+  const [hasLiveScorekeeperData, setHasLiveScorekeeperData] = useState(false)
 
   const [formData, setFormData] = useState<GameFormData>({
     date: "",
@@ -101,6 +202,14 @@ export function EditGameModal({
   })
 
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [forfeitingSide, setForfeitingSide] = useState<ForfeitingSide>("away")
+  const preForfeitSnapshotRef = useRef<{
+    status: string
+    homeScore: number | null
+    awayScore: number | null
+    isOvertime: boolean
+    hasShootout: boolean
+  } | null>(null)
 
   // Inline team picker mode: null = dropdown, "create" = new team form, "search" = global team search
   const [pickerState, setPickerState] = useState<{
@@ -119,14 +228,63 @@ export function EditGameModal({
   const [globalSearch, setGlobalSearch] = useState("")
   const [isAssigningTeam, setIsAssigningTeam] = useState(false)
   const hasFetchedGlobal = useRef(false)
+  const activeGameIdRef = useRef<string | null>(null)
 
   // Sync local teams when prop changes
   useEffect(() => {
     setLocalTeams(initialTeams)
   }, [initialTeams])
 
+  const loadEditorData = useCallback(async (gameId: string) => {
+    setIsLoadingEditor(true)
+    try {
+      const res = await fetch(`/api/bash/admin/seasons/${seasonId}/schedule/${gameId}`)
+      if (activeGameIdRef.current !== gameId) return
+      if (res.ok) {
+        const data = await readApiJson(res)
+        if (activeGameIdRef.current !== gameId) return
+        setEditorData(data)
+        setHasLiveScorekeeperData(Boolean(data.hasLiveScorekeeperData))
+        return
+      }
+      // Fallback: check /api/bash/game/${gameId}/live
+      const liveRes = await fetch(`/api/bash/game/${gameId}/live`)
+      if (activeGameIdRef.current !== gameId) return
+      if (liveRes.ok) {
+        const liveData = await readApiJson(liveRes)
+        if (activeGameIdRef.current !== gameId) return
+        if (liveData?.state) {
+          setHasLiveScorekeeperData(true)
+          setEditorData({
+            hasLiveScorekeeperData: true,
+            liveState: liveData.state,
+            homeRoster: [],
+            awayRoster: [],
+            playerNames: liveData.playerNames ?? {},
+            savedGoalies: [],
+          })
+          return
+        }
+      }
+      if (activeGameIdRef.current === gameId) {
+        setHasLiveScorekeeperData(false)
+        setEditorData(null)
+      }
+    } catch {
+      if (activeGameIdRef.current === gameId) {
+        setHasLiveScorekeeperData(false)
+        setEditorData(null)
+      }
+    } finally {
+      if (activeGameIdRef.current === gameId) {
+        setIsLoadingEditor(false)
+      }
+    }
+  }, [seasonId])
+
   useEffect(() => {
     if (open) {
+      activeGameIdRef.current = game?.id ?? null
       setPickerState(null)
       setNewTeamName("")
       setNewTeamColor("#6366f1")
@@ -134,7 +292,59 @@ export function EditGameModal({
       hasFetchedGlobal.current = false
       if (game) {
         setFormData(game)
+        setForfeitingSide(inferForfeitingSide(game))
+        preForfeitSnapshotRef.current = game.isForfeit
+          ? null
+          : {
+              status: game.status,
+              homeScore: game.homeScore,
+              awayScore: game.awayScore,
+              isOvertime: game.isOvertime,
+              hasShootout: game.hasShootout,
+            }
+
+        const initialTab = game.status === "final" && !game.isForfeit ? "boxscore" : "settings"
+        setModalTab(initialTab)
+
+        if (game.liveState) {
+          setHasLiveScorekeeperData(true)
+          setEditorData({
+            hasLiveScorekeeperData: true,
+            liveState: game.liveState,
+            homeRoster: game.homeRoster ?? [],
+            awayRoster: game.awayRoster ?? [],
+            playerNames: game.playerNames ?? {},
+            savedGoalies: game.savedGoalies ?? [],
+          })
+          setIsLoadingEditor(false)
+        } else if (game.hasLiveScorekeeperData !== undefined) {
+          setHasLiveScorekeeperData(game.hasLiveScorekeeperData)
+          setEditorData(null)
+          if (game.hasLiveScorekeeperData && game.id) {
+            loadEditorData(game.id)
+          } else {
+            setIsLoadingEditor(false)
+          }
+        } else if (game.id && game.status === "final") {
+          loadEditorData(game.id)
+        } else {
+          setHasLiveScorekeeperData(false)
+          setEditorData(null)
+          setIsLoadingEditor(false)
+        }
       } else {
+        setModalTab("settings")
+        setHasLiveScorekeeperData(false)
+        setEditorData(null)
+        setIsLoadingEditor(false)
+        setForfeitingSide("away")
+        preForfeitSnapshotRef.current = {
+          status: "upcoming",
+          homeScore: null,
+          awayScore: null,
+          isOvertime: false,
+          hasShootout: false,
+        }
         setFormData({
           date: new Date().toISOString().split("T")[0],
           time: "12:00",
@@ -154,8 +364,19 @@ export function EditGameModal({
           awayNotes: null,
         })
       }
+    } else {
+      activeGameIdRef.current = null
+      setEditorData(null)
+      setIsLoadingEditor(false)
     }
-  }, [open, game, defaultLocation])
+  }, [open, game, defaultLocation, loadEditorData])
+
+  const handleTabChange = (newTab: "boxscore" | "settings") => {
+    setModalTab(newTab)
+    if (newTab === "boxscore" && game?.id && !editorData && !isLoadingEditor && game.hasLiveScorekeeperData !== false) {
+      loadEditorData(game.id)
+    }
+  }
 
   // Fetch global teams once when search mode is first opened
   const fetchGlobalTeams = async () => {
@@ -175,6 +396,39 @@ export function EditGameModal({
     }
   }
 
+  const derivedStats = useMemo(() => {
+    const isUnforfeitedWithoutSnapshot = Boolean(game?.isForfeit && !formData.isForfeit && !preForfeitSnapshotRef.current)
+    const fallbackScoreWhenUnforfeited =
+      Number(editorData?.liveState?.period ?? 0) === 0 ? null : 0
+    return deriveBoxscoreStats(
+      editorData?.liveState,
+      formData.homeTeam,
+      formData.awayTeam,
+      {
+        homeScore: isUnforfeitedWithoutSnapshot ? fallbackScoreWhenUnforfeited : formData.homeScore,
+        awayScore: isUnforfeitedWithoutSnapshot ? fallbackScoreWhenUnforfeited : formData.awayScore,
+        isOvertime: isUnforfeitedWithoutSnapshot ? false : formData.isOvertime,
+        hasShootout: isUnforfeitedWithoutSnapshot ? false : formData.hasShootout,
+      },
+      formData.gameType === "playoff" || formData.gameType === "championship",
+      game?.homeTeam,
+      game?.awayTeam
+    )
+  }, [
+    editorData?.liveState,
+    formData.homeTeam,
+    formData.awayTeam,
+    formData.homeScore,
+    formData.awayScore,
+    formData.isOvertime,
+    formData.hasShootout,
+    formData.isForfeit,
+    formData.gameType,
+    game?.isForfeit,
+    game?.homeTeam,
+    game?.awayTeam,
+  ])
+
   const handleSubmit = async () => {
     if (!formData.date || !formData.time || !formData.homeTeam || !formData.awayTeam) {
       toast.error("Please fill in all required fields")
@@ -188,10 +442,29 @@ export function EditGameModal({
         : `/api/bash/admin/seasons/${seasonId}/schedule`
       const method = isEditing ? "PATCH" : "POST"
 
+      // hasBoxscore is server-owned; strip internal and server-owned fields
+      const {
+        hasBoxscore: _hasBoxscore,
+        hasLiveScorekeeperData: _hasLive,
+        liveState: _liveState,
+        homeRoster: _hr,
+        awayRoster: _ar,
+        playerNames: _pn,
+        savedGoalies: _sg,
+        ...payload
+      } = formData as Record<string, unknown>
+
+      if (hasLiveScorekeeperData && !formData.isForfeit) {
+        payload.homeScore = derivedStats.homeScore
+        payload.awayScore = derivedStats.awayScore
+        payload.isOvertime = derivedStats.isOvertime
+        payload.hasShootout = derivedStats.hasShootout
+      }
+
       const res = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(payload),
       })
 
       if (!res.ok) {
@@ -404,7 +677,7 @@ export function EditGameModal({
               ) : (
                 <Plus className="h-3 w-3 mr-1" />
               )}
-              Create & Select
+              Create &amp; Select
             </Button>
           </div>
 
@@ -504,202 +777,422 @@ export function EditGameModal({
           </Select>
         )}
 
-        {/* Score input */}
-        <Input
-          type="number"
-          placeholder="Score"
-          value={formData[side === "home" ? "homeScore" : "awayScore"] ?? ""}
-          onChange={(e) =>
-            setFormData({
-              ...formData,
-              [side === "home" ? "homeScore" : "awayScore"]:
-                e.target.value === "" ? null : parseInt(e.target.value, 10),
-            })
-          }
-        />
+        {/* Score display or input */}
+        {hasLiveScorekeeperData && !formData.isForfeit ? (
+          <div className="space-y-1">
+            <Input
+              type="number"
+              placeholder="Score"
+              value={(side === "home" ? derivedStats.homeScore : derivedStats.awayScore) ?? ""}
+              disabled
+              readOnly
+              aria-label={`${label} Score (derived from boxscore)`}
+              title="Score is derived from boxscore data"
+              className="bg-muted text-muted-foreground cursor-not-allowed"
+            />
+            <p className="text-[10px] text-muted-foreground">Derived from boxscore</p>
+          </div>
+        ) : (
+          <Input
+            type="number"
+            placeholder="Score"
+            value={formData[side === "home" ? "homeScore" : "awayScore"] ?? ""}
+            onChange={(e) =>
+              setFormData({
+                ...formData,
+                [side === "home" ? "homeScore" : "awayScore"]:
+                  e.target.value === "" ? null : parseInt(e.target.value, 10),
+              })
+            }
+          />
+        )}
       </div>
     )
   }
 
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>{isEditing ? "Edit Game" : "Add Game"}</DialogTitle>
-        </DialogHeader>
-
-        <div className="grid gap-6 py-4">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="space-y-2">
-              <Label>Date *</Label>
-              <Input
-                type="date"
-                value={formData.date}
-                onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+  const settingsFormContent = (
+    <div className="grid gap-6 py-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="space-y-2">
+          <Label>Date *</Label>
+          <Input
+            type="date"
+            value={formData.date}
+            onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+          />
+        </div>
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <Label>Time *</Label>
+            <div className="flex items-center gap-1.5">
+              <Switch
+                id="time-tbd"
+                checked={formData.time === "TBD"}
+                onCheckedChange={(checked) =>
+                  setFormData({ ...formData, time: checked ? "TBD" : "12:00" })
+                }
+                className="scale-75"
               />
-            </div>
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label>Time *</Label>
-                <div className="flex items-center gap-1.5">
-                  <Switch
-                    id="time-tbd"
-                    checked={formData.time === "TBD"}
-                    onCheckedChange={(checked) =>
-                      setFormData({ ...formData, time: checked ? "TBD" : "12:00" })
-                    }
-                    className="scale-75"
-                  />
-                  <Label htmlFor="time-tbd" className="text-xs text-muted-foreground cursor-pointer">
-                    TBD
-                  </Label>
-                </div>
-              </div>
-              <Input
-                type="time"
-                value={toHHMM(formData.time)}
-                onChange={(e) => setFormData({ ...formData, time: e.target.value || "TBD" })}
-                disabled={formData.time === "TBD"}
-                className={formData.time === "TBD" ? "opacity-40" : ""}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Status</Label>
-              <Select
-                value={formData.status}
-                onValueChange={(val) => setFormData({ ...formData, status: val })}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="upcoming">Upcoming</SelectItem>
-                  <SelectItem value="live">Live (In Progress)</SelectItem>
-                  <SelectItem value="final">Final</SelectItem>
-                </SelectContent>
-              </Select>
+              <Label htmlFor="time-tbd" className="text-xs text-muted-foreground cursor-pointer">
+                TBD
+              </Label>
             </div>
           </div>
+          <Input
+            type="time"
+            value={toHHMM(formData.time)}
+            onChange={(e) => setFormData({ ...formData, time: e.target.value || "TBD" })}
+            disabled={formData.time === "TBD"}
+            className={formData.time === "TBD" ? "opacity-40" : ""}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label>Status</Label>
+          <Select
+            value={formData.status}
+            onValueChange={(val) => setFormData({ ...formData, status: val })}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="upcoming">Upcoming</SelectItem>
+              <SelectItem value="live">Live (In Progress)</SelectItem>
+              <SelectItem value="final">Final</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Game Type</Label>
-              <Select
-                value={formData.gameType}
-                onValueChange={(val) => setFormData({ ...formData, gameType: val })}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="regular">Regular Season</SelectItem>
-                  <SelectItem value="playoff">Playoff</SelectItem>
-                  <SelectItem value="championship">Championship</SelectItem>
-                  <SelectItem value="exhibition">Exhibition</SelectItem>
-                  <SelectItem value="tryout">Tryout</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Location</Label>
-              <Input
-                value={formData.location}
-                onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label>Game Type</Label>
+          <Select
+            value={formData.gameType}
+            onValueChange={(val) => setFormData({ ...formData, gameType: val })}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="regular">Regular Season</SelectItem>
+              <SelectItem value="playoff">Playoff</SelectItem>
+              <SelectItem value="championship">Championship</SelectItem>
+              <SelectItem value="exhibition">Exhibition</SelectItem>
+              <SelectItem value="tryout">Tryout</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-2">
+          <Label>Location</Label>
+          <Input
+            value={formData.location}
+            onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+          />
+        </div>
+        <div className="space-y-2 col-span-2">
+          <Label>Game Title (Optional)</Label>
+          <Input
+            placeholder="e.g. The Alumni Game, 2026 Skills Competition"
+            value={formData.title || ""}
+            onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+          />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-5 gap-4 items-start bg-muted/30 p-4 rounded-lg">
+        <div className="col-span-2">
+          {renderTeamPicker("away", "Away Team")}
+        </div>
+        <div className="col-span-1 flex items-center justify-center pt-8 text-sm text-muted-foreground font-medium">
+          VS
+        </div>
+        <div className="col-span-2">
+          {renderTeamPicker("home", "Home Team")}
+        </div>
+      </div>
+
+      <div className="bg-muted/10 p-4 rounded-lg border space-y-4">
+        <div className="flex flex-wrap gap-8 items-center justify-between sm:justify-start">
+          {hasLiveScorekeeperData && !formData.isForfeit ? (
+            <div className="flex items-center gap-2">
+              <Switch
+                id="overtime"
+                checked={derivedStats.isOvertime}
+                disabled
               />
+              <Label htmlFor="overtime" className="text-muted-foreground cursor-not-allowed">
+                Overtime <span className="text-[10px] text-muted-foreground">(derived from boxscore)</span>
+              </Label>
             </div>
-            <div className="space-y-2 col-span-2">
-              <Label>Game Title (Optional)</Label>
-              <Input
-                placeholder="e.g. The Alumni Game, 2026 Skills Competition"
-                value={formData.title || ""}
-                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+          ) : (
+            <div className="flex items-center gap-2">
+              <Switch
+                id="overtime"
+                checked={formData.isOvertime}
+                onCheckedChange={(checked) => setFormData({ ...formData, isOvertime: checked })}
               />
+              <Label htmlFor="overtime">Overtime</Label>
             </div>
+          )}
+          {hasLiveScorekeeperData && !formData.isForfeit ? (
+            <div className="flex items-center gap-2">
+              <Switch
+                id="shootout"
+                checked={derivedStats.hasShootout}
+                disabled
+              />
+              <Label htmlFor="shootout" className="text-muted-foreground cursor-not-allowed">
+                Shootout <span className="text-[10px] text-muted-foreground">(derived from boxscore)</span>
+              </Label>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <Switch
+                id="shootout"
+                checked={formData.hasShootout}
+                onCheckedChange={(checked) => setFormData({ ...formData, hasShootout: checked })}
+              />
+              <Label htmlFor="shootout">Shootout</Label>
+            </div>
+          )}
+          <div className="flex items-center gap-2">
+            <Switch
+              id="forfeit"
+              checked={formData.isForfeit}
+              onCheckedChange={(checked) => {
+                if (checked) {
+                  preForfeitSnapshotRef.current = {
+                    status: formData.status,
+                    homeScore: formData.homeScore,
+                    awayScore: formData.awayScore,
+                    isOvertime: formData.isOvertime,
+                    hasShootout: formData.hasShootout,
+                  }
+                  const inferred = inferForfeitingSide(formData)
+                  setForfeitingSide(inferred)
+                  setFormData({ ...formData, ...applyForfeitPreset(inferred) })
+                } else if (preForfeitSnapshotRef.current) {
+                  const snap = preForfeitSnapshotRef.current
+                  setFormData({
+                    ...formData,
+                    isForfeit: false,
+                    status: snap.status,
+                    homeScore: snap.homeScore,
+                    awayScore: snap.awayScore,
+                    isOvertime: snap.isOvertime,
+                    hasShootout: snap.hasShootout,
+                  })
+                } else if (hasLiveScorekeeperData && editorData?.liveState) {
+                  const fallbackScore = Number(editorData.liveState.period ?? 0) === 0 ? null : 0
+                  const restored = deriveBoxscoreStats(
+                    editorData.liveState,
+                    formData.homeTeam,
+                    formData.awayTeam,
+                    { homeScore: fallbackScore, awayScore: fallbackScore, isOvertime: false, hasShootout: false },
+                    formData.gameType === "playoff" || formData.gameType === "championship",
+                    game?.homeTeam,
+                    game?.awayTeam
+                  )
+                  setFormData({
+                    ...formData,
+                    isForfeit: false,
+                    status: restored.homeScore === null && restored.awayScore === null ? "upcoming" : formData.status,
+                    homeScore: restored.homeScore,
+                    awayScore: restored.awayScore,
+                    isOvertime: restored.isOvertime,
+                    hasShootout: restored.hasShootout,
+                  })
+                } else if (!game?.hasBoxscore) {
+                  setFormData({
+                    ...formData,
+                    isForfeit: false,
+                    status: "upcoming",
+                    homeScore: null,
+                    awayScore: null,
+                    isOvertime: false,
+                    hasShootout: false,
+                  })
+                } else {
+                  setFormData({
+                    ...formData,
+                    isForfeit: false,
+                  })
+                }
+              }}
+            />
+            <Label htmlFor="forfeit" className="text-destructive">Forfeit</Label>
           </div>
-
-          <div className="grid grid-cols-5 gap-4 items-start bg-muted/30 p-4 rounded-lg">
-            <div className="col-span-2">
-              {renderTeamPicker("away", "Away Team")}
-            </div>
-            <div className="col-span-1 flex items-center justify-center pt-8 text-sm text-muted-foreground font-medium">
-              VS
-            </div>
-            <div className="col-span-2">
-              {renderTeamPicker("home", "Home Team")}
-            </div>
-          </div>
-
-          <div className="bg-muted/10 p-4 rounded-lg border">
-            <div className="flex flex-wrap gap-8 items-center justify-between sm:justify-start">
-              <div className="flex items-center gap-2">
-                <Switch
-                  id="overtime"
-                  checked={formData.isOvertime}
-                  onCheckedChange={(checked) => setFormData({ ...formData, isOvertime: checked })}
-                />
-                <Label htmlFor="overtime">Overtime</Label>
-              </div>
-              <div className="flex items-center gap-2">
-                <Switch
-                  id="shootout"
-                  checked={formData.hasShootout}
-                  onCheckedChange={(checked) => setFormData({ ...formData, hasShootout: checked })}
-                />
-                <Label htmlFor="shootout">Shootout</Label>
-              </div>
-              <div className="flex items-center gap-2">
-                <Switch
-                  id="forfeit"
-                  checked={formData.isForfeit}
-                  onCheckedChange={(checked) => setFormData({ ...formData, isForfeit: checked })}
-                />
-                <Label htmlFor="forfeit" className="text-destructive">Forfeit</Label>
-              </div>
-            </div>
-          </div>
-
-          <Tabs defaultValue="league">
-            <TabsList className="w-full">
-              <TabsTrigger value="league" className="flex-1">League Notes</TabsTrigger>
-              <TabsTrigger value="away" className="flex-1">Away Notes</TabsTrigger>
-              <TabsTrigger value="home" className="flex-1">Home Notes</TabsTrigger>
-            </TabsList>
-            <TabsContent value="league">
-              <Textarea
-                placeholder="Public notes about this game..."
-                value={formData.notes || ""}
-                onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                rows={3}
-              />
-            </TabsContent>
-            <TabsContent value="away">
-              <Textarea
-                placeholder="Internal/away team specific notes..."
-                value={formData.awayNotes || ""}
-                onChange={(e) => setFormData({ ...formData, awayNotes: e.target.value })}
-                rows={3}
-              />
-            </TabsContent>
-            <TabsContent value="home">
-              <Textarea
-                placeholder="Internal/home team specific notes..."
-                value={formData.homeNotes || ""}
-                onChange={(e) => setFormData({ ...formData, homeNotes: e.target.value })}
-                rows={3}
-              />
-            </TabsContent>
-          </Tabs>
-
         </div>
 
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button onClick={handleSubmit} disabled={isSubmitting}>
-            {isSubmitting ? "Saving..." : "Save Game"}
-          </Button>
-        </DialogFooter>
+        {formData.isForfeit && (
+          <div className="pt-3 border-t border-border/60 space-y-2">
+            <Label className="text-xs text-muted-foreground">Forfeiting Team (auto-sets official 5–0 score &amp; Final status)</Label>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              {(
+                [
+                  {
+                    side: "away" as const,
+                    label: `${localTeams.find((t) => t.teamSlug === formData.awayTeam)?.teamName || "Away Team"} (Away)`,
+                    sublabel: "Home wins 5–0",
+                  },
+                  {
+                    side: "home" as const,
+                    label: `${localTeams.find((t) => t.teamSlug === formData.homeTeam)?.teamName || "Home Team"} (Home)`,
+                    sublabel: "Away wins 5–0",
+                  },
+                  {
+                    side: "both" as const,
+                    label: "Both Teams (Double Forfeit)",
+                    sublabel: "Both lose 0–5 in standings",
+                  },
+                ]
+              ).map((opt) => {
+                const active = forfeitingSide === opt.side
+                return (
+                  <Button
+                    key={opt.side}
+                    type="button"
+                    variant={active ? "secondary" : "outline"}
+                    size="sm"
+                    className={active ? "border-foreground/40 font-semibold h-auto py-2 flex flex-col items-start" : "h-auto py-2 flex flex-col items-start text-muted-foreground"}
+                    onClick={() => {
+                      setForfeitingSide(opt.side)
+                      setFormData((prev) => ({ ...prev, ...applyForfeitPreset(opt.side) }))
+                    }}
+                  >
+                    <span className="text-xs truncate w-full text-left">{opt.label}</span>
+                    <span className="text-[10px] text-muted-foreground font-normal">{opt.sublabel}</span>
+                  </Button>
+                )
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+
+      <Tabs defaultValue="league">
+        <TabsList className="w-full">
+          <TabsTrigger value="league" className="flex-1">League Notes</TabsTrigger>
+          <TabsTrigger value="away" className="flex-1">Away Notes</TabsTrigger>
+          <TabsTrigger value="home" className="flex-1">Home Notes</TabsTrigger>
+        </TabsList>
+        <TabsContent value="league">
+          <Textarea
+            placeholder="Public notes about this game..."
+            value={formData.notes || ""}
+            onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+            rows={3}
+          />
+        </TabsContent>
+        <TabsContent value="away">
+          <Textarea
+            placeholder="Internal/away team specific notes..."
+            value={formData.awayNotes || ""}
+            onChange={(e) => setFormData({ ...formData, awayNotes: e.target.value })}
+            rows={3}
+          />
+        </TabsContent>
+        <TabsContent value="home">
+          <Textarea
+            placeholder="Internal/home team specific notes..."
+            value={formData.homeNotes || ""}
+            onChange={(e) => setFormData({ ...formData, homeNotes: e.target.value })}
+            rows={3}
+          />
+        </TabsContent>
+      </Tabs>
+    </div>
+  )
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className={isEditing ? "sm:max-w-4xl max-h-[90vh] overflow-y-auto" : "sm:max-w-[600px] max-h-[90vh] overflow-y-auto"}>
+        <DialogHeader>
+          <DialogTitle>{isEditing ? "Edit Game" : "Add Game"}</DialogTitle>
+          <DialogDescription className="sr-only">
+            {isEditing ? "Edit game settings and boxscore stats" : "Add a new game to the season schedule"}
+          </DialogDescription>
+        </DialogHeader>
+
+        {isEditing ? (
+          <Tabs value={modalTab} onValueChange={(val) => handleTabChange(val as "boxscore" | "settings")} className="w-full">
+            <TabsList className="grid w-full grid-cols-2 mb-4">
+              <TabsTrigger value="boxscore">Boxscore &amp; Stats</TabsTrigger>
+              <TabsTrigger value="settings">Game Settings</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="boxscore" forceMount className="mt-0 data-[state=inactive]:hidden">
+              {formData.isForfeit ? (
+                <div className="p-8 text-center text-muted-foreground border border-dashed rounded-lg space-y-2">
+                  <Info className="h-8 w-8 mx-auto opacity-40" />
+                  <p className="text-sm">Boxscore &amp; player stats are disabled for forfeited games. Manage forfeit settings in the Game Settings tab.</p>
+                </div>
+              ) : isLoadingEditor ? (
+                <div className="flex justify-center p-12">
+                  <Spinner className="h-8 w-8 text-muted-foreground" />
+                </div>
+              ) : !hasLiveScorekeeperData ? (
+                <div className="p-8 text-center text-muted-foreground border border-dashed rounded-lg space-y-2">
+                  <Info className="h-8 w-8 mx-auto opacity-40" />
+                  <p className="text-sm">This game&apos;s stats were imported without live scorekeeper data</p>
+                </div>
+              ) : game.status !== "final" ? (
+                <div className="p-8 text-center text-muted-foreground border border-dashed rounded-lg space-y-2">
+                  <Info className="h-8 w-8 mx-auto opacity-40" />
+                  <p className="text-sm">Boxscore &amp; player stats can be edited here once the game is finalized</p>
+                </div>
+              ) : editorData?.liveState ? (
+                <AdminGameEditor
+                  key={game.id}
+                  isPlayoff={formData.gameType === "playoff" || formData.gameType === "championship"}
+                  gameId={game.id!}
+                  state={editorData.liveState}
+                  pin={adminPin || ""}
+                  homeSlug={game.homeTeam || formData.homeTeam}
+                  awaySlug={game.awayTeam || formData.awayTeam}
+                  homeTeam={localTeams.find((t) => t.teamSlug === (game.homeTeam || formData.homeTeam))?.teamName || game.homeTeam || formData.homeTeam}
+                  awayTeam={localTeams.find((t) => t.teamSlug === (game.awayTeam || formData.awayTeam))?.teamName || game.awayTeam || formData.awayTeam}
+                  homeRoster={editorData.homeRoster}
+                  awayRoster={editorData.awayRoster}
+                  playerNames={editorData.playerNames}
+                  savedGoalies={editorData.savedGoalies}
+                  onClose={() => onOpenChange(false)}
+                  onSaved={() => {
+                    toast.success("Game stats saved")
+                    onSaved()
+                    onOpenChange(false)
+                  }}
+                />
+              ) : null}
+            </TabsContent>
+
+            <TabsContent value="settings" className="mt-0">
+              {settingsFormContent}
+            </TabsContent>
+          </Tabs>
+        ) : (
+          settingsFormContent
+        )}
+
+        {/* Dialog footer */}
+        {(!isEditing || modalTab === "settings") && (
+          <DialogFooter>
+            <Button variant="outline" onClick={() => onOpenChange(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleSubmit} disabled={isSubmitting || isLoadingEditor}>
+              {isSubmitting ? "Saving..." : isLoadingEditor ? "Loading..." : isEditing ? "Save Game" : "Add Game"}
+            </Button>
+          </DialogFooter>
+        )}
+        {isEditing && modalTab === "boxscore" && (formData.isForfeit || game.status !== "final" || (!hasLiveScorekeeperData && !isLoadingEditor)) && (
+          <DialogFooter>
+            <Button variant="outline" onClick={() => onOpenChange(false)}>
+              Close
+            </Button>
+          </DialogFooter>
+        )}
       </DialogContent>
     </Dialog>
   )

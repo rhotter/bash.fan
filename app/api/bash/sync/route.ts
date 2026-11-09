@@ -5,6 +5,7 @@ import { sql, eq, and, count } from "drizzle-orm"
 import { getCurrentSeason, getSeasonById } from "@/lib/seasons"
 import { mergeDuplicatePlayers } from "@/lib/merge-duplicates"
 import { normalizeTimeForStorage } from "@/lib/format-time"
+import { syncForfeitRosterStats } from "@/lib/forfeit-sync"
 
 const BASE_URL = "https://secure.sportability.com/spx/Leagues"
 const MAX_BOXSCORES_PER_SYNC = 8
@@ -64,15 +65,19 @@ async function syncScheduleScores(leagueId: string, seasonId: string) {
   let updated = 0
   for (const u of updates) {
     if (liveGameIds.has(u.id)) continue
-    await rawSql(sql`
+    const updatedRows = await rawSql(sql`
       UPDATE games
       SET home_score = ${u.homeScore}, away_score = ${u.awayScore},
           status = 'final', is_overtime = ${u.isOT}, is_forfeit = ${u.isForfeit}
       WHERE id = ${u.id} AND season_id = ${seasonId}
         AND (home_score IS NULL OR home_score != ${u.homeScore} OR away_score != ${u.awayScore}
              OR is_overtime != ${u.isOT} OR is_forfeit != ${u.isForfeit})
+      RETURNING id
     `)
-    updated++
+    if (updatedRows.length > 0) {
+      await syncForfeitRosterStats(u.id)
+      updated++
+    }
   }
 
   return { gamesChecked: gameIds.length, updatesApplied: updated }
@@ -114,6 +119,13 @@ async function syncFullSchedule(leagueId: string, seasonId: string) {
   // Skip score updates for games managed by scorekeeper
   const liveGames = await db.select({ gameId: schema.gameLive.gameId }).from(schema.gameLive)
   const liveGameIds = new Set(liveGames.map((r) => r.gameId))
+  const existingSeasonGames = rows.length > 0
+    ? (await rawSql(sql`
+        SELECT id, is_forfeit, status, home_score, away_score, home_team, away_team, date
+        FROM games WHERE season_id = ${seasonId}
+      `)) ?? []
+    : []
+  const existingGameMap = new Map(existingSeasonGames.map((g) => [String(g.id), g]))
 
   let currentDate = ""
   let gamesCreated = 0
@@ -284,6 +296,21 @@ async function syncFullSchedule(leagueId: string, seasonId: string) {
           },
         })
     }
+    const prev = existingGameMap.get(gid)
+    const forfeitStateChanged = !prev
+      ? isForfeit
+      : Boolean(prev.is_forfeit) !== isForfeit ||
+        (isForfeit && (
+          prev.status !== status ||
+          prev.home_score !== homeScore ||
+          prev.away_score !== awayScore ||
+          prev.home_team !== homeSlug ||
+          prev.away_team !== awaySlug ||
+          prev.date !== currentDate
+        ))
+    if (forfeitStateChanged) {
+      await syncForfeitRosterStats(gid)
+    }
     gamesCreated++
   }
 
@@ -295,9 +322,10 @@ async function syncBoxscore(gameId: string, leagueId: string, seasonId: string) 
   const liveCheck = await db.select({ gameId: schema.gameLive.gameId }).from(schema.gameLive).where(eq(schema.gameLive.gameId, gameId))
   if (liveCheck.length > 0) return
 
-  const gameRows = await rawSql(sql`SELECT home_team, away_team FROM games WHERE id = ${gameId}`)
+  const gameRows = await rawSql(sql`SELECT home_team, away_team, is_forfeit FROM games WHERE id = ${gameId}`)
   if (!gameRows.length) return
-  const game = gameRows[0] as { home_team: string; away_team: string }
+  const game = gameRows[0] as { home_team: string; away_team: string; is_forfeit?: boolean }
+  if (game.is_forfeit) return
 
   const url = `${BASE_URL}/Game.asp?LgID=${leagueId}&GID=${gameId}`
   const res = await fetch(url, { cache: "no-store" })
@@ -652,6 +680,7 @@ export async function GET(request: Request) {
           WHERE season_id = ${season.id}
             AND status = 'final'
             AND has_boxscore = false
+            AND is_forfeit = false
           ORDER BY date ASC
           LIMIT ${limit}
         `)
@@ -673,7 +702,8 @@ export async function GET(request: Request) {
           and(
             eq(schema.games.seasonId, season.id),
             eq(schema.games.status, "final"),
-            eq(schema.games.hasBoxscore, false)
+            eq(schema.games.hasBoxscore, false),
+            eq(schema.games.isForfeit, false)
           )
         )
       boxscoresRemaining = remaining[0].count
@@ -705,6 +735,7 @@ export async function GET(request: Request) {
       WHERE season_id = ${current.id}
         AND status = 'final'
         AND has_boxscore = false
+        AND is_forfeit = false
       ORDER BY date ASC
       LIMIT ${MAX_BOXSCORES_PER_SYNC}
     `)

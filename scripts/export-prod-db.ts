@@ -81,6 +81,154 @@ Options:
   return { prodUrl, devUrl, seasons };
 }
 
+function collectLiveStatePlayerIds(state: any): number[] {
+  if (!state || typeof state !== "object") return [];
+  const ids = new Set<number>();
+  const addId = (id: unknown) => {
+    if (typeof id === "number" && Number.isInteger(id) && id > 0) ids.add(id);
+  };
+  if (Array.isArray(state.homeAttendance)) state.homeAttendance.forEach(addId);
+  if (Array.isArray(state.awayAttendance)) state.awayAttendance.forEach(addId);
+  addId(state.homeGoalieId);
+  addId(state.awayGoalieId);
+  if (Array.isArray(state.goals)) {
+    for (const g of state.goals) {
+      if (g && typeof g === "object") {
+        addId(g.scorerId);
+        addId(g.assist1Id);
+        addId(g.assist2Id);
+      }
+    }
+  }
+  if (Array.isArray(state.penalties)) {
+    for (const p of state.penalties) {
+      if (p && typeof p === "object") addId(p.playerId);
+    }
+  }
+  if (Array.isArray(state.goalieChanges)) {
+    for (const c of state.goalieChanges) {
+      if (c && typeof c === "object") {
+        addId(c.outGoalieId);
+        addId(c.inGoalieId);
+      }
+    }
+  }
+  if (Array.isArray(state.threeStars)) state.threeStars.forEach(addId);
+  if (state.shootout && typeof state.shootout === "object") {
+    if (Array.isArray(state.shootout.homeAttempts)) {
+      for (const a of state.shootout.homeAttempts) {
+        if (a && typeof a === "object") addId(a.playerId);
+      }
+    }
+    if (Array.isArray(state.shootout.awayAttempts)) {
+      for (const a of state.shootout.awayAttempts) {
+        if (a && typeof a === "object") addId(a.playerId);
+      }
+    }
+  }
+  if (state.goalieShotsAgainst && typeof state.goalieShotsAgainst === "object") {
+    for (const k of Object.keys(state.goalieShotsAgainst)) {
+      addId(Number(k));
+    }
+  }
+  return [...ids];
+}
+
+function remapLiveStatePlayers(state: any, devIdByProdId: Map<number, number>): any {
+  if (!state || typeof state !== "object") return state;
+  const mapId = (id: unknown): number | null =>
+    typeof id === "number" && id > 0 ? (devIdByProdId.get(id) ?? null) : null;
+  const mapIdList = (arr: unknown[]): number[] =>
+    arr.map(mapId).filter((id): id is number => id !== null);
+  const next = { ...state };
+  if (Array.isArray(next.homeAttendance)) next.homeAttendance = mapIdList(next.homeAttendance);
+  if (Array.isArray(next.awayAttendance)) next.awayAttendance = mapIdList(next.awayAttendance);
+  if (next.homeGoalieId != null) next.homeGoalieId = mapId(next.homeGoalieId);
+  if (next.awayGoalieId != null) next.awayGoalieId = mapId(next.awayGoalieId);
+  if (Array.isArray(next.goals)) {
+    next.goals = next.goals
+      .map((g: any) => {
+        if (!g || typeof g !== "object") return null;
+        const scorerId = mapId(g.scorerId);
+        if (scorerId === null) return null;
+        return {
+          ...g,
+          scorerId,
+          assist1Id: g.assist1Id != null ? mapId(g.assist1Id) : null,
+          assist2Id: g.assist2Id != null ? mapId(g.assist2Id) : null,
+        };
+      })
+      .filter(Boolean);
+  }
+  if (Array.isArray(next.penalties)) {
+    next.penalties = next.penalties
+      .map((p: any) => {
+        if (!p || typeof p !== "object") return null;
+        const playerId = mapId(p.playerId);
+        return playerId !== null ? { ...p, playerId } : null;
+      })
+      .filter(Boolean);
+  }
+  if (Array.isArray(next.goalieChanges)) {
+    next.goalieChanges = next.goalieChanges
+      .map((c: any) => {
+        if (!c || typeof c !== "object") return null;
+        const outGoalieId = mapId(c.outGoalieId);
+        const inGoalieId = mapId(c.inGoalieId);
+        return outGoalieId !== null && inGoalieId !== null
+          ? { ...c, outGoalieId, inGoalieId }
+          : null;
+      })
+      .filter(Boolean);
+  }
+  if (Array.isArray(next.threeStars)) {
+    next.threeStars = next.threeStars.map((id: unknown) =>
+      typeof id === "number" && id > 0 ? (devIdByProdId.get(id) ?? 0) : id
+    );
+  }
+  if (next.shootout && typeof next.shootout === "object") {
+    next.shootout = {
+      ...next.shootout,
+      ...(Array.isArray(next.shootout.homeAttempts)
+        ? {
+            homeAttempts: next.shootout.homeAttempts
+              .map((a: any) => {
+                if (!a || typeof a !== "object") return null;
+                const playerId = mapId(a.playerId);
+                return playerId !== null ? { ...a, playerId } : null;
+              })
+              .filter(Boolean),
+          }
+        : {}),
+      ...(Array.isArray(next.shootout.awayAttempts)
+        ? {
+            awayAttempts: next.shootout.awayAttempts
+              .map((a: any) => {
+                if (!a || typeof a !== "object") return null;
+                const playerId = mapId(a.playerId);
+                return playerId !== null ? { ...a, playerId } : null;
+              })
+              .filter(Boolean),
+          }
+        : {}),
+    };
+  }
+  if (next.goalieShotsAgainst && typeof next.goalieShotsAgainst === "object") {
+    const remappedShots: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(next.goalieShotsAgainst)) {
+      const numKey = Number(k);
+      if (Number.isInteger(numKey) && numKey > 0) {
+        const mapped = mapId(numKey);
+        if (mapped !== null) {
+          remappedShots[String(mapped)] = v;
+        }
+      }
+    }
+    next.goalieShotsAgainst = remappedShots;
+  }
+  return next;
+}
+
 function maskUrl(urlStr: string): string {
   try {
     const parsed = new URL(urlStr);
@@ -366,6 +514,7 @@ async function main() {
   let officialsCount = 0;
   let pgsCount = 0;
   let ggsCount = 0;
+  let liveCount = 0;
 
   if (gameIds.length > 0) {
     const prodOfficials = await prod`SELECT * FROM game_officials WHERE game_id = ANY(${gameIds});`;
@@ -430,6 +579,33 @@ async function main() {
           is_sub = EXCLUDED.is_sub;
       `;
     }
+
+    // Live scorekeeper state (needed for AdminGameEditor boxscore editing in dev)
+    const prodLive = await prod`SELECT game_id, state, pin_hash, created_at, updated_at FROM game_live WHERE game_id = ANY(${gameIds});`;
+    await dev`DELETE FROM game_live WHERE game_id = ANY(${gameIds});`;
+    for (const row of prodLive) {
+      for (const pid of collectLiveStatePlayerIds(row.state)) {
+        if (!devIdByProdId.has(pid)) {
+          const placeholderName = `Unknown Player #${pid}`;
+          const [inserted] = await dev`
+            INSERT INTO players (name) VALUES (${placeholderName})
+            ON CONFLICT (name) DO UPDATE SET name = EXCLUDED.name
+            RETURNING id;
+          `;
+          devIdByProdId.set(pid, inserted.id);
+        }
+      }
+      const remappedState = remapLiveStatePlayers(row.state, devIdByProdId);
+      await dev`
+        INSERT INTO game_live (game_id, state, pin_hash, created_at, updated_at)
+        VALUES (${row.game_id}, ${JSON.stringify(remappedState)}::jsonb, ${row.pin_hash ?? ""}, ${row.created_at}, ${row.updated_at})
+        ON CONFLICT (game_id) DO UPDATE SET
+          state = EXCLUDED.state,
+          pin_hash = EXCLUDED.pin_hash,
+          updated_at = EXCLUDED.updated_at;
+      `;
+      liveCount++;
+    }
   }
 
   const prodAwards = await prod`SELECT * FROM player_awards WHERE season_id = ANY(${seasons});`;
@@ -446,7 +622,7 @@ async function main() {
   const { tradesCount, itemsCount } = await syncTrades(prod, dev, seasons, devIdByProdId);
 
   console.log(
-    `   Games: ${prodGames.length}, Officials: ${officialsCount}, Skater Stats: ${pgsCount}, Goalie Stats: ${ggsCount}, Awards: ${prodAwards.length}, Trades: ${tradesCount}, Trade Items: ${itemsCount}.`
+    `   Games: ${prodGames.length}, Live States: ${liveCount}, Officials: ${officialsCount}, Skater Stats: ${pgsCount}, Goalie Stats: ${ggsCount}, Awards: ${prodAwards.length}, Trades: ${tradesCount}, Trade Items: ${itemsCount}.`
   );
 
   // Synchronize games_gen_seq in dev DB with highest copied game ID
