@@ -2,6 +2,9 @@ import { describe, expect, it, vi } from "vitest"
 import { writeFile, readFile } from "node:fs/promises"
 import { fetchPlayerDetail } from "@/lib/fetch-player-detail"
 import { rawSql } from "@/lib/db"
+
+// Measures a real database, so it opts out of the in-memory one from tests/setup.ts.
+vi.unmock("@/lib/db")
 import { sql } from "drizzle-orm"
 import { playerSlugSql } from "@/lib/player-slug-sql"
 import { playerSlug } from "@/lib/player-slug"

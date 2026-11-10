@@ -30,6 +30,7 @@ yarn-error.log*
 dev.log
 
 # env files
+.env
 .env*.local
 
 # vercel
@@ -60,3 +61,6 @@ ios/**/fastlane/report.xml
 *.p12
 *.mobileprovision
 
+
+# Local Docker overrides
+docker-compose.override.yml
