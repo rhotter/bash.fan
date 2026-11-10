@@ -17,6 +17,7 @@ import {
   check,
 } from "drizzle-orm/pg-core"
 import { sql } from "drizzle-orm"
+import type { FantasyConfig } from "@/lib/fantasy/config"
 
 // ─── Seasons ────────────────────────────────────────────────────────────────
 
@@ -950,3 +951,89 @@ export const operatorAuthAttempts = pgTable("operator_auth_attempts", {
   failures: integer("failures").notNull().default(0),
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
 })
+
+// ─── Fantasy ────────────────────────────────────────────────────────────────
+// Deployed by scripts/deploy-fantasy-schema.ts. Real names and token hashes must
+// stay out of public responses, and these tables stay off PUBLIC_STATS_TABLES in lib/mcp-query.ts.
+
+// A season can run several contests, such as the regular season and the playoffs. Each has its
+// own config, Managers and standings.
+export const fantasySeasons = pgTable(
+  "fantasy_seasons",
+  {
+    seasonId: text("season_id")
+      .notNull()
+      .references(() => seasons.id, { onDelete: "cascade" }),
+    contest: text("contest").notNull().default("regular"),
+    config: jsonb("config").$type<FantasyConfig>().notNull(),
+    launchedAt: timestamp("launched_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.seasonId, t.contest] }),
+    check("fantasy_seasons_contest_check", sql`${t.contest} ~ '^[a-z0-9][a-z0-9-]{0,29}$'`),
+  ]
+)
+
+export const fantasyManagers = pgTable(
+  "fantasy_managers",
+  {
+    id: serial("id").primaryKey(),
+    seasonId: text("season_id").notNull(),
+    contest: text("contest").notNull().default("regular"),
+    teamName: text("team_name").notNull(),
+    firstName: text("first_name").notNull(),
+    lastName: text("last_name").notNull(),
+    tokenHash: text("token_hash").notNull().unique(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    foreignKey({
+      name: "fantasy_managers_season_fk",
+      columns: [t.seasonId, t.contest],
+      foreignColumns: [fantasySeasons.seasonId, fantasySeasons.contest],
+    }).onDelete("cascade"),
+    uniqueIndex("fantasy_managers_contest_team_name").on(t.seasonId, t.contest, sql`lower(${t.teamName})`),
+    check("fantasy_managers_names_check", sql`char_length(${t.teamName}) BETWEEN 1 AND 40
+      AND char_length(${t.firstName}) BETWEEN 1 AND 60 AND char_length(${t.lastName}) BETWEEN 1 AND 60`),
+  ]
+)
+
+// Player ids are arrays rather than a child table so a save is one atomic statement.
+export const fantasyLineups = pgTable(
+  "fantasy_lineups",
+  {
+    managerId: integer("manager_id")
+      .notNull()
+      .references(() => fantasyManagers.id, { onDelete: "cascade" }),
+    weekId: text("week_id").notNull(), // Local date of the Week's Lock, YYYY-MM-DD
+    skaters: integer("skaters").array().notNull(),
+    goalies: integer("goalies").array().notNull(),
+    skaterBackups: integer("skater_backups").array().notNull(),
+    goalieBackups: integer("goalie_backups").array().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.managerId, t.weekId] }),
+    check("fantasy_lineups_week_id_check", sql`${t.weekId} ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'`),
+  ]
+)
+
+// One row per game a Manager predicted. Skipping a game means no row. No foreign key to
+// games: standings read the games table, so a row for a vanished game is simply ignored.
+export const fantasyPredictions = pgTable(
+  "fantasy_predictions",
+  {
+    managerId: integer("manager_id")
+      .notNull()
+      .references(() => fantasyManagers.id, { onDelete: "cascade" }),
+    gameId: text("game_id").notNull(),
+    homeScore: integer("home_score").notNull(),
+    awayScore: integer("away_score").notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.managerId, t.gameId] }),
+    // The upper bound lives in lib/fantasy/pickem.ts, so raising it needs no schema change.
+    check("fantasy_predictions_scores_check", sql`${t.homeScore} >= 0 AND ${t.awayScore} >= 0 AND ${t.homeScore} <> ${t.awayScore}`),
+  ]
+)

@@ -1,3 +1,4 @@
+import { reassignLineupPlayer } from "@/lib/fantasy/lineups"
 import { NextResponse } from "next/server"
 import { getSession } from "@/lib/admin-session"
 import { rawSql } from "@/lib/db"
@@ -147,6 +148,9 @@ export async function POST(request: Request) {
 
     // users
     await rawSql(sql`UPDATE users SET player_id = ${canonicalId} WHERE player_id = ${dupeId}`)
+
+    // Last step before the delete, so a failure leaves the duplicate in place. Every earlier step is idempotent, so the merge can be re-run.
+    await reassignLineupPlayer(dupeId, canonicalId)
 
     // Delete the merged player
     await rawSql(sql`DELETE FROM players WHERE id = ${dupeId}`)
