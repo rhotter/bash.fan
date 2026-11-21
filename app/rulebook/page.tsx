@@ -1,9 +1,13 @@
 import type { Metadata } from "next"
+import { ExternalLink, FileText } from "lucide-react"
 import { RulebookContent } from "@/components/rulebook-content"
+import { RulebookChangelog } from "@/components/rulebook-changelog"
+import { RULEBOOK_REFERENCE_LINKS, type ChangelogEntry } from "@/lib/rulebook-parser"
 
 export const metadata: Metadata = {
     title: "Official Rulebook",
-    description: "The comprehensive guide to the rules, regulations, and structure of the Bay Area Street Hockey league.",
+    description:
+        "The official Bay Area Street Hockey (BASH) rulebook, matching the official league document verbatim, with quick rule search, direct links, and rule changelog.",
 }
 
 async function getRulebookMarkdown(): Promise<string> {
@@ -13,7 +17,7 @@ async function getRulebookMarkdown(): Promise<string> {
     return fs.readFile(filePath, "utf-8")
 }
 
-async function getChangelog(): Promise<{ date: string; version: string; notes: string[] }[]> {
+async function getChangelog(): Promise<ChangelogEntry[]> {
     const fs = await import("fs/promises")
     const path = await import("path")
     try {
@@ -30,68 +34,54 @@ export default async function RulebookPage() {
 
     return (
         <div className="flex flex-1 flex-col bg-background">
-            <main className="mx-auto w-full max-w-7xl flex-1 px-4 sm:px-6 py-10 md:py-16">
+            <main className="mx-auto w-full max-w-7xl flex-1 px-4 sm:px-6 py-8 md:py-12">
                 {/* Hero */}
-                <section className="mb-12 text-center">
-                    <h1 className="mb-5 text-4xl md:text-6xl font-bold tracking-tighter leading-[0.95] text-foreground">
+                <section className="mb-6 md:mb-8 text-center">
+                    <h1 className="mb-3 text-3xl sm:text-4xl md:text-5xl font-bold tracking-tighter leading-[0.98] text-foreground">
                         The Official <span className="text-primary">Rulebook.</span>
                     </h1>
-                    <p className="mx-auto max-w-xl text-[15px] md:text-base leading-relaxed text-muted-foreground">
-                        The comprehensive guide to the rules, regulations, and structure of the Bay Area Street Hockey league.
+                    <p className="mx-auto max-w-2xl text-sm md:text-base leading-relaxed text-muted-foreground">
+                        The official rules, regulations, and structure of the Bay Area Street Hockey
+                        league.
                     </p>
                 </section>
 
+                {/* Rule Changelog (minimized by default) */}
+                {changelog.length > 0 && <RulebookChangelog changelog={changelog} />}
+
                 {/* Rulebook Content */}
-                <div id="top">
-                    <RulebookContent markdown={markdown} />
+                <div id="top" className="scroll-mt-24">
+                    <RulebookContent
+                        markdown={markdown}
+                        latestChangelogVersion={changelog[0]?.version}
+                    />
                 </div>
 
-                {/* Changelog */}
-                {changelog.length > 0 && <RulebookChangelog changelog={changelog} />}
+                {/* Reference Documents Footer */}
+                <footer
+                    id="references"
+                    className="mt-14 pt-6 border-t border-border flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-muted-foreground"
+                >
+                    <div className="flex items-center gap-2 font-medium text-foreground">
+                        <FileText className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                        <span>Reference Documents</span>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+                        {RULEBOOK_REFERENCE_LINKS.map((link) => (
+                            <a
+                                key={link.url}
+                                href={link.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 hover:text-foreground underline decoration-border underline-offset-2 transition-colors"
+                            >
+                                <span>{link.label}</span>
+                                <ExternalLink className="h-3 w-3 opacity-70" />
+                            </a>
+                        ))}
+                    </div>
+                </footer>
             </main>
         </div>
-    )
-}
-
-function RulebookChangelog({ changelog }: { changelog: { date: string; version: string; notes: string[] }[] }) {
-    return (
-        <section className="mt-16">
-            <div className="mb-5 flex items-baseline gap-3">
-                <span className="font-mono text-[11px] font-medium tabular-nums text-primary">[01]</span>
-                <h2 className="text-lg md:text-xl font-bold tracking-tight text-foreground">Revision History</h2>
-                <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
-                    Latest · {changelog[0].version}
-                </span>
-                <div className="h-px flex-1 bg-border" />
-            </div>
-            <details className="group rounded-xl border border-border bg-card">
-                <summary className="cursor-pointer list-none px-5 py-4 flex items-center justify-between hover:bg-secondary/40 rounded-xl transition-colors">
-                    <span className="text-sm font-semibold text-foreground">View all revisions</span>
-                    <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground group-open:hidden">Expand</span>
-                    <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground hidden group-open:inline">Collapse</span>
-                </summary>
-                <div className="border-t border-border px-5 py-6">
-                    <ol className="space-y-7">
-                        {changelog.map((entry, index) => (
-                            <li key={index} className="relative pl-6 border-l border-border last:border-transparent">
-                                <span className="absolute -left-[3px] top-1 h-1.5 w-1.5 rounded-full bg-primary ring-4 ring-card" />
-                                <div className="mb-2 flex items-baseline gap-3">
-                                    <h3 className="font-mono text-sm font-bold text-foreground">{entry.version}</h3>
-                                    <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">{entry.date}</span>
-                                </div>
-                                <ul className="space-y-1.5 text-sm leading-relaxed text-muted-foreground">
-                                    {entry.notes.map((note, noteIdx) => (
-                                        <li key={noteIdx} className="flex gap-2.5">
-                                            <span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-primary/60" />
-                                            <span>{note}</span>
-                                        </li>
-                                    ))}
-                                </ul>
-                            </li>
-                        ))}
-                    </ol>
-                </div>
-            </details>
-        </section>
     )
 }
