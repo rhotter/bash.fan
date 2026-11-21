@@ -222,22 +222,24 @@ const RuleBlockView = memo(function RuleBlockView({
     ruleIdByNumber,
     clauseIdSet,
     isHighlighted,
+    indentToClause,
 }: {
     block: RuleBlock
     ruleNumber: string
     ruleIdByNumber: Record<string, string>
     clauseIdSet: Set<string>
     isHighlighted: boolean
+    indentToClause: boolean
 }) {
     if (block.type === "clause") {
         return (
             <div
                 id={block.id}
-                className={`group/clause scroll-mt-28 flex items-start gap-2 sm:gap-2.5 rounded-md py-1 sm:px-2 sm:-mx-2 transition-colors ${
-                    isHighlighted ? "bg-primary/10 ring-1 ring-primary/30 px-2" : ""
+                className={`group/clause scroll-mt-28 flex items-start gap-2 sm:gap-2.5 rounded-md py-1 transition-colors ${
+                    isHighlighted ? "bg-primary/10 ring-1 ring-primary/30 px-2 -mx-2" : ""
                 }`}
             >
-                <span className="font-mono text-xs font-semibold text-foreground pt-[3px] min-w-[1.35rem] sm:min-w-[1.5rem] shrink-0">
+                <span className="font-mono text-xs font-semibold text-foreground pt-[3px] w-6 sm:w-7 shrink-0">
                     {block.marker}
                 </span>
                 <p className="flex-1 min-w-0 [overflow-wrap:anywhere] text-sm md:text-[15px] leading-relaxed text-muted-foreground">
@@ -247,20 +249,25 @@ const RuleBlockView = memo(function RuleBlockView({
                         clauseIdSet={clauseIdSet}
                     />
                 </p>
-                {block.id && (
-                    <CopyLinkButton
-                        id={block.id}
-                        label={`Rule ${ruleNumber}(${block.marker?.replace(")", "")})`}
-                        subtle
-                    />
-                )}
+                <div className="w-7 shrink-0 flex justify-end">
+                    {block.id && (
+                        <CopyLinkButton
+                            id={block.id}
+                            label={`Rule ${ruleNumber}(${block.marker?.replace(")", "")})`}
+                            subtle
+                        />
+                    )}
+                </div>
             </div>
         )
     }
 
     if (block.type === "subitem") {
+        const padClass = indentToClause
+            ? "pl-8 sm:pl-[2.375rem] pr-9 sm:pr-[2.375rem]"
+            : "pl-4 sm:pl-6 pr-9 sm:pr-[2.375rem]"
         return (
-            <div className="flex items-start gap-2 sm:gap-2.5 pl-4 sm:pl-6 md:pl-8 py-0.5">
+            <div className={`flex items-start gap-2 sm:gap-2.5 ${padClass} py-0.5`}>
                 <span className="font-mono text-xs font-medium text-foreground/80 pt-[3px] min-w-[1.5rem] sm:min-w-[1.75rem] shrink-0">
                     {block.marker}
                 </span>
@@ -276,7 +283,13 @@ const RuleBlockView = memo(function RuleBlockView({
     }
 
     if (block.type === "bullet") {
-        const padClass = block.indent ? "pl-7 sm:pl-10 md:pl-12" : "pl-4 sm:pl-6 md:pl-8"
+        const padClass = indentToClause
+            ? block.indent
+                ? "pl-12 sm:pl-[3.625rem] pr-9 sm:pr-[2.375rem]"
+                : "pl-8 sm:pl-[2.375rem] pr-9 sm:pr-[2.375rem]"
+            : block.indent
+                ? "pl-8 sm:pl-10 pr-9 sm:pr-[2.375rem]"
+                : "pl-4 sm:pl-6 pr-9 sm:pr-[2.375rem]"
         return (
             <div className={`flex items-start gap-2 sm:gap-2.5 ${padClass} py-0.5`}>
                 <span className="mt-2 h-1.5 w-1.5 rounded-full bg-muted-foreground/50 shrink-0" />
@@ -291,8 +304,11 @@ const RuleBlockView = memo(function RuleBlockView({
         )
     }
 
+    const paraPadClass = indentToClause
+        ? "pl-8 sm:pl-[2.375rem] pr-9 sm:pr-[2.375rem]"
+        : "pr-9 sm:pr-[2.375rem]"
     return (
-        <p className="min-w-0 [overflow-wrap:anywhere] text-sm md:text-[15px] leading-relaxed text-muted-foreground">
+        <p className={`min-w-0 [overflow-wrap:anywhere] text-sm md:text-[15px] leading-relaxed text-muted-foreground ${paraPadClass}`}>
             <InlineMarkdown
                 text={block.text}
                 ruleIdByNumber={ruleIdByNumber}
@@ -314,6 +330,7 @@ const RuleCard = memo(function RuleCard({
     activeHighlightId: string | null
 }) {
     const isRuleHighlighted = activeHighlightId === rule.id
+    const hasClauses = rule.blocks.some((b) => b.type === "clause")
 
     return (
         <article
@@ -345,6 +362,7 @@ const RuleCard = memo(function RuleCard({
                             ruleIdByNumber={ruleIdByNumber}
                             clauseIdSet={clauseIdSet}
                             isHighlighted={Boolean(block.id && activeHighlightId === block.id)}
+                            indentToClause={hasClauses}
                         />
                     ))}
                 </div>

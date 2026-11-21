@@ -76,9 +76,7 @@ i. Email voting procedures: Captains get 5 days from the date and time the initi
 
 d) Captains are entitled to present proposals to the league and have them heard at Captains’ Meetings [see Rule 218].
 
-e) Captains are responsible for communicating with their own team about league rules and league information (including the BASH Facebook group at https://www.facebook.com/groups/bayareastreethockey/ and the league site at
-
-http://sportability.com/spx/Leagues/Client.asp?ClientID=3), preferably before the start of the season. Captains are also responsible for having a copy of the most up to date rules during games available. This can be electronically, such as on their phones.
+e) Captains are responsible for communicating with their own team about league rules and league information (including the BASH Facebook group at https://www.facebook.com/groups/bayareastreethockey/ and the league site at http://sportability.com/spx/Leagues/Client.asp?ClientID=3), preferably before the start of the season. Captains are also responsible for having a copy of the most up to date rules during games available. This can be electronically, such as on their phones.
 
 f) Captains are responsible to appoint a member of their team to fulfill refereeing and scorekeeping duties as per the referee schedule. All teams are required to have at least 5 different players from their team referee at least one game during the regular season. If this is not met, that team will serve a minor penalty in each game of the playoffs. [see Rule 412] (Voted in 2015) (Note**:** This includes playoffs. -Added clarification 2024. See rule 301(p))
 
@@ -450,9 +448,7 @@ c) The Commissioners or any Captain or Player appointed thereto shall put togeth
 
 d) Captains, Commissioners and Players are all entitled to present proposals to the league and have them heard at Captains’ Meetings.
 
-e) If the meeting becomes unruly, Robert’s Rules of Order will be used for speaking
-
-order.
+e) If the meeting becomes unruly, Robert’s Rules of Order will be used for speaking order.
 
 f) At least one Commissioner must be present at every meeting.
 
@@ -496,9 +492,7 @@ xiv. Non-roster players can only play a maximum of two games during the season. 
 
 -Player must inform summer commissioner of game(s) played
 
--Goalies can play any number of games between teams (due to
-
-shortage)
+-Goalies can play any number of games between teams (due to shortage)
 
 xiv. If players are needed/wanted for any game, roster players may play for either team as long as both captains approve. There are no limitations to the number of games roster players can participate in throughout the season.
 
@@ -602,9 +596,7 @@ a) When a player is injured so that he cannot continue to play or go to their be
 
 b) A player other than a goalkeeper, whose injury appears serious enough to warrant the stoppage of play, may not participate further in the game until the completion of the ensuing faceoff.
 
-c) A player or goalkeeper who is obviously bleeding shall be ruled off the playing surface immediately if observed during a stoppage of play. If observed during play, play shall be stopped immediately, and the bleeding player or goalkeeper then ruled off the playing surface. Said player or goalkeeper shall not be.
-
-allowed to return to play until the bleeding has been stopped and the cut or abrasion covered, it is required that any affected equipment/uniform be properly decontaminated or exchanged.
+c) A player or goalkeeper who is obviously bleeding shall be ruled off the playing surface immediately if observed during a stoppage of play. If observed during play, play shall be stopped immediately, and the bleeding player or goalkeeper then ruled off the playing surface. Said player or goalkeeper shall not be. allowed to return to play until the bleeding has been stopped and the cut or abrasion covered, it is required that any affected equipment/uniform be properly decontaminated or exchanged.
 
 ## Rule 306: Player/League Equipment
 
@@ -616,9 +608,7 @@ c) A minor penalty shall be imposed on any goalkeeper using illegal equipment in
 
 The leg guards worn by goalkeepers shall not exceed 12 inches in extreme width when on the leg of the player, nor shall it exceed 38 inches in length when on the leg of the player.
 
-Protective padding attached to the back or forming part of a goalkeeper's blocker glove shall not exceed nine inches in width nor more than seventeen inches in length at any point. The cuff of the goalkeeper’s catching glove shall not exceed nine inches in width. The maximum length of the catching glove shall
-
-not exceed seventeen inches. Any bar or attachment (cheater bar) between the cuff and the thumb shall only extend from the cuff to the thumb in a straight line. Any other pocket, pouch or contrivance added to the glove by a manufacturer or otherwise is not acceptable and makes the glove illegal.
+Protective padding attached to the back or forming part of a goalkeeper's blocker glove shall not exceed nine inches in width nor more than seventeen inches in length at any point. The cuff of the goalkeeper’s catching glove shall not exceed nine inches in width. The maximum length of the catching glove shall not exceed seventeen inches. Any bar or attachment (cheater bar) between the cuff and the thumb shall only extend from the cuff to the thumb in a straight line. Any other pocket, pouch or contrivance added to the glove by a manufacturer or otherwise is not acceptable and makes the glove illegal.
 
 d) The league nets must measure 6x4.
 
@@ -1171,9 +1161,7 @@ a) A player whose stick is broken may participate in the game provided he drops 
 
 b) A goalkeeper may continue to play with a broken stick until the next stoppage of play or until he has been legally provided with a stick.
 
-c) A replacement for a stick that is either broken or no longer in possession of a player or goalkeeper may only be obtained from the players’ bench or a teammate on the playing surface. For a violation of this rule a bench minor penalty shall be assessed to the team if a stick is thrown from the bench [Rule
-
-626 (c.2)].
+c) A replacement for a stick that is either broken or no longer in possession of a player or goalkeeper may only be obtained from the players’ bench or a teammate on the playing surface. For a violation of this rule a bench minor penalty shall be assessed to the team if a stick is thrown from the bench [Rule 626 (c.2)].
 
 ## Rule 604: Butt-Ending (including attempt)
 
@@ -1203,9 +1191,7 @@ b) A major plus a game misconduct penalty shall be imposed on any player who bod
 
 ## Rule 607: Checking into the Wall
 
-a) A minor or a major penalty, at the discretion of the Referee based upon the degree of violence or impact with the wall, shall be imposed on any player who body-checks, cross-checks, elbows, charges or trips an opponent in such a manner that causes the opponent to be either unintentionally (minor) or deliberately (major) thrown into the wall. If the player is injured and it was deliberate it will
-
-be a (major/game misconduct).
+a) A minor or a major penalty, at the discretion of the Referee based upon the degree of violence or impact with the wall, shall be imposed on any player who body-checks, cross-checks, elbows, charges or trips an opponent in such a manner that causes the opponent to be either unintentionally (minor) or deliberately (major) thrown into the wall. If the player is injured and it was deliberate it will be a (major/game misconduct).
 
 ## Rule 608: Cross-Checking
 
@@ -1251,9 +1237,7 @@ a) A minor penalty shall be imposed on a player other than the goalkeeper who de
 
 (Note) Any player who drops to their knees to block a shot should not be penalized if the ball is shot under him or becomes lodged in their clothing or equipment, but any use of the hands to make the ball unplayable should be penalized promptly.
 
-b) A minor penalty shall be imposed on a goalkeeper who deliberately falls on or gathers the ball into their body, when their body is entirely outside the boundaries of the goal crease and the ball is behind the goal line or when the ball is outside the boundaries of the “goalkeeper’s privileged area,” or who
-
-holds or places the ball against any part of the goal or against the boards. [see also Rule 609(e), Delaying the Game]
+b) A minor penalty shall be imposed on a goalkeeper who deliberately falls on or gathers the ball into their body, when their body is entirely outside the boundaries of the goal crease and the ball is behind the goal line or when the ball is outside the boundaries of the “goalkeeper’s privileged area,” or who holds or places the ball against any part of the goal or against the boards. [see also Rule 609(e), Delaying the Game]
 
 (Note) The goalkeeper’s privileged area is in the form of a box from the goal-line to the endzone faceoff dots. A goalie must have some part of his body over the goal-line to freeze a ball behind the line legally.
 
@@ -1331,9 +1315,7 @@ d) A goalkeeper shall not drop the ball into their pads or onto the goal net, no
 
 e) If a goalkeeper catches the ball and throws it forward towards their opponent’s goal and it is first played by a teammate, play shall be stopped, and the ensuing faceoff shall be held at the nearest end faceoff spot of the offending team.
 
-f) A player or goalkeeper shall be permitted to stop or “bat” the ball in the air with their hand or push it along the playing surface with their hand and play shall not be stopped unless he has directed the ball to a teammate in any zone other than their Defending Zone, in which case play shall be stopped and the ball faced-off at the spot where the offense occurred unless otherwise provided by
-
-these rules.
+f) A player or goalkeeper shall be permitted to stop or “bat” the ball in the air with their hand or push it along the playing surface with their hand and play shall not be stopped unless he has directed the ball to a teammate in any zone other than their Defending Zone, in which case play shall be stopped and the ball faced-off at the spot where the offense occurred unless otherwise provided by these rules.
 
 A goal shall not be allowed if the ball was propelled by the hand of an attacking player and entered the goal either directly or after deflecting off any player including the goalkeeper.
 
@@ -1381,9 +1363,7 @@ b) A major plus a game misconduct penalty shall be imposed on any player who inj
 
 a) Overview: The difference between Interference and Obstruction is that Interference happens in a direct battle for the ball while Obstruction occurs away from the ball. ‘Interference’ and ‘Obstruction’ are dual-purpose labels. They can serve as umbrella categorizations for other infractions, such as hooking and holding, or they can be called as independent infractions labeled ‘interference’ or ‘obstruction.’
 
-b) Obstruction (infraction that occurs away from the ball): When a player Obstructs or interferes with the progress of a player, it disrupts the flow of this player and usually denies the player the opportunity to get involved in a scoring opportunity, or to get in a position to stop a scoring opportunity. A minor penalty shall be imposed on a player who impedes the progress of an opponent who is not in possession of the ball and is not involved in a direct battle for possession of the ball, or who deliberately knocks a stick out of an opponent’s hand or who prevents a player who has dropped their stick or any
-
-other piece of equipment from regaining possession of it or who knocks or shoots any abandoned or broken stick or illegal ball or other debris towards an opposing ball carrier in a manner that could cause him to be distracted. [see also Rule 626, Throwing Stick.]
+b) Obstruction (infraction that occurs away from the ball): When a player Obstructs or interferes with the progress of a player, it disrupts the flow of this player and usually denies the player the opportunity to get involved in a scoring opportunity, or to get in a position to stop a scoring opportunity. A minor penalty shall be imposed on a player who impedes the progress of an opponent who is not in possession of the ball and is not involved in a direct battle for possession of the ball, or who deliberately knocks a stick out of an opponent’s hand or who prevents a player who has dropped their stick or any other piece of equipment from regaining possession of it or who knocks or shoots any abandoned or broken stick or illegal ball or other debris towards an opposing ball carrier in a manner that could cause him to be distracted. [see also Rule 626, Throwing Stick.]
 
 c) Interference (infraction that occurs around the ball): Interference can be called if the ball carrier tips the ball past the defender and the defender blocks the path of the now ball-less player. This is an unsure call because if the defender contacts the player just as he is releasing the ball, then it is a legitimate “bump.” You obviously CAN use your body to stop a player in our league, but NOT a bodycheck. In the NHL, you cannot bodycheck a player 1-1/2 strides after they have released the ball, so two steps would cover it for our purposes. For it to be interference, the player with the ball would have had to tip the ball past the defender and the defender would have had to block his path, keeping in mind the gray area period where the defender would legitimately be able to “bump” him. If the player with the ball had just released the ball and within the two strides after the release, the defender “bumped” the attacker, it is a legal play. If the attacker had tipped the ball past the defender and taken more than two steps, the gray area time period would have passed, and it is interference.
 
@@ -1391,9 +1371,7 @@ c) Interference (infraction that occurs around the ball): Interference can be ca
 
 d) A minor penalty shall be imposed on any player on the players’ bench or on the penalty bench who by means of their stick or their body interferes with the movements of the ball or of any opponent on the playing surface during the progress of play.
 
-e) A minor penalty shall be imposed on a player who, by means of their stick or their body, interferes with or impedes the movements of the goalkeeper by actual physical contact, while he is in their goal crease unless the ball is already in the crease. STANDING IN THE CREASE IS NOT A PENALTY IN AND OF
-
-ITSELF, NOR DOES IT RESULT IN A DISALLOWED GOAL. THERE MUST BE SOME FORM OF INTERFERENCE OR IMPEDIMENT OF THE MOVEMENT OF THE GOALTENDER.
+e) A minor penalty shall be imposed on a player who, by means of their stick or their body, interferes with or impedes the movements of the goalkeeper by actual physical contact, while he is in their goal crease unless the ball is already in the crease. STANDING IN THE CREASE IS NOT A PENALTY IN AND OF ITSELF, NOR DOES IT RESULT IN A DISALLOWED GOAL. THERE MUST BE SOME FORM OF INTERFERENCE OR IMPEDIMENT OF THE MOVEMENT OF THE GOALTENDER.
 
 f) If a player of the attacking team has been physically interfered with by the action of any defending player so as to cause him to be in the goal crease, and the ball should enter the goal while the player so interfered with is still within the goal crease, the “goal” shall be allowed.
 
@@ -1479,13 +1457,9 @@ a) A major plus a game misconduct penalty shall be imposed on a player who spear
 
 ## Rule 625: Throwing Stick
 
-a) When any player of the defending team deliberately throws or shoots a stick or any part thereof or any other object at the ball in their Defending Zone, the Referee shall allow the play to be completed and if a goal is not scored, a penalty shot/optional minor shall be taken by the player designated by the
+a) When any player of the defending team deliberately throws or shoots a stick or any part thereof or any other object at the ball in their Defending Zone, the Referee shall allow the play to be completed and if a goal is not scored, a penalty shot/optional minor shall be taken by the player designated by the Referee as the player fouled.
 
-Referee as the player fouled.
-
-If, however, the goal being unattended and the attacking player having no defending player to pass and having a chance to score on an “open goal,” a stick or part thereof or any other object is thrown or shot by any member of the defending team in or into its Defending Zone, thereby preventing an obvious
-
-and imminent goal, a goal shall be awarded to the attacking team.
+If, however, the goal being unattended and the attacking player having no defending player to pass and having a chance to score on an “open goal,” a stick or part thereof or any other object is thrown or shot by any member of the defending team in or into its Defending Zone, thereby preventing an obvious and imminent goal, a goal shall be awarded to the attacking team.
 
 (Note 1) If the Officials are unable to determine the person against whom the offense was made, the non-offending team, through the captains, shall designate a player on the playing surface at the time the offense was committed to take the shot.
 
