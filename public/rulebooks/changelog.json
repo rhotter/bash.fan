@@ -40,42 +40,5 @@
         "text": "For inadvertent or erroneous whistles, the faceoff will take place in the closest neutral zone dot. If the offensive team had possession of the ball, they keep the zone at the time of the faceoff."
       }
     ]
-  },
-  {
-    "version": "v2025.10",
-    "title": "October 2025 Rulebook Revision",
-    "date": "2025-10-13",
-    "items": [
-      {
-        "ruleRef": "Rule 203(b)",
-        "ruleAnchor": "rule-203-b",
-        "text": "Modified maximum protected players list to 5 during the first 5 rounds."
-      },
-      {
-        "ruleRef": "Rule 102(f)",
-        "ruleAnchor": "rule-102-f",
-        "text": "Added clarification that refereeing duties include the playoffs."
-      },
-      {
-        "ruleRef": "General",
-        "text": "Clarified various administrative protocols and updated financial dates."
-      }
-    ]
-  },
-  {
-    "version": "v2024.08",
-    "title": "August 2024 Rulebook Revision",
-    "date": "2024-08-01",
-    "items": [
-      {
-        "ruleRef": "Rule 101(g)",
-        "ruleAnchor": "rule-101-g",
-        "text": "Added \"Andrew Till rule\" requiring all other teams to approve captains or de facto captains serving as Commissioners."
-      },
-      {
-        "ruleRef": "General",
-        "text": "Minor typography and grammatical corrections across multiple sections."
-      }
-    ]
   }
 ]
