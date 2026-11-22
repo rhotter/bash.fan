@@ -106,6 +106,23 @@ private struct ScoringDraft: Codable {
     func slug(_ home: Bool) -> String { (home ? game.homeSlug : game.awaySlug) ?? "" }
     func name(_ id: Int) -> String { (roster(false) + roster(true)).first { $0.id == id }?.name ?? "Player #\(id)" }
     func list(_ key: String) -> [ScoringState] { state[key]?.array.map(\.object) ?? [] }
+    /// Penalties currently being served, soonest release first. Misconducts (10 min) are not timed here.
+    func activePenalties(at date: Date = .now) -> [ActivePenalty] {
+        guard period > 0, period < 5 else { return [] }
+        let regulation = payload?.periodLength ?? 1200, overtime = payload?.isPlayoff == true ? regulation : 300
+        let now = Self.elapsed(period: period, clockSeconds: clock(at: date), regulation: regulation, overtime: overtime)
+        return list("penalties").compactMap { penalty -> ActivePenalty? in
+            let minutes = Int(penalty["minutes"]?.number ?? 0)
+            guard minutes > 0, minutes <= 5, (penalty["endedByGoalId"]?.text ?? "").isEmpty else { return nil }
+            let start = Self.elapsed(period: Int(penalty["period"]?.number ?? 1), clockSeconds: GameLive.clockSeconds(penalty["clock"]?.text ?? "0:00"), regulation: regulation, overtime: overtime)
+            let adjusted = Int(penalty["adjustedEndElapsed"]?.number ?? 0)
+            let remaining = min((adjusted > 0 ? adjusted : start + minutes * 60) - now, minutes * 60)
+            return remaining > 0 ? ActivePenalty(penalty: penalty, remaining: remaining) : nil
+        }.sorted { $0.remaining < $1.remaining }
+    }
+    static func elapsed(period: Int, clockSeconds: Int, regulation: Int, overtime: Int) -> Int {
+        min(3, period - 1) * regulation + max(0, period - 4) * overtime + (period <= 3 ? regulation : overtime) - clockSeconds
+    }
     func ids(_ key: String) -> [Int] { state[key]?.array.map { Int($0.number) } ?? [] }
     func score(_ home: Bool) -> Int {
         let goals = list("goals").filter { $0["team"]?.text == slug(home) && ($0["period"]?.number ?? 0) <= 4 }.count
@@ -396,9 +413,7 @@ private struct ScoringDraft: Codable {
     }
     static func recomputePenaltyReleases(_ state: inout ScoringState, regulation: Int, overtime: Int) {
         func elapsed(_ event: ScoringState) -> Int {
-            let p = Int(event["period"]?.number ?? 1)
-            let length = p <= 3 ? regulation : overtime
-            return min(3, p - 1) * regulation + max(0, p - 4) * overtime + length - GameLive.clockSeconds(event["clock"]?.text ?? "0:00")
+            Self.elapsed(period: Int(event["period"]?.number ?? 1), clockSeconds: GameLive.clockSeconds(event["clock"]?.text ?? "0:00"), regulation: regulation, overtime: overtime)
         }
         var penalties = (state["penalties"]?.array ?? []).map { value -> ScoringState in
             var p = value.object; p.removeValue(forKey: "endedByGoalId"); p.removeValue(forKey: "adjustedEndElapsed"); return p
@@ -666,7 +681,35 @@ struct ScorekeeperScreen: View {
                     Button("Edit clock") { sheet = "clock" }.buttonStyle(.bordered)
                 }.controlSize(.large)
             }
+            if !finishing { activePenalties }
         }.padding(16)
+    }
+    private var activePenalties: some View {
+        TimelineView(.periodic(from: .now, by: 1)) { context in
+            let active = model.activePenalties(at: context.date)
+            if !active.isEmpty {
+                VStack(spacing: 6) {
+                    ForEach(active) { item in
+                        let penalty = item.penalty
+                        HStack(spacing: 10) {
+                            Text(NativeScorekeeper.time(item.remaining)).font(.system(.title3, design: .rounded, weight: .bold)).monospacedDigit()
+                                .frame(minWidth: 48, alignment: .leading)
+                            TeamLogo(slug: penalty["team"]?.text, size: 24)
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(model.name(Int(penalty["playerId"]?.number ?? 0))).font(.subheadline.weight(.medium)).lineLimit(1)
+                                Text("\(penalty["infraction"]?.text ?? "Penalty") · \(Int(penalty["minutes"]?.number ?? 0)) min").font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                            }
+                            Spacer(minLength: 0)
+                        }
+                        .padding(.horizontal, 12).padding(.vertical, 8)
+                        .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 10))
+                        .accessibilityElement(children: .combine)
+                        .accessibilityLabel("\(model.name(Int(penalty["playerId"]?.number ?? 0))), \(penalty["infraction"]?.text ?? "penalty"), \(item.remaining / 60) minutes \(item.remaining % 60) seconds left")
+                        .accessibilityIdentifier("activePenalty")
+                    }
+                }.padding(.top, 4)
+            }
+        }
     }
     private func teamScore(_ home: Bool) -> some View {
         VStack(spacing: 4) {
@@ -921,6 +964,11 @@ struct ScorekeeperScreen: View {
             state[key] = .int(max(0, Int(state[key]?.number ?? 0) - 1))
         }
     }
+}
+struct ActivePenalty: Identifiable {
+    let penalty: ScoringState
+    let remaining: Int
+    var id: String { penalty["id"]?.text ?? "" }
 }
 private struct ScoringPlay: Identifiable {
     let collection: String

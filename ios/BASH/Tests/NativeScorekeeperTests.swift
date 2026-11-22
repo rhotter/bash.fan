@@ -51,6 +51,27 @@ final class NativeScorekeeperTests: XCTestCase {
         XCTAssertNil(model.list("penalties").first?["endedByGoalId"])
         XCTAssertEqual(model.score(false), 0)
     }
+    @MainActor func testActivePenaltiesCountDownWithGameClock() {
+        let model = NativeScorekeeper.sample()
+        model.state["clockSeconds"] = .int(1050)
+        model.putEvent(["id": .string("minor"), "team": .string("landsharks"), "period": .int(1), "clock": .string("18:00"), "playerId": .int(4), "minutes": .int(2), "infraction": .string("Tripping")], collection: "penalties")
+        model.putEvent(["id": .string("double"), "team": .string("seals"), "period": .int(1), "clock": .string("17:40"), "playerId": .int(1), "minutes": .int(4), "infraction": .string("High sticking")], collection: "penalties")
+        model.putEvent(["id": .string("misconduct"), "team": .string("seals"), "period": .int(1), "clock": .string("17:40"), "playerId": .int(2), "minutes": .int(10), "infraction": .string("Misconduct")], collection: "penalties")
+        XCTAssertEqual(model.activePenalties().map(\.id), ["minor", "double"])
+        XCTAssertEqual(model.activePenalties().map(\.remaining), [90, 230])
+        // A running clock keeps counting penalties down; an expired minor drops off.
+        model.state["clockRunning"] = .bool(true); model.state["clockStartedAt"] = .number(1_000_000)
+        XCTAssertEqual(model.activePenalties(at: Date(timeIntervalSince1970: 1010)).map(\.remaining), [80, 220])
+        XCTAssertEqual(model.activePenalties(at: Date(timeIntervalSince1970: 1100)).map(\.id), ["double"])
+        // Penalties carry over into the next period.
+        model.setPeriod(2)
+        model.state["penalties"] = .array([.object(["id": .string("late"), "team": .string("seals"), "period": .int(1), "clock": .string("0:30"), "playerId": .int(1), "minutes": .int(2), "infraction": .string("Hooking")])])
+        XCTAssertEqual(model.activePenalties().map(\.remaining), [90])
+        // A power-play goal releases the minor.
+        model.state["clockSeconds"] = .int(1170)
+        model.putEvent(["id": .string("ppg"), "team": .string("landsharks"), "period": .int(2), "clock": .string("19:30"), "scorerId": .int(4), "assist1Id": .null, "assist2Id": .null, "flags": .array([.string("PPG")])], collection: "goals")
+        XCTAssertTrue(model.activePenalties().isEmpty)
+    }
     @MainActor func testPeriodTransitionClosesPullsAndKeepsOvertimeShots() {
         let model = NativeScorekeeper.sample()
         model.state["goaliePulls"] = .array([.object(["id": .string("pull"), "returnedAt": .null])])
