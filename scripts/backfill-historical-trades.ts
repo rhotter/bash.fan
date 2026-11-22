@@ -20,6 +20,8 @@
  *   --confirm-host <host>      Required for --apply / --rollback; must equal the target URL's host
  *
  * Safety rules (enforced; each refusal prints the exact command to run instead):
+ *   - Apply snapshots only: --rollback refuses read-only --snapshot files and restricts trade deletion to this
+ *     apply's recorded `insertedTradeIds` (or `plannedTradeMoveKeys` when rolling back a `pending` apply).
  *   - Roll back newest-first: --rollback refuses while a newer same-host apply snapshot is still active.
  *   - --apply refuses while an unfinished `pending` apply snapshot exists (provably-landed ones auto-complete).
  *   - --apply / --rollback refuse while any `.backups/pre-historical-trades-*.json` is unreadable or malformed.
@@ -1717,6 +1719,41 @@ export function assertNoNewerActiveApply(snapshotFilePath: string, snapshot: Bac
   }
 }
 
+export type RollbackTradeScope =
+  | { mode: "recorded_ids"; recordedIds: number[] }
+  | { mode: "recorded_or_planned_moves"; recordedIds: number[]; plannedMoveKeys: string[] }
+
+/**
+ * Determines which `season_trades` rows a rollback is permitted to delete and verify.
+ * Refuses read-only `--snapshot` files (`applyStatus` absent) and apply snapshots that lack
+ * enough provenance to scope deletion strictly to trades created by this apply.
+ */
+export function resolveRollbackTradeScope(snapshot: BackfillSnapshot): RollbackTradeScope {
+  if (!snapshot.applyStatus) {
+    throw new Error(
+      "Snapshot was created by --snapshot (read-only), not by --apply. Refusing to roll back."
+    )
+  }
+  const hasRecordedIds = Array.isArray(snapshot.insertedTradeIds)
+  const hasPlannedMoves = Array.isArray(snapshot.plannedTradeMoveKeys)
+  if (snapshot.applyStatus !== "pending" && hasRecordedIds) {
+    return { mode: "recorded_ids", recordedIds: snapshot.insertedTradeIds! }
+  }
+  if (hasPlannedMoves) {
+    return {
+      mode: "recorded_or_planned_moves",
+      recordedIds: hasRecordedIds ? snapshot.insertedTradeIds! : [],
+      plannedMoveKeys: snapshot.plannedTradeMoveKeys!,
+    }
+  }
+  throw new Error(
+    `Snapshot has applyStatus="${snapshot.applyStatus}" but lacks plannedTradeMoveKeys` +
+      (snapshot.applyStatus === "pending"
+        ? " (required to safely roll back an unfinished apply)."
+        : " and insertedTradeIds.")
+  )
+}
+
 export async function rollbackFromSnapshot(
   sql: Sql,
   snapshotFilePath: string,
@@ -1728,6 +1765,7 @@ export async function rollbackFromSnapshot(
   if (snapshot.dbHost !== expectedHost) {
     throw new Error(`Snapshot was taken on "${snapshot.dbHost}" but target is "${expectedHost}". Refusing to roll back.`)
   }
+  const tradeScope = resolveRollbackTradeScope(snapshot)
   assertNoNewerActiveApply(resolvedPath, snapshot, opts.backupsDir)
 
   // 1. Restore deleted player_seasons rows (single statement)
@@ -1783,24 +1821,58 @@ export async function rollbackFromSnapshot(
     restoredGoalies = res.length
   }
 
-  // 4. Delete the historical season_trades this backfill created (items cascade). Delete and verify share
-  //    the exact same predicate (not in snapshot + "Historical trade: " prefix + historical season), so a
-  //    rollback can never delete by one rule and then fail verification by another. Never touches trades
-  //    that existed pre-apply, live admin trades (which never carry the prefix), or non-historical seasons.
+  // 4. Delete ONLY the historical season_trades created by this apply (items cascade). Delete and verify
+  //    share the exact same scope (`tradeScope`): recorded `insertedTradeIds` for completed applies, or
+  //    recorded IDs + exact `plannedTradeMoveKeys` subsets for pending/auto-completed applies. Never touches
+  //    pre-existing trades, live admin trades, or unrelated historical trades added by another writer.
   const keepTradeIds = snapshot.existingSeasonTrades.map((t) => t.id)
   const historicalSeasonIds =
     snapshot.historicalSeasonIds ?? [...new Set(loadHistoricalTradedPlayers().map((e) => e.seasonId))].sort()
   const notesPattern = `${HISTORICAL_TRADE_NOTES_PREFIX}%`
-  const deletedTrades = (await sql`
-    DELETE FROM season_trades
-    WHERE NOT (id = ANY(${keepTradeIds}::int[]))
-      AND notes LIKE ${notesPattern}
-      AND season_id = ANY(${historicalSeasonIds}::text[])
-    RETURNING id
-  `) as { id: number }[]
+  let deletedTrades: { id: number }[] = []
+  if (tradeScope.mode === "recorded_ids") {
+    if (tradeScope.recordedIds.length > 0) {
+      deletedTrades = (await sql`
+        DELETE FROM season_trades st
+        WHERE st.id = ANY(${tradeScope.recordedIds}::int[])
+          AND NOT (st.id = ANY(${keepTradeIds}::int[]))
+          AND st.notes LIKE ${notesPattern}
+          AND st.season_id = ANY(${historicalSeasonIds}::text[])
+        RETURNING st.id
+      `) as { id: number }[]
+    }
+  } else if (tradeScope.recordedIds.length > 0 || tradeScope.plannedMoveKeys.length > 0) {
+    deletedTrades = (await sql`
+      DELETE FROM season_trades st
+      WHERE NOT (st.id = ANY(${keepTradeIds}::int[]))
+        AND st.notes LIKE ${notesPattern}
+        AND st.season_id = ANY(${historicalSeasonIds}::text[])
+        AND (
+          st.id = ANY(${tradeScope.recordedIds}::int[])
+          OR (
+            EXISTS (
+              SELECT 1 FROM season_trade_items sti
+              WHERE sti.trade_id = st.id
+                AND sti.item_type = 'player'
+                AND (st.season_id || ':' || sti.player_id::text || ':' || sti.from_team_slug || ':' || sti.to_team_slug) = ANY(${tradeScope.plannedMoveKeys}::text[])
+            )
+            AND NOT EXISTS (
+              SELECT 1 FROM season_trade_items sti
+              WHERE sti.trade_id = st.id
+                AND (
+                  sti.item_type <> 'player'
+                  OR sti.player_id IS NULL
+                  OR NOT ((st.season_id || ':' || sti.player_id::text || ':' || sti.from_team_slug || ':' || sti.to_team_slug) = ANY(${tradeScope.plannedMoveKeys}::text[]))
+                )
+            )
+          )
+        )
+      RETURNING st.id
+    `) as { id: number }[]
+  }
 
   // 5. Verify, scoped to what this script touched + historical seasons (live seasons change via daily sync).
-  const mismatches = await verifyRollback(sql, snapshot, historicalSeasonIds, keepTradeIds)
+  const mismatches = await verifyRollback(sql, snapshot, historicalSeasonIds, keepTradeIds, tradeScope)
   if (mismatches.length > 0) {
     throw new Error(`Rollback verification failed:\n  - ${mismatches.join("\n  - ")}`)
   }
@@ -1842,11 +1914,52 @@ export async function verifyRollback(
   sql: Sql,
   snapshot: BackfillSnapshot,
   historicalSeasonIds: string[],
-  keepTradeIds: number[]
+  keepTradeIds: number[],
+  tradeScope: RollbackTradeScope = resolveRollbackTradeScope(snapshot)
 ): Promise<string[]> {
   const toKeyed = (rows: { player_id: number; game_id: string; team_slug: string | null }[]) =>
     JSON.stringify(rows.map((r) => ({ player_id: r.player_id, game_id: r.game_id, team_slug: r.team_slug })))
   const notesPattern = `${HISTORICAL_TRADE_NOTES_PREFIX}%`
+
+  const strayTradesQuery: Promise<{ id: number }[]> =
+    tradeScope.mode === "recorded_ids"
+      ? tradeScope.recordedIds.length === 0
+        ? Promise.resolve([])
+        : (sql`
+            SELECT st.id FROM season_trades st
+            WHERE st.id = ANY(${tradeScope.recordedIds}::int[])
+              AND NOT (st.id = ANY(${keepTradeIds}::int[]))
+              AND st.notes LIKE ${notesPattern}
+              AND st.season_id = ANY(${historicalSeasonIds}::text[])
+          ` as unknown as Promise<{ id: number }[]>)
+      : tradeScope.recordedIds.length === 0 && tradeScope.plannedMoveKeys.length === 0
+        ? Promise.resolve([])
+        : (sql`
+            SELECT st.id FROM season_trades st
+            WHERE NOT (st.id = ANY(${keepTradeIds}::int[]))
+              AND st.notes LIKE ${notesPattern}
+              AND st.season_id = ANY(${historicalSeasonIds}::text[])
+              AND (
+                st.id = ANY(${tradeScope.recordedIds}::int[])
+                OR (
+                  EXISTS (
+                    SELECT 1 FROM season_trade_items sti
+                    WHERE sti.trade_id = st.id
+                      AND sti.item_type = 'player'
+                      AND (st.season_id || ':' || sti.player_id::text || ':' || sti.from_team_slug || ':' || sti.to_team_slug) = ANY(${tradeScope.plannedMoveKeys}::text[])
+                  )
+                  AND NOT EXISTS (
+                    SELECT 1 FROM season_trade_items sti
+                    WHERE sti.trade_id = st.id
+                      AND (
+                        sti.item_type <> 'player'
+                        OR sti.player_id IS NULL
+                        OR NOT ((st.season_id || ':' || sti.player_id::text || ':' || sti.from_team_slug || ':' || sti.to_team_slug) = ANY(${tradeScope.plannedMoveKeys}::text[]))
+                      )
+                  )
+                )
+              )
+          ` as unknown as Promise<{ id: number }[]>)
 
   const [skaterDrift, goalieDrift, psPresent, strayTrades, insertedLeft, postSeasonChecksums] = await Promise.all([
     sql`
@@ -1876,12 +1989,7 @@ export async function verifyRollback(
       FROM d JOIN player_seasons ps
         ON ps.player_id = d.player_id AND ps.season_id = d.season_id AND ps.team_slug = d.team_slug
     ` as unknown as Promise<{ n: number }[]>,
-    sql`
-      SELECT id FROM season_trades
-      WHERE NOT (id = ANY(${keepTradeIds}::int[]))
-        AND notes LIKE ${notesPattern}
-        AND season_id = ANY(${historicalSeasonIds}::text[])
-    ` as unknown as Promise<{ id: number }[]>,
+    strayTradesQuery,
     // Independent of the delete predicate: every trade this apply recorded inserting must be gone.
     sql`
       SELECT id FROM season_trades WHERE id = ANY(${snapshot.insertedTradeIds ?? []}::int[])

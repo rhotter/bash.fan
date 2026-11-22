@@ -590,6 +590,9 @@ describe("scripts/backfill-historical-trades.ts", () => {
         ],
         existingSeasonTradeItems: [],
         historicalSeasonIds: ["2001-2002"],
+        applyStatus: "complete",
+        insertedTradeIds: [99],
+        plannedTradeMoveKeys: ["2001-2002:6989:rink-rats:seals"],
         ...overrides,
       }
       const dir = fs.mkdtempSync(path.join(os.tmpdir(), "backfill-test-"))
@@ -620,8 +623,8 @@ describe("scripts/backfill-historical-trades.ts", () => {
           return opts.skaterDrift ? [{ player_id: 6989, game_id: "68421", expected: null, actual: "seals", missing: false }] : []
         }
         if (q.includes("JOIN player_seasons ps")) return [{ n: opts.psMissing ? 0 : 1 }]
-        if (q.includes("WHERE id = ANY(")) return opts.insertedLeft ? [{ id: 99 }] : []
-        if (q.includes("SELECT id FROM season_trades")) return opts.strayTrade ? [{ id: 99 }] : []
+        if (q.includes("SELECT id FROM season_trades WHERE id = ANY(")) return opts.insertedLeft ? [{ id: 99 }] : []
+        if (q.includes("SELECT st.id FROM season_trades st")) return opts.strayTrade ? [{ id: 99 }] : []
         if (q.includes("(SELECT count(*)::int FROM player_game_stats)")) {
           throw new Error("verifyRollback must not run the global totals query")
         }
@@ -639,18 +642,70 @@ describe("scripts/backfill-historical-trades.ts", () => {
       }
     }
 
-    it("restores rows, deletes backfill trades by the same predicate verify uses, and ignores live-season drift", async () => {
-      // A partial (prefix) ID list must not matter: deletion is by predicate, never by recorded IDs.
-      const file = writeSnapshot({ insertedTradeIds: [99] })
+    it("restores rows, scopes trade deletion to recorded insertedTradeIds for completed applies, and ignores live-season drift", async () => {
+      const file = writeSnapshot({ applyStatus: "complete", insertedTradeIds: [99] })
       const { sql, calls } = makeMockSql(rollbackHandler({ liveSeasonDrift: true }))
       const res = await rb(sql, file, "unit-test-host")
       expect(res).toMatchObject({ restoredPlayerSeasons: 1, restoredSkaters: 1, restoredGoalies: 1, deletedTradesCount: 1, verifiedSeasonsCount: 1, statusWriteError: null })
 
       const del = calls.find((c) => c.q.includes("DELETE FROM season_trades"))!
-      const stray = calls.find((c) => c.q.includes("SELECT id FROM season_trades"))!
-      expect(del.values).toEqual([[1], "Historical trade: %", ["2001-2002"]])
+      const stray = calls.find((c) => c.q.includes("SELECT st.id FROM season_trades st"))!
+      expect(del.q).toContain("st.id = ANY(")
+      expect(del.values).toEqual([[99], [1], "Historical trade: %", ["2001-2002"]])
       expect(stray.values).toEqual(del.values)
       expect(calls.some((c) => c.q.includes("setval"))).toBe(false)
+    })
+
+    it("scopes pending rollback deletion to recorded IDs OR exact plannedTradeMoveKeys subsets (never unrelated historical trades)", async () => {
+      const file = writeSnapshot({
+        applyStatus: "pending",
+        insertedTradeIds: [99],
+        plannedTradeMoveKeys: ["2001-2002:6989:rink-rats:seals"],
+      })
+      const { sql, calls } = makeMockSql(rollbackHandler())
+      await rb(sql, file, "unit-test-host")
+
+      const del = calls.find((c) => c.q.includes("DELETE FROM season_trades"))!
+      const stray = calls.find((c) => c.q.includes("SELECT st.id FROM season_trades st"))!
+      expect(del.q).toContain("EXISTS (")
+      expect(del.q).toContain("AND NOT EXISTS (")
+      expect(del.values).toEqual([
+        [1],
+        "Historical trade: %",
+        ["2001-2002"],
+        [99],
+        ["2001-2002:6989:rink-rats:seals"],
+        ["2001-2002:6989:rink-rats:seals"],
+      ])
+      expect(stray.values).toEqual(del.values)
+    })
+
+    it("skips season_trades deletion when a completed apply inserted 0 trades", async () => {
+      const file = writeSnapshot({ applyStatus: "complete", insertedTradeIds: [], plannedTradeMoveKeys: [] })
+      const { sql, calls } = makeMockSql(rollbackHandler())
+      const res = await rb(sql, file, "unit-test-host")
+      expect(res.deletedTradesCount).toBe(0)
+      expect(calls.some((c) => c.q.includes("DELETE FROM season_trades"))).toBe(false)
+      expect(calls.some((c) => c.q.includes("SELECT st.id FROM season_trades st"))).toBe(false)
+    })
+
+    it("refuses read-only --snapshot files and apply snapshots missing trade provenance before any SQL runs", async () => {
+      const readOnlySnap = writeSnapshot({ applyStatus: undefined, insertedTradeIds: undefined, plannedTradeMoveKeys: undefined })
+      const ro = makeMockSql(rollbackHandler())
+      await expect(rb(ro.sql, readOnlySnap, "unit-test-host")).rejects.toThrow(
+        "Snapshot was created by --snapshot (read-only), not by --apply. Refusing to roll back."
+      )
+      expect(ro.calls).toHaveLength(0)
+
+      const pendingNoKeys = writeSnapshot({ applyStatus: "pending", insertedTradeIds: [99], plannedTradeMoveKeys: undefined })
+      const pnk = makeMockSql(rollbackHandler())
+      await expect(rb(pnk.sql, pendingNoKeys, "unit-test-host")).rejects.toThrow("lacks plannedTradeMoveKeys")
+      expect(pnk.calls).toHaveLength(0)
+
+      const completeNoProv = writeSnapshot({ applyStatus: "complete", insertedTradeIds: undefined, plannedTradeMoveKeys: undefined })
+      const cnp = makeMockSql(rollbackHandler())
+      await expect(rb(cnp.sql, completeNoProv, "unit-test-host")).rejects.toThrow("lacks plannedTradeMoveKeys and insertedTradeIds")
+      expect(cnp.calls).toHaveLength(0)
     })
 
     it("throws when a historical season checksum or stray backfill trade does not match", async () => {
