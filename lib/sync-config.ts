@@ -6,6 +6,7 @@ export const REFRESH = {
   SCORES: 60_000,
   PLAYER_STATS: 120_000,
   REFS: 120_000,
+  PLAYOFF_ODDS: 120_000,
 } as const
 
 export const DEDUPE = {
@@ -15,4 +16,5 @@ export const DEDUPE = {
   REFS: 60_000,
   GAME_DETAIL: 30_000,
   SEASONS: 300_000,
+  PLAYOFF_ODDS: 30_000,
 } as const

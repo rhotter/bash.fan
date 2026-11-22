@@ -1,4 +1,5 @@
 import { getSession } from "@/lib/admin-session"
+import { revalidatePlayoffOdds } from "@/lib/revalidate-playoff-odds"
 import { NextResponse } from "next/server"
 import { db, schema, rawSql } from "@/lib/db"
 import { sql, eq, and, count } from "drizzle-orm"
@@ -711,6 +712,10 @@ export async function GET(request: Request) {
         )
       boxscoresRemaining = remaining[0].count
 
+      if (scheduleResult.gamesCreated > 0) {
+        revalidatePlayoffOdds()
+      }
+
       return NextResponse.json({
         ok: true,
         season: season.id,
@@ -763,6 +768,10 @@ export async function GET(request: Request) {
         target: schema.syncMetadata.key,
         set: { value: sql`EXCLUDED.value` },
       })
+
+    if (scheduleResult.updatesApplied > 0) {
+      revalidatePlayoffOdds()
+    }
 
     return NextResponse.json({
       ok: true,

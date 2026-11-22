@@ -1,4 +1,5 @@
 import { after } from "next/server"
+import { revalidatePlayoffOdds } from "@/lib/revalidate-playoff-odds"
 import { dispatchSportsUpdates } from "@/lib/push/sports-updates"
 import { insertGameTimingSql, validateGameTiming } from "@/lib/scorekeeper-timing-db"
 import { compactGameTiming, recordGameTiming, withoutGameTiming } from "@/lib/scorekeeper-timing"
@@ -784,6 +785,7 @@ export async function POST(
     const cleanState = await replaceClaimedState(completedState)
     if (!cleanState) throw new Error("The completed finalization claim could not be cleared")
 
+    revalidatePlayoffOdds()
     after(() => dispatchSportsUpdates().catch(error => console.error("Game alert dispatch failed", error)))
     return NextResponse.json({ ok: true, homeScore, awayScore, isOvertime, state: cleanState })
   } catch (error) {

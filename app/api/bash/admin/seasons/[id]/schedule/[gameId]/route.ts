@@ -3,6 +3,7 @@ import { db, schema, rawSql } from "@/lib/db"
 import { eq, and, sql } from "drizzle-orm"
 import { getSession } from "@/lib/admin-session"
 import { revalidateTag } from "next/cache"
+import { revalidatePlayoffOdds } from "@/lib/revalidate-playoff-odds"
 import { normalizeTimeForStorage } from "@/lib/format-time"
 import { syncForfeitRosterStats } from "@/lib/forfeit-sync"
 import type { LiveGameState, RosterPlayer } from "@/lib/scorekeeper-types"
@@ -427,6 +428,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 
     // @ts-expect-error - Next.js canary changed revalidateTag signature // TODO: Remove after Next.js stabilizes
     revalidateTag("seasons")
+    revalidatePlayoffOdds()
     return NextResponse.json({ success: true })
   } catch (error) {
     console.error("Failed to update game:", error)
@@ -478,6 +480,7 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
 
     // @ts-expect-error - Next.js canary changed revalidateTag signature // TODO: Remove after Next.js stabilizes
     revalidateTag("seasons")
+    revalidatePlayoffOdds()
     return NextResponse.json({ success: true })
   } catch (error) {
     console.error("Failed to delete game:", error)

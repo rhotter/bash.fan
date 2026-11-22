@@ -12,6 +12,7 @@ export interface Season {
   status: string
   statsOnly: boolean
   enableSync: boolean
+  playoffTeams: number | null
 }
 
 // ─── Module-level Next.js tag cache ──────────────────────────────────────────
@@ -27,6 +28,7 @@ function mapRow(s: typeof schema.seasons.$inferSelect): Season {
     status: s.status,
     statsOnly: s.statsOnly,
     enableSync: s.enableSync,
+    playoffTeams: s.playoffTeams ?? null,
   }
 }
 

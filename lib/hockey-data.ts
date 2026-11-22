@@ -5,6 +5,7 @@ import type { PlayerStatsData, SkaterStat, GoalieStat, TeamSkaterStat, TeamGoali
 import type { RefStatsData, RefStat } from "@/app/api/bash/refs/route"
 import type { BashGameDetail } from "@/app/api/bash/game/[id]/route"
 import type { SeasonsData } from "@/app/api/bash/seasons/route"
+import type { PlayoffOddsMode, PlayoffOddsSnapshot } from "@/lib/playoff-odds-types"
 import { REFRESH, DEDUPE } from "@/lib/sync-config"
 
 export type {
@@ -21,6 +22,8 @@ export type {
   RefStat,
   BashGameDetail,
   SeasonsData,
+  PlayoffOddsMode,
+  PlayoffOddsSnapshot,
 }
 
 const fetcher = (url: string) => fetch(url).then((res) => readApiJson(res))
@@ -140,6 +143,49 @@ export function useLiveGame(gameId: string | null, fallbackData?: unknown) {
     isLoading,
     isError: !!error,
     errorMessage: error ? errorMessage(error) : undefined,
+  }
+}
+
+export function usePlayoffOdds(
+  season?: string,
+  mode: PlayoffOddsMode = "weighted",
+  fallbackData?: PlayoffOddsSnapshot,
+  enabled = true
+) {
+  const params = new URLSearchParams()
+  if (season && season !== "all") params.set("season", season)
+  if (mode !== "weighted") params.set("mode", mode)
+  const qs = params.toString()
+  const url =
+    enabled && season !== "all"
+      ? qs
+        ? `/api/bash/playoff-odds?${qs}`
+        : "/api/bash/playoff-odds"
+      : null
+
+  const matchingFallback =
+    fallbackData &&
+    fallbackData.mode === mode &&
+    (!season || fallbackData.seasonId === season)
+      ? fallbackData
+      : undefined
+
+  const { data, error, isLoading, isValidating, mutate } = useSWR<PlayoffOddsSnapshot>(url, fetcher, {
+    refreshInterval: REFRESH.PLAYOFF_ODDS,
+    revalidateOnMount: matchingFallback ? false : undefined,
+    revalidateOnFocus: true,
+    dedupingInterval: DEDUPE.PLAYOFF_ODDS,
+    keepPreviousData: true,
+    fallbackData: matchingFallback,
+  })
+
+  return {
+    snapshot: data ?? null,
+    isLoading: matchingFallback ? false : isLoading,
+    isValidating,
+    isError: !!error,
+    errorMessage: error ? errorMessage(error) : undefined,
+    refresh: mutate,
   }
 }
 

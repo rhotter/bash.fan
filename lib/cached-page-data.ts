@@ -3,6 +3,8 @@ import { unstable_cache } from "next/cache"
 import { fetchTeamDetail } from "@/lib/fetch-team-detail"
 import { fetchPlayerStats } from "@/lib/fetch-player-stats"
 import { fetchTeamStats } from "@/lib/fetch-team-stats"
+import { fetchPlayoffOdds } from "@/lib/fetch-playoff-odds"
+import type { PlayoffOddsMode } from "@/lib/playoff-odds-types"
 
 // Public page snapshots can be shared briefly between visits. API handlers
 // retain their existing freshness rules; no admin or live-score data is cached here.
@@ -28,8 +30,20 @@ const statsPageData = unstable_cache(
     tags: ["seasons", "public-page-data"],
   }
 )
+const playoffOddsPageData = unstable_cache(
+  async (season: string | null, mode: PlayoffOddsMode) => fetchPlayoffOdds(season, mode),
+  ["playoff-odds-page-data-v1"],
+  {
+    revalidate: 60,
+    tags: ["seasons", "playoff-odds", "public-page-data"],
+  }
+)
 
 export const fetchTeamPageData = cache((slug: string, season?: string) => teamPageData(slug, season ?? null))
 export const fetchStatsPageData = cache((season?: string, seasonType?: string, gameType?: string) =>
   statsPageData(season ?? null, false, seasonType ?? "fall", gameType ?? "regular")
+)
+export const fetchPlayoffOddsPageData = cache(
+  (season?: string | null, mode: PlayoffOddsMode = "weighted") =>
+    playoffOddsPageData(season ?? null, mode)
 )
