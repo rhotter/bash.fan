@@ -72,6 +72,19 @@ final class NativeScorekeeperTests: XCTestCase {
         model.putEvent(["id": .string("ppg"), "team": .string("landsharks"), "period": .int(2), "clock": .string("19:30"), "scorerId": .int(4), "assist1Id": .null, "assist2Id": .null, "flags": .array([.string("PPG")])], collection: "goals")
         XCTAssertTrue(model.activePenalties().isEmpty)
     }
+    @MainActor func testPowerPlayFollowsActivePenaltiesAndPeriodStatsBucketOvertime() {
+        let model = NativeScorekeeper.sample()
+        XCTAssertNil(model.powerPlayHome())
+        model.putEvent(["id": .string("a"), "team": .string("landsharks"), "period": .int(1), "clock": .string("17:30"), "playerId": .int(4), "minutes": .int(2), "infraction": .string("Tripping")], collection: "penalties")
+        XCTAssertEqual(model.powerPlayHome(), false)
+        model.putEvent(["id": .string("b"), "team": .string("seals"), "period": .int(1), "clock": .string("17:25"), "playerId": .int(1), "minutes": .int(2), "infraction": .string("Hooking")], collection: "penalties")
+        XCTAssertNil(model.powerPlayHome())
+        model.putEvent(["id": .string("g1"), "team": .string("seals"), "period": .int(2), "clock": .string("5:00"), "scorerId": .int(1), "assist1Id": .null, "assist2Id": .null, "flags": .array([])], collection: "goals")
+        model.putEvent(["id": .string("g2"), "team": .string("seals"), "period": .int(4), "clock": .string("1:00"), "scorerId": .int(1), "assist1Id": .null, "assist2Id": .null, "flags": .array([])], collection: "goals")
+        XCTAssertEqual(model.periodStats(false).goals, [0, 1, 0, 1])
+        XCTAssertEqual(model.periodStats(false).shots, [3, 0, 0, 0])
+        XCTAssertEqual(model.periodStats(true).goals, [0, 0, 0, 0])
+    }
     @MainActor func testPeriodTransitionClosesPullsAndKeepsOvertimeShots() {
         let model = NativeScorekeeper.sample()
         model.state["goaliePulls"] = .array([.object(["id": .string("pull"), "returnedAt": .null])])
@@ -122,7 +135,9 @@ private final class AutosyncServer: @unchecked Sendable {
     private var loseResponse = false
     var delay: TimeInterval = 0
     init(payload: ScoringPayload) { self.payload = payload }
+    private var finalized = 0
     var writes: [ScoringState] { lock.withLock { requests } }
+    var finalizations: Int { lock.withLock { finalized } }
     func setOffline(_ value: Bool) { lock.withLock { offline = value } }
     func loseNextResponse() { lock.withLock { loseResponse = true } }
     func remoteEdit() { lock.withLock { payload.state?["notes"] = .string("Another scorer changed this") } }
@@ -130,6 +145,7 @@ private final class AutosyncServer: @unchecked Sendable {
         lock.withLock {
             if offline { return (0, nil, URLError(.notConnectedToInternet)) }
             if request.httpMethod == "GET" { return (200, try! JSONEncoder().encode(payload), nil) }
+            if request.url?.lastPathComponent == "finalize" { finalized += 1; payload.status = "final"; return (200, Data(#"{"ok":true}"#.utf8), nil) }
             let sent = try! JSONDecoder().decode(ScoringState.self, from: body)
             requests.append(sent)
             let expected = sent["expectedState"]!.object.filter { $0.key != "timing" }
@@ -261,6 +277,23 @@ extension NativeScorekeeperTests {
         try await eventually { !model.dirty }
         XCTAssertEqual(server.writes.count, 1)
         XCTAssertNil(model.syncIssue)
+    }
+    @MainActor func testFinalizeRequestedOfflineCompletesAfterReconnect() async throws {
+        let (model, server) = await autosyncFixture()
+        server.setOffline(true)
+        model.shot(false, delta: 1)
+        await model.finalize()
+        XCTAssertTrue(model.pendingFinalize)
+        XCTAssertFalse(model.final)
+        // Another edit withdraws the queued request; asking again re-queues it.
+        model.shot(false, delta: 1)
+        XCTAssertFalse(model.pendingFinalize)
+        await model.finalize()
+        XCTAssertTrue(model.pendingFinalize)
+        server.setOffline(false)
+        try await eventually { model.final }
+        XCTAssertFalse(model.pendingFinalize)
+        XCTAssertEqual(server.finalizations, 1)
     }
     @MainActor func testLostAcknowledgementCanRecoverAfterRelaunch() async throws {
         let (model, server) = await autosyncFixture()

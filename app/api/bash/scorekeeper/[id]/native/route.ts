@@ -70,7 +70,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   `)
 
   return NextResponse.json({
-    status: game.status, isPlayoff: !!game.is_playoff,
+    status: game.status, isPlayoff: !!game.is_playoff, isAdhocGame,
     periodLength: Math.round(((game.game_length || 60) / 3) * 60),
     homeRoster, awayRoster, subPlayerIds: initialSubPlayerIds,
     state: liveRows[0]?.state ?? null,

@@ -40,6 +40,8 @@ struct ScoringPayload: Codable {
     var awayRoster: [ScoringPlayer]
     var subPlayerIds: [Int]
     var state: ScoringState?
+    /// Exhibition/tryout games keep their own rosters; older servers omit this.
+    var isAdhocGame: Bool?
 }
 private struct ScoringMutation: Codable {
     let id: String
@@ -70,6 +72,8 @@ private struct ScoringDraft: Codable {
     @Published private(set) var syncing = false
     @Published private(set) var syncIssue: String?
     @Published private(set) var localSaveFailed = false
+    /// Finalization was requested offline and runs automatically once the game syncs.
+    @Published private(set) var pendingFinalize = false
     private var scheduledSync: Task<Void, Never>?
     private var syncTask: Task<Bool, Never>?
     private var pending: ScoringMutation?
@@ -120,6 +124,22 @@ private struct ScoringDraft: Codable {
             return remaining > 0 ? ActivePenalty(penalty: penalty, remaining: remaining) : nil
         }.sorted { $0.remaining < $1.remaining }
     }
+    /// `true` when the home team has the man advantage, `false` for away, `nil` at even strength.
+    func powerPlayHome(at date: Date = .now) -> Bool? {
+        let active = activePenalties(at: date)
+        let homeCount = active.filter { $0.penalty["team"]?.text == slug(true) }.count
+        return homeCount * 2 == active.count ? nil : homeCount * 2 < active.count
+    }
+    /// Goals and shots per period (P1, P2, P3, OT) for one team.
+    func periodStats(_ home: Bool) -> (goals: [Int], shots: [Int]) {
+        var goals = [0, 0, 0, 0]
+        for goal in list("goals") where goal["team"]?.text == slug(home) {
+            goals[max(0, min(3, Int(goal["period"]?.number ?? 1) - 1))] += 1
+        }
+        let recorded = ids(home ? "homeShots" : "awayShots")
+        return (goals, (0..<4).map { recorded.indices.contains($0) ? recorded[$0] : 0 })
+    }
+    func cancelPendingFinalize() { pendingFinalize = false }
     static func elapsed(period: Int, clockSeconds: Int, regulation: Int, overtime: Int) -> Int {
         min(3, period - 1) * regulation + max(0, period - 4) * overtime + (period <= 3 ? regulation : overtime) - clockSeconds
     }
@@ -131,9 +151,10 @@ private struct ScoringDraft: Codable {
         let other = shootout[home ? "awayAttempts" : "homeAttempts"]?.array.filter { $0.object["scored"]?.flag == true }.count ?? 0
         return goals + (own > other ? 1 : 0)
     }
-    func request(_ suffix: String, method: String = "GET", body: ScoringState? = nil, headers: [String: String] = [:]) async throws -> ScoringState {
+    func request(_ suffix: String, method: String = "GET", body: ScoringState? = nil, headers: [String: String] = [:], query: [URLQueryItem] = []) async throws -> ScoringState {
         guard !preview else { throw URLError(.notConnectedToInternet) }
-        var request = URLRequest(url: server.appending(path: "api/bash/scorekeeper/\(game.id)/\(suffix)"))
+        let url = server.appending(path: "api/bash/scorekeeper/\(game.id)/\(suffix)")
+        var request = URLRequest(url: query.isEmpty ? url : url.appending(queryItems: query))
         request.httpMethod = method
         request.timeoutInterval = 15
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -204,6 +225,7 @@ private struct ScoringDraft: Codable {
         var next = state
         edit(&next)
         guard next != before else { return }
+        pendingFinalize = false
         state = next
         let now = Date.now.timeIntervalSince1970 * 1000
         state["updatedAt"] = .number(max(now.rounded(), (before["updatedAt"]?.number ?? 0) + 1))
@@ -237,7 +259,8 @@ private struct ScoringDraft: Codable {
         scheduledSync = Task { [weak self] in
             do { try await Task.sleep(for: .seconds(delay)) } catch { return }
             guard let self else { return }
-            _ = await self.save()
+            // Finalizing reschedules sync, which cancels this task; run it in its own.
+            if await self.save(), self.pendingFinalize { Task { await self.finalize() } }
         }
     }
     func setSyncActive(_ active: Bool) {
@@ -322,8 +345,12 @@ private struct ScoringDraft: Codable {
             error = "Select three different stars, or clear all three selections."; return
         }
         pause()
+        pendingFinalize = false
         busy = true; defer { busy = false; scheduleSync() }
-        if !final { guard await save() else { return } }
+        if !final {
+            // Offline: keep the request and finish automatically once the game has synced.
+            guard await save() else { pendingFinalize = syncIssue != nil && !conflict; return }
+        }
         do {
             if !preview {
                 if final {
@@ -452,6 +479,7 @@ struct ScorekeeperScreen: View {
     @State private var confirmFinalize = false
     @State private var confirmReload = false
     @State private var confirmPeriod = false
+    @State private var activeTimeout: (home: Bool, started: Date)?
     @Environment(\.dismiss) private var dismiss
     init(game: Game, server: URL, cookies: [HTTPCookie]) {
         _model = StateObject(wrappedValue: NativeScorekeeper(game: game, server: server, cookies: cookies))
@@ -502,6 +530,9 @@ struct ScorekeeperScreen: View {
                             if !finishing && model.period == 4 && model.payload?.isPlayoff != true {
                                 Button("Start shootout") { model.pause(); model.change { $0["period"] = .int(5) } }
                             }
+                            if !finishing && !model.final && model.period == 5 && shootoutAttempts == 0 {
+                                Button("Return to overtime") { model.setPeriod(4) }
+                            }
                             if !model.final || model.editingFinal {
                                 Button(finishing ? "Back to scoring" : "Review and finish", systemImage: "checkmark.circle") {
                                     if !finishing { model.pause() }; reviewing.toggle()
@@ -532,6 +563,7 @@ struct ScorekeeperScreen: View {
                     ScoringEventEditor(model: model, home: home, scoring: sheet == "goal", original: event)
                 } else if sheet == "clock" { ScoringClockEditor(model: model) }
                 else if sheet == "player" { ScoringAddPlayer(model: model, home: home) }
+                else if sheet == "timeout", let event { ScoringTimeoutEditor(model: model, timeout: event) }
                 else if sheet == "shootout" { ScoringShootout(model: model, home: home) }
                 else {
                     NavigationStack {
@@ -581,6 +613,12 @@ struct ScorekeeperScreen: View {
             Section {
                 Text(error).font(.footnote).foregroundStyle(.red)
                 if model.conflict { Button("Reload server version", role: .destructive) { confirmReload = true } }
+            }
+        }
+        if model.pendingFinalize {
+            Section {
+                Label("This game will be finalized automatically when you’re back online.", systemImage: "clock.arrow.circlepath").font(.footnote)
+                Button("Cancel finalization") { model.cancelPendingFinalize() }
             }
         }
         if let issue = model.syncIssue, !model.localSaveFailed {
@@ -681,8 +719,37 @@ struct ScorekeeperScreen: View {
                     Button("Edit clock") { sheet = "clock" }.buttonStyle(.bordered)
                 }.controlSize(.large)
             }
-            if !finishing { activePenalties }
+            if !finishing { timeoutCountdown; activePenalties }
         }.padding(16)
+    }
+    private var shootoutAttempts: Int {
+        let shootout = model.state["shootout"]?.object ?? [:]
+        return (shootout["homeAttempts"]?.array.count ?? 0) + (shootout["awayAttempts"]?.array.count ?? 0)
+    }
+    @ViewBuilder private var timeoutCountdown: some View {
+        if let timeout = activeTimeout {
+            TimelineView(.periodic(from: .now, by: 1)) { context in
+                let remaining = 60 - Int(context.date.timeIntervalSince(timeout.started))
+                if remaining > 0 {
+                    HStack(spacing: 10) {
+                        Text(NativeScorekeeper.time(remaining)).font(.system(.title3, design: .rounded, weight: .bold)).monospacedDigit()
+                            .frame(minWidth: 48, alignment: .leading)
+                        TeamLogo(slug: model.slug(timeout.home), size: 24)
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text("Timeout").font(.subheadline.weight(.medium))
+                            Text(model.team(timeout.home)).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                        }
+                        Spacer(minLength: 0)
+                        Button { activeTimeout = nil } label: { Image(systemName: "xmark.circle.fill").font(.title3).symbolRenderingMode(.hierarchical) }
+                            .buttonStyle(.plain).foregroundStyle(.secondary).accessibilityLabel("Dismiss timeout timer")
+                    }
+                    .padding(.horizontal, 12).padding(.vertical, 8)
+                    .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 10))
+                    .padding(.top, 4)
+                    .accessibilityIdentifier("activeTimeout")
+                }
+            }
+        }
     }
     private var activePenalties: some View {
         TimelineView(.periodic(from: .now, by: 1)) { context in
@@ -716,6 +783,15 @@ struct ScorekeeperScreen: View {
             TeamLogo(slug: model.slug(home), size: 42)
             Text(model.team(home)).font(.caption.weight(.semibold)).lineLimit(1).minimumScaleFactor(0.7)
             Text("\(model.score(home))").font(.title.bold()).monospacedDigit()
+            TimelineView(.periodic(from: .now, by: 1)) { context in
+                // Both columns reserve the badge's height during a power play so the teams stay level.
+                if !finishing, let advantage = model.powerPlayHome(at: context.date) {
+                    Text("Power play").font(.caption2.weight(.semibold)).foregroundStyle(.secondary)
+                        .padding(.horizontal, 8).padding(.vertical, 2).background(.quaternary, in: Capsule())
+                        .opacity(advantage == home ? 1 : 0).accessibilityHidden(advantage != home)
+                        .accessibilityIdentifier(home ? "homePowerPlay" : "awayPowerPlay")
+                }
+            }
         }.frame(maxWidth: .infinity)
     }
     private var teamPicker: some View {
@@ -749,12 +825,19 @@ struct ScorekeeperScreen: View {
         if !model.list("timeouts").isEmpty {
             Section("Timeouts") {
                 ForEach(model.list("timeouts"), id: \.idString) { timeout in
-                    Text("\(timeout["team"]?.text == model.slug(true) ? model.team(true) : model.team(false)) · P\(Int(timeout["period"]?.number ?? 1)) · \(timeout["clock"]?.text ?? "")")
-                        .font(.subheadline)
+                    Button { event = timeout; sheet = "timeout" } label: {
+                        HStack {
+                            TeamLogo(slug: timeout["team"]?.text, size: 30)
+                            Text(timeout["team"]?.text == model.slug(true) ? model.team(true) : model.team(false)).fontWeight(.medium)
+                            Spacer()
+                            Text("P\(Int(timeout["period"]?.number ?? 1)) · \(timeout["clock"]?.text ?? "")").font(.caption).monospacedDigit().foregroundStyle(.secondary)
+                        }.foregroundStyle(.primary)
+                    }.tint(Color.primary)
                         .swipeActions { Button("Delete", role: .destructive) { removeTimeout(timeout) } }
                 }
             }
         }
+        periodStats
         Section {
             Button("Edit rosters") { sheet = "rosters" }
             Button("Review and finish") { model.pause(); reviewing = true }.accessibilityIdentifier("reviewGame")
@@ -787,6 +870,31 @@ struct ScorekeeperScreen: View {
                 }
             }
         }
+    }
+    private var periodStats: some View {
+        Section("By period") {
+            let showOvertime = model.period >= 4 || [false, true].contains { model.periodStats($0).goals[3] + model.periodStats($0).shots[3] > 0 }
+            let columns = showOvertime ? 4 : 3
+            Grid(horizontalSpacing: 4, verticalSpacing: 8) {
+                GridRow {
+                    Text("Goals").frame(maxWidth: .infinity, alignment: .leading)
+                    ForEach(0..<columns, id: \.self) { Text($0 == 3 ? "OT" : "\($0 + 1)").frame(width: 36) }
+                    Text("T").frame(width: 36)
+                }.font(.caption).foregroundStyle(.secondary)
+                ForEach([false, true], id: \.self) { side in periodRow(model.team(side), model.periodStats(side).goals, columns) }
+                Divider().gridCellUnsizedAxes(.horizontal)
+                GridRow { Text("Shots").gridCellColumns(columns + 2).frame(maxWidth: .infinity, alignment: .leading) }
+                    .font(.caption).foregroundStyle(.secondary)
+                ForEach([false, true], id: \.self) { side in periodRow(model.team(side), model.periodStats(side).shots, columns) }
+            }.accessibilityIdentifier("periodStats")
+        }
+    }
+    private func periodRow(_ team: String, _ values: [Int], _ columns: Int) -> some View {
+        GridRow {
+            Text(team).font(.subheadline).lineLimit(1).frame(maxWidth: .infinity, alignment: .leading)
+            ForEach(0..<columns, id: \.self) { Text("\(values[$0])").frame(width: 36) }
+            Text("\(values.reduce(0, +))").fontWeight(.semibold).frame(width: 36)
+        }.font(.subheadline).monospacedDigit().accessibilityElement(children: .combine)
     }
     private var finishGameButton: some View {
         Button { model.pause(); reviewing = true } label: {
@@ -853,7 +961,7 @@ struct ScorekeeperScreen: View {
                     HStack { Text(player.name); if model.payload?.subPlayerIds.contains(player.id) == true { Text("Sub").font(.caption).foregroundStyle(.secondary) } }
                 }.tint(LeagueStyle.orange)
             }
-            Button("Add substitute") { sheet = "player" }.disabled(model.final)
+            Button(model.payload?.isAdhocGame == true ? "Add player" : "Add substitute") { sheet = "player" }.disabled(model.final)
         } header: { Text("Attendance · \(model.ids(home ? "homeAttendance" : "awayAttendance").count) present") }
     }
     private var officialsControls: some View {
@@ -956,6 +1064,7 @@ struct ScorekeeperScreen: View {
             state["timeouts"] = .array(values)
             let key = home ? "homeTimeoutsUsed" : "awayTimeoutsUsed"; state[key] = .int(Int(state[key]?.number ?? 0) + 1)
         }
+        activeTimeout = (home, .now)
     }
     private func removeTimeout(_ timeout: ScoringState) {
         model.change("timeout") { state in
@@ -1046,6 +1155,8 @@ private struct ScoringEventEditor: View {
             infraction = original?["infraction"]?.text ?? "Tripping"; penaltyMinutes = Int(original?["minutes"]?.number ?? 2)
             let flags = original?["flags"]?.array.map(\.text) ?? []
             ppg = flags.contains("PPG"); shg = flags.contains("SHG"); eng = flags.contains("ENG")
+            // New goals start with the strength implied by the penalties being served.
+            if original == nil, scoring, let advantage = model.powerPlayHome() { ppg = advantage == home; shg = advantage != home }
         }
     }
     private func playerPicker(_ title: String, selection: Binding<Int>) -> some View {
@@ -1099,41 +1210,120 @@ private struct ScoringClockEditor: View {
     }
 }
 
+private struct ScoringTimeoutEditor: View {
+    @ObservedObject var model: NativeScorekeeper
+    let timeout: ScoringState
+    @Environment(\.dismiss) private var dismiss
+    @State private var period = 1
+    @State private var minutes = 0
+    @State private var seconds = 0
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section(timeout["team"]?.text == model.slug(true) ? model.team(true) : model.team(false)) {
+                    Picker("Period", selection: $period) { ForEach(1...max(4, model.period, period), id: \.self) { Text($0 < 4 ? "Period \($0)" : "Overtime \($0 - 3)").tag($0) } }
+                    Picker("Minutes remaining", selection: $minutes) { ForEach(0...30, id: \.self) { Text(String($0)).tag($0) } }
+                    Picker("Seconds remaining", selection: $seconds) { ForEach(0..<60, id: \.self) { Text(String(format: "%02d", $0)).tag($0) } }
+                }
+            }.navigationTitle("Edit timeout").navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Save") {
+                            model.change("timeout") { state in
+                                state["timeouts"] = .array((state["timeouts"]?.array ?? []).map { item in
+                                    guard item.object["id"] == timeout["id"] else { return item }
+                                    var value = item.object
+                                    value["period"] = .int(period); value["clock"] = .string(NativeScorekeeper.time(minutes * 60 + seconds))
+                                    return .object(value)
+                                })
+                            }
+                            dismiss()
+                        }.disabled(minutes * 60 + seconds > (period >= 4 && model.payload?.isPlayoff != true ? 300 : model.payload?.periodLength ?? 1200))
+                    }
+                }
+        }.tint(LeagueStyle.orange).onAppear {
+            let value = GameLive.clockSeconds(timeout["clock"]?.text ?? "0:00")
+            period = max(1, Int(timeout["period"]?.number ?? 1)); minutes = value / 60; seconds = value % 60
+        }
+    }
+}
+
 private struct ScoringAddPlayer: View {
     @ObservedObject var model: NativeScorekeeper
     let home: Bool
     @State private var name = ""
+    @State private var matches: [ScoringPlayer] = []
+    @State private var searching = false
+    @State private var substitute = true
     @State private var busy = false
     @State private var error: String?
     @Environment(\.dismiss) private var dismiss
+    private var adhoc: Bool { model.payload?.isAdhocGame == true }
+    private var query: String { name.trimmingCharacters(in: .whitespacesAndNewlines) }
     var body: some View {
         NavigationStack {
-            Form {
-                Section(model.team(home)) { TextField("Full name", text: $name).textContentType(.name) }
-                Text("An existing player with this exact name will be used. Otherwise a new player will be created and added as a substitute.").font(.footnote).foregroundStyle(.secondary)
-                if let error { Text(error).foregroundStyle(.red) }
-            }.navigationTitle("Add substitute").navigationBarTitleDisplayMode(.inline)
-                .toolbar {
-                    ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() }.disabled(busy) }
-                    ToolbarItem(placement: .confirmationAction) {
-                        Button("Add") {
-                            busy = true
-                            Task {
-                                do {
-                                    guard await model.save() else {
-                                        self.error = "Waiting for game changes to sync. Try again when connected."
-                                        busy = false
-                                        return
-                                    }
-                                    _ = try await model.request("player", method: "POST", body: ["name": .string(name.trimmingCharacters(in: .whitespacesAndNewlines)), "teamSide": .string(home ? "home" : "away"), "isSub": .bool(true)])
-                                    await model.load(); dismiss()
-                                } catch { self.error = error.localizedDescription }
-                                busy = false
-                            }
-                        }.disabled(busy || name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                    }
+            List {
+                if adhoc {
+                    Section {
+                        Toggle("Substitute", isOn: $substitute).tint(LeagueStyle.orange)
+                    } footer: { Text("Turn off to add this player to the \(model.team(home)) roster for this game.") }
                 }
+                if let error { Section { Text(error).font(.footnote).foregroundStyle(.red) } }
+                if query.count >= 2 {
+                    Section {
+                        ForEach(matches) { player in
+                            Button { add(player.name) } label: {
+                                HStack {
+                                    Text(player.name).foregroundStyle(.primary)
+                                    Spacer()
+                                    if model.roster(home).contains(where: { $0.id == player.id }) { Text("On roster").font(.caption).foregroundStyle(.secondary) }
+                                }
+                            }.disabled(model.roster(home).contains { $0.id == player.id })
+                        }
+                        if !searching && !matches.contains(where: { $0.name.caseInsensitiveCompare(query) == .orderedSame }) {
+                            Button { add(query) } label: { Label("Add “\(query)” as a new player", systemImage: "person.badge.plus") }
+                                .accessibilityIdentifier("createScoringPlayer")
+                        }
+                    } header: {
+                        HStack { Text("Players"); if searching || busy { ProgressView().controlSize(.small) } }
+                    }
+                } else {
+                    Section { Text("Search by name to add \(adhoc ? "a player" : "a substitute") to \(model.team(home)).").font(.footnote).foregroundStyle(.secondary) }
+                }
+            }
+            .disabled(busy)
+            .searchable(text: $name, placement: .navigationBarDrawer(displayMode: .always), prompt: "Player name")
+            .textInputAutocapitalization(.words).autocorrectionDisabled()
+            .navigationTitle(adhoc ? "Add player" : "Add substitute").navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() }.disabled(busy) } }
+            .task(id: query) {
+                matches = []
+                guard query.count >= 2 else { searching = false; return }
+                searching = true
+                do {
+                    try await Task.sleep(for: .milliseconds(300))
+                    let reply = try await model.request("search-players", query: [URLQueryItem(name: "q", value: query)])
+                    matches = (reply["players"]?.array ?? []).map { ScoringPlayer(id: Int($0.object["id"]?.number ?? 0), name: $0.object["name"]?.text ?? "") }
+                    searching = false
+                } catch is CancellationError {
+                } catch { searching = false }
+            }
         }.tint(LeagueStyle.orange).interactiveDismissDisabled(busy)
+    }
+    private func add(_ player: String) {
+        busy = true; error = nil
+        Task {
+            defer { busy = false }
+            do {
+                guard await model.save() else {
+                    error = "Waiting for game changes to sync. Try again when connected."
+                    return
+                }
+                _ = try await model.request("player", method: "POST", body: ["name": .string(player), "teamSide": .string(home ? "home" : "away"), "isSub": .bool(substitute || !adhoc)])
+                await model.load(); dismiss()
+            } catch { self.error = error.localizedDescription }
+        }
     }
 }
 
