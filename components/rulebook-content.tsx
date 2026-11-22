@@ -376,16 +376,20 @@ function RulebookSidebar({
     spyIds,
     latestChangelogVersion,
     autoFocusSearch = false,
+    variant = "sidebar",
     onNavigate,
 }: {
     sections: RuleSection[]
     spyIds: string[]
     latestChangelogVersion?: string
     autoFocusSearch?: boolean
+    variant?: "sidebar" | "drawer"
     onNavigate?: (anchorId: string) => void
 }) {
+    const isDrawer = variant === "drawer"
     const activeId = useScrollSpy(spyIds, 150)
     const [searchQuery, setSearchQuery] = useState("")
+    const [isSearchFocused, setIsSearchFocused] = useState(false)
     const searchInputRef = useRef<HTMLInputElement>(null)
     const [expandedSections, setExpandedSections] = useState<Set<string>>(
         () => new Set(sections[0] ? [sections[0].id] : [])
@@ -456,48 +460,121 @@ function RulebookSidebar({
     }
 
     const isSearching = searchQuery.trim().length > 0
+    const hideTitleRow = isDrawer && (isSearching || isSearchFocused || autoFocusSearch)
+
+    const referenceDocumentsList = (
+        <div className={isDrawer ? "mt-4 border-t border-border pt-3 px-1 pb-2" : "border-t border-border px-3.5 py-2.5 bg-muted/20 shrink-0"}>
+            <p className="text-[11px] font-medium text-muted-foreground mb-1.5">
+                Reference Documents
+            </p>
+            <div className={isDrawer ? "flex flex-col gap-1.5 text-sm" : "flex flex-col gap-1 text-xs"}>
+                {RULEBOOK_REFERENCE_LINKS.map((link) => (
+                    <a
+                        key={link.url}
+                        href={link.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={`inline-flex items-center justify-between gap-2 text-muted-foreground hover:text-foreground transition-colors ${
+                            isDrawer ? "py-1" : ""
+                        }`}
+                    >
+                        <span className="truncate">{link.label}</span>
+                        <ExternalLink className={isDrawer ? "h-3.5 w-3.5 opacity-70 shrink-0" : "h-3 w-3 opacity-70 shrink-0"} />
+                    </a>
+                ))}
+            </div>
+        </div>
+    )
 
     return (
-        <div className="flex flex-col h-full bg-card rounded-xl border border-border overflow-hidden">
-            <div className="p-4 border-b border-border bg-card shrink-0">
-                <div className="flex items-center justify-between gap-2 mb-3">
-                    <div className="flex items-center gap-2">
-                        <List className="h-4 w-4 text-muted-foreground" />
-                        <h2 className="text-sm font-semibold text-foreground">Table of Contents</h2>
+        <div
+            className={
+                isDrawer
+                    ? "flex flex-col h-full min-h-0 overflow-hidden"
+                    : "flex flex-col h-full bg-card rounded-xl border border-border overflow-hidden"
+            }
+        >
+            <div
+                className={
+                    isDrawer
+                        ? "px-4 pt-2 pb-3 border-b border-border shrink-0"
+                        : "p-4 border-b border-border bg-card shrink-0"
+                }
+            >
+                {!hideTitleRow && (
+                    <div className="flex items-center justify-between gap-2 mb-3">
+                        <div className="flex items-center gap-2">
+                            <List className="h-4 w-4 text-muted-foreground" />
+                            <h2 className="text-sm font-semibold text-foreground">Table of Contents</h2>
+                        </div>
+                        {totalMatches !== null && (
+                            <span className="font-mono text-[11px] tabular-nums text-muted-foreground">
+                                {totalMatches} {totalMatches === 1 ? "rule" : "rules"}
+                            </span>
+                        )}
                     </div>
-                    {totalMatches !== null && (
-                        <span className="font-mono text-[11px] tabular-nums text-muted-foreground">
-                            {totalMatches} {totalMatches === 1 ? "rule" : "rules"}
-                        </span>
-                    )}
-                </div>
+                )}
                 <div className="relative">
-                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                    <Search
+                        className={
+                            isDrawer
+                                ? "absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground"
+                                : "absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground"
+                        }
+                    />
                     <Input
                         ref={searchInputRef}
                         type="text"
                         placeholder="Search rule # or keyword..."
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
+                        onFocus={() => setIsSearchFocused(true)}
+                        onBlur={() => setIsSearchFocused(false)}
                         aria-label="Search rules by number, title, or text"
-                        className="pl-8 pr-7 h-8 text-xs bg-muted/50 focus-visible:ring-1 border-border"
+                        className={
+                            isDrawer
+                                ? `pl-9 h-10 text-base bg-muted/50 focus-visible:ring-1 border-border ${
+                                      isSearching
+                                          ? hideTitleRow
+                                              ? "pr-24"
+                                              : "pr-9"
+                                          : "pr-3"
+                                  }`
+                                : "pl-8 pr-7 h-8 text-xs bg-muted/50 focus-visible:ring-1 border-border"
+                        }
                     />
                     {isSearching && (
-                        <button
-                            type="button"
-                            onClick={() => setSearchQuery("")}
-                            className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                            aria-label="Clear search"
-                        >
-                            <X className="h-3.5 w-3.5" />
-                        </button>
+                        <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1.5">
+                            {hideTitleRow && totalMatches !== null && (
+                                <span className="font-mono text-[11px] tabular-nums text-muted-foreground">
+                                    {totalMatches} {totalMatches === 1 ? "rule" : "rules"}
+                                </span>
+                            )}
+                            <button
+                                type="button"
+                                onClick={() => setSearchQuery("")}
+                                className={
+                                    isDrawer
+                                        ? "p-1 text-muted-foreground hover:text-foreground"
+                                        : "text-muted-foreground hover:text-foreground"
+                                }
+                                aria-label="Clear search"
+                            >
+                                <X className={isDrawer ? "h-4 w-4" : "h-3.5 w-3.5"} />
+                            </button>
+                        </div>
                     )}
                 </div>
             </div>
 
             <nav
                 aria-label="Rulebook sections"
-                className="flex-1 overflow-y-auto p-3 space-y-1 custom-scrollbar"
+                onTouchMove={() => {
+                    if (isDrawer && document.activeElement === searchInputRef.current) {
+                        searchInputRef.current?.blur()
+                    }
+                }}
+                className="flex-1 min-h-0 overflow-y-auto p-3 space-y-1 custom-scrollbar"
             >
                 {latestChangelogVersion && !isSearching && (
                     <a
@@ -569,13 +646,19 @@ function RulebookSidebar({
                                                     key={rule.id}
                                                     href={`#${rule.id}`}
                                                     onClick={(e) => handleAnchorClick(e, rule.id)}
-                                                    className={`relative block py-1.5 pl-3.5 pr-2 text-xs transition-colors ${
+                                                    className={`relative block pl-3.5 pr-2 transition-colors ${
+                                                        isDrawer ? "py-2.5 text-sm" : "py-1.5 text-xs"
+                                                    } ${
                                                         isRuleActive
                                                             ? "text-primary font-semibold bg-primary/5 border-l-2 -ml-[1px] border-primary"
                                                             : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
                                                     }`}
                                                 >
-                                                    <span className="font-mono text-[11px] mr-1.5 opacity-80">
+                                                    <span
+                                                        className={`font-mono mr-1.5 opacity-80 ${
+                                                            isDrawer ? "text-xs" : "text-[11px]"
+                                                        }`}
+                                                    >
                                                         {rule.number}
                                                     </span>
                                                     <span>{rule.title}</span>
@@ -588,27 +671,11 @@ function RulebookSidebar({
                         )
                     })
                 )}
+
+                {isDrawer && !isSearching && referenceDocumentsList}
             </nav>
 
-            <div className="border-t border-border px-3.5 py-2.5 bg-muted/20 shrink-0">
-                <p className="text-[11px] font-medium text-muted-foreground mb-1.5">
-                    Reference Documents
-                </p>
-                <div className="flex flex-col gap-1 text-xs">
-                    {RULEBOOK_REFERENCE_LINKS.map((link) => (
-                        <a
-                            key={link.url}
-                            href={link.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center justify-between gap-2 text-muted-foreground hover:text-foreground transition-colors"
-                        >
-                            <span className="truncate">{link.label}</span>
-                            <ExternalLink className="h-3 w-3 opacity-70 shrink-0" />
-                        </a>
-                    ))}
-                </div>
-            </div>
+            {!isDrawer && referenceDocumentsList}
         </div>
     )
 }
@@ -769,18 +836,19 @@ export function RulebookContent({
                     }}
                 >
                     <DrawerContent
-                        className="h-[85vh] outline-none"
+                        className="h-[90dvh] data-[vaul-drawer-direction=bottom]:mt-8 data-[vaul-drawer-direction=bottom]:max-h-[90dvh] outline-none"
                         onCloseAutoFocus={(e) => {
                             if (pendingAnchorRef.current) e.preventDefault()
                         }}
                     >
                         <DrawerTitle className="sr-only">Table of Contents</DrawerTitle>
-                        <div className="p-4 h-full flex flex-col pt-6 pb-8">
+                        <div className="flex-1 min-h-0 flex flex-col pt-2 pb-[env(safe-area-inset-bottom)]">
                             <RulebookSidebar
                                 sections={parsed.sections}
                                 spyIds={spyIds}
                                 latestChangelogVersion={latestChangelogVersion}
                                 autoFocusSearch={drawerOpen && focusSearchOnOpen}
+                                variant="drawer"
                                 onNavigate={handleDrawerNavigate}
                             />
                         </div>
