@@ -1272,9 +1272,6 @@ private struct ScoringClockEditor: View {
                 setDraft(min(limit, model.clock()))
                 initialized = true
             }
-            .onChange(of: period) { _, _ in
-                if let draftTime, draftTime > limit { setDraft(limit) }
-            }
             .onChange(of: timeInput) { _, input in
                 let digits = String(input.filter { $0.isASCII && $0.isNumber }.prefix(5))
                 if input != digits { timeInput = digits }
