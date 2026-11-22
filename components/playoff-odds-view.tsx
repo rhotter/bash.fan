@@ -8,36 +8,15 @@ import { PlayoffOddsTable } from "@/components/playoff-odds-table"
 import { TeamOddsPanel } from "@/components/team-odds-panel"
 import { BigGamesSection } from "@/components/big-games-section"
 import { PlayoffOddsMethodology } from "@/components/playoff-odds-methodology"
+import { PlayoffOddsLeagueCharts } from "@/components/playoff-odds-league-charts"
+import { PlayoffOddsFilterBar, STATS_MODEL_OPTIONS } from "@/components/playoff-odds-filter-bar"
 import { usePlayoffOdds } from "@/lib/hockey-data"
 import { CLIENT_WHATIF_ITERATIONS, computePlayoffOdds } from "@/lib/playoff-odds"
-import { cn } from "@/lib/utils"
 import type {
   BigGameOutcomeKey,
   PlayoffOddsMode,
   PlayoffOddsSnapshot,
 } from "@/lib/playoff-odds-types"
-
-const MODE_OPTIONS: ReadonlyArray<{
-  value: PlayoffOddsMode
-  label: string
-  hint: string
-}> = [
-  {
-    value: "weighted",
-    label: "Weighted",
-    hint: "BASH-calibrated PythagenPuck + Empirical Bayes shrinkage (recommended)",
-  },
-  {
-    value: "50_50",
-    label: "50/50",
-    hint: "Pure coin-flip schedule math (every remaining game is 50/50)",
-  },
-  {
-    value: "classic",
-    label: "SCS Classic",
-    hint: "Ken Roberts's original points-percentage + piecewise regression",
-  },
-]
 
 export function PlayoffOddsView({
   season,
@@ -55,7 +34,11 @@ export function PlayoffOddsView({
   const [mode, setMode] = useState<PlayoffOddsMode>(initialMode)
   const [selectedTeamSlug, setSelectedTeamSlug] = useState<string | null>(initialTeam ?? null)
   const [lockedOutcomes, setLockedOutcomes] = useState<Record<string, BigGameOutcomeKey>>({})
-  const modeTabRefs = useRef<Array<HTMLButtonElement | null>>([])
+  const [highlightedSlug, setHighlightedSlug] = useState<string | null>(null)
+  const [modeSwitchOrigin, setModeSwitchOrigin] = useState<{
+    seasonKey: string
+    snapshotSeasonId: string
+  } | null>(null)
 
   useEffect(() => {
     setMode(initialMode)
@@ -70,40 +53,50 @@ export function PlayoffOddsView({
     setLockedOutcomes({})
   }, [season])
 
-  const { snapshot: baselineSnapshot, isLoading, isValidating, isError, errorMessage, refresh } =
-    usePlayoffOdds(season, mode, initialData)
+  const {
+    snapshot: baselineSnapshot,
+    isLoading,
+    isStaleData,
+    isError,
+    errorMessage,
+    refresh,
+  } = usePlayoffOdds(season, mode, initialData)
 
   const handleModeChange = useCallback(
     (nextMode: PlayoffOddsMode) => {
+      if (baselineSnapshot && !isStaleData) {
+        setModeSwitchOrigin({
+          seasonKey: season ?? "__current__",
+          snapshotSeasonId: baselineSnapshot.seasonId,
+        })
+      }
       setMode(nextMode)
       onUrlStateChange?.({ mode: nextMode, team: selectedTeamSlug ?? undefined })
     },
-    [onUrlStateChange, selectedTeamSlug]
+    [baselineSnapshot, isStaleData, season, onUrlStateChange, selectedTeamSlug]
   )
 
   const handleSelectTeam = useCallback(
     (slug: string | null) => {
       setSelectedTeamSlug(slug)
+      setHighlightedSlug(null)
       onUrlStateChange?.({ mode, team: slug ?? undefined })
     },
     [mode, onUrlStateChange]
   )
 
-  const handleModeKeyDown = useCallback(
-    (e: React.KeyboardEvent<HTMLButtonElement>, idx: number) => {
-      let nextIdx: number
-      if (e.key === "ArrowRight") nextIdx = (idx + 1) % MODE_OPTIONS.length
-      else if (e.key === "ArrowLeft") nextIdx = (idx - 1 + MODE_OPTIONS.length) % MODE_OPTIONS.length
-      else if (e.key === "Home") nextIdx = 0
-      else if (e.key === "End") nextIdx = MODE_OPTIONS.length - 1
-      else return
-
-      e.preventDefault()
-      const next = MODE_OPTIONS[nextIdx]
-      handleModeChange(next.value)
-      modeTabRefs.current[nextIdx]?.focus()
+  // Selecting a team from a table row lower on the page should bring the team view into view
+  const teamSelectorRef = useRef<HTMLDivElement | null>(null)
+  const handleSelectTeamFromTable = useCallback(
+    (slug: string | null) => {
+      handleSelectTeam(slug)
+      if (slug) {
+        requestAnimationFrame(() => {
+          teamSelectorRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" })
+        })
+      }
     },
-    [handleModeChange]
+    [handleSelectTeam]
   )
 
   const handleToggleOutcome = useCallback((gameId: string, outcome: BigGameOutcomeKey) => {
@@ -122,7 +115,29 @@ export function PlayoffOddsView({
     setLockedOutcomes({})
   }, [])
 
-  const lockedCount = Object.keys(lockedOutcomes).length
+  const allUpcomingGames = useMemo(
+    () => (baselineSnapshot ? baselineSnapshot.regularGames.filter((g) => g.status !== "final") : []),
+    [baselineSnapshot]
+  )
+
+  // Drop any locked outcome whose game finalized during an SWR refresh
+  const effectiveLockedOutcomes = useMemo(() => {
+    const upcomingIds = new Set(allUpcomingGames.map((g) => g.id))
+    const filtered: Record<string, BigGameOutcomeKey> = {}
+    for (const [gid, outcome] of Object.entries(lockedOutcomes)) {
+      if (upcomingIds.has(gid)) filtered[gid] = outcome
+    }
+    return filtered
+  }, [lockedOutcomes, allUpcomingGames])
+
+  const lockedCount = Object.keys(effectiveLockedOutcomes).length
+
+  const baselineMatchesRequest = Boolean(
+    baselineSnapshot &&
+      !isStaleData &&
+      baselineSnapshot.mode === mode &&
+      (!season || baselineSnapshot.seasonId === season)
+  )
 
   // Instant client-side What-If re-simulation when user locks 1+ upcoming game outcomes
   const activeSnapshot = useMemo(() => {
@@ -136,29 +151,25 @@ export function PlayoffOddsView({
       seasonStatus: baselineSnapshot.seasonStatus,
       configuredPlayoffTeams: baselineSnapshot.format.playoffSpots,
       games: baselineSnapshot.regularGames,
-      mode,
+      mode: baselineMatchesRequest ? mode : baselineSnapshot.mode,
       iterations: CLIENT_WHATIF_ITERATIONS,
       includeTimeline: false,
       includeTailProbes: true,
-      lockedOutcomes,
+      lockedOutcomes: effectiveLockedOutcomes,
     })
 
     // Keep baseline season timeline available in the team breakdown chart
     return {
       ...whatIfSnap,
       timeline: baselineSnapshot.timeline,
+      teamColors: baselineSnapshot.teamColors,
     }
-  }, [baselineSnapshot, lockedCount, lockedOutcomes, mode])
+  }, [baselineSnapshot, baselineMatchesRequest, lockedCount, effectiveLockedOutcomes, mode])
 
   const baselineTeamsBySlug = useMemo(() => {
-    if (!baselineSnapshot || lockedCount === 0) return undefined
+    if (!baselineSnapshot || !baselineMatchesRequest || lockedCount === 0) return undefined
     return new Map(baselineSnapshot.teams.map((t) => [t.slug, t]))
-  }, [baselineSnapshot, lockedCount])
-
-  const allUpcomingGames = useMemo(
-    () => (baselineSnapshot ? baselineSnapshot.regularGames.filter((g) => g.status !== "final") : []),
-    [baselineSnapshot]
-  )
+  }, [baselineSnapshot, baselineMatchesRequest, lockedCount])
 
   if (season === "all") {
     return (
@@ -174,7 +185,25 @@ export function PlayoffOddsView({
     return <LoadingState variant="table" label="Running Monte Carlo playoff simulations…" />
   }
 
-  if (isError && !activeSnapshot) {
+  const currentSeasonKey = season ?? "__current__"
+  const modeOrSeasonFetchFailed = isError && !baselineMatchesRequest
+  const isSameSeasonModeFailure =
+    modeOrSeasonFetchFailed &&
+    Boolean(
+      activeSnapshot &&
+        activeSnapshot.teams.length > 0 &&
+        activeSnapshot.mode !== mode &&
+        modeSwitchOrigin !== null &&
+        modeSwitchOrigin.seasonKey === currentSeasonKey &&
+        modeSwitchOrigin.snapshotSeasonId === activeSnapshot.seasonId
+    )
+
+  if (
+    isError &&
+    (!activeSnapshot ||
+      activeSnapshot.teams.length === 0 ||
+      (modeOrSeasonFetchFailed && !isSameSeasonModeFailure))
+  ) {
     return (
       <ErrorNotice
         message={errorMessage ?? "Unable to load playoff odds right now."}
@@ -195,128 +224,137 @@ export function PlayoffOddsView({
 
   const selectedTeam =
     selectedTeamSlug ? activeSnapshot.teams.find((t) => t.slug === selectedTeamSlug) ?? null : null
-
-  const formatSummary = activeSnapshot.format.allTeamsQualify
-    ? `All ${activeSnapshot.format.teamCount} teams qualify (seeding race)`
-    : activeSnapshot.format.hasPlayIn
-      ? `Top ${activeSnapshot.format.playoffSpots} of ${activeSnapshot.format.teamCount} qualify (1–${activeSnapshot.format.directByeSpots} bye, 4v5 play-in)`
-      : `Top ${activeSnapshot.format.playoffSpots} of ${activeSnapshot.format.teamCount} qualify`
+  const activeModel = STATS_MODEL_OPTIONS.find((o) => o.value === mode) ?? STATS_MODEL_OPTIONS[0]
+  const teamOptions = [...activeSnapshot.teams]
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .map((t) => ({ slug: t.slug, name: t.name }))
 
   return (
     <div className="flex flex-col gap-6">
-      {/* Season Context + Mode Switcher Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border/60 bg-card/70 px-3.5 py-2.5">
-        <div className="space-y-0.5 min-w-0">
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs">
-            <span className="font-semibold text-foreground">{activeSnapshot.seasonName}</span>
-            <span className="text-muted-foreground">·</span>
-            <span className="text-muted-foreground tabular-nums">
-              {activeSnapshot.gamesPlayed} of {activeSnapshot.totalRegularGames} games final
-            </span>
-            <span className="hidden sm:inline text-muted-foreground">·</span>
-            <span className="text-muted-foreground">{formatSummary}</span>
-          </div>
-          <div className="flex flex-wrap items-center gap-x-2 text-[11px] text-muted-foreground/80 tabular-nums">
-            <span>{activeSnapshot.iterations.toLocaleString()} Monte Carlo simulations</span>
-            <span>·</span>
-            <span>{isValidating ? "Updating…" : `Computed in ${activeSnapshot.computeMs} ms`}</span>
-            {activeSnapshot.endedEarly && (
-              <>
-                <span>·</span>
-                <span className="font-medium text-foreground">Season ended early</span>
-              </>
-            )}
-          </div>
+      {/* Teams / Stats Model filter bar + season header.
+          Always mounted so users can switch back from a failed model fetch. */}
+      <div className="space-y-5">
+        <div ref={teamSelectorRef} className="scroll-mt-20">
+          <PlayoffOddsFilterBar
+            teams={teamOptions}
+            teamValue={selectedTeam ? selectedTeam.slug : null}
+            onTeamChange={handleSelectTeam}
+            mode={mode}
+            onModeChange={handleModeChange}
+          />
         </div>
 
-        {/* Accessible Mode Switcher Tablist */}
-        <div
-          role="tablist"
-          aria-label="Simulation weighting model"
-          className="inline-flex items-center rounded-md border border-border/60 bg-muted/50 p-0.5 text-[11px]"
-        >
-          {MODE_OPTIONS.map((opt, idx) => {
-            const active = mode === opt.value
-            return (
-              <button
-                key={opt.value}
-                ref={(el) => {
-                  modeTabRefs.current[idx] = el
-                }}
-                type="button"
-                role="tab"
-                aria-selected={active}
-                tabIndex={active ? 0 : -1}
-                title={opt.hint}
-                onClick={() => handleModeChange(opt.value)}
-                onKeyDown={(e) => handleModeKeyDown(e, idx)}
-                className={cn(
-                  "relative rounded px-2.5 py-1 font-medium transition-colors cursor-pointer min-h-[32px] sm:min-h-0",
-                  "aria-selected:bg-card aria-selected:text-foreground aria-selected:after:content-[''] aria-selected:after:absolute aria-selected:after:inset-x-1.5 aria-selected:after:bottom-0 aria-selected:after:border-b-2 aria-selected:after:border-foreground",
-                  !active && "text-muted-foreground hover:text-foreground"
-                )}
-              >
-                {opt.label}
-              </button>
-            )
-          })}
+        <div className="space-y-1">
+          <h2 className="text-base font-semibold text-foreground">{activeSnapshot.seasonName} playoff odds</h2>
+          <p className="text-xs text-muted-foreground">
+            We ran {activeSnapshot.iterations.toLocaleString()} Monte Carlo simulations with {STATS_MODEL_OPTIONS.length}{" "}
+            different models.
+            {activeSnapshot.endedEarly && <span className="font-medium text-foreground"> Season ended early.</span>}
+          </p>
+          <p id="playoff-odds-stats-model-hint" className="text-xs text-muted-foreground">
+            <span className="font-medium text-foreground">{activeModel.label}:</span> {activeModel.hint}
+          </p>
         </div>
       </div>
 
-      {/* Active What-If Scenario Banner */}
-      {lockedCount > 0 && (
-        <div
-          role="status"
-          className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-primary/40 bg-primary/[0.06] px-3.5 py-2.5 text-xs"
-        >
-          <div className="flex items-center gap-2 text-foreground">
-            <Sparkles className="h-4 w-4 shrink-0 text-primary" />
-            <span>
-              <span className="font-semibold">What-If scenario active</span> ({lockedCount}{" "}
-              {lockedCount === 1 ? "game" : "games"} locked) — live projected odds from{" "}
-              <span className="tabular-nums">{activeSnapshot.iterations.toLocaleString()}</span> client simulations.
-            </span>
-          </div>
-          <button
-            type="button"
-            onClick={handleClearLocked}
-            className="inline-flex items-center gap-1 rounded-md bg-primary px-3 py-1 text-[11px] font-semibold text-primary-foreground hover:bg-primary/90 transition-colors cursor-pointer"
-          >
-            <RotateCcw className="h-3 w-3" />
-            Reset picks
-          </button>
-        </div>
-      )}
-
-      {/* Deliverable #1: Playoff Odds & Seed Distribution Table */}
-      <PlayoffOddsTable
-        snapshot={activeSnapshot}
-        baselineTeamsBySlug={baselineTeamsBySlug}
-        selectedTeamSlug={selectedTeamSlug}
-        onSelectTeam={handleSelectTeam}
-      />
-
-      {/* Expandable Team Drill-Down Panel */}
-      {selectedTeam && (
-        <TeamOddsPanel
-          team={selectedTeam}
-          snapshot={activeSnapshot}
-          isWhatIfActive={lockedCount > 0}
-          onClose={() => handleSelectTeam(null)}
+      {modeOrSeasonFetchFailed ? (
+        <ErrorNotice
+          message={errorMessage ?? "Unable to load playoff odds for this view right now."}
+          onRetry={() => {
+            void refresh()
+          }}
         />
+      ) : (
+        <>
+          {/* Non-blocking error notice if background refresh fails while showing matching cached data */}
+          {isError && (
+            <ErrorNotice
+              message={errorMessage ?? "Unable to refresh playoff odds right now."}
+              onRetry={() => {
+                void refresh()
+              }}
+            />
+          )}
+
+          {/* Active What-If Scenario Banner */}
+          {lockedCount > 0 && (
+            <div
+              role="status"
+              className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-primary/40 bg-primary/[0.06] px-3.5 py-2.5 text-xs"
+            >
+              <div className="flex items-center gap-2 text-foreground">
+                <Sparkles className="h-4 w-4 shrink-0 text-primary" />
+                <span>
+                  <span className="font-semibold">What-If scenario active</span> ({lockedCount}{" "}
+                  {lockedCount === 1 ? "game" : "games"} locked) — live projected odds from{" "}
+                  <span className="tabular-nums">{activeSnapshot.iterations.toLocaleString()}</span> client simulations.
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={handleClearLocked}
+                className="inline-flex items-center gap-1 rounded-md bg-primary px-3 py-1 text-[11px] font-semibold text-primary-foreground hover:bg-primary/90 transition-colors cursor-pointer"
+              >
+                <RotateCcw className="h-3 w-3" />
+                Reset picks
+              </button>
+            </div>
+          )}
+
+          {selectedTeam ? (
+            <>
+              {/* Team view */}
+              <TeamOddsPanel
+                team={selectedTeam}
+                snapshot={activeSnapshot}
+                isWhatIfActive={lockedCount > 0}
+                onClose={() => handleSelectTeam(null)}
+              />
+
+              <BigGamesSection
+                snapshot={activeSnapshot}
+                lockedOutcomes={effectiveLockedOutcomes}
+                onToggleOutcome={handleToggleOutcome}
+                onClearLocked={handleClearLocked}
+                allUpcomingGames={allUpcomingGames}
+                lockedTeamSlug={selectedTeam.slug}
+              />
+            </>
+          ) : (
+            <>
+              {/* All teams: SCS-style Points + Chance Will Make Playoffs charts */}
+              <PlayoffOddsLeagueCharts
+                snapshot={activeSnapshot}
+                highlightedSlug={highlightedSlug}
+                onHighlight={setHighlightedSlug}
+                isWhatIfActive={lockedCount > 0}
+              />
+
+              {/* Playoff Odds & Seed Distribution Table */}
+              <PlayoffOddsTable
+                snapshot={activeSnapshot}
+                baselineTeamsBySlug={baselineTeamsBySlug}
+                selectedTeamSlug={selectedTeamSlug}
+                onSelectTeam={handleSelectTeamFromTable}
+                highlightedSlug={highlightedSlug}
+                onHighlightTeam={setHighlightedSlug}
+              />
+
+              {/* This week's games ("Who should we root for?") */}
+              <BigGamesSection
+                snapshot={activeSnapshot}
+                lockedOutcomes={effectiveLockedOutcomes}
+                onToggleOutcome={handleToggleOutcome}
+                onClearLocked={handleClearLocked}
+                allUpcomingGames={allUpcomingGames}
+              />
+            </>
+          )}
+
+          {/* Collapsible Methodology Disclosure */}
+          <PlayoffOddsMethodology snapshot={activeSnapshot} />
+        </>
       )}
-
-      {/* Deliverable #2: Big Games ("Who should we root for?") */}
-      <BigGamesSection
-        snapshot={activeSnapshot}
-        lockedOutcomes={lockedOutcomes}
-        onToggleOutcome={handleToggleOutcome}
-        onClearLocked={handleClearLocked}
-        allUpcomingGames={allUpcomingGames}
-      />
-
-      {/* Collapsible Methodology Disclosure */}
-      <PlayoffOddsMethodology snapshot={activeSnapshot} />
     </div>
   )
 }

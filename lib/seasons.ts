@@ -68,7 +68,7 @@ export const getCurrentSeason = unstable_cache(
     }
     throw new Error("No seasons configured in the database.")
   },
-  ['current-season', 'canonical-names-v1'],
+  ['current-season', 'canonical-names-v1', 'playoff-teams-v1'],
   { tags: ['seasons'], revalidate: 3600 }
 )
 
@@ -79,7 +79,7 @@ export const getAllSeasons = unstable_cache(
     })
     return rows.map(mapRow).sort(compareSeasonsDesc)
   },
-  ['all-seasons', 'canonical-names-v1'],
+  ['all-seasons', 'canonical-names-v1', 'playoff-teams-v1'],
   { tags: ['seasons'], revalidate: 3600 }
 )
 

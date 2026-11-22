@@ -4,6 +4,7 @@ import { fetchTeamDetail } from "@/lib/fetch-team-detail"
 import { fetchPlayerStats } from "@/lib/fetch-player-stats"
 import { fetchTeamStats } from "@/lib/fetch-team-stats"
 import { fetchPlayoffOdds } from "@/lib/fetch-playoff-odds"
+import { getCurrentSeason, getSeasonById } from "@/lib/seasons"
 import type { PlayoffOddsMode } from "@/lib/playoff-odds-types"
 
 // Public page snapshots can be shared briefly between visits. API handlers
@@ -30,11 +31,19 @@ const statsPageData = unstable_cache(
     tags: ["seasons", "public-page-data"],
   }
 )
-const playoffOddsPageData = unstable_cache(
-  async (season: string | null, mode: PlayoffOddsMode) => fetchPlayoffOdds(season, mode),
-  ["playoff-odds-page-data-v1"],
+const activePlayoffOddsBySeasonId = unstable_cache(
+  async (seasonId: string, mode: PlayoffOddsMode) => fetchPlayoffOdds(seasonId, mode),
+  ["playoff-odds-active-v4"],
   {
     revalidate: 60,
+    tags: ["seasons", "playoff-odds", "public-page-data"],
+  }
+)
+const completedPlayoffOddsBySeasonId = unstable_cache(
+  async (seasonId: string, mode: PlayoffOddsMode) => fetchPlayoffOdds(seasonId, mode),
+  ["playoff-odds-completed-v4"],
+  {
+    revalidate: 3600,
     tags: ["seasons", "playoff-odds", "public-page-data"],
   }
 )
@@ -44,6 +53,16 @@ export const fetchStatsPageData = cache((season?: string, seasonType?: string, g
   statsPageData(season ?? null, false, seasonType ?? "fall", gameType ?? "regular")
 )
 export const fetchPlayoffOddsPageData = cache(
-  (season?: string | null, mode: PlayoffOddsMode = "weighted") =>
-    playoffOddsPageData(season ?? null, mode)
+  async (season?: string | null, mode: PlayoffOddsMode = "weighted") => {
+    // Canonicalize season before touching unstable_cache so arbitrary query strings
+    // cannot amplify the cache keyspace or trigger uncached CPU work.
+    const resolved =
+      season && season !== "all"
+        ? (await getSeasonById(season)) ?? (await getCurrentSeason())
+        : await getCurrentSeason()
+    if (resolved.status === "completed") {
+      return completedPlayoffOddsBySeasonId(resolved.id, mode)
+    }
+    return activePlayoffOddsBySeasonId(resolved.id, mode)
+  }
 )

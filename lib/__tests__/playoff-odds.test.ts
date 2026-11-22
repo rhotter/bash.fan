@@ -158,6 +158,40 @@ describe("Playoff Odds Engine — Format & Strength Models", () => {
     expect(historical2018.playoffSpots).toBe(5)
     expect(historical2018.hasPlayIn).toBe(true)
     expect(historical2018.directByeSpots).toBe(3)
+
+    // Active Summer (>4 teams) and active 7-team Fall with Postgres schema default playoff_teams = 4
+    const activeSummerDefault = resolvePlayoffFormat({
+      seasonType: "summer",
+      seasonStatus: "active",
+      configuredPlayoffTeams: 4,
+      teamCount: 6,
+      actualPlayoffTeamCount: 0,
+    })
+    expect(activeSummerDefault.allTeamsQualify).toBe(true)
+    expect(activeSummerDefault.playoffSpots).toBe(6)
+
+    const activeFall7Default = resolvePlayoffFormat({
+      seasonType: "fall",
+      seasonStatus: "active",
+      configuredPlayoffTeams: 4,
+      teamCount: 7,
+      actualPlayoffTeamCount: 0,
+    })
+    expect(activeFall7Default.playoffSpots).toBe(5)
+    expect(activeFall7Default.hasPlayIn).toBe(true)
+    expect(activeFall7Default.directByeSpots).toBe(3)
+
+    // Active 7-team Fall season after the 4v5 Play-In game finalizes (actualPlayoffTeamCount >= 2 while still active)
+    const activeFall7MidPlayoffs = resolvePlayoffFormat({
+      seasonType: "fall",
+      seasonStatus: "active",
+      configuredPlayoffTeams: 4,
+      teamCount: 7,
+      actualPlayoffTeamCount: 2,
+    })
+    expect(activeFall7MidPlayoffs.playoffSpots).toBe(5)
+    expect(activeFall7MidPlayoffs.hasPlayIn).toBe(true)
+    expect(activeFall7MidPlayoffs.directByeSpots).toBe(3)
   })
 
   it("reproduces Ken Roberts's exact p225 regression formula from archived 2018-2019 BASH page", () => {
@@ -237,17 +271,8 @@ describe("Playoff Odds Engine — Official BASH Rule 213 Tiebreakers", () => {
     expect(Array.from(order)).toEqual([0, 1, 2])
   })
 
-  it("handles 3-way circular H2H tie where one team separates and remaining two re-run 2-way H2H", () => {
-    // 3 teams tied on PTS=9, ROW=3:
-    // Team 2 beat Team 0 (3-0) and beat Team 1 (3-0) -> 6/6 = 1.0 -> #1
-    // Wait: make Team 0 and Team 1 tied in 3-way H2H at 3/9? Even simpler:
-    // Team 2 played 1 game vs 0 (W 3-0) and 1 vs 1 (W 3-0) -> 6/6 = 1.000
-    // Team 0 played 1 vs 2 (L 0-3) and 2 vs 1 (W 3-0, L 0-3? No, W 2-1 OT, W 3-0 -> wait)
-    // Suppose 0 vs 2: 2 wins reg (0:0, 2:3); 1 vs 2: 2 wins reg (1:0, 2:3); 0 vs 1: 0 wins reg (0:3, 1:0)
-    // Then 3-way H2H is already 2(6/6) > 0(3/6) > 1(0/6).
-    // Now suppose 0 vs 1 played twice (0 won both -> 6/6), while 2 beat 0 (3-0) and 2 beat 1 (3-0)?
-    // Wait: 0 has 6/9 (0.667), 1 has 0/9 (0.0), 2 has 6/6 (1.0) -> separated cleanly.
-    // Test exact 3-way tie on H2H pct (0 beat 1, 1 beat 2, 2 beat 0 -> all 3/6 = 0.500), falling through to GD:
+  it("falls through circular 3-way H2H ties to GD and recursively re-runs 2-way H2H when one team separates", () => {
+    // Case A: Circular 3-way tie (all 3/6 = 0.500 H2H) falls through to GD (8 > 5 > 2)
     const T = 3
     const pts = Int16Array.from([9, 9, 9])
     const row = Int16Array.from([3, 3, 3])
@@ -255,13 +280,32 @@ describe("Playoff Odds Engine — Official BASH Rule 213 Tiebreakers", () => {
     const gf = Int16Array.from([10, 10, 10])
     const h2hPts = new Int16Array(T * T)
     const h2hGames = new Int16Array(T * T)
-    // Circular 0 > 1 > 2 > 0
     h2hPts[0 * T + 1] = 3; h2hGames[0 * T + 1] = 1; h2hGames[1 * T + 0] = 1
     h2hPts[1 * T + 2] = 3; h2hGames[1 * T + 2] = 1; h2hGames[2 * T + 1] = 1
     h2hPts[2 * T + 0] = 3; h2hGames[2 * T + 0] = 1; h2hGames[0 * T + 2] = 1
 
-    const order = rankTeamsRule213(T, pts, row, gd, gf, h2hPts, h2hGames, Float64Array.from([0.9, 0.1, 0.5]))
-    expect(Array.from(order)).toEqual([1, 2, 0]) // sorted by GD: 8 > 5 > 2
+    const orderCircular = rankTeamsRule213(T, pts, row, gd, gf, h2hPts, h2hGames, Float64Array.from([0.9, 0.1, 0.5]))
+    expect(Array.from(orderCircular)).toEqual([1, 2, 0])
+
+    // Case B: True recursive 3-way -> 2-way narrowing!
+    // Team 0 sweeps both 1 & 2 (6/6 = 1.0 -> #1).
+    // Teams 1 & 2 play each other TWICE (1 wins reg 3-0, then 1 wins OT 2-1 -> wait: to tie in 3-way H2H,
+    // let 0 beat 1 (3-0) and 0 beat 2 (2-1 OT -> 2 gets 1 pt!), and 1 beat 2 (2-1 OT -> 1 gets 2 pts, 2 gets 1 pt):
+    // 3-way H2H totals: Team 0 = 5/6 (0.833) -> #1; Team 1 = 2/6 (0.333); Team 2 = 2/6 (0.333) -> TIED!
+    // Recursive 2-way H2H between {1, 2}: Team 1 has 2/3 (0.667) vs Team 2 has 1/3 (0.333) -> Team 1 beats Team 2
+    // EVEN THOUGH Team 2 has much higher GD (+20 vs -5)!
+    const gdNarrow = Int16Array.from([0, -5, 20])
+    const h2hPtsN = new Int16Array(T * T)
+    const h2hGamesN = new Int16Array(T * T)
+    // 0 beat 1 reg (3-0)
+    h2hPtsN[0 * T + 1] = 3; h2hPtsN[1 * T + 0] = 0; h2hGamesN[0 * T + 1] = 1; h2hGamesN[1 * T + 0] = 1
+    // 0 beat 2 OT (2-1)
+    h2hPtsN[0 * T + 2] = 2; h2hPtsN[2 * T + 0] = 1; h2hGamesN[0 * T + 2] = 1; h2hGamesN[2 * T + 0] = 1
+    // 1 beat 2 OT (2-1)
+    h2hPtsN[1 * T + 2] = 2; h2hPtsN[2 * T + 1] = 1; h2hGamesN[1 * T + 2] = 1; h2hGamesN[2 * T + 1] = 1
+
+    const orderNarrow = rankTeamsRule213(T, pts, row, gdNarrow, gf, h2hPtsN, h2hGamesN, Float64Array.from([0.1, 0.2, 0.9]))
+    expect(Array.from(orderNarrow)).toEqual([0, 1, 2])
   })
 
   it("handles forfeits and double forfeits accurately per Rule 208", () => {
@@ -448,9 +492,132 @@ describe("Playoff Odds Engine — Monte Carlo Invariants, Big Games & Tail Probi
     expect(bySlug.b.clinched).toBe(true)
     expect(bySlug.c.eliminated).toBe(true)
     expect(bySlug.d.eliminated).toBe(true)
+
+    // Edge case 1: Two completely deadlocked finished teams (Draw Lots ~50/50) while another game remains
+    // must NOT be falsely marked clinched/eliminated by alphabetical slug order!
+    const drawLotsGames: PlayoffSimGame[] = [
+      // a & b each finish 1-1 with identical 3 pts, 1 ROW, 0 GD, 4 GF and split H2H 1-1 (3-1 each)
+      makeGame({ id: "d1", date: "2026-10-10", awaySlug: "a", homeSlug: "b", awayScore: 3, homeScore: 1, status: "final" }),
+      makeGame({ id: "d2", date: "2026-10-17", awaySlug: "b", homeSlug: "a", awayScore: 3, homeScore: 1, status: "final" }),
+      // c & d have 1 upcoming game left; c already has 6 pts (clinched #1), d has 0 pts (eliminated #4)
+      makeGame({ id: "d3", date: "2026-10-10", awaySlug: "c", homeSlug: "d", awayScore: 5, homeScore: 0, status: "final" }),
+      makeGame({ id: "d4", date: "2026-10-17", awaySlug: "c", homeSlug: "d", awayScore: 5, homeScore: 0, status: "final" }),
+      makeGame({ id: "d5", date: "2026-10-24", awaySlug: "c", homeSlug: "d", status: "upcoming" }),
+    ]
+    const drawSnap = computePlayoffOdds({
+      seasonId: "test-draw-lots",
+      seasonName: "Draw Lots",
+      seasonType: "fall",
+      seasonStatus: "active",
+      configuredPlayoffTeams: 2,
+      games: drawLotsGames,
+      mode: "50_50",
+      iterations: 4_000,
+      includeTimeline: false,
+    })
+    const drawBySlug = Object.fromEntries(drawSnap.teams.map((t) => [t.slug, t]))
+    expect(drawBySlug.c.clinched).toBe(true)
+    expect(drawBySlug.a.clinched).toBe(false)
+    expect(drawBySlug.a.eliminated).toBe(false)
+    expect(drawBySlug.b.clinched).toBe(false)
+    expect(drawBySlug.b.eliminated).toBe(false)
+    expect(drawBySlug.a.playoffPct).toBeGreaterThan(45)
+    expect(drawBySlug.a.playoffPct).toBeLessThan(55)
+
+    // Same Draw-Lots deadlock when 0 games remain (e.g., final unrelated game locked in What-If or finished)
+    // must STILL assign exact 50/50 odds and NOT falsely mark alphabetical winner as clinched/eliminated!
+    const drawZeroRemSnap = computePlayoffOdds({
+      seasonId: "test-draw-lots-zero",
+      seasonName: "Draw Lots Zero Rem",
+      seasonType: "fall",
+      seasonStatus: "active",
+      configuredPlayoffTeams: 2,
+      games: drawLotsGames,
+      mode: "50_50",
+      iterations: 2_000,
+      includeTimeline: false,
+      lockedOutcomes: { d5: "away_reg" },
+    })
+    const drawZeroBySlug = Object.fromEntries(drawZeroRemSnap.teams.map((t) => [t.slug, t]))
+    expect(drawZeroBySlug.c.clinched).toBe(true)
+    expect(drawZeroBySlug.d.eliminated).toBe(true)
+    expect(drawZeroBySlug.a.clinched).toBe(false)
+    expect(drawZeroBySlug.a.eliminated).toBe(false)
+    expect(drawZeroBySlug.b.clinched).toBe(false)
+    expect(drawZeroBySlug.b.eliminated).toBe(false)
+    expect(drawZeroBySlug.a.playoffPct).toBe(50)
+    expect(drawZeroBySlug.b.playoffPct).toBe(50)
+
+    // Edge case 2: Subset point-pool clinch where 2 rivals individually have maxPts >= tMinPts
+    // (spots = 2, contenders = {b, c} -> length 2 >= 2), BUT b & c play EACH OTHER in the only
+    // remaining game so at most ONE of them can reach tMinPts! Thus team `a` is strictly clinched.
+    const poolGames: PlayoffSimGame[] = [
+      makeGame({ id: "p1", date: "2026-10-10", awaySlug: "a", homeSlug: "b", awayScore: 4, homeScore: 1, status: "final" }),
+      makeGame({ id: "p2", date: "2026-10-10", awaySlug: "a", homeSlug: "c", awayScore: 4, homeScore: 1, status: "final" }),
+      makeGame({ id: "p3", date: "2026-10-17", awaySlug: "b", homeSlug: "c", awayScore: 3, homeScore: 1, status: "final" }),
+      makeGame({ id: "p4", date: "2026-10-17", awaySlug: "c", homeSlug: "b", awayScore: 3, homeScore: 1, status: "final" }),
+      // a = 6 pts (0 rem), b = 3 pts (1 rem vs c), c = 3 pts (1 rem vs b):
+      // neededPts for {b, c} to both reach 6 = (6-3)+(6-3) = 6, but 1 shared game yields only 3 pts!
+      makeGame({ id: "p5", date: "2026-10-24", awaySlug: "b", homeSlug: "c", status: "upcoming" }),
+    ]
+    const poolSnap = computePlayoffOdds({
+      seasonId: "test-pool",
+      seasonName: "Pool Clinch",
+      seasonType: "fall",
+      seasonStatus: "active",
+      configuredPlayoffTeams: 2,
+      games: poolGames,
+      mode: "50_50",
+      iterations: 2_000,
+      includeTimeline: false,
+    })
+    const poolBySlug = Object.fromEntries(poolSnap.teams.map((t) => [t.slug, t]))
+    expect(poolBySlug.a.clinched).toBe(true)
+    expect(poolBySlug.a.playoffPct).toBe(100)
   })
 
-  it("supports interactive What-If lockedOutcomes overrides cleanly", () => {
+  it("orders same-day doubleheaders chronologically by time and caps gamesInHand at gamesRemaining", () => {
+    const doubleheaderGames: PlayoffSimGame[] = [
+      // Note IDs intentionally reverse time order ("g10" < "g9" lexicographically!)
+      makeGame({ id: "g10", date: "2026-10-10", time: "1:00pm", awaySlug: "a", homeSlug: "b", awayScore: 5, homeScore: 1, status: "final" }),
+      makeGame({ id: "g9", date: "2026-10-10", time: "9:00am", awaySlug: "a", homeSlug: "c", awayScore: 2, homeScore: 4, status: "final" }),
+      makeGame({ id: "g20", date: "2026-10-17", time: "1:00pm", awaySlug: "b", homeSlug: "a", status: "upcoming" }),
+      makeGame({ id: "g3", date: "2026-10-17", time: "9:00am", awaySlug: "c", homeSlug: "a", status: "upcoming" }),
+    ]
+    const snap = computePlayoffOdds({
+      seasonId: "test-dh",
+      seasonName: "Doubleheader",
+      seasonType: "fall",
+      seasonStatus: "active",
+      configuredPlayoffTeams: 2,
+      games: doubleheaderGames,
+      mode: "weighted",
+      iterations: 1_000,
+      includeTimeline: false,
+    })
+    const teamA = snap.teams.find((t) => t.slug === "a")!
+    // Last game must be the 1:00pm game (g10), NOT 9:00am (g9)
+    expect(teamA.lastGame?.gameId).toBe("g10")
+    // Next game must be the 9:00am game (g3), NOT 1:00pm (g20)
+    expect(teamA.nextGame?.gameId).toBe("g3")
+
+    // On a completed early-ended season with unequal GP, finished teams must have 0 gamesInHand
+    const earlySnap = computePlayoffOdds({
+      seasonId: "test-early-gih",
+      seasonName: "Early End",
+      seasonType: "fall",
+      seasonStatus: "completed",
+      configuredPlayoffTeams: 2,
+      games: doubleheaderGames,
+      mode: "weighted",
+      iterations: 1_000,
+      includeTimeline: false,
+    })
+    expect(earlySnap.endedEarly).toBe(true)
+    expect(earlySnap.teams.every((t) => t.gamesInHand === 0)).toBe(true)
+  })
+
+  it("keeps team strengths stable under What-If lockedOutcomes (zero strength drift)", () => {
     const firstUpcoming = midSeasonGames.find((g) => g.status === "upcoming")!
     const base = computePlayoffOdds({
       seasonId: "test-whatif",
@@ -482,6 +649,11 @@ describe("Playoff Odds Engine — Monte Carlo Invariants, Big Games & Tail Probi
     const baseAway = base.teams.find((t) => t.slug === firstUpcoming.awaySlug)!
     const lockedAway = locked.teams.find((t) => t.slug === firstUpcoming.awaySlug)!
     expect(lockedAway.pts).toBe(baseAway.pts + 3)
+    // Underlying strength, luck, and lastGame must stay anchored to real completed games (zero What-If leakage)
+    expect(lockedAway.strength).toBe(baseAway.strength)
+    expect(lockedAway.actualPtsPct).toBe(baseAway.actualPtsPct)
+    expect(lockedAway.luckDelta).toBe(baseAway.luckDelta)
+    expect(lockedAway.lastGame).toEqual(baseAway.lastGame)
   })
 
   it("handles edge cases: 0 GP pre-season, completed season, truncated season, and Summer all-in", () => {

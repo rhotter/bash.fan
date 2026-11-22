@@ -28,7 +28,8 @@ export function PlayoffOddsPageClient({
     window.history.replaceState(null, "", qs ? `/playoff-odds?${qs}` : "/playoff-odds")
   }, [])
 
-  const standingsHref = season && season !== "all" ? `/standings?season=${season}` : "/standings"
+  const standingsHref =
+    season && season !== "all" ? `/standings?season=${encodeURIComponent(season)}` : "/standings"
 
   return (
     <div className="flex flex-col gap-5">

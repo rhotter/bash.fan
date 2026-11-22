@@ -30,7 +30,7 @@ export function PlayoffOddsMethodology({ snapshot }: { snapshot: PlayoffOddsSnap
             <h3 className="font-semibold text-foreground">Simulation modes</h3>
             <ul className="list-disc space-y-1 pl-4">
               <li>
-                <span className="font-medium text-foreground">Weighted (Default):</span> Estimates team strength via
+                <span className="font-medium text-foreground">BASH Weighted (Default):</span> Estimates team strength via
                 BASH-calibrated <span className="font-medium">PythagenPuck</span> (power{" "}
                 <code className="rounded bg-muted px-1 py-0.5 text-[11px]">P = {calibration.pythagenPuckPower}</code>{" "}
                 for {seasonType === "summer" ? "Summer 4v4" : "Fall 5v5"}), shrunk toward{" "}

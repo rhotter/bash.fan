@@ -98,8 +98,8 @@ During the exact same 100,000-iteration simulation pass (Ken Roberts's Nov 2009 
 *(Note: Internally the simulator tracks OT vs. SO separately for exact `ROW` tiebreakers, while presenting the 4 points-distinct columns cleanly in the UI so users aren't overwhelmed by near-identical OT and SO columns—with a tooltip explaining that OT wins count toward `ROW` while SO wins do not!)*
 
 For each game $g$:
-- **Total Playoff Swing**: $\sum_{t} \left(\max_{o} P(\text{team } t \text{ makes playoffs} \mid g = o) - \min_{o} P(\text{team } t \text{ makes playoffs} \mid g = o)\right)$.
-- **Tiebreak / All-In Fallback Ranking** (Summer or late-season clinched games): Sorted by total **Avg Seed Swing** $\sum_{t} (\max_o E[\text{seed}_t \mid o] - \min_o E[\text{seed}_t \mid o])$.
+- **League-Wide Probability Swing (`League Playoff impact`, in `pp`)**: $\sum_{t} \left(\max_{o} P(\text{team } t \text{ makes playoffs} \mid g = o) - \min_{o} P(\text{team } t \text{ makes playoffs} \mid g = o)\right)$. Measured in percentage points (`pp`) summed across every team in the league to rank game importance (can exceed `100pp` in high-leverage late-season games because multiple teams shift on one result).
+- **Tiebreak / All-In Fallback Ranking (`League seed impact`)** (Summer or late-season clinched games): Sorted by total **Avg Seed Swing** $\sum_{t} (\max_o E[\text{seed}_t \mid o] - \min_o E[\text{seed}_t \mid o])$.
 - **Affected Teams Displayed**: Always include both participating teams, PLUS any third-party team whose conditional playoff swing is `≥ 0.3%` (or `≥ 0.15` avg seed swing in Summer / clinched races).
 - **Sample-Size Flag (`*`)**: If any outcome occurred in fewer than 100 iterations, prefix its conditional value with `*` and footnote low-sample uncertainty.
 
@@ -127,7 +127,7 @@ Crucially, honoring the `sidereal` `#10674` fix from Ken Roberts's blog, extreme
 
 Strict adherence to `AGENTS.md` and `modern-web-guidance` (`content-first-noise-reduction`, `responsive-table`, `tabs`):
 - **Neutral Theme Tokens First**: Use `bg-background`, `bg-card`, `bg-muted`, `border-border`, `text-foreground`, and `text-muted-foreground` for tables, headers, and controls. Reserve `text-primary` (BASH orange) for primary CTAs (e.g., active Interactive What-If banner / Reset button).
-- **No All-Caps Titles**: Section headings use clean sentence/title case (`Playoff odds & seed projections`, `Big games — who to root for`); only compact tabular column abbreviations (`GP`, `PTS`, `GD`, `RPI`, `GIH`) use small uppercase labels matching `StandingsTab`.
+- **No All-Caps Titles**: Section headings use clean sentence/title case (`Playoff odds & seed projections`, `This week's games`); only compact tabular column abbreviations (`GP`, `PTS`, `GD`, `RPI`, `GIH`) use small uppercase labels matching `StandingsTab`.
 - **Semantic Probability & Delta Accents**:
   - Soft, accessible probability heat tints in the Seed `1..N` columns (neutral muted shading scaling with probability intensity, zero neon clutter).
   - Subtle semantic delta colors (`emerald-700` for positive playoff swing / rooting upside, `rose-700` for negative swing) with explicit `+`/`-` signs so color is never the sole indicator (WCAG AA contrast on light surface).
@@ -155,10 +155,10 @@ Strict adherence to `AGENTS.md` and `modern-web-guidance` (`content-first-noise-
 - **Row Interaction**: Clicking anywhere on a team row (outside the team name link) expands/opens the **Team Drill-Down** panel for that team!
 
 #### Section 3: Big Games — "Who Should We Root For?" (Signature Deliverable #2)
-- **Header**: Title `Big games — who to root for`, scope toggle (`Next matchday` default, e.g. `Sat Nov 14` | `Next 2 weeks`), and optional team filter pill (`All teams` or filter to a single team).
-- **Per-Game Cards / Compact Matrix** (ordered by highest total playoff swing):
+- **Header**: Title `This week's games`, scope toggle (`Next matchday` default, e.g. `Sat Nov 14` | `Next 2 weeks`), and optional team filter pill (`All teams` or filter to a single team).
+- **Per-Game Cards / Compact Matrix** (ordered by highest league-wide probability swing):
   - **Game Header Bar**:
-    - Matchup with logos (`Seals @ Loons`), date & time (`Sat Nov 14 · 9:00am`), pre-game win probability pill (`Seals 42% · Loons 58%`), `IntentLink` to `/game/[id]`, and total playoff swing badge (`14.8% swing`).
+    - Matchup with logos (`Seals @ Loons`), date & time (`Sat Nov 14 · 9:00am`), pre-game win probability pill (`Seals 42% · Loons 58%`), `IntentLink` to `/game/[id]`, and impact badge (`League Playoff impact: 14.8pp`, or `League seed impact: 0.45` in seed-focused games) wrapped in a hover/focus tooltip explaining league-wide probability swing and why values can exceed `100pp`.
     - **Interactive What-If Picker Strip**: 4 compact pill buttons (`Away Reg`, `Away OT`, `Home OT`, `Home Reg`) right in the game card header—clicking any outcome locks that game result and immediately re-simulates the entire page in ~25 ms! Clicking again unlocks it.
   - **4-Outcome Conditional Impact Table**:
     - Rows: Each affected team (both playing teams first, then any third-party scoreboard-watching teams with `≥ 0.3%` swing, tagged subtly as `Watching`).

@@ -3,6 +3,7 @@ import { db, schema } from "@/lib/db"
 import { eq, and, ne, gt, sql, or, isNull } from "drizzle-orm"
 import { getSession } from "@/lib/admin-session"
 import { revalidateTag } from "next/cache"
+import { revalidatePlayoffOdds } from "@/lib/revalidate-playoff-odds"
 import { nextGameIds } from "@/lib/db/game-id"
 import { normalizeTimeForStorage } from "@/lib/format-time"
 
@@ -125,6 +126,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
 
     // @ts-expect-error - Next.js canary changed revalidateTag signature // TODO: Remove after Next.js stabilizes
     revalidateTag("seasons")
+    revalidatePlayoffOdds()
     return NextResponse.json({
       success: true,
       count: gamesToInsert.length,

@@ -1,5 +1,5 @@
 import { fetchApi as fetch, readApiJson, errorMessage } from "@/lib/api-errors"
-import useSWR from "swr"
+import useSWR, { useSWRConfig } from "swr"
 import type { BashApiData, BashGame, Standing } from "@/app/api/bash/route"
 import type { PlayerStatsData, SkaterStat, GoalieStat, TeamSkaterStat, TeamGoalieStat, TeamStatsData } from "@/app/api/bash/players/route"
 import type { RefStatsData, RefStat } from "@/app/api/bash/refs/route"
@@ -170,6 +170,7 @@ export function usePlayoffOdds(
       ? fallbackData
       : undefined
 
+  const { cache } = useSWRConfig()
   const { data, error, isLoading, isValidating, mutate } = useSWR<PlayoffOddsSnapshot>(url, fetcher, {
     refreshInterval: REFRESH.PLAYOFF_ODDS,
     revalidateOnMount: matchingFallback ? false : undefined,
@@ -179,10 +180,17 @@ export function usePlayoffOdds(
     fallbackData: matchingFallback,
   })
 
+  // Detect whether SWR returned laggy data from a previous key (including when returning
+  // to the default Current Season where `season` is undefined).
+  const hasCurrentKeyData = Boolean(url && cache.get(url)?.data !== undefined)
+  const isStaleFallbackOverride = Boolean(matchingFallback && data && !hasCurrentKeyData)
+  const isStaleData = Boolean(!matchingFallback && data && !hasCurrentKeyData)
+
   return {
-    snapshot: data ?? null,
+    snapshot: isStaleFallbackOverride ? matchingFallback! : (data ?? null),
     isLoading: matchingFallback ? false : isLoading,
     isValidating,
+    isStaleData,
     isError: !!error,
     errorMessage: error ? errorMessage(error) : undefined,
     refresh: mutate,

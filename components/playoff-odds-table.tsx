@@ -2,12 +2,12 @@
 
 import { useMemo, useState } from "react"
 import { ChevronDown, ChevronUp } from "lucide-react"
-import { IntentLink as Link } from "@/components/intent-link"
 import { TeamLogo } from "@/components/team-logo"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import type { PlayoffOddsSnapshot, TeamOddsRow } from "@/lib/playoff-odds-types"
 
-type SortKey = "playoffPct" | "pts" | "avgSeed" | "strength" | "rpiRank" | "gd"
+type SortKey = "playoffPct" | "seed1Pct" | "pts" | "avgSeed" | "strength" | "rpiRank" | "gd"
 
 function formatPlayoffDisplay(row: TeamOddsRow): { text: string; kind: "in" | "out" | "pct" } {
   if (row.clinched) return { text: "In", kind: "in" }
@@ -50,28 +50,42 @@ export function PlayoffOddsTable({
   baselineTeamsBySlug,
   selectedTeamSlug,
   onSelectTeam,
+  highlightedSlug = null,
+  onHighlightTeam,
 }: {
   snapshot: PlayoffOddsSnapshot
   baselineTeamsBySlug?: Map<string, TeamOddsRow>
   selectedTeamSlug: string | null
   onSelectTeam: (slug: string | null) => void
+  /** Team currently highlighted in the league trend charts (synchronized hover) */
+  highlightedSlug?: string | null
+  onHighlightTeam?: (slug: string | null) => void
 }) {
   const { format, teams } = snapshot
-  const [sortKey, setSortKey] = useState<SortKey>(
-    format.allTeamsQualify ? "avgSeed" : "playoffPct"
-  )
-  const [sortDir, setSortDir] = useState<"asc" | "desc">(
-    format.allTeamsQualify ? "asc" : "desc"
-  )
+  const defaultSortKey: SortKey = format.allTeamsQualify ? "avgSeed" : "playoffPct"
+  const defaultSortDir: "asc" | "desc" = format.allTeamsQualify ? "asc" : "desc"
+  const [userSort, setUserSort] = useState<{
+    allTeamsQualify: boolean
+    key: SortKey
+    dir: "asc" | "desc"
+  } | null>(null)
   const [mobileGroup, setMobileGroup] = useState<"seeds" | "details">("seeds")
 
-  const toggleSort = (key: SortKey, defaultDir: "asc" | "desc" = "desc") => {
-    if (sortKey === key) {
-      setSortDir((d) => (d === "desc" ? "asc" : "desc"))
-    } else {
-      setSortKey(key)
-      setSortDir(defaultDir)
-    }
+  const sortKey =
+    userSort && userSort.allTeamsQualify === format.allTeamsQualify
+      ? userSort.key
+      : defaultSortKey
+  const sortDir =
+    userSort && userSort.allTeamsQualify === format.allTeamsQualify
+      ? userSort.dir
+      : defaultSortDir
+
+  const toggleSort = (key: SortKey, fallbackDir: "asc" | "desc" = "desc") => {
+    setUserSort({
+      allTeamsQualify: format.allTeamsQualify,
+      key,
+      dir: sortKey === key ? (sortDir === "desc" ? "asc" : "desc") : fallbackDir,
+    })
   }
 
   const sortedTeams = useMemo(() => {
@@ -80,6 +94,9 @@ export function PlayoffOddsTable({
       switch (sortKey) {
         case "playoffPct":
           diff = a.playoffPct - b.playoffPct || b.avgSeed - a.avgSeed || b.currentRank - a.currentRank
+          break
+        case "seed1Pct":
+          diff = (a.seedPcts[0] ?? 0) - (b.seedPcts[0] ?? 0) || b.avgSeed - a.avgSeed || b.currentRank - a.currentRank
           break
         case "pts":
           diff = a.pts - b.pts || a.gd - b.gd
@@ -101,9 +118,7 @@ export function PlayoffOddsTable({
     })
   }, [teams, sortKey, sortDir])
 
-  const isDefaultOrder =
-    (sortKey === "playoffPct" && sortDir === "desc") ||
-    (format.allTeamsQualify && sortKey === "avgSeed" && sortDir === "asc")
+  const isDefaultOrder = sortKey === defaultSortKey && sortDir === defaultSortDir
 
   const isWhatIf = Boolean(baselineTeamsBySlug && baselineTeamsBySlug.size > 0)
   const seedNumbers = Array.from({ length: format.teamCount }, (_, i) => i + 1)
@@ -152,7 +167,7 @@ export function PlayoffOddsTable({
               : "Chance to make playoffs & finish at each seed"}
           </h2>
           <p className="text-[11px] text-muted-foreground">
-            Click any team row for its season trajectory, What-If finish table, and rooting guide.
+            Pick a team above (or tap any row) for its season trajectory, What-If finish table, and games to watch.
           </p>
         </div>
 
@@ -162,30 +177,38 @@ export function PlayoffOddsTable({
           aria-label="Mobile table columns"
           className="inline-flex rounded-md border border-border/60 bg-muted/40 p-0.5 text-[11px] sm:hidden"
         >
-          <button
-            type="button"
-            role="tab"
-            aria-selected={mobileGroup === "seeds"}
-            onClick={() => setMobileGroup("seeds")}
-            className={cn(
-              "rounded px-2.5 py-1 font-medium transition-colors cursor-pointer",
-              mobileGroup === "seeds" ? "bg-card text-foreground shadow-xs" : "text-muted-foreground"
-            )}
-          >
-            Seed odds
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={mobileGroup === "details"}
-            onClick={() => setMobileGroup("details")}
-            className={cn(
-              "rounded px-2.5 py-1 font-medium transition-colors cursor-pointer",
-              mobileGroup === "details" ? "bg-card text-foreground shadow-xs" : "text-muted-foreground"
-            )}
-          >
-            Record &amp; strength
-          </button>
+          {(["seeds", "details"] as const).map((group) => {
+            const active = mobileGroup === group
+            return (
+              <button
+                key={group}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                tabIndex={active ? 0 : -1}
+                onClick={() => setMobileGroup(group)}
+                onKeyDown={(e) => {
+                  if (e.key === "ArrowRight" || e.key === "ArrowLeft" || e.key === "Home" || e.key === "End") {
+                    e.preventDefault()
+                    const next = e.key === "Home" ? "seeds" : e.key === "End" ? "details" : group === "seeds" ? "details" : "seeds"
+                    setMobileGroup(next)
+                    const sibling = e.currentTarget.parentElement?.querySelector<HTMLButtonElement>(
+                      `button[data-mobile-group="${next}"]`
+                    )
+                    sibling?.focus()
+                  }
+                }}
+                data-mobile-group={group}
+                className={cn(
+                  "relative rounded px-2.5 py-1 font-medium transition-colors cursor-pointer",
+                  "aria-selected:after:content-[''] aria-selected:after:absolute aria-selected:after:inset-x-1.5 aria-selected:after:bottom-0 aria-selected:after:border-b-2 aria-selected:after:border-foreground",
+                  active ? "bg-card text-foreground shadow-xs" : "text-muted-foreground"
+                )}
+              >
+                {group === "seeds" ? "Seed odds" : "Record & strength"}
+              </button>
+            )
+          })}
         </div>
       </div>
 
@@ -206,7 +229,7 @@ export function PlayoffOddsTable({
             <tr className="border-b border-border/50 bg-muted/40 text-[10px] text-muted-foreground">
               <th
                 scope="col"
-                className="sticky left-0 z-20 bg-muted/95 backdrop-blur-xs pl-4 sm:pl-3 pr-2 py-1.5 text-left font-medium min-w-[155px] sm:min-w-[175px] after:absolute after:right-0 after:top-0 after:bottom-0 after:w-3 after:bg-gradient-to-r after:from-black/[0.04] after:to-transparent after:pointer-events-none"
+                className="sticky left-0 z-20 bg-muted/95 backdrop-blur-xs pl-4 sm:pl-3 pr-2 py-1.5 text-left font-medium min-w-[155px] sm:min-w-[175px] after:absolute after:right-0 after:top-0 after:bottom-0 after:w-px after:bg-border/60 after:pointer-events-none"
               >
                 Team
               </th>
@@ -258,7 +281,7 @@ export function PlayoffOddsTable({
             <tr className="border-b border-border/60 bg-muted/20 text-[10px] uppercase tracking-wider text-muted-foreground/75">
               <th
                 scope="col"
-                className="sticky left-0 z-20 bg-card pl-4 sm:pl-3 pr-2 py-2 text-left font-medium after:absolute after:right-0 after:top-0 after:bottom-0 after:w-3 after:bg-gradient-to-r after:from-black/[0.04] after:to-transparent after:pointer-events-none"
+                className="sticky left-0 z-20 bg-card pl-4 sm:pl-3 pr-2 py-2 text-left font-medium after:absolute after:right-0 after:top-0 after:bottom-0 after:w-px after:bg-border/60 after:pointer-events-none"
               >
                 Rank &amp; Club
               </th>
@@ -295,11 +318,11 @@ export function PlayoffOddsTable({
 
               <th
                 scope="col"
-                aria-sort={ariaSortFor(format.allTeamsQualify ? "avgSeed" : "playoffPct")}
+                aria-sort={ariaSortFor(format.allTeamsQualify ? "seed1Pct" : "playoffPct")}
                 className="px-2.5 py-2 text-right font-medium border-r border-border/50 min-w-[92px]"
               >
                 {format.allTeamsQualify
-                  ? renderSortButton("#1 %", "avgSeed", "asc", "Probability of finishing 1st overall")
+                  ? renderSortButton("#1 %", "seed1Pct", "desc", "Probability of finishing 1st overall")
                   : renderSortButton("Make %", "playoffPct", "desc", "Probability of qualifying for playoffs")}
               </th>
 
@@ -392,10 +415,17 @@ export function PlayoffOddsTable({
               return (
                 <tr
                   key={row.slug}
-                  onClick={() => onSelectTeam(isSelected ? null : row.slug)}
+                  onClick={() => onSelectTeam(row.slug)}
+                  onMouseEnter={() => onHighlightTeam?.(row.slug)}
+                  onMouseLeave={() => onHighlightTeam?.(null)}
+                  title={`View ${row.name} playoff outlook`}
                   className={cn(
                     "group cursor-pointer transition-colors hover:bg-muted/45",
-                    isSelected ? "bg-muted/60" : idx % 2 === 1 ? "bg-muted/[0.12]" : "bg-card",
+                    isSelected || highlightedSlug === row.slug
+                      ? "bg-muted/60"
+                      : idx % 2 === 1
+                        ? "bg-muted/[0.12]"
+                        : "bg-card",
                     showHorizontalCut
                       ? "border-b-2 border-foreground/30"
                       : showByeRowCut
@@ -407,10 +437,12 @@ export function PlayoffOddsTable({
                   <th
                     scope="row"
                     className={cn(
-                      "sticky left-0 z-10 pl-4 sm:pl-3 pr-2 py-2.5 text-left font-normal transition-colors after:absolute after:right-0 after:top-0 after:bottom-0 after:w-3 after:bg-gradient-to-r after:from-black/[0.04] after:to-transparent after:pointer-events-none",
+                      "sticky left-0 z-10 pl-4 sm:pl-3 pr-2 py-2.5 text-left font-normal transition-colors after:absolute after:right-0 after:top-0 after:bottom-0 after:w-px after:bg-border/60 after:pointer-events-none",
                       isSelected
                         ? "bg-muted/95 shadow-[inset_3px_0_0_var(--primary)]"
-                        : "bg-card group-hover:bg-muted/75"
+                        : highlightedSlug === row.slug
+                          ? "bg-muted/75"
+                          : "bg-card group-hover:bg-muted/75"
                     )}
                   >
                     <div className="flex items-center gap-2 min-w-0">
@@ -420,13 +452,19 @@ export function PlayoffOddsTable({
                       <TeamLogo slug={row.slug} name={row.name} size={24} className="shrink-0" />
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-1 min-w-0">
-                          <Link
-                            href={`/team/${row.slug}?season=${snapshot.seasonId}`}
-                            onClick={(e) => e.stopPropagation()}
-                            className="truncate text-xs font-semibold text-foreground hover:text-primary transition-colors"
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              onSelectTeam(row.slug)
+                            }}
+                            onFocus={() => onHighlightTeam?.(row.slug)}
+                            onBlur={() => onHighlightTeam?.(null)}
+                            aria-label={`View ${row.name} playoff outlook`}
+                            className="truncate text-left text-xs font-semibold text-foreground group-hover:underline decoration-muted-foreground/60 underline-offset-2 cursor-pointer"
                           >
                             {row.name}
-                          </Link>
+                          </button>
                         </div>
                         {row.gamesInHand > 0 && (
                           <div className="text-[10px] text-muted-foreground/75 tabular-nums">
@@ -434,23 +472,6 @@ export function PlayoffOddsTable({
                           </div>
                         )}
                       </div>
-                      <button
-                        type="button"
-                        aria-expanded={isSelected}
-                        aria-label={`${isSelected ? "Hide" : "Show"} ${row.name} breakdown`}
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          onSelectTeam(isSelected ? null : row.slug)
-                        }}
-                        className="shrink-0 rounded p-0.5 text-muted-foreground/60 group-hover:text-foreground transition-colors cursor-pointer"
-                      >
-                        <ChevronDown
-                          className={cn(
-                            "h-3.5 w-3.5 transition-transform duration-150",
-                            isSelected && "rotate-180 text-foreground"
-                          )}
-                        />
-                      </button>
                     </div>
                   </th>
 
@@ -519,7 +540,7 @@ export function PlayoffOddsTable({
                                 "text-[10px] font-medium tabular-nums",
                                 deltaBadge.tone === "pos" ? "text-emerald-700" : "text-rose-700"
                               )}
-                              title={isWhatIf ? "Change vs. real baseline" : "Change since prior matchday"}
+                              title={isWhatIf ? "Change vs. real baseline" : "WoW change"}
                             >
                               {deltaBadge.label}
                             </span>
@@ -552,20 +573,27 @@ export function PlayoffOddsTable({
                     const isLastSeed = seedNum === format.teamCount
 
                     return (
-                      <td
-                        key={seedNum}
-                        style={getSeedCellStyle(pct, isQualifying, isDirectBye)}
-                        className={cn(
-                          "px-1.5 py-2.5 text-center tabular-nums",
-                          pct > 0 ? "font-medium text-foreground" : "text-muted-foreground/35",
-                          mobileGroup === "seeds" ? "table-cell" : "hidden sm:table-cell",
-                          isByeBoundary && "border-r border-dashed border-emerald-600/40",
-                          isCutBoundary && "border-r-2 border-foreground/30",
-                          isLastSeed && "border-r border-border/50"
-                        )}
-                      >
-                        {formatSeedCell(pct)}
-                      </td>
+                      <Tooltip key={seedNum} delayDuration={100}>
+                        <TooltipTrigger asChild>
+                          <td
+                            style={getSeedCellStyle(pct, isQualifying, isDirectBye)}
+                            className={cn(
+                              "px-1.5 py-2.5 text-center tabular-nums",
+                              pct > 0 ? "font-medium text-foreground" : "text-muted-foreground/35",
+                              mobileGroup === "seeds" ? "table-cell" : "hidden sm:table-cell",
+                              isByeBoundary && "border-r border-dashed border-emerald-600/40",
+                              isCutBoundary && "border-r-2 border-foreground/30",
+                              isLastSeed && "border-r border-border/50"
+                            )}
+                          >
+                            {formatSeedCell(pct)}
+                          </td>
+                        </TooltipTrigger>
+                        <TooltipContent sideOffset={4} className="px-2 py-1 text-[11px] tabular-nums">
+                          <span className="font-semibold">{pct.toFixed(3)}%</span>
+                          <span className="ml-1.5 text-background/70">Seed #{seedNum}</span>
+                        </TooltipContent>
+                      </Tooltip>
                     )
                   })}
 
@@ -638,7 +666,7 @@ export function PlayoffOddsTable({
         <span className="tabular-nums text-muted-foreground/80">
           {isWhatIf
             ? "Deltas compare live What-If scenario vs. baseline."
-            : "Deltas show change since previous matchday."}
+            : "Deltas show the WoW change."}
         </span>
       </div>
     </section>

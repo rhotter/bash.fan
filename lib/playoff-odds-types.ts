@@ -191,6 +191,8 @@ export interface PlayoffOddsSnapshot {
   timeline: TimelinePoint[]
   /** Compact regular-season schedule enabling instant client-side What-If re-simulation */
   regularGames: PlayoffSimGame[]
+  /** Team slug -> hex color (season_teams.color, falling back to franchise color) */
+  teamColors?: Record<string, string>
 }
 
 export function isValidPlayoffOddsMode(value: string | null | undefined): value is PlayoffOddsMode {

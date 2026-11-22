@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server"
 import { db, schema } from "@/lib/db"
 import { eq } from "drizzle-orm"
 import { getSession } from "@/lib/admin-session"
+import { revalidateTag } from "next/cache"
+import { revalidatePlayoffOdds } from "@/lib/revalidate-playoff-odds"
 
 interface RouteContext {
   params: Promise<{ id: string }>
@@ -107,6 +109,18 @@ export async function POST(request: NextRequest, context: RouteContext) {
           .where(eq(schema.games.id, game.id))
         updated++
       }
+    }
+
+    if (updated > 0) {
+      try {
+        revalidateTag("seasons", { expire: 0 })
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : String(error)
+        if (!msg.includes("static generation store missing")) {
+          console.error("Failed to revalidate seasons cache tag:", error)
+        }
+      }
+      revalidatePlayoffOdds()
     }
 
     return NextResponse.json({

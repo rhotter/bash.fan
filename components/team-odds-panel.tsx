@@ -14,32 +14,14 @@ import {
 } from "recharts"
 import { IntentLink as Link } from "@/components/intent-link"
 import { TeamLogo } from "@/components/team-logo"
-import { getTeamLogoColor } from "@/lib/team-logo-colors"
+import { getTeamChartColor } from "@/lib/chart-colors"
 import { cn } from "@/lib/utils"
 import type {
-  BigGameOutcomeKey,
   PlayoffOddsSnapshot,
   TeamOddsRow,
 } from "@/lib/playoff-odds-types"
 
 type ChartMetric = "playoffPct" | "avgSeed" | "ptsAbove500"
-
-function formatOutcomeLabel(
-  outcome: BigGameOutcomeKey,
-  awayName: string,
-  homeName: string
-): string {
-  switch (outcome) {
-    case "away_reg":
-      return `${awayName} reg win`
-    case "away_ot":
-      return `${awayName} OT/SO win`
-    case "home_ot":
-      return `${homeName} OT/SO win`
-    case "home_reg":
-      return `${homeName} reg win`
-  }
-}
 
 function formatShortDate(isoDate: string): string {
   const parts = isoDate.split("-")
@@ -65,6 +47,11 @@ export function TeamOddsPanel({
   const [chartMetric, setChartMetric] = useState<ChartMetric>(
     snapshot.format.allTeamsQualify ? "avgSeed" : "playoffPct"
   )
+  const effectiveChartMetric: ChartMetric =
+    snapshot.format.allTeamsQualify && chartMetric === "playoffPct" ? "avgSeed" : chartMetric
+  const availableMetrics: ChartMetric[] = snapshot.format.allTeamsQualify
+    ? ["avgSeed", "ptsAbove500"]
+    : ["playoffPct", "avgSeed", "ptsAbove500"]
 
   const chartData = useMemo(() => {
     return snapshot.timeline.map((pt) => {
@@ -80,20 +67,8 @@ export function TeamOddsPanel({
     })
   }, [snapshot.timeline, snapshot.format.teamCount, team.slug])
 
-  const teamRootingGames = useMemo(() => {
-    return snapshot.bigGames
-      .map((bg) => {
-        const aff = bg.affectedTeams.find((a) => a.slug === team.slug)
-        if (!aff) return null
-        return { game: bg, impact: aff }
-      })
-      .filter((x): x is NonNullable<typeof x> => x !== null)
-      .sort((a, b) => b.impact.playoffSwing - a.impact.playoffSwing || b.impact.seedSwing - a.impact.seedSwing)
-      .slice(0, 6)
-  }, [snapshot.bigGames, team.slug])
-
   const hasTailProbes = team.whatIfRows.some((r) => r.isTailProbe)
-  const teamColor = getTeamLogoColor(team.slug) || "var(--foreground)"
+  const { stroke: teamColor, outline: teamOutline } = getTeamChartColor(team.slug, snapshot.teamColors)
   const luckText =
     Math.abs(team.luckDelta) < 0.025
       ? "Right on expected pace"
@@ -168,7 +143,8 @@ export function TeamOddsPanel({
         <button
           type="button"
           onClick={onClose}
-          aria-label={`Close ${team.name} breakdown`}
+          aria-label="Back to all teams"
+          title="Back to all teams"
           className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
         >
           <X className="h-4 w-4" />
@@ -249,50 +225,50 @@ export function TeamOddsPanel({
               aria-label="Trajectory chart metric"
               className="inline-flex rounded-md border border-border/60 bg-muted/40 p-0.5 text-[11px]"
             >
-              {!snapshot.format.allTeamsQualify && (
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={chartMetric === "playoffPct"}
-                  onClick={() => setChartMetric("playoffPct")}
-                  className={cn(
-                    "rounded px-2 py-0.5 font-medium transition-colors cursor-pointer",
-                    chartMetric === "playoffPct"
-                      ? "bg-card text-foreground shadow-xs"
-                      : "text-muted-foreground hover:text-foreground"
-                  )}
-                >
-                  Playoff %
-                </button>
-              )}
-              <button
-                type="button"
-                role="tab"
-                aria-selected={chartMetric === "avgSeed"}
-                onClick={() => setChartMetric("avgSeed")}
-                className={cn(
-                  "rounded px-2 py-0.5 font-medium transition-colors cursor-pointer",
-                  chartMetric === "avgSeed"
-                    ? "bg-card text-foreground shadow-xs"
-                    : "text-muted-foreground hover:text-foreground"
-                )}
-              >
-                Avg seed
-              </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={chartMetric === "ptsAbove500"}
-                onClick={() => setChartMetric("ptsAbove500")}
-                className={cn(
-                  "rounded px-2 py-0.5 font-medium transition-colors cursor-pointer",
-                  chartMetric === "ptsAbove500"
-                    ? "bg-card text-foreground shadow-xs"
-                    : "text-muted-foreground hover:text-foreground"
-                )}
-              >
-                vs .500 pace
-              </button>
+              {availableMetrics.map((metric, idx) => {
+                const active = effectiveChartMetric === metric
+                const label =
+                  metric === "playoffPct"
+                    ? "Playoff %"
+                    : metric === "avgSeed"
+                      ? "Avg seed"
+                      : "vs .500 pace"
+                return (
+                  <button
+                    key={metric}
+                    type="button"
+                    role="tab"
+                    aria-selected={active}
+                    tabIndex={active ? 0 : -1}
+                    data-metric={metric}
+                    onClick={() => setChartMetric(metric)}
+                    onKeyDown={(e) => {
+                      let nextIdx: number
+                      if (e.key === "ArrowRight") nextIdx = (idx + 1) % availableMetrics.length
+                      else if (e.key === "ArrowLeft")
+                        nextIdx = (idx - 1 + availableMetrics.length) % availableMetrics.length
+                      else if (e.key === "Home") nextIdx = 0
+                      else if (e.key === "End") nextIdx = availableMetrics.length - 1
+                      else return
+                      e.preventDefault()
+                      const nextMetric = availableMetrics[nextIdx]
+                      setChartMetric(nextMetric)
+                      e.currentTarget.parentElement
+                        ?.querySelector<HTMLButtonElement>(`button[data-metric="${nextMetric}"]`)
+                        ?.focus()
+                    }}
+                    className={cn(
+                      "relative rounded px-2 py-0.5 font-medium transition-colors cursor-pointer",
+                      "aria-selected:after:content-[''] aria-selected:after:absolute aria-selected:after:inset-x-1.5 aria-selected:after:bottom-0 aria-selected:after:border-b-2 aria-selected:after:border-foreground",
+                      active
+                        ? "bg-card text-foreground shadow-xs"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    {label}
+                  </button>
+                )
+              })}
             </div>
           </div>
 
@@ -309,30 +285,30 @@ export function TeamOddsPanel({
                   />
                   <YAxis
                     domain={
-                      chartMetric === "playoffPct"
+                      effectiveChartMetric === "playoffPct"
                         ? [0, 100]
-                        : chartMetric === "avgSeed"
+                        : effectiveChartMetric === "avgSeed"
                           ? [1, snapshot.format.teamCount]
                           : ["auto", "auto"]
                     }
-                    reversed={chartMetric === "avgSeed"}
+                    reversed={effectiveChartMetric === "avgSeed"}
                     tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
                     tickLine={false}
                     axisLine={false}
                     tickFormatter={(v: number) =>
-                      chartMetric === "playoffPct"
+                      effectiveChartMetric === "playoffPct"
                         ? `${v}%`
-                        : chartMetric === "avgSeed"
+                        : effectiveChartMetric === "avgSeed"
                           ? `#${v}`
                           : v > 0
                             ? `+${v}`
                             : `${v}`
                     }
                   />
-                  {chartMetric === "ptsAbove500" && (
+                  {effectiveChartMetric === "ptsAbove500" && (
                     <ReferenceLine y={0} stroke="var(--muted-foreground)" strokeDasharray="4 4" strokeOpacity={0.5} />
                   )}
-                  {chartMetric === "avgSeed" && !snapshot.format.allTeamsQualify && (
+                  {effectiveChartMetric === "avgSeed" && !snapshot.format.allTeamsQualify && (
                     <ReferenceLine
                       y={snapshot.format.playoffSpots + 0.5}
                       stroke="var(--muted-foreground)"
@@ -348,18 +324,32 @@ export function TeamOddsPanel({
                       fontSize: "11px",
                     }}
                     formatter={(value: number) => {
-                      if (chartMetric === "playoffPct") return [`${value.toFixed(1)}%`, "Playoff odds"]
-                      if (chartMetric === "avgSeed") return [`#${value.toFixed(2)}`, "Avg seed"]
+                      if (effectiveChartMetric === "playoffPct") return [`${value.toFixed(1)}%`, "Playoff odds"]
+                      if (effectiveChartMetric === "avgSeed") return [`#${value.toFixed(2)}`, "Avg seed"]
                       return [value > 0 ? `+${value.toFixed(1)}` : value.toFixed(1), "Pts vs 1.5/GP pace"]
                     }}
                   />
+                  {teamOutline && (
+                    <Line
+                      type="monotone"
+                      dataKey={effectiveChartMetric}
+                      stroke={teamOutline}
+                      strokeWidth={4}
+                      dot={false}
+                      activeDot={false}
+                      legendType="none"
+                      tooltipType="none"
+                      isAnimationActive={false}
+                    />
+                  )}
                   <Line
                     type="monotone"
-                    dataKey={chartMetric}
+                    dataKey={effectiveChartMetric}
                     stroke={teamColor}
                     strokeWidth={2.25}
-                    dot={{ r: 3, fill: teamColor, strokeWidth: 0 }}
-                    activeDot={{ r: 5 }}
+                    dot={{ r: 3, fill: teamColor, stroke: teamOutline ?? teamColor, strokeWidth: teamOutline ? 1.25 : 0 }}
+                    activeDot={{ r: 5, fill: teamColor, stroke: teamOutline ?? teamColor, strokeWidth: teamOutline ? 1.5 : 0 }}
+                    isAnimationActive={false}
                   />
                 </LineChart>
               </ResponsiveContainer>
@@ -453,50 +443,6 @@ export function TeamOddsPanel({
         </div>
       </div>
 
-      {/* Team-specific rooting guide */}
-      {teamRootingGames.length > 0 && (
-        <div className="space-y-2 border-t border-border/50 pt-4">
-          <h4 className="text-xs font-semibold text-foreground">
-            Upcoming games that matter most for {team.name}
-          </h4>
-          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-            {teamRootingGames.map(({ game, impact }) => {
-              const bestCell = impact.outcomes[impact.bestOutcome]
-              const bestLabel = formatOutcomeLabel(impact.bestOutcome, game.awayName, game.homeName)
-              return (
-                <div
-                  key={game.gameId}
-                  className="rounded-md border border-border/50 bg-background/60 px-3 py-2 text-xs"
-                >
-                  <div className="flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
-                    <span>
-                      {formatShortDate(game.date)} · {game.time}
-                    </span>
-                    <span className="tabular-nums font-medium text-foreground">
-                      {!snapshot.format.allTeamsQualify && impact.playoffSwing >= 0.3
-                        ? `${impact.playoffSwing.toFixed(1)}% swing`
-                        : `${impact.seedSwing.toFixed(2)} seed swing`}
-                    </span>
-                  </div>
-                  <div className="mt-1 font-medium text-foreground">
-                    {game.awayName} @ {game.homeName}
-                  </div>
-                  <div className="mt-1 text-[11px] text-emerald-700">
-                    Root for: <span className="font-semibold">{bestLabel}</span>{" "}
-                    <span className="tabular-nums">
-                      (
-                      {snapshot.format.allTeamsQualify || impact.playoffSwing < 0.3
-                        ? `avg #${bestCell.avgSeed.toFixed(1)}`
-                        : `${bestCell.playoffPct.toFixed(1)}%`}
-                      )
-                    </span>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-      )}
     </section>
   )
 }

@@ -443,25 +443,13 @@ CREATE INDEX IF NOT EXISTS idx_playoff_odds_latest
 ### Server Fetcher (`lib/fetch-playoff-odds.ts`)
 - Fetches `season` metadata (via cached `getSeasonById` / `getCurrentSeason`) + season regular & playoff `games` in a single `Promise.all` wave (`neon-http` rule compliant).
 - Runs `computePlayoffOddsSnapshot(...)` from `lib/playoff-odds.ts`.
-- Wrapped in both `unstable_cache` inside `lib/cached-page-data.ts`:
-  ```ts
-  const playoffOddsPageData = unstable_cache(
-    fetchPlayoffOddsUncached,
-    ["playoff-odds-v1"],
-    { revalidate: 60, tags: ["seasons", "playoff-odds", "public-page-data"] }
-  )
-  export const fetchPlayoffOddsPageData = cache(
-    (season?: string, mode: PlayoffOddsMode = "weighted") =>
-      playoffOddsPageData(season ?? null, mode)
-  )
-  ```
-- Exported `revalidatePlayoffOdds()` helper wraps `revalidateTag("playoff-odds")` safely so scorekeeper finalization (`app/api/bash/scorekeeper/[id]/finalize/route.ts`), admin schedule edits (`app/api/bash/admin/seasons/[id]/schedule/[gameId]/route.ts`), and daily sync (`app/api/bash/sync/route.ts`) bust the cache immediately whenever regular-season scores or schedules change.
+- Wrapped in split `unstable_cache` buckets inside `lib/cached-page-data.ts` (active seasons `revalidate: 60`, immutable completed seasons `revalidate: 3600`, tags `["seasons", "playoff-odds", "public-page-data"]`), strictly canonicalizing `season` via cached `getSeasonById` / `getCurrentSeason` *before* touching `unstable_cache` so arbitrary query strings cannot amplify cache keys or trigger CPU DoS.
+- Exported `revalidatePlayoffOdds()` helper (`lib/revalidate-playoff-odds.ts`) calls `revalidateTag("playoff-odds", { expire: 0 })` for immediate cache expiration after scorekeeper finalization (`app/api/bash/scorekeeper/[id]/finalize/route.ts`), admin schedule edits (`app/api/bash/admin/seasons/[id]/schedule/[gameId]/route.ts`), and daily sync (`app/api/bash/sync/route.ts`).
 
 ### REST API (`app/api/bash/playoff-odds/route.ts`)
 - **Endpoint**: `GET /api/bash/playoff-odds?season=<id>&mode=weighted|50_50|classic`
-- **Validation**: Rejects invalid `mode` (`400`) and `season=all` (`400` with clear message); defaults to current season and `weighted`.
-- **Caching Headers**: `Cache-Control: public, s-maxage=60, stale-while-revalidate=120`.
-- **Error Handling**: Returns `{ error: string }` JSON consumed via `lib/api-errors.ts` (`readApiJson`) + `<ErrorNotice />`.
+- **Validation**: Rejects `season=all` (`400`), invalid `mode` (`400`), and unknown explicit `season` (`404` before touching cache/compute); defaults to current season and `weighted`.
+- **Caching Headers**: `Cache-Control: public, s-maxage=60, stale-while-revalidate=120` for active seasons (`s-maxage=3600, stale-while-revalidate=86400` for completed seasons) and explicit error handling via `lib/api-errors.ts`.
 
 ### Client SWR Hook (`lib/hockey-data.ts`)
 - Add `PLAYOFF_ODDS: 120_000` to `REFRESH` and `PLAYOFF_ODDS: 30_000` to `DEDUPE` in `lib/sync-config.ts`.

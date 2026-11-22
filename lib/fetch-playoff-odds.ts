@@ -42,7 +42,8 @@ export async function fetchPlayoffOdds(
       ? (await getSeasonById(seasonParam)) ?? (await getCurrentSeason())
       : await getCurrentSeason()
 
-  const rows = (await rawSql(sql`
+  // Schedule + franchise/team colors in one parallel wave (neon-http: no sequential waterfall)
+  const [rawRows, colorRows] = await Promise.all([rawSql(sql`
     SELECT
       g.id,
       g.date,
@@ -80,7 +81,23 @@ export async function fetchPlayoffOdds(
         ELSE
           g.time::time
       END ASC
-  `)) as unknown as RawScheduleRow[]
+  `),
+    rawSql(sql`
+      SELECT st.team_slug, COALESCE(st.color, f.color) AS color
+      FROM season_teams st
+      LEFT JOIN franchises f ON f.slug = st.franchise_slug
+      WHERE st.season_id = ${season.id}
+    `),
+  ])
+  const rows = rawRows as unknown as RawScheduleRow[]
+
+  // Per-season team color takes priority over franchise color (matches draft board / team pages)
+  const teamColors: Record<string, string> = {}
+  for (const r of colorRows as unknown as Array<{ team_slug: string; color: string | null }>) {
+    if (r.color && /^#?[0-9a-f]{6}$/i.test(r.color)) {
+      teamColors[r.team_slug] = r.color.startsWith("#") ? r.color.toLowerCase() : `#${r.color.toLowerCase()}`
+    }
+  }
 
   const regularGames: PlayoffSimGame[] = []
   const actualPlayoffTeams = new Set<string>()
@@ -119,7 +136,7 @@ export async function fetchPlayoffOdds(
 
   const seasonType: SeasonKind = season.seasonType === "summer" ? "summer" : "fall"
 
-  return computePlayoffOdds({
+  const snapshot = computePlayoffOdds({
     seasonId: season.id,
     seasonName: season.name,
     seasonType,
@@ -132,4 +149,5 @@ export async function fetchPlayoffOdds(
     includeTimeline: true,
     includeTailProbes: true,
   })
+  return { ...snapshot, teamColors }
 }
