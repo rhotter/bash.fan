@@ -455,10 +455,14 @@ describe("Trade Scripts & Prod DB Export Edge Cases", () => {
         return []
       })
 
+      let nextDevTradeId = 1001
       const mockDev = vi.fn().mockImplementation(async (strings: TemplateStringsArray, ...args: any[]) => {
         const queryText = strings.join("?")
         devQueries.push(queryText)
         devInserts.push({ queryText, args })
+        if (queryText.includes("INSERT INTO season_trades")) {
+          return [{ id: nextDevTradeId++ }]
+        }
         return []
       })
 
@@ -474,16 +478,19 @@ describe("Trade Scripts & Prod DB Export Edge Cases", () => {
       const itemInserts = devInserts.filter((i) => i.queryText.includes("INSERT INTO season_trade_items"))
       expect(itemInserts.length).toBe(3)
 
-      // First draft pick item: player_id is strictly null
+      // First draft pick item: remapped trade_id = 1001, player_id is strictly null
+      expect(itemInserts[0].args[0]).toBe(1001)
       expect(itemInserts[0].args).toContain(null)
       expect(itemInserts[0].args).toContain(2) // round
       expect(itemInserts[0].args).toContain("2027-summer") // target season
 
-      // Second draft pick item: player_id is strictly null
+      // Second draft pick item: remapped trade_id = 1001, player_id is strictly null
+      expect(itemInserts[1].args[0]).toBe(1001)
       expect(itemInserts[1].args).toContain(null)
       expect(itemInserts[1].args).toContain(3)
 
-      // Third player item: player_id mapped from 555 to 999
+      // Third player item: remapped trade_id = 1001, player_id mapped from 555 to 999
+      expect(itemInserts[2].args[0]).toBe(1001)
       expect(itemInserts[2].args).toContain(999)
       expect(itemInserts[2].args).toContain("player")
     })
@@ -512,7 +519,9 @@ describe("Trade Scripts & Prod DB Export Edge Cases", () => {
       })
 
       const mockDev = vi.fn().mockImplementation(async (strings: TemplateStringsArray) => {
-        devQueries.push(strings.join("?"))
+        const q = strings.join("?")
+        devQueries.push(q)
+        if (q.includes("INSERT INTO season_trades")) return [{ id: 201 }]
         return []
       })
 
@@ -557,7 +566,9 @@ describe("Trade Scripts & Prod DB Export Edge Cases", () => {
       })
 
       const mockDev = vi.fn().mockImplementation(async (strings: TemplateStringsArray, ...args: any[]) => {
-        devInserts.push({ queryText: strings.join("?"), args })
+        const q = strings.join("?")
+        devInserts.push({ queryText: q, args })
+        if (q.includes("INSERT INTO season_trades")) return [{ id: 88 }]
         return []
       })
 
@@ -566,6 +577,7 @@ describe("Trade Scripts & Prod DB Export Edge Cases", () => {
 
       const itemInsert = devInserts.find((i) => i.queryText.includes("INSERT INTO season_trade_items"))
       expect(itemInsert).toBeDefined()
+      expect(itemInsert?.args[0]).toBe(88)
       expect(itemInsert?.args).toContain(7777)
     })
 

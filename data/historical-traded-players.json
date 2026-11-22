@@ -1,0 +1,2370 @@
+[
+  {
+    "seasonId": "1999-2000",
+    "leagueId": 14,
+    "playerName": "Steve Paltiel",
+    "sportabilityPlayerId": 67,
+    "fromTeamSlug": "roadrunners",
+    "toTeamSlug": "land-sharks",
+    "gameDates": [
+      "1999-10-02"
+    ]
+  },
+  {
+    "seasonId": "2000-2001",
+    "leagueId": 503,
+    "playerName": "Steve Paltiel",
+    "sportabilityPlayerId": 2494,
+    "fromTeamSlug": "seals",
+    "toTeamSlug": "rink-rats",
+    "gameDates": [
+      "2000-09-23",
+      "2000-09-30",
+      "2000-10-14",
+      "2000-10-21",
+      "2000-10-28",
+      "2000-11-04",
+      "2000-12-02",
+      "2000-12-09",
+      "2000-12-16",
+      "2001-01-13"
+    ]
+  },
+  {
+    "seasonId": "2000-2001",
+    "leagueId": 503,
+    "playerName": "Scott Trent",
+    "sportabilityPlayerId": 5399,
+    "fromTeamSlug": "rink-rats",
+    "toTeamSlug": "seals",
+    "gameDates": [
+      "2000-09-23",
+      "2000-09-30",
+      "2000-10-14",
+      "2000-10-21",
+      "2000-12-02",
+      "2000-12-16",
+      "2001-01-13"
+    ]
+  },
+  {
+    "seasonId": "2000-2001",
+    "leagueId": 503,
+    "playerName": "Gregory Huntington",
+    "sportabilityPlayerId": 5409,
+    "fromTeamSlug": "roadrunners",
+    "toTeamSlug": "land-sharks",
+    "gameDates": [
+      "2000-09-23",
+      "2000-09-30",
+      "2000-10-07",
+      "2000-10-14",
+      "2000-10-28",
+      "2000-12-16",
+      "2001-01-06",
+      "2001-01-13"
+    ]
+  },
+  {
+    "seasonId": "2001-2002",
+    "leagueId": 1265,
+    "playerName": "Robert Tucker",
+    "sportabilityPlayerId": 45229,
+    "fromTeamSlug": "rink-rats",
+    "toTeamSlug": "seals",
+    "gameDates": [
+      "2001-09-29"
+    ]
+  },
+  {
+    "seasonId": "2001-2002",
+    "leagueId": 1265,
+    "playerName": "Alan Eidinger",
+    "sportabilityPlayerId": 47157,
+    "fromTeamSlug": "seals",
+    "toTeamSlug": "rink-rats",
+    "gameDates": [
+      "2001-09-29"
+    ]
+  },
+  {
+    "seasonId": "2001-2002",
+    "leagueId": 1265,
+    "playerName": "Richard Deming",
+    "sportabilityPlayerId": null,
+    "fromTeamSlug": "landsharks",
+    "toTeamSlug": "rink-rats",
+    "gameDates": [
+      "2001-09-29",
+      "2001-10-06",
+      "2001-10-13",
+      "2001-11-17",
+      "2001-12-01",
+      "2001-12-08",
+      "2001-12-15",
+      "2002-01-05"
+    ]
+  },
+  {
+    "seasonId": "2001-2002",
+    "leagueId": 1265,
+    "playerName": "Parker Colvin",
+    "sportabilityPlayerId": null,
+    "fromTeamSlug": "seals",
+    "toTeamSlug": "landsharks",
+    "gameDates": [
+      "2001-09-29",
+      "2001-10-13",
+      "2001-10-20",
+      "2001-11-03",
+      "2001-11-10",
+      "2001-11-17",
+      "2001-12-01",
+      "2001-12-15",
+      "2002-01-05",
+      "2002-01-12",
+      "2002-01-19",
+      "2002-01-26"
+    ]
+  },
+  {
+    "seasonId": "2001-2002",
+    "leagueId": 1265,
+    "playerName": "Christian Beausejour",
+    "sportabilityPlayerId": null,
+    "fromTeamSlug": "rink-rats",
+    "toTeamSlug": "seals",
+    "gameDates": [
+      "2001-09-29",
+      "2001-10-06",
+      "2001-10-13",
+      "2001-10-27",
+      "2001-11-03",
+      "2001-11-10",
+      "2001-11-17",
+      "2001-12-08",
+      "2002-01-12",
+      "2002-01-19"
+    ]
+  },
+  {
+    "seasonId": "2001-2002",
+    "leagueId": 1265,
+    "playerName": "Kerry Hew",
+    "sportabilityPlayerId": null,
+    "fromTeamSlug": "landsharks",
+    "toTeamSlug": "roadrunners",
+    "gameDates": [
+      "2001-09-29",
+      "2001-10-06",
+      "2001-10-13",
+      "2001-10-20",
+      "2001-11-03",
+      "2001-11-10",
+      "2001-11-17",
+      "2002-01-12"
+    ]
+  },
+  {
+    "seasonId": "2002-2003",
+    "leagueId": 1901,
+    "playerName": "Andy Heller",
+    "sportabilityPlayerId": 120045,
+    "fromTeamSlug": "seals",
+    "toTeamSlug": "landsharks",
+    "gameDates": [
+      "2002-10-13",
+      "2002-10-20",
+      "2002-10-27",
+      "2002-11-10",
+      "2002-11-17",
+      "2002-11-24",
+      "2002-12-15",
+      "2003-01-05"
+    ]
+  },
+  {
+    "seasonId": "2002-2003",
+    "leagueId": 1901,
+    "playerName": "John Toal",
+    "sportabilityPlayerId": 125839,
+    "fromTeamSlug": "landsharks",
+    "toTeamSlug": "seals",
+    "gameDates": [
+      "2002-10-13",
+      "2002-10-20",
+      "2002-10-27",
+      "2002-11-03",
+      "2002-11-10",
+      "2002-11-17",
+      "2002-11-24",
+      "2002-12-15",
+      "2003-01-19"
+    ]
+  },
+  {
+    "seasonId": "2002-2003",
+    "leagueId": 1901,
+    "playerName": "Glenn Andres",
+    "sportabilityPlayerId": 125838,
+    "fromTeamSlug": "landsharks",
+    "toTeamSlug": "roadrunners",
+    "gameDates": [
+      "2002-10-06",
+      "2002-10-13",
+      "2002-10-27",
+      "2002-11-10",
+      "2002-11-17",
+      "2002-11-24",
+      "2002-12-08",
+      "2002-12-15",
+      "2003-01-05",
+      "2003-01-12"
+    ]
+  },
+  {
+    "seasonId": "2002-2003",
+    "leagueId": 1901,
+    "playerName": "Regan Fletcher",
+    "sportabilityPlayerId": 128817,
+    "fromTeamSlug": "seals",
+    "toTeamSlug": "rink-rats",
+    "gameDates": [
+      "2002-12-15",
+      "2003-01-12"
+    ]
+  },
+  {
+    "seasonId": "2002-2003",
+    "leagueId": 1901,
+    "playerName": "Breht Clark",
+    "sportabilityPlayerId": 123390,
+    "fromTeamSlug": "red-leafs",
+    "toTeamSlug": "landsharks",
+    "gameDates": [
+      "2002-11-03",
+      "2003-01-05",
+      "2003-01-12"
+    ]
+  },
+  {
+    "seasonId": "2002-2003",
+    "leagueId": 1901,
+    "playerName": "K.G. Nesbit",
+    "sportabilityPlayerId": 155083,
+    "fromTeamSlug": "rink-rats",
+    "toTeamSlug": "landsharks",
+    "gameDates": [
+      "2002-11-24",
+      "2003-01-12",
+      "2003-01-19"
+    ]
+  },
+  {
+    "seasonId": "2002-2003",
+    "leagueId": 1901,
+    "playerName": "Tom Shoppel",
+    "sportabilityPlayerId": 126098,
+    "fromTeamSlug": "roadrunners",
+    "toTeamSlug": "rink-rats",
+    "gameDates": [
+      "2002-10-13",
+      "2002-10-20",
+      "2002-10-27",
+      "2002-11-10",
+      "2002-11-17",
+      "2002-11-24",
+      "2002-12-15",
+      "2003-01-05"
+    ]
+  },
+  {
+    "seasonId": "2002-2003",
+    "leagueId": 1901,
+    "playerName": "Jonathan Rauh",
+    "sportabilityPlayerId": 119678,
+    "fromTeamSlug": "landsharks",
+    "toTeamSlug": "red-leafs",
+    "gameDates": [
+      "2002-09-29",
+      "2002-10-13",
+      "2002-10-20",
+      "2002-11-03",
+      "2002-11-10",
+      "2002-12-08",
+      "2002-12-15",
+      "2003-01-05",
+      "2003-01-12",
+      "2003-01-19"
+    ]
+  },
+  {
+    "seasonId": "2002-2003",
+    "leagueId": 1901,
+    "playerName": "Sherwood, Daniel",
+    "sportabilityPlayerId": 119848,
+    "fromTeamSlug": "landsharks",
+    "toTeamSlug": "roadrunners",
+    "gameDates": [
+      "2002-09-29",
+      "2002-10-13",
+      "2002-10-27",
+      "2002-11-17",
+      "2002-11-24",
+      "2002-12-08"
+    ]
+  },
+  {
+    "seasonId": "2002-2003",
+    "leagueId": 1901,
+    "playerName": "Rich Weber",
+    "sportabilityPlayerId": 122860,
+    "fromTeamSlug": "rink-rats",
+    "toTeamSlug": "roadrunners",
+    "gameDates": [
+      "2002-10-06",
+      "2002-10-20",
+      "2002-11-10",
+      "2002-11-24",
+      "2003-01-05"
+    ]
+  },
+  {
+    "seasonId": "2002-2003",
+    "leagueId": 1901,
+    "playerName": "Robert Tucker",
+    "sportabilityPlayerId": 121489,
+    "fromTeamSlug": "roadrunners",
+    "toTeamSlug": "landsharks",
+    "gameDates": [
+      "2002-10-06",
+      "2002-10-13",
+      "2002-11-10",
+      "2002-11-17",
+      "2002-11-24",
+      "2002-12-08",
+      "2003-01-05",
+      "2003-01-12"
+    ]
+  },
+  {
+    "seasonId": "2002-2003",
+    "leagueId": 1901,
+    "playerName": "Pat Kelley",
+    "sportabilityPlayerId": 119769,
+    "fromTeamSlug": "landsharks",
+    "toTeamSlug": "seals",
+    "gameDates": [
+      "2002-10-13",
+      "2002-10-20",
+      "2002-11-03",
+      "2002-11-24",
+      "2002-12-15",
+      "2003-01-05",
+      "2003-01-19"
+    ]
+  },
+  {
+    "seasonId": "2002-2003",
+    "leagueId": 1901,
+    "playerName": "Dean Goodman",
+    "sportabilityPlayerId": 128212,
+    "fromTeamSlug": "red-leafs",
+    "toTeamSlug": "seals",
+    "gameDates": [
+      "2002-09-29",
+      "2002-10-06",
+      "2002-10-20",
+      "2002-11-03",
+      "2002-11-24",
+      "2003-01-05",
+      "2003-01-12",
+      "2003-01-19"
+    ]
+  },
+  {
+    "seasonId": "2002-2003",
+    "leagueId": 1901,
+    "playerName": "David Cabot",
+    "sportabilityPlayerId": 122014,
+    "fromTeamSlug": "seals",
+    "toTeamSlug": "landsharks",
+    "gameDates": [
+      "2002-10-13",
+      "2002-10-20",
+      "2002-10-27",
+      "2002-11-03",
+      "2002-11-10",
+      "2002-11-24",
+      "2002-12-15",
+      "2003-01-19"
+    ]
+  },
+  {
+    "seasonId": "2003-summer",
+    "leagueId": 4058,
+    "playerName": "John Toal",
+    "sportabilityPlayerId": 203720,
+    "fromTeamSlug": "christian-s-cohorts",
+    "toTeamSlug": "teddy-s-teamsters",
+    "gameDates": [
+      "2003-06-01"
+    ]
+  },
+  {
+    "seasonId": "2004-2005",
+    "leagueId": 6486,
+    "playerName": "Richard Deming",
+    "sportabilityPlayerId": 377225,
+    "fromTeamSlug": "roadrunners",
+    "toTeamSlug": "landsharks",
+    "gameDates": [
+      "2004-09-18",
+      "2004-10-02",
+      "2004-10-30"
+    ]
+  },
+  {
+    "seasonId": "2004-2005",
+    "leagueId": 6486,
+    "playerName": "Andrew Keeler",
+    "sportabilityPlayerId": 370485,
+    "fromTeamSlug": "landsharks",
+    "toTeamSlug": "roadrunners",
+    "gameDates": [
+      "2004-09-18",
+      "2004-09-25",
+      "2004-10-02",
+      "2004-10-16",
+      "2004-10-30",
+      "2004-11-06",
+      "2004-11-13",
+      "2004-11-20"
+    ]
+  },
+  {
+    "seasonId": "2005-2006",
+    "leagueId": 9865,
+    "playerName": "Robert Schulman",
+    "sportabilityPlayerId": 527104,
+    "fromTeamSlug": "seals",
+    "toTeamSlug": "roadrunners",
+    "gameDates": [
+      "2005-09-17",
+      "2005-10-22",
+      "2005-11-05",
+      "2005-11-12"
+    ]
+  },
+  {
+    "seasonId": "2005-2006",
+    "leagueId": 9865,
+    "playerName": "Anthony Delmonico",
+    "sportabilityPlayerId": 536783,
+    "fromTeamSlug": "roadrunners",
+    "toTeamSlug": "seals",
+    "gameDates": [
+      "2005-10-22",
+      "2005-10-29",
+      "2005-11-05",
+      "2005-11-12"
+    ]
+  },
+  {
+    "seasonId": "2005-2006",
+    "leagueId": 9865,
+    "playerName": "Paul Polakis",
+    "sportabilityPlayerId": 534641,
+    "fromTeamSlug": "seals",
+    "toTeamSlug": "roadrunners",
+    "gameDates": [
+      "2005-09-17",
+      "2005-10-08",
+      "2005-10-15",
+      "2005-10-22",
+      "2005-10-29",
+      "2005-11-05",
+      "2005-11-12"
+    ]
+  },
+  {
+    "seasonId": "2005-2006",
+    "leagueId": 9865,
+    "playerName": "Pat Kelley",
+    "sportabilityPlayerId": 518509,
+    "fromTeamSlug": "roadrunners",
+    "toTeamSlug": "seals",
+    "gameDates": [
+      "2005-09-17",
+      "2005-10-08",
+      "2005-10-15",
+      "2005-10-29"
+    ]
+  },
+  {
+    "seasonId": "2009-summer",
+    "leagueId": 21199,
+    "playerName": "Matt Bowen",
+    "sportabilityPlayerId": 1143842,
+    "fromTeamSlug": "north-stars",
+    "toTeamSlug": "seiwald-s-secret-squirrels-a-new-beginning",
+    "gameDates": [
+      "2009-06-20"
+    ]
+  },
+  {
+    "seasonId": "2009-2010",
+    "leagueId": 22285,
+    "playerName": "Gregory Huntington",
+    "sportabilityPlayerId": 1195722,
+    "fromTeamSlug": "red-leafs",
+    "toTeamSlug": "roadrunners",
+    "gameDates": [
+      "2009-10-10",
+      "2009-10-17",
+      "2009-10-31",
+      "2009-11-07",
+      "2009-11-21",
+      "2009-12-12",
+      "2010-01-09",
+      "2010-01-23"
+    ]
+  },
+  {
+    "seasonId": "2009-2010",
+    "leagueId": 22285,
+    "playerName": "Sandy Knapp",
+    "sportabilityPlayerId": 1194292,
+    "fromTeamSlug": "roadrunners",
+    "toTeamSlug": "red-leafs",
+    "gameDates": [
+      "2009-12-12",
+      "2010-01-09"
+    ]
+  },
+  {
+    "seasonId": "2009-2010",
+    "leagueId": 22285,
+    "playerName": "Christopher Wong",
+    "sportabilityPlayerId": 1194166,
+    "fromTeamSlug": "red-leafs",
+    "toTeamSlug": "roadrunners",
+    "gameDates": [
+      "2009-10-03",
+      "2009-10-10",
+      "2009-10-17",
+      "2009-10-24",
+      "2009-10-31",
+      "2009-11-07",
+      "2009-11-14",
+      "2009-11-21",
+      "2009-12-12",
+      "2010-01-09",
+      "2010-01-23"
+    ]
+  },
+  {
+    "seasonId": "2009-2010",
+    "leagueId": 22285,
+    "playerName": "Jeffrey Lu",
+    "sportabilityPlayerId": 1193558,
+    "fromTeamSlug": "red-leafs",
+    "toTeamSlug": "roadrunners",
+    "gameDates": [
+      "2009-10-24",
+      "2009-10-31",
+      "2009-11-07",
+      "2009-11-14",
+      "2009-11-21",
+      "2009-12-12",
+      "2010-01-23"
+    ]
+  },
+  {
+    "seasonId": "2011-2012",
+    "leagueId": 29373,
+    "playerName": "Van Diec",
+    "sportabilityPlayerId": 1531421,
+    "fromTeamSlug": "rink-rats",
+    "toTeamSlug": "landsharks",
+    "gameDates": [
+      "2011-09-24",
+      "2011-10-01",
+      "2011-10-29",
+      "2011-11-12",
+      "2011-12-03"
+    ]
+  },
+  {
+    "seasonId": "2011-2012",
+    "leagueId": 29373,
+    "playerName": "David Bartenwerfer",
+    "sportabilityPlayerId": 1536113,
+    "fromTeamSlug": "rink-rats",
+    "toTeamSlug": "landsharks",
+    "gameDates": [
+      "2011-09-24",
+      "2011-10-01",
+      "2011-10-15",
+      "2011-10-22",
+      "2011-12-03"
+    ]
+  },
+  {
+    "seasonId": "2011-2012",
+    "leagueId": 29373,
+    "playerName": "Harvey Braverman",
+    "sportabilityPlayerId": 1524863,
+    "fromTeamSlug": "rink-rats",
+    "toTeamSlug": "landsharks",
+    "gameDates": [
+      "2011-09-24",
+      "2011-10-01",
+      "2011-10-15",
+      "2011-10-22"
+    ]
+  },
+  {
+    "seasonId": "2011-2012",
+    "leagueId": 29373,
+    "playerName": "Shane Murphy",
+    "sportabilityPlayerId": 1541816,
+    "fromTeamSlug": "landsharks",
+    "toTeamSlug": "rink-rats",
+    "gameDates": [
+      "2011-09-24",
+      "2011-10-01",
+      "2011-10-15",
+      "2011-10-22",
+      "2011-10-29",
+      "2011-11-12",
+      "2011-12-03",
+      "2011-12-10"
+    ]
+  },
+  {
+    "seasonId": "2011-2012",
+    "leagueId": 29373,
+    "playerName": "Jordan Ritter",
+    "sportabilityPlayerId": 1526314,
+    "fromTeamSlug": "landsharks",
+    "toTeamSlug": "rink-rats",
+    "gameDates": [
+      "2011-09-24",
+      "2011-10-15",
+      "2011-10-22",
+      "2011-10-29",
+      "2011-11-12",
+      "2011-12-03",
+      "2011-12-10"
+    ]
+  },
+  {
+    "seasonId": "2012-2013",
+    "leagueId": 32866,
+    "playerName": "Andrew Till",
+    "sportabilityPlayerId": 1692188,
+    "fromTeamSlug": "landsharks",
+    "toTeamSlug": "red-leafs",
+    "gameDates": [
+      "2012-09-22",
+      "2012-09-29",
+      "2012-10-06",
+      "2012-10-20",
+      "2012-11-17",
+      "2012-12-01",
+      "2012-12-08",
+      "2012-12-15",
+      "2013-01-05"
+    ]
+  },
+  {
+    "seasonId": "2012-2013",
+    "leagueId": 32866,
+    "playerName": "Maxwell Cohen",
+    "sportabilityPlayerId": 1702348,
+    "fromTeamSlug": "red-leafs",
+    "toTeamSlug": "landsharks",
+    "gameDates": [
+      "2012-09-22",
+      "2012-10-27",
+      "2012-12-01",
+      "2012-12-15"
+    ]
+  },
+  {
+    "seasonId": "2012-2013",
+    "leagueId": 32866,
+    "playerName": "John Toal",
+    "sportabilityPlayerId": 1695888,
+    "fromTeamSlug": "landsharks",
+    "toTeamSlug": "seals",
+    "gameDates": [
+      "2012-09-15",
+      "2012-09-22",
+      "2012-09-29",
+      "2012-10-06",
+      "2012-10-20",
+      "2012-11-03",
+      "2012-11-17",
+      "2012-12-01",
+      "2012-12-15",
+      "2013-01-05"
+    ]
+  },
+  {
+    "seasonId": "2012-2013",
+    "leagueId": 32866,
+    "playerName": "Reuben Smith",
+    "sportabilityPlayerId": 1698160,
+    "fromTeamSlug": "seals",
+    "toTeamSlug": "landsharks",
+    "gameDates": [
+      "2012-09-15",
+      "2012-10-20"
+    ]
+  },
+  {
+    "seasonId": "2013-2014",
+    "leagueId": 35746,
+    "playerName": "Marc Lajoie",
+    "sportabilityPlayerId": 1841295,
+    "fromTeamSlug": "roadrunners",
+    "toTeamSlug": "red-army",
+    "gameDates": [
+      "2013-10-05",
+      "2013-11-23",
+      "2013-12-14",
+      "2014-01-04"
+    ]
+  },
+  {
+    "seasonId": "2013-2014",
+    "leagueId": 35746,
+    "playerName": "Reuben Smith",
+    "sportabilityPlayerId": 1830779,
+    "fromTeamSlug": "red-army",
+    "toTeamSlug": "roadrunners",
+    "gameDates": [
+      "2013-09-14",
+      "2013-09-28",
+      "2013-10-19",
+      "2013-11-09",
+      "2013-11-23",
+      "2013-12-07"
+    ]
+  },
+  {
+    "seasonId": "2013-2014",
+    "leagueId": 35746,
+    "playerName": "Alan Casilla",
+    "sportabilityPlayerId": 1835542,
+    "fromTeamSlug": "seals",
+    "toTeamSlug": "roadrunners",
+    "gameDates": [
+      "2013-12-07",
+      "2014-01-04",
+      "2014-01-11"
+    ]
+  },
+  {
+    "seasonId": "2013-2014",
+    "leagueId": 35746,
+    "playerName": "Henry Watts",
+    "sportabilityPlayerId": 1838820,
+    "fromTeamSlug": "roadrunners",
+    "toTeamSlug": "rink-rats",
+    "gameDates": [
+      "2013-09-14",
+      "2013-09-28",
+      "2013-10-12",
+      "2013-10-19",
+      "2013-11-02",
+      "2013-11-09",
+      "2013-11-23",
+      "2013-12-14",
+      "2014-01-11"
+    ]
+  },
+  {
+    "seasonId": "2013-2014",
+    "leagueId": 35746,
+    "playerName": "Julien Lecuyer",
+    "sportabilityPlayerId": 1841560,
+    "fromTeamSlug": "red-army",
+    "toTeamSlug": "roadrunners",
+    "gameDates": [
+      "2013-10-19",
+      "2013-11-09",
+      "2013-11-23",
+      "2013-12-07",
+      "2013-12-14",
+      "2014-01-04"
+    ]
+  },
+  {
+    "seasonId": "2013-2014",
+    "leagueId": 35746,
+    "playerName": "Scott Kane",
+    "sportabilityPlayerId": 1837034,
+    "fromTeamSlug": "roadrunners",
+    "toTeamSlug": "seals",
+    "gameDates": [
+      "2013-10-05",
+      "2013-10-12",
+      "2013-10-26",
+      "2013-11-09",
+      "2013-12-07"
+    ]
+  },
+  {
+    "seasonId": "2013-2014",
+    "leagueId": 35746,
+    "playerName": "Todd Feldman",
+    "sportabilityPlayerId": 1839500,
+    "fromTeamSlug": "rink-rats",
+    "toTeamSlug": "roadrunners",
+    "gameDates": [
+      "2013-10-05",
+      "2013-10-19"
+    ]
+  },
+  {
+    "seasonId": "2014-summer",
+    "leagueId": 37780,
+    "playerName": "Andrew Nolan",
+    "sportabilityPlayerId": 1927976,
+    "fromTeamSlug": "jordan-s-white-wombats",
+    "toTeamSlug": "who-killed-kenny-s",
+    "gameDates": [
+      "2014-05-10",
+      "2014-05-17",
+      "2014-05-31",
+      "2014-06-14",
+      "2014-06-21"
+    ]
+  },
+  {
+    "seasonId": "2014-summer",
+    "leagueId": 37780,
+    "playerName": "Alexander Cerdan",
+    "sportabilityPlayerId": 1928386,
+    "fromTeamSlug": "jordan-s-white-wombats",
+    "toTeamSlug": "who-killed-kenny-s",
+    "gameDates": [
+      "2014-05-10",
+      "2014-05-17",
+      "2014-05-31",
+      "2014-06-14"
+    ]
+  },
+  {
+    "seasonId": "2014-summer",
+    "leagueId": 37780,
+    "playerName": "Theodore Peters",
+    "sportabilityPlayerId": 1927894,
+    "fromTeamSlug": "who-killed-kenny-s",
+    "toTeamSlug": "jordan-s-white-wombats",
+    "gameDates": [
+      "2014-05-17",
+      "2014-06-14",
+      "2014-06-21"
+    ]
+  },
+  {
+    "seasonId": "2014-2015",
+    "leagueId": 38418,
+    "playerName": "Chris Lambert",
+    "sportabilityPlayerId": 1971789,
+    "fromTeamSlug": "seals",
+    "toTeamSlug": "rink-rats",
+    "gameDates": [
+      "2014-09-27",
+      "2014-10-11",
+      "2014-10-25",
+      "2014-11-01",
+      "2014-11-15",
+      "2014-11-22",
+      "2014-12-13",
+      "2015-01-03",
+      "2015-01-10",
+      "2015-01-17"
+    ]
+  },
+  {
+    "seasonId": "2014-2015",
+    "leagueId": 38418,
+    "playerName": "Suraj Sharma",
+    "sportabilityPlayerId": 1968163,
+    "fromTeamSlug": "rink-rats",
+    "toTeamSlug": "seals",
+    "gameDates": [
+      "2014-09-27",
+      "2014-10-04",
+      "2014-10-18",
+      "2014-10-25",
+      "2014-11-01",
+      "2014-11-15",
+      "2014-11-22",
+      "2014-12-06",
+      "2015-01-17"
+    ]
+  },
+  {
+    "seasonId": "2014-2015",
+    "leagueId": 38418,
+    "playerName": "Harvey Braverman",
+    "sportabilityPlayerId": 1970035,
+    "fromTeamSlug": "haze",
+    "toTeamSlug": "seals",
+    "gameDates": [
+      "2014-10-11",
+      "2014-10-18",
+      "2014-11-15",
+      "2014-12-06",
+      "2015-01-03"
+    ]
+  },
+  {
+    "seasonId": "2014-2015",
+    "leagueId": 38418,
+    "playerName": "Joseph Guillemette",
+    "sportabilityPlayerId": 1967476,
+    "fromTeamSlug": "haze",
+    "toTeamSlug": "bruins",
+    "gameDates": [
+      "2014-09-27",
+      "2014-10-11",
+      "2014-10-25",
+      "2014-11-01",
+      "2014-11-22",
+      "2014-12-13",
+      "2015-01-10",
+      "2015-01-17"
+    ]
+  },
+  {
+    "seasonId": "2014-2015",
+    "leagueId": 38418,
+    "playerName": "Andres Turner",
+    "sportabilityPlayerId": 1969132,
+    "fromTeamSlug": "bruins",
+    "toTeamSlug": "haze",
+    "gameDates": [
+      "2014-12-13"
+    ]
+  },
+  {
+    "seasonId": "2014-2015",
+    "leagueId": 38418,
+    "playerName": "Kelly Shea",
+    "sportabilityPlayerId": 1964846,
+    "fromTeamSlug": "seals",
+    "toTeamSlug": "haze",
+    "gameDates": [
+      "2014-10-25",
+      "2014-11-01",
+      "2014-11-15",
+      "2014-12-13",
+      "2015-01-10",
+      "2015-01-17"
+    ]
+  },
+  {
+    "seasonId": "2015-2016",
+    "leagueId": 41205,
+    "playerName": "Wayne Seto",
+    "sportabilityPlayerId": 2108975,
+    "fromTeamSlug": "haze",
+    "toTeamSlug": "roadrunners",
+    "gameDates": [
+      "2016-02-06",
+      "2016-02-27"
+    ]
+  },
+  {
+    "seasonId": "2015-2016",
+    "leagueId": 41205,
+    "playerName": "Dylan Haber",
+    "sportabilityPlayerId": 2111628,
+    "fromTeamSlug": "roadrunners",
+    "toTeamSlug": "bruins",
+    "gameDates": [
+      "2015-12-05",
+      "2015-12-12",
+      "2016-01-16",
+      "2016-01-30",
+      "2016-02-06",
+      "2016-02-27",
+      "2016-03-12"
+    ]
+  },
+  {
+    "seasonId": "2015-2016",
+    "leagueId": 41205,
+    "playerName": "Jonathan Brown",
+    "sportabilityPlayerId": 2108070,
+    "fromTeamSlug": "haze",
+    "toTeamSlug": "roadrunners",
+    "gameDates": [
+      "2015-11-21",
+      "2015-12-12",
+      "2016-01-02",
+      "2016-01-09",
+      "2016-02-06",
+      "2016-02-27",
+      "2016-03-05"
+    ]
+  },
+  {
+    "seasonId": "2015-2016",
+    "leagueId": 41205,
+    "playerName": "Peck Yang",
+    "sportabilityPlayerId": 2107420,
+    "fromTeamSlug": "bruins",
+    "toTeamSlug": "roadrunners",
+    "gameDates": [
+      "2015-12-05",
+      "2016-03-12"
+    ]
+  },
+  {
+    "seasonId": "2015-2016",
+    "leagueId": 41205,
+    "playerName": "Adam Portley",
+    "sportabilityPlayerId": 2108770,
+    "fromTeamSlug": "roadrunners",
+    "toTeamSlug": "haze",
+    "gameDates": [
+      "2015-12-05",
+      "2016-01-09",
+      "2016-01-16",
+      "2016-01-30",
+      "2016-02-27",
+      "2016-03-12"
+    ]
+  },
+  {
+    "seasonId": "2015-2016",
+    "leagueId": 41205,
+    "playerName": "Kevin Law",
+    "sportabilityPlayerId": 2109795,
+    "fromTeamSlug": "landsharks",
+    "toTeamSlug": "roadrunners",
+    "gameDates": [
+      "2015-11-21",
+      "2015-12-05",
+      "2015-12-19",
+      "2016-01-02",
+      "2016-02-13",
+      "2016-02-27"
+    ]
+  },
+  {
+    "seasonId": "2015-2016",
+    "leagueId": 41205,
+    "playerName": "tom holford",
+    "sportabilityPlayerId": 2110576,
+    "fromTeamSlug": "rink-rats",
+    "toTeamSlug": "roadrunners",
+    "gameDates": [
+      "2016-01-09",
+      "2016-01-23",
+      "2016-03-05"
+    ]
+  },
+  {
+    "seasonId": "2015-2016",
+    "leagueId": 41205,
+    "playerName": "Conrad Grodd",
+    "sportabilityPlayerId": 2110885,
+    "fromTeamSlug": "roadrunners",
+    "toTeamSlug": "landsharks",
+    "gameDates": [
+      "2015-12-12",
+      "2015-12-19",
+      "2016-02-13",
+      "2016-02-27",
+      "2016-03-05"
+    ]
+  },
+  {
+    "seasonId": "2015-2016",
+    "leagueId": 41205,
+    "playerName": "Jason Prasad",
+    "sportabilityPlayerId": 2107976,
+    "fromTeamSlug": "roadrunners",
+    "toTeamSlug": "bruins",
+    "gameDates": [
+      "2015-12-05",
+      "2015-12-12",
+      "2016-01-16",
+      "2016-02-06",
+      "2016-02-27",
+      "2016-03-12"
+    ]
+  },
+  {
+    "seasonId": "2015-2016",
+    "leagueId": 41205,
+    "playerName": "Robert Faibish",
+    "sportabilityPlayerId": 2108324,
+    "fromTeamSlug": "roadrunners",
+    "toTeamSlug": "rink-rats",
+    "gameDates": [
+      "2016-01-16"
+    ]
+  },
+  {
+    "seasonId": "2015-2016",
+    "leagueId": 41205,
+    "playerName": "Chris Casilli",
+    "sportabilityPlayerId": 2108444,
+    "fromTeamSlug": "roadrunners",
+    "toTeamSlug": "haze",
+    "gameDates": [
+      "2015-12-05",
+      "2015-12-12",
+      "2016-01-02",
+      "2016-01-09",
+      "2016-01-16",
+      "2016-01-30",
+      "2016-02-06",
+      "2016-03-05",
+      "2016-03-12"
+    ]
+  },
+  {
+    "seasonId": "2015-2016",
+    "leagueId": 41205,
+    "playerName": "Andrew Pratt",
+    "sportabilityPlayerId": 2110974,
+    "fromTeamSlug": "roadrunners",
+    "toTeamSlug": "rink-rats",
+    "gameDates": [
+      "2015-12-05",
+      "2016-01-16",
+      "2016-02-06",
+      "2016-03-05"
+    ]
+  },
+  {
+    "seasonId": "2015-2016",
+    "leagueId": 41205,
+    "playerName": "Gregory Huntington",
+    "sportabilityPlayerId": 2108828,
+    "fromTeamSlug": "rink-rats",
+    "toTeamSlug": "roadrunners",
+    "gameDates": [
+      "2015-11-21",
+      "2015-12-12",
+      "2016-01-09",
+      "2016-01-16",
+      "2016-01-23"
+    ]
+  },
+  {
+    "seasonId": "2016-2017",
+    "leagueId": 42830,
+    "playerName": "Gregory Dunmore",
+    "sportabilityPlayerId": 2195036,
+    "fromTeamSlug": "seals",
+    "toTeamSlug": "roadrunners",
+    "gameDates": [
+      "2016-09-24",
+      "2016-10-01",
+      "2016-10-15",
+      "2016-10-29",
+      "2016-11-05",
+      "2016-11-12",
+      "2016-12-10",
+      "2017-01-07"
+    ]
+  },
+  {
+    "seasonId": "2016-2017",
+    "leagueId": 42830,
+    "playerName": "Geoff Moore",
+    "sportabilityPlayerId": 2193962,
+    "fromTeamSlug": "roadrunners",
+    "toTeamSlug": "seals",
+    "gameDates": [
+      "2016-09-24",
+      "2016-10-01",
+      "2016-10-08",
+      "2016-10-15",
+      "2016-10-29",
+      "2016-11-12",
+      "2016-11-19",
+      "2016-12-03",
+      "2016-12-10",
+      "2017-01-07"
+    ]
+  },
+  {
+    "seasonId": "2016-2017",
+    "leagueId": 42830,
+    "playerName": "Wing Chiu",
+    "sportabilityPlayerId": 2197597,
+    "fromTeamSlug": "seals",
+    "toTeamSlug": "roadrunners",
+    "gameDates": [
+      "2016-10-01",
+      "2016-10-15",
+      "2016-10-29",
+      "2016-11-05",
+      "2016-11-12",
+      "2016-12-10",
+      "2017-01-07"
+    ]
+  },
+  {
+    "seasonId": "2016-2017",
+    "leagueId": 42830,
+    "playerName": "Marco Palmeri",
+    "sportabilityPlayerId": 2198890,
+    "fromTeamSlug": "bruins",
+    "toTeamSlug": "seals",
+    "gameDates": [
+      "2016-10-08",
+      "2016-10-15",
+      "2016-10-22",
+      "2016-10-29",
+      "2016-11-05",
+      "2016-12-03"
+    ]
+  },
+  {
+    "seasonId": "2016-2017",
+    "leagueId": 42830,
+    "playerName": "Henry Watts",
+    "sportabilityPlayerId": 2201638,
+    "fromTeamSlug": "roadrunners",
+    "toTeamSlug": "seals",
+    "gameDates": [
+      "2016-09-24",
+      "2016-10-01",
+      "2016-10-08",
+      "2016-10-29",
+      "2016-11-12",
+      "2016-12-10"
+    ]
+  },
+  {
+    "seasonId": "2016-2017",
+    "leagueId": 42830,
+    "playerName": "Gregory Huntington",
+    "sportabilityPlayerId": 2198770,
+    "fromTeamSlug": "haze",
+    "toTeamSlug": "seals",
+    "gameDates": [
+      "2016-09-24",
+      "2016-11-12"
+    ]
+  },
+  {
+    "seasonId": "2016-2017",
+    "leagueId": 42830,
+    "playerName": "Matt Suidan",
+    "sportabilityPlayerId": 2195102,
+    "fromTeamSlug": "seals",
+    "toTeamSlug": "haze",
+    "gameDates": [
+      "2016-09-24",
+      "2016-10-01",
+      "2016-10-15",
+      "2016-10-22",
+      "2016-10-29",
+      "2016-11-12",
+      "2016-11-19"
+    ]
+  },
+  {
+    "seasonId": "2016-2017",
+    "leagueId": 42830,
+    "playerName": "Nigel Wimberly",
+    "sportabilityPlayerId": 2193958,
+    "fromTeamSlug": "bruins",
+    "toTeamSlug": "seals",
+    "gameDates": [
+      "2016-10-08",
+      "2016-10-22",
+      "2016-10-29",
+      "2016-11-05",
+      "2016-12-03"
+    ]
+  },
+  {
+    "seasonId": "2016-2017",
+    "leagueId": 42830,
+    "playerName": "Scott Kane",
+    "sportabilityPlayerId": 2197377,
+    "fromTeamSlug": "seals",
+    "toTeamSlug": "bruins",
+    "gameDates": [
+      "2016-10-15",
+      "2016-11-05",
+      "2016-11-12"
+    ]
+  },
+  {
+    "seasonId": "2016-2017",
+    "leagueId": 42830,
+    "playerName": "Tanner Stumpf",
+    "sportabilityPlayerId": 2198939,
+    "fromTeamSlug": "seals",
+    "toTeamSlug": "bruins",
+    "gameDates": [
+      "2016-09-24",
+      "2016-10-15",
+      "2016-11-05",
+      "2016-11-12"
+    ]
+  },
+  {
+    "seasonId": "2017-2018",
+    "leagueId": 44570,
+    "playerName": "Chris Casilli",
+    "sportabilityPlayerId": 2291621,
+    "fromTeamSlug": "red-army",
+    "toTeamSlug": "haze",
+    "gameDates": [
+      "2017-09-23",
+      "2017-10-07",
+      "2017-10-28",
+      "2017-11-04",
+      "2017-11-11"
+    ]
+  },
+  {
+    "seasonId": "2017-2018",
+    "leagueId": 44570,
+    "playerName": "David Pennise",
+    "sportabilityPlayerId": 2291643,
+    "fromTeamSlug": "haze",
+    "toTeamSlug": "seals",
+    "gameDates": [
+      "2017-09-23",
+      "2017-09-30",
+      "2017-10-14",
+      "2017-10-21",
+      "2017-11-04",
+      "2017-11-11",
+      "2017-11-18",
+      "2017-12-09",
+      "2017-12-16"
+    ]
+  },
+  {
+    "seasonId": "2017-2018",
+    "leagueId": 44570,
+    "playerName": "Matt McCann",
+    "sportabilityPlayerId": 2288165,
+    "fromTeamSlug": "roadrunners",
+    "toTeamSlug": "kings",
+    "gameDates": [
+      "2017-09-30",
+      "2017-10-07",
+      "2017-10-14",
+      "2017-10-28",
+      "2017-11-18",
+      "2017-12-02",
+      "2017-12-09",
+      "2018-01-06"
+    ]
+  },
+  {
+    "seasonId": "2017-2018",
+    "leagueId": 44570,
+    "playerName": "Gregory Dunmore",
+    "sportabilityPlayerId": 2288034,
+    "fromTeamSlug": "roadrunners",
+    "toTeamSlug": "red-army",
+    "gameDates": [
+      "2017-10-07",
+      "2017-10-14",
+      "2017-10-21",
+      "2017-11-04",
+      "2017-11-18"
+    ]
+  },
+  {
+    "seasonId": "2017-2018",
+    "leagueId": 44570,
+    "playerName": "Nigel Wimberly",
+    "sportabilityPlayerId": 2288339,
+    "fromTeamSlug": "rink-rats",
+    "toTeamSlug": "seals",
+    "gameDates": [
+      "2017-09-23",
+      "2017-09-30",
+      "2017-11-04",
+      "2017-11-11",
+      "2017-11-18",
+      "2017-12-02",
+      "2017-12-09",
+      "2018-01-13",
+      "2018-01-20"
+    ]
+  },
+  {
+    "seasonId": "2017-2018",
+    "leagueId": 44570,
+    "playerName": "Peter Brown",
+    "sportabilityPlayerId": 2292733,
+    "fromTeamSlug": "haze",
+    "toTeamSlug": "red-army",
+    "gameDates": [
+      "2017-09-23",
+      "2017-10-14",
+      "2017-11-04",
+      "2017-11-11"
+    ]
+  },
+  {
+    "seasonId": "2017-2018",
+    "leagueId": 44570,
+    "playerName": "Alan Casilla",
+    "sportabilityPlayerId": 2287235,
+    "fromTeamSlug": "seals",
+    "toTeamSlug": "haze",
+    "gameDates": [
+      "2017-10-14",
+      "2017-10-21",
+      "2017-10-28",
+      "2017-12-09"
+    ]
+  },
+  {
+    "seasonId": "2017-2018",
+    "leagueId": 44570,
+    "playerName": "Henry Watts",
+    "sportabilityPlayerId": 2296503,
+    "fromTeamSlug": "seals",
+    "toTeamSlug": "rink-rats",
+    "gameDates": [
+      "2017-09-30",
+      "2017-10-14",
+      "2017-10-21",
+      "2017-12-02",
+      "2017-12-09",
+      "2017-12-16",
+      "2018-01-20"
+    ]
+  },
+  {
+    "seasonId": "2017-2018",
+    "leagueId": 44570,
+    "playerName": "Andrew Del Prete",
+    "sportabilityPlayerId": 2287279,
+    "fromTeamSlug": "kings",
+    "toTeamSlug": "roadrunners",
+    "gameDates": [
+      "2018-01-06"
+    ]
+  },
+  {
+    "seasonId": "2017-2018",
+    "leagueId": 44570,
+    "playerName": "Matthew Gottfried",
+    "sportabilityPlayerId": 2289861,
+    "fromTeamSlug": "haze",
+    "toTeamSlug": "landsharks",
+    "gameDates": [
+      "2017-10-07",
+      "2017-10-14",
+      "2017-10-21",
+      "2017-11-04",
+      "2017-11-18",
+      "2017-12-02",
+      "2017-12-09",
+      "2017-12-16"
+    ]
+  },
+  {
+    "seasonId": "2017-2018",
+    "leagueId": 44570,
+    "playerName": "Peter Becht",
+    "sportabilityPlayerId": 2287155,
+    "fromTeamSlug": "roadrunners",
+    "toTeamSlug": "kings",
+    "gameDates": [
+      "2017-09-30",
+      "2017-10-07",
+      "2017-10-28",
+      "2017-11-04",
+      "2017-11-18",
+      "2017-12-02",
+      "2017-12-09",
+      "2018-01-06"
+    ]
+  },
+  {
+    "seasonId": "2017-2018",
+    "leagueId": 44570,
+    "playerName": "Jesse Townley",
+    "sportabilityPlayerId": 2290982,
+    "fromTeamSlug": "seals",
+    "toTeamSlug": "haze",
+    "gameDates": [
+      "2017-09-23",
+      "2017-10-21",
+      "2017-10-28",
+      "2017-11-11",
+      "2017-12-09"
+    ]
+  },
+  {
+    "seasonId": "2017-2018",
+    "leagueId": 44570,
+    "playerName": "Andrew Keeler",
+    "sportabilityPlayerId": 2289290,
+    "fromTeamSlug": "landsharks",
+    "toTeamSlug": "haze",
+    "gameDates": [
+      "2017-09-30",
+      "2017-10-14",
+      "2017-10-21",
+      "2017-10-28",
+      "2017-12-09",
+      "2017-12-16"
+    ]
+  },
+  {
+    "seasonId": "2018-summer",
+    "leagueId": 45663,
+    "playerName": "Jason Mandell",
+    "sportabilityPlayerId": 2349453,
+    "fromTeamSlug": "pho-cough",
+    "toTeamSlug": "handsome-b-wonderfuls",
+    "gameDates": [
+      "2018-05-26",
+      "2018-06-16"
+    ]
+  },
+  {
+    "seasonId": "2018-2019",
+    "leagueId": 46192,
+    "playerName": "Harry Zuzan",
+    "sportabilityPlayerId": 2379898,
+    "fromTeamSlug": "rink-rats",
+    "toTeamSlug": "haze",
+    "gameDates": [
+      "2018-11-03",
+      "2018-12-01",
+      "2018-12-15",
+      "2019-01-12",
+      "2019-02-02",
+      "2019-02-03"
+    ]
+  },
+  {
+    "seasonId": "2018-2019",
+    "leagueId": 46192,
+    "playerName": "Brendan Nichols",
+    "sportabilityPlayerId": 2377880,
+    "fromTeamSlug": "rink-rats",
+    "toTeamSlug": "haze",
+    "gameDates": [
+      "2018-11-03",
+      "2018-12-01",
+      "2018-12-15",
+      "2019-02-02"
+    ]
+  },
+  {
+    "seasonId": "2018-2019",
+    "leagueId": 46192,
+    "playerName": "Andrew Pratt",
+    "sportabilityPlayerId": 2377798,
+    "fromTeamSlug": "haze",
+    "toTeamSlug": "rink-rats",
+    "gameDates": [
+      "2018-10-20",
+      "2018-10-27",
+      "2018-11-03",
+      "2018-12-15",
+      "2019-01-05",
+      "2019-01-12",
+      "2019-02-02"
+    ]
+  },
+  {
+    "seasonId": "2018-2019",
+    "leagueId": 46192,
+    "playerName": "Adam Shafik",
+    "sportabilityPlayerId": 2382257,
+    "fromTeamSlug": "kings",
+    "toTeamSlug": "landsharks",
+    "gameDates": [
+      "2019-02-02"
+    ]
+  },
+  {
+    "seasonId": "2018-2019",
+    "leagueId": 46192,
+    "playerName": "Thomas Donnelly",
+    "sportabilityPlayerId": 2377731,
+    "fromTeamSlug": "rink-rats",
+    "toTeamSlug": "landsharks",
+    "gameDates": [
+      "2019-01-12",
+      "2019-01-26",
+      "2019-02-02",
+      "2019-02-03"
+    ]
+  },
+  {
+    "seasonId": "2018-2019",
+    "leagueId": 46192,
+    "playerName": "Eddie Parsons",
+    "sportabilityPlayerId": 2379623,
+    "fromTeamSlug": "haze",
+    "toTeamSlug": "kings",
+    "gameDates": [
+      "2018-11-03",
+      "2018-11-10",
+      "2018-12-08",
+      "2018-12-15",
+      "2019-01-05",
+      "2019-01-12",
+      "2019-01-26"
+    ]
+  },
+  {
+    "seasonId": "2018-2019",
+    "leagueId": 46192,
+    "playerName": "Evan Weston",
+    "sportabilityPlayerId": 2377871,
+    "fromTeamSlug": "yetis",
+    "toTeamSlug": "landsharks",
+    "gameDates": [
+      "2018-10-20",
+      "2018-10-27",
+      "2018-11-10"
+    ]
+  },
+  {
+    "seasonId": "2018-2019",
+    "leagueId": 46192,
+    "playerName": "Luke Wang",
+    "sportabilityPlayerId": 2378737,
+    "fromTeamSlug": "landsharks",
+    "toTeamSlug": "yetis",
+    "gameDates": [
+      "2018-10-20",
+      "2018-10-27",
+      "2018-11-03",
+      "2018-12-01",
+      "2018-12-15",
+      "2019-01-05",
+      "2019-01-12",
+      "2019-01-26"
+    ]
+  },
+  {
+    "seasonId": "2018-2019",
+    "leagueId": 46192,
+    "playerName": "Eric Fortin",
+    "sportabilityPlayerId": 2378945,
+    "fromTeamSlug": "landsharks",
+    "toTeamSlug": "rink-rats",
+    "gameDates": [
+      "2018-10-27",
+      "2018-11-03",
+      "2018-11-10",
+      "2018-12-01",
+      "2019-01-12",
+      "2019-01-26",
+      "2019-02-02"
+    ]
+  },
+  {
+    "seasonId": "2018-2019",
+    "leagueId": 46192,
+    "playerName": "Harrison Hansen",
+    "sportabilityPlayerId": 2372186,
+    "fromTeamSlug": "kings",
+    "toTeamSlug": "haze",
+    "gameDates": [
+      "2018-10-27",
+      "2018-11-03",
+      "2018-12-01",
+      "2018-12-08",
+      "2018-12-15",
+      "2019-01-12"
+    ]
+  },
+  {
+    "seasonId": "2018-2019",
+    "leagueId": 46192,
+    "playerName": "Chris Gornick",
+    "sportabilityPlayerId": 2377161,
+    "fromTeamSlug": "landsharks",
+    "toTeamSlug": "kings",
+    "gameDates": [
+      "2018-10-20",
+      "2018-11-03",
+      "2018-12-01",
+      "2018-12-15",
+      "2019-01-12",
+      "2019-01-26",
+      "2019-02-02",
+      "2019-02-03"
+    ]
+  },
+  {
+    "seasonId": "2018-2019",
+    "leagueId": 46192,
+    "playerName": "Garrett Lord",
+    "sportabilityPlayerId": 2377368,
+    "fromTeamSlug": "haze",
+    "toTeamSlug": "rink-rats",
+    "gameDates": [
+      "2018-12-08",
+      "2019-02-02",
+      "2019-02-03"
+    ]
+  },
+  {
+    "seasonId": "2018-2019",
+    "leagueId": 46192,
+    "playerName": "Eric Wooley",
+    "sportabilityPlayerId": 2378339,
+    "fromTeamSlug": "red-army",
+    "toTeamSlug": "haze",
+    "gameDates": [
+      "2018-11-03",
+      "2018-11-10",
+      "2018-12-01",
+      "2018-12-08",
+      "2019-01-12",
+      "2019-01-26"
+    ]
+  },
+  {
+    "seasonId": "2018-2019",
+    "leagueId": 46192,
+    "playerName": "Danny Douglass",
+    "sportabilityPlayerId": 2379663,
+    "fromTeamSlug": "haze",
+    "toTeamSlug": "red-army",
+    "gameDates": [
+      "2018-10-20",
+      "2018-11-10",
+      "2018-12-08",
+      "2018-12-15",
+      "2019-01-12",
+      "2019-02-02"
+    ]
+  },
+  {
+    "seasonId": "2019-2020",
+    "leagueId": 47353,
+    "playerName": "Thomas Donnelly",
+    "sportabilityPlayerId": 2446405,
+    "fromTeamSlug": "yetis",
+    "toTeamSlug": "reign",
+    "gameDates": [
+      "2019-09-21",
+      "2019-09-28",
+      "2019-11-16"
+    ]
+  },
+  {
+    "seasonId": "2019-2020",
+    "leagueId": 47353,
+    "playerName": "David Bartenwerfer",
+    "sportabilityPlayerId": 2445973,
+    "fromTeamSlug": "yetis",
+    "toTeamSlug": "red-army",
+    "gameDates": [
+      "2019-09-28"
+    ]
+  },
+  {
+    "seasonId": "2019-2020",
+    "leagueId": 47353,
+    "playerName": "Steph Tryphonas",
+    "sportabilityPlayerId": 2446213,
+    "fromTeamSlug": "reign",
+    "toTeamSlug": "yetis",
+    "gameDates": [
+      "2019-09-21",
+      "2019-11-09",
+      "2019-11-16",
+      "2019-11-23",
+      "2019-12-07"
+    ]
+  },
+  {
+    "seasonId": "2021-2022",
+    "leagueId": 48607,
+    "playerName": "John Ellis",
+    "sportabilityPlayerId": 2512800,
+    "fromTeamSlug": "landsharks",
+    "toTeamSlug": "red-army",
+    "gameDates": [
+      "2021-10-02",
+      "2021-10-16",
+      "2021-11-13",
+      "2022-01-08"
+    ]
+  },
+  {
+    "seasonId": "2021-2022",
+    "leagueId": 48607,
+    "playerName": "Sean Perry",
+    "sportabilityPlayerId": 2509786,
+    "fromTeamSlug": "red-army",
+    "toTeamSlug": "reign",
+    "gameDates": [
+      "2021-10-02",
+      "2021-10-16",
+      "2021-10-23",
+      "2021-11-06",
+      "2021-11-20",
+      "2021-12-04",
+      "2021-12-18",
+      "2022-01-22"
+    ]
+  },
+  {
+    "seasonId": "2021-2022",
+    "leagueId": 48607,
+    "playerName": "William Knupp",
+    "sportabilityPlayerId": 2509381,
+    "fromTeamSlug": "reign",
+    "toTeamSlug": "yetis",
+    "gameDates": [
+      "2021-09-25",
+      "2021-10-02",
+      "2021-10-16",
+      "2021-10-23",
+      "2021-11-13",
+      "2021-11-20",
+      "2021-12-04",
+      "2021-12-11",
+      "2022-01-08",
+      "2022-01-22"
+    ]
+  },
+  {
+    "seasonId": "2021-2022",
+    "leagueId": 48607,
+    "playerName": "William Searcy",
+    "sportabilityPlayerId": 2509848,
+    "fromTeamSlug": "landsharks",
+    "toTeamSlug": "reign",
+    "gameDates": [
+      "2021-09-25",
+      "2021-10-02",
+      "2021-11-06",
+      "2021-11-20",
+      "2021-12-18",
+      "2022-01-08"
+    ]
+  },
+  {
+    "seasonId": "2021-2022",
+    "leagueId": 48607,
+    "playerName": "Wayne Seto",
+    "sportabilityPlayerId": 2511005,
+    "fromTeamSlug": "yetis",
+    "toTeamSlug": "reign",
+    "gameDates": [
+      "2021-09-25"
+    ]
+  },
+  {
+    "seasonId": "2021-2022",
+    "leagueId": 48607,
+    "playerName": "William Goodale",
+    "sportabilityPlayerId": 2509583,
+    "fromTeamSlug": "reign",
+    "toTeamSlug": "landsharks",
+    "gameDates": [
+      "2021-09-25",
+      "2021-10-02",
+      "2021-10-23",
+      "2021-11-13",
+      "2021-12-11",
+      "2021-12-18",
+      "2022-01-08"
+    ]
+  },
+  {
+    "seasonId": "2021-2022",
+    "leagueId": 48607,
+    "playerName": "Geoff Moore",
+    "sportabilityPlayerId": 2509362,
+    "fromTeamSlug": "reign",
+    "toTeamSlug": "rink-rats",
+    "gameDates": [
+      "2021-10-16",
+      "2021-10-23",
+      "2021-11-06",
+      "2021-12-04",
+      "2021-12-11"
+    ]
+  },
+  {
+    "seasonId": "2021-2022",
+    "leagueId": 48607,
+    "playerName": "Chris Lambert",
+    "sportabilityPlayerId": 2509545,
+    "fromTeamSlug": "reign",
+    "toTeamSlug": "landsharks",
+    "gameDates": [
+      "2021-09-25",
+      "2021-10-02",
+      "2021-10-23",
+      "2021-11-06",
+      "2021-11-13",
+      "2021-11-20",
+      "2021-12-11",
+      "2021-12-18",
+      "2022-01-22"
+    ]
+  },
+  {
+    "seasonId": "2021-2022",
+    "leagueId": 48607,
+    "playerName": "Theophilus Ko",
+    "sportabilityPlayerId": 2511422,
+    "fromTeamSlug": "red-army",
+    "toTeamSlug": "reign",
+    "gameDates": [
+      "2021-10-02",
+      "2021-10-16",
+      "2021-10-23",
+      "2021-11-06",
+      "2021-11-20",
+      "2021-12-04",
+      "2021-12-18",
+      "2022-01-22"
+    ]
+  },
+  {
+    "seasonId": "2021-2022",
+    "leagueId": 48607,
+    "playerName": "David Ruiz",
+    "sportabilityPlayerId": 2512796,
+    "fromTeamSlug": "seals",
+    "toTeamSlug": "reign",
+    "gameDates": [
+      "2021-09-25",
+      "2021-10-02",
+      "2021-11-13",
+      "2021-11-20",
+      "2021-12-04",
+      "2021-12-18"
+    ]
+  },
+  {
+    "seasonId": "2021-2022",
+    "leagueId": 48607,
+    "playerName": "Ben Kreaden",
+    "sportabilityPlayerId": 2510818,
+    "fromTeamSlug": "reign",
+    "toTeamSlug": "red-army",
+    "gameDates": [
+      "2021-10-16",
+      "2021-10-23",
+      "2021-11-06",
+      "2021-12-11",
+      "2021-12-18",
+      "2022-01-22"
+    ]
+  },
+  {
+    "seasonId": "2021-2022",
+    "leagueId": 48607,
+    "playerName": "Jonathan Rauh",
+    "sportabilityPlayerId": 2509358,
+    "fromTeamSlug": "reign",
+    "toTeamSlug": "seals",
+    "gameDates": [
+      "2021-10-02",
+      "2021-10-16",
+      "2021-11-06",
+      "2021-11-13",
+      "2021-11-20",
+      "2021-12-04",
+      "2021-12-18",
+      "2022-01-08",
+      "2022-01-22"
+    ]
+  },
+  {
+    "seasonId": "2021-2022",
+    "leagueId": 48607,
+    "playerName": "Kenny Jones",
+    "sportabilityPlayerId": 2512588,
+    "fromTeamSlug": "rink-rats",
+    "toTeamSlug": "seals",
+    "gameDates": [
+      "2021-10-02",
+      "2021-10-16",
+      "2021-10-23",
+      "2021-11-06",
+      "2021-11-20",
+      "2021-12-04"
+    ]
+  },
+  {
+    "seasonId": "2021-2022",
+    "leagueId": 48607,
+    "playerName": "Harry MacInnis",
+    "sportabilityPlayerId": 2512709,
+    "fromTeamSlug": "seals",
+    "toTeamSlug": "rink-rats",
+    "gameDates": [
+      "2021-10-16",
+      "2021-10-23",
+      "2021-11-06",
+      "2021-12-04"
+    ]
+  },
+  {
+    "seasonId": "2022-summer",
+    "leagueId": 48952,
+    "playerName": "Thijs van Klaveren",
+    "sportabilityPlayerId": 2532279,
+    "fromTeamSlug": "little-piggies",
+    "toTeamSlug": "the-vim",
+    "gameDates": [
+      "2022-05-14"
+    ]
+  },
+  {
+    "seasonId": "2022-2023",
+    "leagueId": 49109,
+    "playerName": "Andrew Keeler",
+    "sportabilityPlayerId": 2540234,
+    "fromTeamSlug": "seals",
+    "toTeamSlug": "no-regretzkys",
+    "gameDates": [
+      "2022-12-03",
+      "2022-12-17",
+      "2023-01-07",
+      "2023-01-28"
+    ]
+  },
+  {
+    "seasonId": "2022-2023",
+    "leagueId": 49109,
+    "playerName": "Marco Palmeri",
+    "sportabilityPlayerId": 2540498,
+    "fromTeamSlug": "landsharks",
+    "toTeamSlug": "no-regretzkys",
+    "gameDates": [
+      "2022-10-01",
+      "2022-10-08",
+      "2022-10-15",
+      "2022-11-05",
+      "2022-12-03",
+      "2023-01-07",
+      "2023-01-28"
+    ]
+  },
+  {
+    "seasonId": "2022-2023",
+    "leagueId": 49109,
+    "playerName": "Silas Xuereb",
+    "sportabilityPlayerId": 2543766,
+    "fromTeamSlug": "no-regretzkys",
+    "toTeamSlug": "seals",
+    "gameDates": [
+      "2022-10-15",
+      "2022-10-22",
+      "2022-11-05",
+      "2022-11-12",
+      "2022-12-03"
+    ]
+  },
+  {
+    "seasonId": "2022-2023",
+    "leagueId": 49109,
+    "playerName": "Nestor Maslej",
+    "sportabilityPlayerId": 2539965,
+    "fromTeamSlug": "no-regretzkys",
+    "toTeamSlug": "seals",
+    "gameDates": [
+      "2022-10-01",
+      "2022-10-15",
+      "2022-10-22",
+      "2022-11-12",
+      "2022-12-03",
+      "2023-01-28"
+    ]
+  },
+  {
+    "seasonId": "2022-2023",
+    "leagueId": 49109,
+    "playerName": "Gregory Dunmore",
+    "sportabilityPlayerId": 2543534,
+    "fromTeamSlug": "no-regretzkys",
+    "toTeamSlug": "landsharks",
+    "gameDates": [
+      "2022-10-01",
+      "2022-12-03",
+      "2022-12-17",
+      "2023-01-07",
+      "2023-01-21",
+      "2023-01-28"
+    ]
+  },
+  {
+    "seasonId": "2023-2024",
+    "leagueId": 49644,
+    "playerName": "Oscar Hjalmarsson",
+    "sportabilityPlayerId": 2574352,
+    "fromTeamSlug": "rink-rats",
+    "toTeamSlug": "reign",
+    "gameDates": []
+  },
+  {
+    "seasonId": "2023-2024",
+    "leagueId": 49644,
+    "playerName": "Andrew Pratt",
+    "sportabilityPlayerId": 2571224,
+    "fromTeamSlug": "rink-rats",
+    "toTeamSlug": "reign",
+    "gameDates": []
+  },
+  {
+    "seasonId": "2023-2024",
+    "leagueId": 49644,
+    "playerName": "Adam Portley",
+    "sportabilityPlayerId": 2572114,
+    "fromTeamSlug": "rink-rats",
+    "toTeamSlug": "yetis",
+    "gameDates": []
+  },
+  {
+    "seasonId": "2024-2025",
+    "leagueId": 50076,
+    "playerName": "Christopher Broglie",
+    "sportabilityPlayerId": 2599829,
+    "fromTeamSlug": "reign",
+    "toTeamSlug": "no-regretzkys",
+    "gameDates": []
+  },
+  {
+    "seasonId": "2024-2025",
+    "leagueId": 50076,
+    "playerName": "Harry MacInnis",
+    "sportabilityPlayerId": 2599434,
+    "fromTeamSlug": "reign",
+    "toTeamSlug": "yetis",
+    "gameDates": []
+  },
+  {
+    "seasonId": "2024-2025",
+    "leagueId": 50076,
+    "playerName": "Andrew McGrath",
+    "sportabilityPlayerId": 2602239,
+    "fromTeamSlug": "reign",
+    "toTeamSlug": "yetis",
+    "gameDates": []
+  },
+  {
+    "seasonId": "2024-2025",
+    "leagueId": 50076,
+    "playerName": "Hayden Fontaine",
+    "sportabilityPlayerId": 2602374,
+    "fromTeamSlug": "yetis",
+    "toTeamSlug": "reign",
+    "gameDates": []
+  },
+  {
+    "seasonId": "2024-2025",
+    "leagueId": 50076,
+    "playerName": "Geoff Moore",
+    "sportabilityPlayerId": 2599240,
+    "fromTeamSlug": "yetis",
+    "toTeamSlug": "reign",
+    "gameDates": []
+  },
+  {
+    "seasonId": "2024-2025",
+    "leagueId": 50076,
+    "playerName": "Andrew Roy",
+    "sportabilityPlayerId": 2600820,
+    "fromTeamSlug": "reign",
+    "toTeamSlug": "seals",
+    "gameDates": []
+  },
+  {
+    "seasonId": "2023-2024",
+    "leagueId": 49644,
+    "playerName": "Matt Suidan",
+    "sportabilityPlayerId": 2574678,
+    "fromTeamSlug": "reign",
+    "toTeamSlug": "rink-rats",
+    "gameDates": []
+  },
+  {
+    "seasonId": "2023-2024",
+    "leagueId": 49644,
+    "playerName": "John Toal",
+    "sportabilityPlayerId": 2574216,
+    "fromTeamSlug": "reign",
+    "toTeamSlug": "rink-rats",
+    "gameDates": []
+  },
+  {
+    "seasonId": "2024-2025",
+    "leagueId": 50076,
+    "playerName": "Christopher Wong",
+    "sportabilityPlayerId": 2599397,
+    "fromTeamSlug": "reign",
+    "toTeamSlug": "rink-rats",
+    "gameDates": []
+  },
+  {
+    "seasonId": "2023-2024",
+    "leagueId": 49644,
+    "playerName": "Jason Mandell",
+    "sportabilityPlayerId": 2574388,
+    "fromTeamSlug": "rink-rats",
+    "toTeamSlug": "landsharks",
+    "gameDates": []
+  },
+  {
+    "seasonId": "2023-2024",
+    "leagueId": 49644,
+    "playerName": "Dusan Motolik",
+    "sportabilityPlayerId": 2571479,
+    "fromTeamSlug": "rink-rats",
+    "toTeamSlug": "seals",
+    "gameDates": []
+  },
+  {
+    "seasonId": "2023-2024",
+    "leagueId": 49644,
+    "playerName": "Ian Hocking",
+    "sportabilityPlayerId": 2574748,
+    "fromTeamSlug": "rink-rats",
+    "toTeamSlug": "seals",
+    "gameDates": []
+  },
+  {
+    "seasonId": "2023-2024",
+    "leagueId": 49644,
+    "playerName": "Jeff Caruso",
+    "sportabilityPlayerId": 2573307,
+    "fromTeamSlug": "reign",
+    "toTeamSlug": "rink-rats",
+    "gameDates": []
+  },
+  {
+    "seasonId": "2023-2024",
+    "leagueId": 49644,
+    "playerName": "Kyle Boehm",
+    "sportabilityPlayerId": 2571018,
+    "fromTeamSlug": "seals",
+    "toTeamSlug": "rink-rats",
+    "gameDates": []
+  },
+  {
+    "seasonId": "2023-2024",
+    "leagueId": 49644,
+    "playerName": "Luis Portillo",
+    "sportabilityPlayerId": 2570545,
+    "fromTeamSlug": "seals",
+    "toTeamSlug": "rink-rats",
+    "gameDates": []
+  },
+  {
+    "seasonId": "2024-2025",
+    "leagueId": 50076,
+    "playerName": "Conor Murphy",
+    "sportabilityPlayerId": 2602226,
+    "fromTeamSlug": "no-regretzkys",
+    "toTeamSlug": "reign",
+    "gameDates": []
+  },
+  {
+    "seasonId": "2023-2024",
+    "leagueId": 49644,
+    "playerName": "Mike Mack",
+    "sportabilityPlayerId": 2570988,
+    "fromTeamSlug": "yetis",
+    "toTeamSlug": "rink-rats",
+    "gameDates": []
+  },
+  {
+    "seasonId": "2023-2024",
+    "leagueId": 49644,
+    "playerName": "Brandon Harrington",
+    "sportabilityPlayerId": 2570206,
+    "fromTeamSlug": "seals",
+    "toTeamSlug": "rink-rats",
+    "gameDates": []
+  },
+  {
+    "seasonId": "2024-2025",
+    "leagueId": 50076,
+    "playerName": "Mitch Ginsburg",
+    "sportabilityPlayerId": 2603096,
+    "fromTeamSlug": "seals",
+    "toTeamSlug": "reign",
+    "gameDates": []
+  },
+  {
+    "seasonId": "2023-2024",
+    "leagueId": 49644,
+    "playerName": "Andrew Keeler",
+    "sportabilityPlayerId": 2571480,
+    "fromTeamSlug": "reign",
+    "toTeamSlug": "rink-rats",
+    "gameDates": []
+  },
+  {
+    "seasonId": "2023-2024",
+    "leagueId": 49644,
+    "playerName": "Nicholas MacNab",
+    "sportabilityPlayerId": 2574218,
+    "fromTeamSlug": "rink-rats",
+    "toTeamSlug": "reign",
+    "gameDates": []
+  },
+  {
+    "seasonId": "2024-2025",
+    "leagueId": 50076,
+    "playerName": "Oscar Hjalmarsson",
+    "sportabilityPlayerId": 2603139,
+    "fromTeamSlug": "rink-rats",
+    "toTeamSlug": "reign",
+    "gameDates": []
+  },
+  {
+    "seasonId": "2023-2024",
+    "leagueId": 49644,
+    "playerName": "Alexander Cerdan",
+    "sportabilityPlayerId": 2574082,
+    "fromTeamSlug": "rink-rats",
+    "toTeamSlug": "reign",
+    "gameDates": []
+  },
+  {
+    "seasonId": "2025-2026",
+    "leagueId": 50562,
+    "playerName": "Hy Lam",
+    "sportabilityPlayerId": 2628089,
+    "fromTeamSlug": "no-regretzkys",
+    "toTeamSlug": "seals",
+    "gameDates": []
+  },
+  {
+    "seasonId": "2025-2026",
+    "leagueId": 50562,
+    "playerName": "Christopher Wong",
+    "sportabilityPlayerId": 2629113,
+    "fromTeamSlug": "seals",
+    "toTeamSlug": "no-regretzkys",
+    "gameDates": []
+  }
+]
