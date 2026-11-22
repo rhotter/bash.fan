@@ -304,9 +304,10 @@ describe("Sportability Re-Syncing Past Games with WHERE NOT EXISTS", () => {
     expect(syncRouteContent).toContain("SELECT 1 FROM player_seasons ps")
     expect(syncRouteContent).toContain("WHERE ps.player_id = ${playerId} AND ps.season_id = ${seasonId}")
 
-    // Skater game stats teamSlug upsert
+    // Skater & goalie game stats teamSlug upsert preserves existing non-NULL attributions (COALESCE)
     expect(syncRouteContent).toContain("teamSlug: currentTeamSlug")
-    expect(syncRouteContent).toContain("teamSlug: sql`EXCLUDED.team_slug`")
+    expect(syncRouteContent).toContain("teamSlug: sql`COALESCE(player_game_stats.team_slug, EXCLUDED.team_slug)`")
+    expect(syncRouteContent).toContain("teamSlug: sql`COALESCE(goalie_game_stats.team_slug, EXCLUDED.team_slug)`")
 
     // Goalie guard with is_goalie
     expect(syncRouteContent).toContain("is_goalie)")

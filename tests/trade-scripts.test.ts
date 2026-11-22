@@ -527,10 +527,14 @@ describe("scripts/export-prod-db.ts", () => {
         return []
       })
 
+      let nextDevTradeId = 500
       const mockDev = vi.fn().mockImplementation(async (strings: TemplateStringsArray, ...args: any[]) => {
         const queryText = strings.join("?")
         devQueries.push(queryText)
         devInserts.push({ queryText, args })
+        if (queryText.includes("INSERT INTO season_trades")) {
+          return [{ id: nextDevTradeId++ }]
+        }
         return []
       })
 
@@ -555,17 +559,22 @@ describe("scripts/export-prod-db.ts", () => {
       // Verifies dev delete
       expect(devQueries.some((q) => q.includes("DELETE FROM season_trades WHERE season_id = ANY"))).toBe(true)
 
-      // Verifies trade insert
-      expect(devQueries.some((q) => q.includes("INSERT INTO season_trades"))).toBe(true)
+      // Verifies trade insert allocates fresh Dev ID (no ON CONFLICT (id) overwrite of unrelated historical trades)
+      const tradeInsert = devInserts.find((i) => i.queryText.includes("INSERT INTO season_trades"))
+      expect(tradeInsert).toBeDefined()
+      expect(tradeInsert?.queryText).toContain("RETURNING id")
+      expect(tradeInsert?.queryText).not.toContain("ON CONFLICT (id)")
 
-      // Verifies item insert and player_id mapping
+      // Verifies item insert uses remapped Dev trade_id (500, not Prod id 5) and player_id mapping
       const itemInserts = devInserts.filter((i) => i.queryText.includes("INSERT INTO season_trade_items"))
       expect(itemInserts.length).toBe(2)
 
-      // First item: mapped player 953 -> 1953
+      // First item: remapped trade_id 500, mapped player 953 -> 1953
+      expect(itemInserts[0].args[0]).toBe(500)
       expect(itemInserts[0].args).toContain(1953)
 
-      // Second item: draft pick, player_id remains null
+      // Second item: remapped trade_id 500, draft pick, player_id remains null
+      expect(itemInserts[1].args[0]).toBe(500)
       expect(itemInserts[1].args).toContain(null)
       expect(itemInserts[1].args).toContain("2027-summer")
 

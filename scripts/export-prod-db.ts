@@ -658,47 +658,52 @@ export async function syncTrades(
 
   let itemsCount = 0;
   if (prodTrades.length > 0) {
+    // Ensure Dev sequences are at least MAX(id) before allocating fresh IDs so inserts never collide
+    // with pre-existing historical trades in non-synced seasons.
+    await dev`
+      SELECT setval('season_trades_id_seq', COALESCE((SELECT MAX(id) FROM season_trades), 1));
+    `;
+    await dev`
+      SELECT setval('season_trade_items_id_seq', COALESCE((SELECT MAX(id) FROM season_trade_items), 1));
+    `;
+
     const tradeIds = prodTrades.map((t: any) => t.id);
     const prodTradeItems = await prod`SELECT * FROM season_trade_items WHERE trade_id = ANY(${tradeIds}) ORDER BY id ASC;`;
 
+    // Let Dev allocate fresh serial IDs rather than forcing Prod IDs via ON CONFLICT (id),
+    // which would otherwise overwrite unrelated historical trades in non-synced seasons if IDs overlap.
+    const devTradeIdByProdTradeId = new Map<number, number>();
     for (const t of prodTrades) {
       const teamSlugs = Array.isArray(t.team_slugs)
         ? t.team_slugs
         : [t.team_a_slug, t.team_b_slug].filter(Boolean);
-      await dev`
+      const inserted = await dev`
         INSERT INTO season_trades (
-          id, season_id, team_slugs, notes, traded_at, created_at
+          season_id, team_slugs, notes, traded_at, created_at
         ) VALUES (
-          ${t.id}, ${t.season_id}, ${teamSlugs}, ${t.notes}, ${t.traded_at}, ${t.created_at}
+          ${t.season_id}, ${teamSlugs}, ${t.notes}, ${t.traded_at}, ${t.created_at}
         )
-        ON CONFLICT (id) DO UPDATE SET
-          season_id = EXCLUDED.season_id,
-          team_slugs = EXCLUDED.team_slugs,
-          notes = EXCLUDED.notes,
-          traded_at = EXCLUDED.traded_at,
-          created_at = EXCLUDED.created_at;
+        RETURNING id;
       `;
+      const devTradeId = Number(inserted[0]?.id);
+      if (!Number.isFinite(devTradeId)) {
+        throw new Error(`Failed to insert synced season_trades row for prod trade ${t.id} (${t.season_id})`);
+      }
+      devTradeIdByProdTradeId.set(t.id, devTradeId);
     }
 
     for (const item of prodTradeItems) {
+      const devTradeId = devTradeIdByProdTradeId.get(item.trade_id);
+      if (devTradeId === undefined) continue;
       const devPlayerId = item.player_id != null ? (devIdByProdId.get(item.player_id) ?? item.player_id) : null;
       await dev`
         INSERT INTO season_trade_items (
-          id, trade_id, item_type, from_team_slug, to_team_slug, player_id,
+          trade_id, item_type, from_team_slug, to_team_slug, player_id,
           draft_pick_round, draft_pick_original_team_slug, draft_pick_target_season
         ) VALUES (
-          ${item.id}, ${item.trade_id}, ${item.item_type}, ${item.from_team_slug}, ${item.to_team_slug},
+          ${devTradeId}, ${item.item_type}, ${item.from_team_slug}, ${item.to_team_slug},
           ${devPlayerId}, ${item.draft_pick_round}, ${item.draft_pick_original_team_slug}, ${item.draft_pick_target_season}
-        )
-        ON CONFLICT (id) DO UPDATE SET
-          trade_id = EXCLUDED.trade_id,
-          item_type = EXCLUDED.item_type,
-          from_team_slug = EXCLUDED.from_team_slug,
-          to_team_slug = EXCLUDED.to_team_slug,
-          player_id = EXCLUDED.player_id,
-          draft_pick_round = EXCLUDED.draft_pick_round,
-          draft_pick_original_team_slug = EXCLUDED.draft_pick_original_team_slug,
-          draft_pick_target_season = EXCLUDED.draft_pick_target_season;
+        );
       `;
       itemsCount++;
     }

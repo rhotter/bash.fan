@@ -470,7 +470,9 @@ async function syncBoxscore(gameId: string, leagueId: string, seasonId: string) 
           .onConflictDoUpdate({
             target: [schema.playerGameStats.playerId, schema.playerGameStats.gameId],
             set: {
-              teamSlug: sql`EXCLUDED.team_slug`,
+              // Preserve existing stamped team_slug (e.g. scorekeeper or historical trade backfill) so
+              // re-syncing a Sportability boxscore never clobbers an authoritative attribution; fill NULLs.
+              teamSlug: sql`COALESCE(player_game_stats.team_slug, EXCLUDED.team_slug)`,
               goals: sql`EXCLUDED.goals`,
               assists: sql`EXCLUDED.assists`,
               points: sql`EXCLUDED.points`,
@@ -597,7 +599,8 @@ async function syncBoxscore(gameId: string, leagueId: string, seasonId: string) 
           .onConflictDoUpdate({
             target: [schema.goalieGameStats.playerId, schema.goalieGameStats.gameId],
             set: {
-              teamSlug: sql`EXCLUDED.team_slug`,
+              // Preserve existing stamped team_slug (e.g. scorekeeper or historical trade backfill); fill NULLs.
+              teamSlug: sql`COALESCE(goalie_game_stats.team_slug, EXCLUDED.team_slug)`,
               seconds: sql`EXCLUDED.seconds`,
               goalsAgainst: sql`EXCLUDED.goals_against`,
               shotsAgainst: sql`EXCLUDED.shots_against`,
