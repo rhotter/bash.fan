@@ -183,7 +183,7 @@ describe("PlayoffOddsView & StandingsContent Integration", () => {
 
     // Signature sections present in "All teams" view (SCS-style trend charts + odds table + this week's games)
     expect(container.textContent).toContain("BASH 2026-2027 playoff odds")
-    expect(container.textContent).toContain("We ran 5,000 Monte Carlo simulations with 3 different models.")
+    expect(container.textContent).toContain("We ran 5k simulations for 3 different models.")
     expect(container.textContent).toContain("BASH Weighted: Goal-based team strength calibrated on 2,100+ past BASH games")
     expect(container.textContent).toContain("Chance will make playoffs")
     expect(container.textContent).toContain("Chance to make playoffs")
@@ -208,7 +208,7 @@ describe("PlayoffOddsView & StandingsContent Integration", () => {
       sealsBtn.click()
     })
     expect(sealsBtn.getAttribute("aria-pressed")).toBe("true")
-    expect(container.textContent).toContain("How Seals needs to finish")
+    expect(container.textContent).toContain("Finish scenarios")
     // League overview (charts + odds table) is replaced by the team view
     expect(container.textContent).not.toContain("Chance will make playoffs")
     expect(container.textContent).not.toContain("Chance to make playoffs & finish at each seed")
@@ -228,7 +228,7 @@ describe("PlayoffOddsView & StandingsContent Integration", () => {
     await act(async () => {
       allTeamsBtn.click()
     })
-    expect(container.textContent).not.toContain("How Seals needs to finish")
+    expect(container.textContent).not.toContain("Finish scenarios")
     expect(container.textContent).toContain("Chance will make playoffs")
 
     // Tapping a table row also opens that team's view
@@ -237,14 +237,13 @@ describe("PlayoffOddsView & StandingsContent Integration", () => {
     await act(async () => {
       sealsRowBtn.click()
     })
-    expect(container.textContent).toContain("How Seals needs to finish")
+    expect(container.textContent).toContain("Finish scenarios")
 
-    // "Back to all teams" (X) closes the team view
-    const backBtn = container.querySelector('button[aria-label="Back to all teams"]') as HTMLButtonElement
+    // Selecting "All teams" in the team filter closes the team view
     await act(async () => {
-      backBtn.click()
+      allTeamsBtn.click()
     })
-    expect(container.textContent).not.toContain("How Seals needs to finish")
+    expect(container.textContent).not.toContain("Finish scenarios")
 
     // Trigger live What-If pick on an upcoming game
     const pickBtn = container.querySelector('button[title*="in What-If mode"]') as HTMLButtonElement
@@ -254,6 +253,15 @@ describe("PlayoffOddsView & StandingsContent Integration", () => {
     })
     expect(container.textContent).toContain("What-If scenario active")
     expect(container.textContent).toContain("1 game locked")
+    expect(container.textContent).toContain("Dashed segment shows active What-If scenario.")
+
+    // Switching to a team view while What-If is active shows Current vs What-if summary and chart indicator
+    await act(async () => {
+      sealsBtn.click()
+    })
+    expect(container.textContent).toContain("(with What-If)")
+    expect(container.textContent).toContain("Current:")
+    expect(container.textContent).toContain("What-if:")
 
     // Reset What-If picks
     const resetBtn = Array.from(container.querySelectorAll("button")).find((b) =>
@@ -335,13 +343,13 @@ describe("PlayoffOddsView & StandingsContent Integration", () => {
           <PlayoffOddsView season="bash-2026-2027" initialTeam="seals" initialData={sampleSnapshot} />
         )
       })
-      expect(container.textContent).toContain("How Seals needs to finish")
+      expect(container.textContent).toContain("Finish scenarios")
 
       // Switch to Summer (where "seals" does not exist and all teams qualify): falls back to All teams
       await act(async () => {
         root.render(<PlayoffOddsView season="2026-summer" initialTeam="seals" initialData={summerSnapshot} />)
       })
-      expect(container.textContent).not.toContain("How Seals needs to finish")
+      expect(container.textContent).not.toContain("Finish scenarios")
       expect(container.textContent).toContain("Summer 2026 playoff odds")
       const mobileTeamSelect = container.querySelector('select[aria-label="Team"]') as HTMLSelectElement
       expect(mobileTeamSelect.value).toBe("all")
@@ -714,8 +722,8 @@ describe("PlayoffOddsView & StandingsContent Integration", () => {
     expect(container.querySelector("#big-games-team-filter")).toBeNull()
     expect(container.querySelector('a[href="/game/g-later"]')).toBeNull()
 
-    // In "All teams" mode: subtitle explains league-wide probability swing, and g-watch (40.6pp) comes before g-own (25.0pp)
-    expect(container.textContent).toContain("Ranked by league-wide probability swing.")
+    // In "All teams" mode: subtitle explains playoff picture impact, and g-watch (40.6pp) comes before g-own (25.0pp)
+    expect(container.textContent).toContain("Ranked by largest playoff picture impact.")
     let cards = Array.from(container.querySelectorAll("article"))
     expect(cards).toHaveLength(2)
     // Matchup team names link directly to the game page without date/time/Matchup clutter
@@ -758,7 +766,7 @@ describe("PlayoffOddsView & StandingsContent Integration", () => {
       disconnect() {}
     } as unknown as typeof ResizeObserver
     try {
-      const impactBadge = Array.from(cards[0].querySelectorAll("span[tabindex='0']")).find((el) =>
+      const impactBadge = Array.from(cards[0].querySelectorAll("button")).find((el) =>
         el.textContent?.includes("League Playoff impact: 40.6pp")
       ) as HTMLElement
       expect(impactBadge).toBeTruthy()
@@ -870,7 +878,7 @@ describe("PlayoffOddsView & StandingsContent Integration", () => {
         />
       )
     })
-    expect(container.textContent).toContain("Ranked by league-wide seed swing.")
+    expect(container.textContent).toContain("Ranked by largest seeding impact.")
     expect(container.textContent).toContain("League seed impact: 1.20")
   })
 
@@ -965,7 +973,7 @@ describe("PlayoffOddsView & StandingsContent Integration", () => {
 
     // Team View scorecards & trajectory chart render, while What-If finish & Big Games stay hidden
     expect(container.textContent).toContain("Season trajectory")
-    expect(container.textContent).not.toContain("How Seals needs to finish")
+    expect(container.textContent).not.toContain("Finish scenarios")
     expect(container.textContent).not.toContain("This week's games")
   })
 })

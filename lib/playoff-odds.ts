@@ -1588,18 +1588,21 @@ function runCoreSimulation(opts: {
   const bgSeedSqSums = new Float64Array(K * 4 * T)
   const iterBgOutcome = new Int8Array(K)
 
-  // What-If finish-points accumulators
+  // What-If finish-scenario accumulators (bucketed by actual regulation wins)
   const maxRem = Math.max(0, ...state.teams.map((t) => t.gamesRemaining))
-  const maxAddedPtsSlots = 3 * maxRem + 1
-  const wiCount = trackWhatIf ? new Int32Array(T * maxAddedPtsSlots) : null
-  const wiPlayoff = trackWhatIf ? new Int32Array(T * maxAddedPtsSlots) : null
-  const wiSeedSum = trackWhatIf ? new Float64Array(T * maxAddedPtsSlots) : null
-  const wiBest = trackWhatIf ? new Int16Array(T * maxAddedPtsSlots).fill(T) : null
-  const wiWorst = trackWhatIf ? new Int16Array(T * maxAddedPtsSlots).fill(1) : null
+  const maxRegWinSlots = maxRem + 1
+  const wiCount = trackWhatIf ? new Int32Array(T * maxRegWinSlots) : null
+  const wiPlayoff = trackWhatIf ? new Int32Array(T * maxRegWinSlots) : null
+  const wiSeedSum = trackWhatIf ? new Float64Array(T * maxRegWinSlots) : null
+  const wiBest = trackWhatIf ? new Int16Array(T * maxRegWinSlots).fill(T) : null
+  const wiWorst = trackWhatIf ? new Int16Array(T * maxRegWinSlots).fill(1) : null
+  const wiMinPts = trackWhatIf ? new Int16Array(T * maxRegWinSlots).fill(9999) : null
+  const wiMaxPts = trackWhatIf ? new Int16Array(T * maxRegWinSlots).fill(-9999) : null
 
   // Per-iteration reusable scratch buffers
   const pts = new Int16Array(T)
   const row = new Int16Array(T)
+  const regWins = new Int16Array(T)
   const gd = new Int16Array(T)
   const gf = new Int16Array(T)
   const h2hPts = new Int16Array(T * T)
@@ -1612,6 +1615,7 @@ function runCoreSimulation(opts: {
   const resetIteration = () => {
     pts.set(state.basePts)
     row.set(state.baseRow)
+    regWins.fill(0)
     gd.set(state.baseGd)
     gf.set(state.baseGf)
     h2hPts.set(state.baseH2hPts)
@@ -1623,6 +1627,7 @@ function runCoreSimulation(opts: {
     const margin = sampleRegMargin(rng(), marginCdf)
     pts[w] += 3
     row[w] += 1
+    regWins[w] += 1
     gd[w] += margin
     gd[l] -= margin
     gf[w] += loserGoals + margin
@@ -1724,14 +1729,16 @@ function runCoreSimulation(opts: {
       if (byeSpots > 0 && seedNum <= byeSpots) directByeHits[idx]++
       if (format.hasPlayIn && seedNum > byeSpots && seedNum <= spots) playInHits[idx]++
 
-      if (trackWhatIf && wiCount && wiPlayoff && wiSeedSum && wiBest && wiWorst) {
-        const added = pts[idx] - state.basePts[idx]
-        const slot = idx * maxAddedPtsSlots + added
+      if (trackWhatIf && wiCount && wiPlayoff && wiSeedSum && wiBest && wiWorst && wiMinPts && wiMaxPts) {
+        const w = regWins[idx]
+        const slot = idx * maxRegWinSlots + w
         wiCount[slot]++
         if (inPlayoffs) wiPlayoff[slot]++
         wiSeedSum[slot] += seedNum
         if (seedNum < wiBest[slot]) wiBest[slot] = seedNum
         if (seedNum > wiWorst[slot]) wiWorst[slot] = seedNum
+        if (pts[idx] < wiMinPts[slot]) wiMinPts[slot] = pts[idx]
+        if (pts[idx] > wiMaxPts[slot]) wiMaxPts[slot] = pts[idx]
       }
     }
 
@@ -1782,21 +1789,20 @@ function runCoreSimulation(opts: {
       const rem = state.teams[target].gamesRemaining
       if (rem <= 0) continue
 
-      const maxAdd = 3 * rem
       const step = whatIfStepForRem(rem)
-      const topLo = Math.max(0, maxAdd - step + 1)
-      let botHi = maxAdd
+      const topLo = Math.max(0, rem - step + 1)
+      let botHi = rem
       while (botHi - step >= 0) botHi -= step
 
       for (const forceWin of [true, false]) {
         // Only run tail probe if the enclosing bucket in buildWhatIfRowsForTeam lacks enough samples
         if (wiCount) {
-          const baseSlot = target * maxAddedPtsSlots
+          const baseSlot = target * maxRegWinSlots
           const rangeLo = forceWin ? topLo : 0
-          const rangeHi = forceWin ? maxAdd : botHi
+          const rangeHi = forceWin ? rem : botHi
           let bucketCount = 0
-          for (let p = rangeLo; p <= rangeHi; p++) {
-            bucketCount += wiCount[baseSlot + p]
+          for (let w = rangeLo; w <= rangeHi; w++) {
+            bucketCount += wiCount[baseSlot + w]
           }
           if (bucketCount >= WHAT_IF_MIN_ROW_SAMPLES) continue
         }
@@ -1855,17 +1861,19 @@ function runCoreSimulation(opts: {
 
   // 7. Build What-If Finish Tables per team
   const whatIfRows: WhatIfRecordRow[][] = Array.from({ length: T }, () => [])
-  if (trackWhatIf && wiCount && wiPlayoff && wiSeedSum && wiBest && wiWorst) {
+  if (trackWhatIf && wiCount && wiPlayoff && wiSeedSum && wiBest && wiWorst && wiMinPts && wiMaxPts) {
     for (let i = 0; i < T; i++) {
       whatIfRows[i] = buildWhatIfRowsForTeam(
         i,
         state.teams[i],
-        maxAddedPtsSlots,
+        maxRegWinSlots,
         wiCount,
         wiPlayoff,
         wiSeedSum,
         wiBest,
         wiWorst,
+        wiMinPts,
+        wiMaxPts,
         tailWinOut.get(i) ?? null,
         tailLoseOut.get(i) ?? null
       )
@@ -2044,41 +2052,47 @@ function runCoreSimulation(opts: {
 }
 
 function whatIfStepForRem(rem: number): number {
-  return rem <= 3 ? 1 : rem <= 6 ? 3 : rem <= 11 ? 4 : 6
+  return rem < 10 ? 1 : 2
+}
+
+function formatRegWinLabel(lo: number, hi: number): string {
+  if (lo === hi) return `${hi} ${hi === 1 ? "win" : "wins"}`
+  return `${lo}–${hi} wins`
 }
 
 function buildWhatIfRowsForTeam(
   teamIdx: number,
   team: TeamAccumulator,
-  maxAddedPtsSlots: number,
+  maxRegWinSlots: number,
   wiCount: Int32Array,
   wiPlayoff: Int32Array,
   wiSeedSum: Float64Array,
   wiBest: Int16Array,
   wiWorst: Int16Array,
+  wiMinPts: Int16Array,
+  wiMaxPts: Int16Array,
   tailWinOut: { playoffPct: number; avgSeed: number; bestSeed: number; worstSeed: number; count: number } | null,
   tailLoseOut: { playoffPct: number; avgSeed: number; bestSeed: number; worstSeed: number; count: number } | null
 ): WhatIfRecordRow[] {
   const rem = team.gamesRemaining
-  const maxAdd = 3 * rem
   if (rem === 0) return []
 
-  // Choose readable bucket step size (~6-9 rows regardless of remaining games)
   const step = whatIfStepForRem(rem)
   const rows: WhatIfRecordRow[] = []
 
-  // Build descending buckets from maxAdd down to 0
-  // Keep exact Win-Out (maxAdd) and Lose-Out (0) highlighted cleanly when tail-probed!
-  for (let hi = maxAdd; hi >= 0; hi -= step) {
+  // Build descending buckets from rem regulation wins down to 0
+  for (let hi = rem; hi >= 0; hi -= step) {
     const lo = Math.max(0, hi - step + 1)
     let cnt = 0
     let po = 0
     let sSum = 0
     let best = 99
     let worst = 1
-    const baseSlot = teamIdx * maxAddedPtsSlots
-    for (let p = lo; p <= hi; p++) {
-      const slot = baseSlot + p
+    let minFinal = 9999
+    let maxFinal = -9999
+    const baseSlot = teamIdx * maxRegWinSlots
+    for (let w = lo; w <= hi; w++) {
+      const slot = baseSlot + w
       const c = wiCount[slot]
       if (c > 0) {
         cnt += c
@@ -2086,16 +2100,18 @@ function buildWhatIfRowsForTeam(
         sSum += wiSeedSum[slot]
         if (wiBest[slot] < best) best = wiBest[slot]
         if (wiWorst[slot] > worst) worst = wiWorst[slot]
+        if (wiMinPts[slot] < minFinal) minFinal = wiMinPts[slot]
+        if (wiMaxPts[slot] > maxFinal) maxFinal = wiMaxPts[slot]
       }
     }
 
     if (cnt >= WHAT_IF_MIN_ROW_SAMPLES) {
       rows.push({
-        label: lo === hi ? `+${hi} pts` : `+${lo}–${hi} pts`,
-        minAddedPts: lo,
-        maxAddedPts: hi,
-        minFinalPts: team.pts + lo,
-        maxFinalPts: team.pts + hi,
+        label: formatRegWinLabel(lo, hi),
+        minAddedPts: minFinal - team.pts,
+        maxAddedPts: maxFinal - team.pts,
+        minFinalPts: minFinal,
+        maxFinalPts: maxFinal,
         playoffPct: round1((po / cnt) * 100),
         avgSeed: round2(sSum / cnt),
         bestSeed: best,
@@ -2104,9 +2120,10 @@ function buildWhatIfRowsForTeam(
         isTailProbe: false,
         lowSample: cnt < WHAT_IF_LOW_SAMPLE,
       })
-    } else if (hi === maxAdd && tailWinOut) {
+    } else if (hi === rem && tailWinOut) {
+      const maxAdd = 3 * rem
       rows.push({
-        label: `Win out (+${maxAdd} pts)`,
+        label: `Win out (${rem} ${rem === 1 ? "win" : "wins"})`,
         minAddedPts: maxAdd,
         maxAddedPts: maxAdd,
         minFinalPts: team.pts + maxAdd,
@@ -2120,7 +2137,7 @@ function buildWhatIfRowsForTeam(
       })
     } else if (lo === 0 && tailLoseOut) {
       rows.push({
-        label: "Lose out (+0 pts)",
+        label: "Lose out",
         minAddedPts: 0,
         maxAddedPts: 0,
         minFinalPts: team.pts,

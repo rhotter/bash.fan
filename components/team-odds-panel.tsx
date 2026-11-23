@@ -1,7 +1,7 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import { X, ArrowUpRight, Info } from "lucide-react"
+import { Info } from "lucide-react"
 import {
   ResponsiveContainer,
   LineChart,
@@ -24,16 +24,6 @@ import type {
 
 type ChartMetric = "playoffPct" | "avgSeed" | "ptsAbove500"
 
-function formatShortDate(isoDate: string): string {
-  const parts = isoDate.split("-")
-  if (parts.length !== 3) return isoDate
-  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
-  const m = parseInt(parts[1], 10)
-  const d = parseInt(parts[2], 10)
-  if (!m || !d || m < 1 || m > 12) return isoDate
-  return `${months[m - 1]} ${d}`
-}
-
 type MetricKey = "playoffPct" | "avgSeed" | "ptsAbove500"
 
 const METRIC_LABELS: Record<MetricKey, string> = {
@@ -42,20 +32,28 @@ const METRIC_LABELS: Record<MetricKey, string> = {
   ptsAbove500: "vs .500 pace",
 }
 
-/** Card label with an info icon that explains the card on hover/focus. */
+/** Card label with an info icon that explains the card on hover/focus/tap. */
 function InfoLabel({ label, children }: { label: string; children: React.ReactNode }) {
+  const [open, setOpen] = useState(false)
   return (
-    <UiTooltip delayDuration={150}>
+    <UiTooltip open={open} onOpenChange={setOpen} delayDuration={150}>
       <TooltipTrigger asChild>
-        <span
-          tabIndex={0}
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          aria-expanded={open}
           className="inline-flex cursor-help items-center gap-1 rounded-sm text-[11px] text-muted-foreground focus-visible:outline-2 focus-visible:outline-ring"
         >
           {label}
           <Info className="h-3 w-3 shrink-0 text-muted-foreground/70" aria-hidden="true" />
-        </span>
+        </button>
       </TooltipTrigger>
-      <TooltipContent align="start" sideOffset={6} className="max-w-[280px] text-left text-[11px] leading-snug">
+      <TooltipContent
+        align="start"
+        collisionPadding={12}
+        sideOffset={6}
+        className="max-w-[280px] text-left text-[11px] leading-snug"
+      >
         {children}
       </TooltipContent>
     </UiTooltip>
@@ -66,12 +64,10 @@ export function TeamOddsPanel({
   team,
   snapshot,
   isWhatIfActive,
-  onClose,
 }: {
   team: TeamOddsRow
   snapshot: PlayoffOddsSnapshot
   isWhatIfActive: boolean
-  onClose: () => void
 }) {
   const [chartMetric, setChartMetric] = useState<ChartMetric>(
     snapshot.format.allTeamsQualify ? "avgSeed" : "playoffPct"
@@ -83,7 +79,7 @@ export function TeamOddsPanel({
     : ["playoffPct", "avgSeed", "ptsAbove500"]
 
   const chartData = useMemo(() => {
-    return snapshot.timeline.map((pt) => {
+    const base = snapshot.timeline.map((pt) => {
       const entry = pt.teams[team.slug]
       return {
         label: pt.label,
@@ -92,9 +88,48 @@ export function TeamOddsPanel({
         avgSeed: entry?.avgSeed ?? snapshot.format.teamCount,
         ptsAbove500: entry?.ptsAbove500 ?? 0,
         pts: entry?.pts ?? 0,
+        whatIfPlayoffPct: undefined as number | undefined,
+        whatIfAvgSeed: undefined as number | undefined,
+        whatIfPtsAbove500: undefined as number | undefined,
       }
     })
-  }, [snapshot.timeline, snapshot.format.teamCount, team.slug])
+
+    if (isWhatIfActive && base.length > 0) {
+      const last = base[base.length - 1]
+      last.whatIfPlayoffPct = last.playoffPct
+      last.whatIfAvgSeed = last.avgSeed
+      last.whatIfPtsAbove500 = last.ptsAbove500
+      base.push({
+        label: "What-If",
+        date: "What-If",
+        playoffPct: undefined as unknown as number,
+        avgSeed: undefined as unknown as number,
+        ptsAbove500: undefined as unknown as number,
+        pts: team.pts,
+        whatIfPlayoffPct: team.playoffPct,
+        whatIfAvgSeed: team.avgSeed,
+        whatIfPtsAbove500: Math.round((team.pts - 1.5 * team.gp) * 10) / 10,
+      })
+    }
+
+    return base
+  }, [
+    snapshot.timeline,
+    snapshot.format.teamCount,
+    team.slug,
+    team.playoffPct,
+    team.avgSeed,
+    team.pts,
+    team.gp,
+    isWhatIfActive,
+  ])
+
+  const whatIfDataKey =
+    effectiveChartMetric === "playoffPct"
+      ? "whatIfPlayoffPct"
+      : effectiveChartMetric === "avgSeed"
+        ? "whatIfAvgSeed"
+        : "whatIfPtsAbove500"
 
   const hasTailProbes = team.whatIfRows.some((r) => r.isTailProbe)
   const { stroke: teamColor, outline: teamOutline } = getTeamChartColor(team.slug, snapshot.teamColors)
@@ -120,77 +155,93 @@ export function TeamOddsPanel({
       className="rounded-lg border border-border/70 bg-card p-4 sm:p-5 space-y-5"
     >
       {/* Header */}
-      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border/50 pb-4">
-        <div className="flex items-start gap-3 min-w-0">
-          <TeamLogo slug={team.slug} name={team.name} size={36} className="shrink-0 mt-0.5" />
-          <div className="min-w-0 space-y-1">
-            <div className="flex flex-wrap items-center gap-2">
-              <h3 className="text-base font-semibold text-foreground">{team.name}</h3>
-              <Link
-                href={`/team/${team.slug}?season=${snapshot.seasonId}`}
-                className="inline-flex items-center gap-0.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
-              >
-                Team page
-                <ArrowUpRight className="h-3.5 w-3.5" />
-              </Link>
-            </div>
-            <p className="text-xs text-muted-foreground leading-relaxed">
-              {snapshot.format.allTeamsQualify ? (
-                <>
-                  Projected <span className="font-semibold text-foreground tabular-nums">#{team.avgSeed.toFixed(1)}</span>{" "}
-                  seed (range <span className="tabular-nums">#{team.bestSeed}–#{team.worstSeed}</span>) with{" "}
-                  <span className="font-semibold text-foreground tabular-nums">{team.seedPcts[0]?.toFixed(1) ?? "0.0"}%</span>{" "}
-                  chance at the #1 seed.
-                </>
-              ) : team.clinched ? (
-                <>
-                  <span className="font-semibold text-emerald-700">Clinched playoffs</span> — projected{" "}
-                  <span className="font-semibold text-foreground tabular-nums">#{team.avgSeed.toFixed(1)}</span> seed
-                  (range <span className="tabular-nums">#{team.bestSeed}–#{team.worstSeed}</span>).
-                </>
-              ) : team.eliminated ? (
-                <>
-                  <span className="font-semibold text-rose-700">Eliminated from playoff contention</span> — projected{" "}
-                  <span className="font-semibold text-foreground tabular-nums">#{team.avgSeed.toFixed(1)}</span> seed.
-                </>
-              ) : (
-                <>
-                  <span className="font-semibold text-foreground tabular-nums">
-                    {team.playoffPct === 100
-                      ? ">99.9%"
-                      : team.playoffPct === 0
-                        ? "<0.1%"
-                        : `${team.playoffPct.toFixed(1)}%`}
-                  </span>{" "}
-                  chance to make playoffs
-                  {snapshot.format.hasPlayIn && (
-                    <>
-                      {" "}
-                      (<span className="tabular-nums">{team.directByePct.toFixed(1)}%</span> top-3 bye,{" "}
-                      <span className="tabular-nums">{team.playInPct.toFixed(1)}%</span> play-in)
-                    </>
-                  )}
-                  . Projected <span className="font-semibold text-foreground tabular-nums">#{team.avgSeed.toFixed(1)}</span>{" "}
-                  seed (range <span className="tabular-nums">#{team.bestSeed}–#{team.worstSeed}</span>).
-                </>
-              )}
-            </p>
-          </div>
-        </div>
-
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label="Back to all teams"
-          title="Back to all teams"
-          className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
+      <div className="flex items-start gap-3 border-b border-border/50 pb-4">
+        <Link
+          href={`/team/${team.slug}?season=${snapshot.seasonId}`}
+          aria-label={`${team.name} team page`}
+          title={`${team.name} team page`}
+          className="shrink-0 mt-0.5 rounded-md transition-opacity hover:opacity-80 focus-visible:outline-2 focus-visible:outline-ring"
         >
-          <X className="h-4 w-4" />
-        </button>
+          <TeamLogo slug={team.slug} name={team.name} size={36} />
+        </Link>
+        <div className="min-w-0 flex-1 space-y-1">
+          <div className="flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5">
+            <h3 className="text-base font-semibold text-foreground">{team.name}</h3>
+            <span className="text-xs font-normal text-muted-foreground tabular-nums">
+              ({team.w}-{team.otw + team.sow}-{team.otl}-{team.l}
+              {team.ties ? `-${team.ties}T` : ""}, {team.pts}pts)
+            </span>
+          </div>
+          {snapshot.format.allTeamsQualify ? (
+            <p className="text-xs text-muted-foreground leading-snug">
+              All teams qualify for playoffs
+            </p>
+          ) : team.clinched ? (
+            <div className="space-y-0.5 text-xs text-muted-foreground leading-snug">
+              <p>
+                <span className="font-semibold text-emerald-700">Clinched playoffs</span>
+              </p>
+              {snapshot.format.hasPlayIn && (
+                <p className="text-[11px] tabular-nums">
+                  {team.directByePct.toFixed(1)}% top-3 bye, {team.playInPct.toFixed(1)}% play-in
+                </p>
+              )}
+            </div>
+          ) : team.eliminated ? (
+            <p className="text-xs text-muted-foreground leading-snug">
+              <span className="font-semibold text-rose-700">Eliminated from playoff contention</span>
+            </p>
+          ) : (
+            <div className="space-y-0.5 text-xs text-muted-foreground leading-snug">
+              <p>
+                <span className="font-semibold text-foreground tabular-nums">
+                  {team.playoffPct === 100
+                    ? ">99.9%"
+                    : team.playoffPct === 0
+                      ? "<0.1%"
+                      : `${team.playoffPct.toFixed(1)}%`}
+                </span>{" "}
+                to make playoffs
+              </p>
+              {snapshot.format.hasPlayIn && (
+                <p className="text-[11px] tabular-nums">
+                  {team.directByePct.toFixed(1)}% top-3 bye, {team.playInPct.toFixed(1)}% play-in
+                </p>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Quick context metrics strip */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 text-xs">
+        <div className="rounded-md bg-muted/50 px-3 py-2">
+          <InfoLabel label="Projected Seed">
+            {snapshot.format.allTeamsQualify ? (
+              <p className="text-background/90">
+                Every team makes the playoffs this season, so seeding is the race. Projected average finishing seed and
+                simulated range (#1 to #{snapshot.format.teamCount}).
+              </p>
+            ) : snapshot.format.hasPlayIn ? (
+              <p className="text-background/90">
+                Projected average finishing seed and simulated range across 100k runs. Top 3 seeds earn a direct bye
+                to the semifinals; seeds #4 and #5 meet in the play-in game.
+              </p>
+            ) : (
+              <p className="text-background/90">
+                Projected average finishing seed and simulated range across 100k runs. Top {snapshot.format.playoffSpots}{" "}
+                teams qualify for the playoffs.
+              </p>
+            )}
+          </InfoLabel>
+          <div className="mt-0.5 font-semibold text-foreground tabular-nums">
+            #{team.avgSeed.toFixed(1)}
+          </div>
+          <div className="text-[11px] text-muted-foreground tabular-nums">
+            Range: #{team.bestSeed}–#{team.worstSeed}
+            {snapshot.format.allTeamsQualify && ` · ${team.seedPcts[0]?.toFixed(1) ?? "0.0"}% #1`}
+          </div>
+        </div>
         <div className="rounded-md bg-muted/50 px-3 py-2">
           <InfoLabel label="Rating & Pace">
             <p className="font-semibold">Strength (.{Math.round(team.strength * 1000).toString().padStart(3, "0")})</p>
@@ -214,12 +265,12 @@ export function TeamOddsPanel({
         </div>
 
         <div className="rounded-md bg-muted/50 px-3 py-2">
-          <InfoLabel label="Record & ROW">
+          <InfoLabel label="RPI">
             <p>
-              <span className="font-semibold">Record</span>{" "}
+              <span className="font-semibold">RPI (.{Math.round(team.rpi * 1000).toString().padStart(3, "0")})</span>{" "}
               <span className="text-background/90">
-                is W–OTW/SOW–OTL–L ({team.gp} GP). Points: 3 for a regulation win, 2 for an OT/SO win, 1 for an OT/SO
-                loss.
+                ranks record against strength of schedule (25% win %, 50% opponents&apos; win %, 25% opponents&apos;
+                opponents&apos; win %) — shown for reference, not used in the simulations.
               </span>
             </p>
             <p className="mt-1">
@@ -229,37 +280,45 @@ export function TeamOddsPanel({
               </span>
             </p>
             <p className="mt-1">
-              <span className="font-semibold">GD</span> <span className="text-background/90">= goal differential.</span>{" "}
-              <span className="font-semibold">RPI</span>{" "}
-              <span className="text-background/90">
-                ranks record against strength of schedule — shown for reference, not used in the simulations.
-              </span>
+              <span className="font-semibold">GD</span> <span className="text-background/90">= goal differential.</span>
             </p>
           </InfoLabel>
           <div className="mt-0.5 font-semibold text-foreground tabular-nums">
-            {team.w}-{team.otw + team.sow}-{team.otl}-{team.l}
-            {team.ties ? `-${team.ties}T` : ""} ({team.pts} pts)
+            #{team.rpiRank} (.{Math.round(team.rpi * 1000).toString().padStart(3, "0")})
           </div>
           <div className="text-[11px] text-muted-foreground tabular-nums">
-            ROW {team.row} · GD {team.gd > 0 ? `+${team.gd}` : team.gd} · RPI #{team.rpiRank}
+            ROW {team.row} · GD {team.gd > 0 ? `+${team.gd}` : team.gd}
           </div>
         </div>
 
         <div className="rounded-md bg-muted/50 px-3 py-2">
-          <InfoLabel label="Last game">
-            {team.lastGame
-              ? `${team.name}'s most recent completed regular-season game (${
-                  team.lastGame.resultLabel === "W" ||
-                  team.lastGame.resultLabel === "OTW" ||
-                  team.lastGame.resultLabel === "SOW"
-                    ? "win"
-                    : team.lastGame.resultLabel === "FFW"
-                      ? "forfeit win"
-                      : team.lastGame.resultLabel === "T"
-                        ? "tie"
-                        : "loss"
-                }). Click the result to open the game page.`
-              : `${team.name} hasn't completed a regular-season game yet.`}
+          <InfoLabel label="Schedule">
+            <p>
+              <span className="font-semibold">Last game:</span>{" "}
+              <span className="text-background/90">
+                {team.lastGame
+                  ? `${team.name}'s most recent completed regular-season game (${
+                      team.lastGame.resultLabel === "W" ||
+                      team.lastGame.resultLabel === "OTW" ||
+                      team.lastGame.resultLabel === "SOW"
+                        ? "win"
+                        : team.lastGame.resultLabel === "FFW"
+                          ? "forfeit win"
+                          : team.lastGame.resultLabel === "T"
+                            ? "tie"
+                            : "loss"
+                    }).`
+                  : `${team.name} hasn't completed a regular-season game yet.`}
+              </span>
+            </p>
+            <p className="mt-1">
+              <span className="font-semibold">Next game:</span>{" "}
+              <span className="text-background/90">
+                {team.nextGame
+                  ? `${team.name}'s next scheduled regular-season matchup. Click either line to open its game page.`
+                  : `${team.name} has no remaining regular-season games.`}
+              </span>
+            </p>
           </InfoLabel>
           {team.lastGame ? (
             <Link
@@ -270,33 +329,17 @@ export function TeamOddsPanel({
               {team.lastGame.isHome ? "vs" : "@"} {team.lastGame.opponentName}
             </Link>
           ) : (
-            <div className="mt-0.5 font-medium text-muted-foreground">None played</div>
+            <div className="mt-0.5 font-medium text-muted-foreground">No games played</div>
           )}
-          {team.lastGame && (
-            <div className="text-[11px] text-muted-foreground">{formatShortDate(team.lastGame.date)}</div>
-          )}
-        </div>
-
-        <div className="rounded-md bg-muted/50 px-3 py-2">
-          <InfoLabel label="Next game">
-            {team.nextGame
-              ? `${team.name}'s next scheduled regular-season game. See "This week's games" below for how each result would move their odds, or click to open the matchup page.`
-              : `${team.name} has no remaining regular-season games.`}
-          </InfoLabel>
           {team.nextGame ? (
             <Link
               href={`/game/${team.nextGame.gameId}`}
-              className="mt-0.5 block font-semibold text-foreground hover:text-primary transition-colors"
+              className="block text-[11px] text-muted-foreground hover:text-foreground transition-colors"
             >
-              {team.nextGame.isHome ? "vs" : "@"} {team.nextGame.opponentName}
+              Next: {team.nextGame.isHome ? "vs" : "@"} {team.nextGame.opponentName}
             </Link>
           ) : (
-            <div className="mt-0.5 font-medium text-muted-foreground">Season complete</div>
-          )}
-          {team.nextGame && (
-            <div className="text-[11px] text-muted-foreground">
-              {formatShortDate(team.nextGame.date)} · {team.nextGame.time}
-            </div>
+            <div className="text-[11px] text-muted-foreground">Season complete</div>
           )}
         </div>
       </div>
@@ -307,12 +350,12 @@ export function TeamOddsPanel({
         return (
           <div className={showWhatIfFinish ? "grid gap-5 lg:grid-cols-2" : "grid gap-5"}>
         {/* Timeline Chart */}
-        <div className="space-y-2.5">
+        <div className="min-w-0 space-y-2.5">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h4 className="text-xs font-semibold text-foreground">
               Season trajectory
               {isWhatIfActive && (
-                <span className="ml-1.5 font-normal text-muted-foreground">(baseline history)</span>
+                <span className="ml-1.5 font-normal text-muted-foreground">(with What-If)</span>
               )}
             </h4>
             <div
@@ -416,16 +459,40 @@ export function TeamOddsPanel({
                     />
                   )}
                   <Tooltip
-                    contentStyle={{
-                      backgroundColor: "var(--popover)",
-                      borderColor: "var(--border)",
-                      borderRadius: "6px",
-                      fontSize: "11px",
-                    }}
-                    formatter={(value: number) => {
-                      if (effectiveChartMetric === "playoffPct") return [`${value.toFixed(1)}%`, "Playoff odds"]
-                      if (effectiveChartMetric === "avgSeed") return [`#${value.toFixed(2)}`, "Avg seed"]
-                      return [value > 0 ? `+${value.toFixed(1)}` : value.toFixed(1), "Pts vs 1.5/GP pace"]
+                    content={({ active, label, payload }) => {
+                      if (!active || !payload || payload.length === 0) return null
+                      const baseItem = payload.find(
+                        (p) => p.dataKey === effectiveChartMetric && p.value !== undefined && p.value !== null
+                      )
+                      const item =
+                        baseItem ??
+                        payload.find((p) => p.dataKey === whatIfDataKey && p.value !== undefined && p.value !== null)
+                      if (!item) return null
+                      const val = Number(item.value)
+                      const isWhatIfPoint = item.dataKey === whatIfDataKey
+                      const prefix = isWhatIfPoint ? "What-If " : ""
+                      const formatted =
+                        effectiveChartMetric === "playoffPct"
+                          ? `${val.toFixed(1)}%`
+                          : effectiveChartMetric === "avgSeed"
+                            ? `#${val.toFixed(2)}`
+                            : val > 0
+                              ? `+${val.toFixed(1)}`
+                              : val.toFixed(1)
+                      const metricLabel =
+                        effectiveChartMetric === "playoffPct"
+                          ? `${prefix}Playoff odds`
+                          : effectiveChartMetric === "avgSeed"
+                            ? `${prefix}Avg seed`
+                            : `${prefix}Pts vs 1.5/GP pace`
+                      return (
+                        <div className="rounded-md border border-border bg-popover px-2.5 py-1.5 text-[11px] shadow-md">
+                          <div className="mb-0.5 font-medium text-popover-foreground">{label}</div>
+                          <div className="text-popover-foreground tabular-nums">
+                            {metricLabel}: <span className="font-semibold">{formatted}</span>
+                          </div>
+                        </div>
+                      )
                     }}
                   />
                   {teamOutline && (
@@ -450,6 +517,32 @@ export function TeamOddsPanel({
                     activeDot={{ r: 5, fill: teamColor, stroke: teamOutline ?? teamColor, strokeWidth: teamOutline ? 1.5 : 0 }}
                     isAnimationActive={false}
                   />
+                  {isWhatIfActive && teamOutline && (
+                    <Line
+                      type="linear"
+                      dataKey={whatIfDataKey}
+                      stroke={teamOutline}
+                      strokeWidth={4}
+                      strokeDasharray="4 4"
+                      dot={false}
+                      activeDot={false}
+                      legendType="none"
+                      tooltipType="none"
+                      isAnimationActive={false}
+                    />
+                  )}
+                  {isWhatIfActive && (
+                    <Line
+                      type="linear"
+                      dataKey={whatIfDataKey}
+                      stroke={teamColor}
+                      strokeWidth={2.25}
+                      strokeDasharray="4 4"
+                      dot={{ r: 3.5, fill: "var(--card)", stroke: teamColor, strokeWidth: 2 }}
+                      activeDot={{ r: 5, fill: teamColor, stroke: teamOutline ?? teamColor, strokeWidth: 1.5 }}
+                      isAnimationActive={false}
+                    />
+                  )}
                 </LineChart>
               </ResponsiveContainer>
             </div>
@@ -462,34 +555,34 @@ export function TeamOddsPanel({
 
         {/* What-If Finish Table (hidden when 0 games remain or season is complete) */}
         {showWhatIfFinish && (
-          <div className="space-y-2.5">
+          <div className="min-w-0 space-y-2.5">
             <div className="flex items-center justify-between gap-2">
               <h4 className="text-xs font-semibold text-foreground">
-                How {team.name} needs to finish ({team.gamesRemaining} games left)
+                Finish scenarios ({team.gamesRemaining} {team.gamesRemaining === 1 ? "game" : "games"} left)
               </h4>
-              <span className="text-[11px] text-muted-foreground tabular-nums">
+              <span className="shrink-0 text-[11px] text-muted-foreground tabular-nums">
                 Max {team.pts + team.gamesRemaining * 3} pts
               </span>
             </div>
 
             {team.whatIfRows.length > 0 ? (
               <div className="overflow-x-auto rounded-md border border-border/50">
-                <table className="w-full text-[11px]">
+                <table className="w-full text-[10px] sm:text-[11px]">
                   <thead>
                     <tr className="border-b border-border/50 bg-muted/40 text-muted-foreground">
-                      <th scope="col" className="px-2.5 py-1.5 text-left font-medium">
-                        Remaining pts
+                      <th scope="col" className="whitespace-nowrap px-1.5 py-1.5 sm:px-2.5 text-left font-medium">
+                        Reg wins
                       </th>
-                      <th scope="col" className="px-2 py-1.5 text-right font-medium">
+                      <th scope="col" className="whitespace-nowrap px-1 py-1.5 sm:px-2 text-right font-medium">
                         Final PTS
                       </th>
-                      <th scope="col" className="px-2 py-1.5 text-right font-medium">
+                      <th scope="col" className="whitespace-nowrap px-1 py-1.5 sm:px-2 text-right font-medium">
                         {snapshot.format.allTeamsQualify ? "Avg seed" : "Playoff %"}
                       </th>
-                      <th scope="col" className="px-2 py-1.5 text-right font-medium">
+                      <th scope="col" className="whitespace-nowrap px-1 py-1.5 sm:px-2 text-right font-medium">
                         Seed range
                       </th>
-                      <th scope="col" className="px-2.5 py-1.5 text-right font-medium">
+                      <th scope="col" className="whitespace-nowrap px-1.5 py-1.5 sm:px-2.5 text-right font-medium">
                         Sims
                       </th>
                     </tr>
@@ -497,7 +590,7 @@ export function TeamOddsPanel({
                   <tbody className="divide-y divide-border/30">
                     {team.whatIfRows.map((row) => (
                       <tr key={row.label} className="hover:bg-muted/30">
-                        <th scope="row" className="px-2.5 py-1.5 text-left font-medium text-foreground">
+                        <th scope="row" className="whitespace-nowrap px-1.5 py-1.5 sm:px-2.5 text-left font-medium text-foreground">
                           {row.lowSample && !row.isTailProbe && (
                             <span className="mr-0.5 text-muted-foreground" title="Fewer than 250 simulated seasons">
                               *
@@ -505,27 +598,27 @@ export function TeamOddsPanel({
                           )}
                           {row.label}
                           {row.isTailProbe && (
-                            <span className="ml-1.5 rounded bg-muted px-1 py-0.5 text-[9px] font-normal text-muted-foreground">
+                            <span className="ml-1 rounded bg-muted px-1 py-0.5 text-[9px] font-normal text-muted-foreground">
                               probe
                             </span>
                           )}
                         </th>
-                        <td className="px-2 py-1.5 text-right tabular-nums text-muted-foreground">
+                        <td className="whitespace-nowrap px-1 py-1.5 sm:px-2 text-right tabular-nums text-muted-foreground">
                           {row.minFinalPts === row.maxFinalPts
                             ? row.minFinalPts
                             : `${row.minFinalPts}–${row.maxFinalPts}`}
                         </td>
-                        <td className="px-2 py-1.5 text-right font-semibold tabular-nums text-foreground">
+                        <td className="whitespace-nowrap px-1 py-1.5 sm:px-2 text-right font-semibold tabular-nums text-foreground">
                           {snapshot.format.allTeamsQualify
                             ? `#${row.avgSeed.toFixed(1)}`
                             : `${row.playoffPct.toFixed(1)}%`}
                         </td>
-                        <td className="px-2 py-1.5 text-right tabular-nums text-muted-foreground">
+                        <td className="whitespace-nowrap px-1 py-1.5 sm:px-2 text-right tabular-nums text-muted-foreground">
                           {row.bestSeed === row.worstSeed
                             ? `#${row.bestSeed}`
                             : `#${row.bestSeed}–#${row.worstSeed}`}
                         </td>
-                        <td className="px-2.5 py-1.5 text-right tabular-nums text-muted-foreground">
+                        <td className="whitespace-nowrap px-1.5 py-1.5 sm:px-2.5 text-right tabular-nums text-muted-foreground">
                           {row.simCount.toLocaleString()}
                         </td>
                       </tr>

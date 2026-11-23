@@ -259,8 +259,11 @@ export function PlayoffOddsView({
             )}
           </div>
           <p className="text-xs text-muted-foreground">
-            We ran {activeSnapshot.iterations.toLocaleString()} Monte Carlo simulations with {STATS_MODEL_OPTIONS.length}{" "}
-            different models.
+            We ran{" "}
+            {activeSnapshot.iterations >= 1000
+              ? `${Math.round(activeSnapshot.iterations / 1000)}k`
+              : activeSnapshot.iterations.toLocaleString()}{" "}
+            simulations for {STATS_MODEL_OPTIONS.length} different models.
             {activeSnapshot.endedEarly && <span className="font-medium text-foreground"> Season ended early.</span>}
           </p>
           <p id="playoff-odds-stats-model-hint" className="text-xs text-muted-foreground">
@@ -298,8 +301,7 @@ export function PlayoffOddsView({
                 <Sparkles className="h-4 w-4 shrink-0 text-primary" />
                 <span>
                   <span className="font-semibold">What-If scenario active</span> ({lockedCount}{" "}
-                  {lockedCount === 1 ? "game" : "games"} locked) — live projected odds from{" "}
-                  <span className="tabular-nums">{activeSnapshot.iterations.toLocaleString()}</span> client simulations.
+                  {lockedCount === 1 ? "game" : "games"} locked) — Projected odds updated to reflect these outcomes.
                 </span>
               </div>
               <button
@@ -320,7 +322,6 @@ export function PlayoffOddsView({
                 team={selectedTeam}
                 snapshot={activeSnapshot}
                 isWhatIfActive={lockedCount > 0}
-                onClose={() => handleSelectTeam(null)}
               />
 
               {showBigGames && (
@@ -331,6 +332,8 @@ export function PlayoffOddsView({
                   onClearLocked={handleClearLocked}
                   allUpcomingGames={allUpcomingGames}
                   lockedTeamSlug={selectedTeam.slug}
+                  baselineTeam={baselineTeamsBySlug?.get(selectedTeam.slug)}
+                  whatIfTeam={selectedTeam}
                 />
               )}
             </>
