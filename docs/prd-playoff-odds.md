@@ -27,9 +27,9 @@ Now that Sports Club Stats is offline, this PRD defines a native, modern **Playo
 1. **Playoff & Seed Probability Table**: Display every team's Playoff Qualification %, exact clinch/elimination status (`In` / `Out`), week-over-week delta (`Change`), full Seed `1..N` probability distribution with clear playoff & direct-bye cut lines, `Avg Seed`, `Strength`, and `RPI`.
 2. **Big Games ("Who Should We Root For?")**: Automatically rank upcoming games by total playoff impact and show per-outcome conditional Playoff % and Avg Seed across regulation and OT/SO results (`Away Reg`, `Away OT/SO`, `Home OT/SO`, `Home Reg`), surfacing both participating teams *and* any scoreboard-watching team whose regulation-anchored odds move meaningfully above Monte Carlo noise (`≥ 0.5 pp` playoff swing or `≥ 0.15` seed swing, `z ≥ 2.5`).
 3. **Interactive Team Drill-Down**: Clicking any team opens a dedicated Team View showing:
-   - **4 Key Scorecards** (`Rating & Pace`, `Record & ROW`, `Last game`, `Next game`) with hover tooltips explaining each metric.
-   - **Season Trajectory Chart** across every completed matchday with 3 hover-tooltipped views (`Playoff %`, `Avg seed`, `vs .500 pace`).
-   - **"What If" ("How They Need to Finish") Table** showing final points/records vs. playoff & seed odds (using isolated tail probing and `< 250` low-sample `*` flags).
+   - **4 Key Scorecards** (`Projected Seed`, `Rating & Pace`, `RPI`, `Schedule`) with tap/hover/focus tooltips explaining each metric.
+   - **Season Trajectory Chart** across every completed matchday (plus a dashed `"What-If"` endpoint when outcomes are locked) with 3 hover-tooltipped views (`Playoff %`, `Avg seed`, `vs .500 pace`).
+   - **Finish Scenarios Table** (`Reg wins`, `Final PTS`, `Playoff %`, `Seed range`, `Sims`) bucketed by actual regulation wins (`1` win per row when `< 10` games remain, `2` wins per row for `10+` games, with isolated tail probing and `< 250` low-sample `*` flags).
    - **Team-Filtered Big Games** showing every upcoming matchup that moves that team's odds.
 4. **Interactive "What-If" Game Picker**: Let players toggle hypothetical winners on the upcoming matchday's games and immediately see the entire Playoff Odds table and Seed matrix recalculate live in the browser!
 5. **Mode Transparency & Calibration**: Default to **BASH Weighted**—calibrated via season-blocked Leave-One-Season-Out (LOSO) cross-validation across 2,107 non-forfeit BASH games—while letting users switch with one click to **50/50** (pure schedule/coin-flip math, like Sports Club Stats's `2.html` view) or **SCS Classic** (`Pts% + p225` regression, for nostalgic exact parity).
@@ -107,7 +107,7 @@ For each game $g$:
 
 ### 3.6 "What If" ("How They Need to Finish") & Unbiased Tail Probing
 
-To answer *"What does our team need to do down the stretch to make playoffs?"*, each team's detail view displays a table of final remaining records (or point buckets when $> 12$ remaining games produce too many unique records) showing `Remaining Record`, `Final PTS`, `Playoff %`, `Best–Worst Seed`, and `Sim Count` (requiring at least `25` simulated seasons to display naturally, and flagging `< 250` simulated seasons with `*`).
+To answer *"What does our team need to do down the stretch to make playoffs?"*, each team's detail view displays a `Finish scenarios` table bucketed by actual regulation wins (`1` win per row when `< 10` games remain; `2` wins per row for `10+` games) showing `Reg wins`, `Final PTS`, `Playoff %`, `Seed range`, and `Sims` (requiring at least `25` simulated seasons to display naturally, and flagging `< 250` simulated seasons with `*`).
 
 Crucially, honoring the `sidereal` `#10674` fix from Ken Roberts's blog, extreme win-out and lose-out scenarios are simulated in a **separate isolated tail-probing pass** (~1,000 runs per extreme per team) so they populate rare tail rows cleanly **without ever biasing the main playoff probabilities**.
 
@@ -140,8 +140,8 @@ Strict adherence to `AGENTS.md` and `modern-web-guidance` (`content-first-noise-
 #### Section 1: Top-Level Team Selector & Season Header
 - **Top-Level Team Filter Bar** (above all content, zero metadata clutter above it): `All teams` + one button per team (compact `<select>` on mobile) to switch cleanly between the league overview and any team's dedicated view.
 - **Season Header**: `[Season name] playoff odds` (e.g., `Fall 2026-2027 playoff odds`), followed by *"We ran 100,000 Monte Carlo simulations with 3 different models."* and the active `[Model]: [Model description]` line alongside the segmented **Model Mode** control (`BASH Weighted` | `50/50` | `SCS Classic`).
-- **Season Trend Charts (`PlayoffOddsLeagueCharts`)**: Franchise/team-colored line charts (`Points` and `Chance will make playoffs` / `Projected seed`) with interactive team highlight pills on desktop and a clean single-row team-logo selector bar on mobile; on mobile (`< md`), the Playoff Odds chart stacks above the Points chart.
-- If the user has locked hypothetical winners in **What-If Mode**, a clean dismissible banner appears right above the table: *"What-If scenario active (2 games locked) — showing live projected odds"* with a one-click **Reset picks** CTA.
+- **Season Trend Charts (`PlayoffOddsLeagueCharts`)**: Franchise/team-colored line charts (`Points` and `Chance will make playoffs` / `Projected seed`) with interactive team highlight pills on desktop, a clean single-row team-logo selector bar on mobile (where the Playoff Odds chart stacks above the Points chart), and a dashed `"What-If"` endpoint when outcomes are locked.
+- If the user has locked hypothetical winners in **What-If Mode**, a clean banner appears right above the table: *"What-If scenario active (2 games locked) — Projected odds updated to reflect these outcomes."* with a one-click **Reset picks** CTA.
 
 #### Section 2: Playoff Odds & Seed Distribution Table (Signature Deliverable #1)
 - **Sorting**: Default sorted by `Playoff % (desc) → Avg Seed (asc) → PTS (desc) → Rule 213 tiebreak`, with sortable column headers (`Playoff %`, `PTS`, `Avg Seed`, `Strength`, `RPI`).
@@ -156,22 +156,23 @@ Strict adherence to `AGENTS.md` and `modern-web-guidance` (`content-first-noise-
 - **Row Interaction**: Clicking a team row opens the dedicated **Team View** for that team.
 
 #### Section 3: Big Games — "Who Should We Root For?" (Signature Deliverable #2)
-- **Header**: Title `This week's games`, scope toggle (`Next matchday` default | `Next 2 weeks`), and optional team filter pill (`All teams` or filter to a single team).
+- **Header**: Title `This week's games & What-If Scenarios`, next matchday date badge, and contextual subtitle (`Ranked by largest playoff picture impact...` in league view or `Ranked by playoff swing for <Team>...` in team view).
+- **Locked What-If Picks Strip**: Appears when 1+ games are locked, showing a summary byline (`All playoff odds, charts, and tables on this page reflect your What-If picks.`), a `Current:` vs. `What-if:` comparison block in team view, and quick outcome pickers for each locked game.
 - **Per-Game Cards / Compact Matrix** (ordered by highest regulation-anchored league impact):
   - **Game Header Bar**:
-    - Matchup with logos (`Seals @ Loons`), date & time (`Sat Nov 14 · 9:00am`), pre-game win probability pill (`Seals 42% · Loons 58%`), `IntentLink` to `/game/[id]`, and impact badge (`League Playoff impact: 14.8pp`, or `League seed impact: 0.45` in seed-focused games) wrapped in a hover/focus tooltip explaining regulation-anchored probability swing.
-    - **Interactive What-If Picker Strip**: 4 compact pill buttons (`Away Reg`, `Away OT`, `Home OT`, `Home Reg`) right in the game card header—clicking any outcome locks that game result (simulating realistic margins and OT-vs-SO ROW credit) and immediately re-simulates the entire page in ~25 ms! Clicking again unlocks it.
-  - **4-Outcome Conditional Impact Table**:
+    - Matchup with logos (`Seals @ Loons`), pre-game win probability (`(42%)` / `(58%)`), `IntentLink` to `/game/[id]`, and tap/hover/focus impact badge (`League Playoff impact: 14.8pp`, or `<X>% swing for <Team>` in team view) on the left.
+    - **Interactive What-If Picker Strip (`OutcomeQuickPicker`)**: Two equal-width `[Reg | OT]` segmented controls (`Away` on left, `Home` on right; prefixed with `What-If Outcome:` on desktop)—clicking any outcome locks that game result (simulating realistic margins and OT-vs-SO ROW credit) and immediately re-simulates the entire page in ~25 ms! Clicking again unlocks it.
+  - **4-Outcome Conditional Impact Table** (`table-fixed` for equal outcome column widths):
     - Rows: Each affected team (both playing teams first, then any third-party scoreboard-watching teams passing the noise filter, tagged subtly as `Watching`).
     - Columns: `Team` | `Current` | `Away Reg (3-0)` | `Away OT/SO (2-1)` | `Home OT/SO (1-2)` | `Home Reg (0-3)`.
     - Cells: Conditional Playoff % (and subtle `+/-` delta vs. current; in clinched/Summer matchups, displays Conditional Avg Seed prominently!). The best outcome for each team is subtly highlighted (`emerald` tint + subtle ring) so players see at a glance *"Who do I root for?"*.
-- **Footer Note**: *"Outcomes marked `*` occurred in fewer than 500 simulated seasons. Swings are regulation-anchored with Monte Carlo noise filtering, and separate games on the same day are not strictly additive."*
+- **Footer Note**: *"Highlighted = best outcome · Swings compare reg wins (not additive)."*
 
 #### Section 4: Dedicated Team View (`TeamOddsPanel`)
 When a user selects a team from the top selector, table row, or URL (`?team=<slug>`):
-1. **4 Key Scorecards** (`Rating & Pace`, `Record & ROW`, `Last game`, `Next game`), each with an interactive hover/focus tooltip explaining the stat.
-2. **Season Trajectory Chart** (`Recharts` responsive line chart) with 3 hover-tooltipped metric tabs: `Playoff %`, `Avg seed`, and `vs .500 pace`.
-3. **"What If" ("How They Need to Finish") Table**: Lists achievable remaining point totals / record buckets with `Final PTS`, `Playoff %`, `Projected Seed`, and `Sim Count` (flagging `< 250` simulated seasons with `*`, and using isolated 1,000-run tail probes for extreme win-out / lose-out rows).
+1. **Header & 4 Key Scorecards**: Clickable team logo linking to `/team/[slug]?season=<seasonId>`, `Team Name (W-OTW-OTL-L, PTS)`, `% to make playoffs` + `% top-3 bye, % play-in` bylines, and 4 scorecards (`Projected Seed`, `Rating & Pace`, `RPI`, `Schedule` combining last & next game), each with an interactive tap/hover/focus tooltip explaining the stat.
+2. **Season Trajectory Chart** (`Recharts` responsive line chart) with 3 hover-tooltipped metric tabs (`Playoff %`, `Avg seed`, and `vs .500 pace`) and a dashed `"What-If"` endpoint when outcomes are locked.
+3. **Finish Scenarios Table**: Lists non-overlapping regulation-win buckets (`1` win per row when `< 10` games remain, `2` wins per row for `10+` games) with `Final PTS`, `Playoff %`, `Seed range`, and `Sims` (flagging `< 250` simulated seasons with `*`, and using isolated 1,000-run tail probes for `Win out` / `Lose out` rows).
 4. **Team-Specific Upcoming Schedule & Rooting Guide**: Upcoming games ranked by how strongly they move *this specific team's* odds.
 
 #### Section 5: Methodology & Rules Disclosure + Full Methodology Guide
