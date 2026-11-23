@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { RotateCcw, Sparkles } from "lucide-react"
+import { ChevronRight, RotateCcw, Sparkles } from "lucide-react"
 import { LoadingState } from "@/components/loading-state"
 import { ErrorNotice } from "@/components/error-notice"
 import { PlayoffOddsTable } from "@/components/playoff-odds-table"
@@ -266,7 +266,16 @@ export function PlayoffOddsView({
             simulations for {STATS_MODEL_OPTIONS.length} different models.
             {activeSnapshot.endedEarly && <span className="font-medium text-foreground"> Season ended early.</span>}
           </p>
-          <p id="playoff-odds-stats-model-hint" className="text-xs text-muted-foreground">
+          <details className="group sm:hidden">
+            <summary className="inline-flex cursor-pointer list-none items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground [&::-webkit-details-marker]:hidden">
+              <span>About the Model: {activeModel.label}</span>
+              <ChevronRight className="h-3.5 w-3.5 transition-transform group-open:rotate-90" aria-hidden="true" />
+            </summary>
+            <p className="mt-1 text-xs text-muted-foreground">
+              <span className="font-medium text-foreground">{activeModel.label}:</span> {activeModel.hint}
+            </p>
+          </details>
+          <p id="playoff-odds-stats-model-hint" className="hidden text-xs text-muted-foreground sm:block">
             <span className="font-medium text-foreground">{activeModel.label}:</span> {activeModel.hint}
           </p>
         </div>
