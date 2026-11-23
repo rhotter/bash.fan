@@ -1,7 +1,7 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import { X, ArrowUpRight } from "lucide-react"
+import { X, ArrowUpRight, Info } from "lucide-react"
 import {
   ResponsiveContainer,
   LineChart,
@@ -14,6 +14,7 @@ import {
 } from "recharts"
 import { IntentLink as Link } from "@/components/intent-link"
 import { TeamLogo } from "@/components/team-logo"
+import { Tooltip as UiTooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { getTeamChartColor } from "@/lib/chart-colors"
 import { cn } from "@/lib/utils"
 import type {
@@ -31,6 +32,34 @@ function formatShortDate(isoDate: string): string {
   const d = parseInt(parts[2], 10)
   if (!m || !d || m < 1 || m > 12) return isoDate
   return `${months[m - 1]} ${d}`
+}
+
+type MetricKey = "playoffPct" | "avgSeed" | "ptsAbove500"
+
+const METRIC_LABELS: Record<MetricKey, string> = {
+  playoffPct: "Playoff %",
+  avgSeed: "Avg seed",
+  ptsAbove500: "vs .500 pace",
+}
+
+/** Card label with an info icon that explains the card on hover/focus. */
+function InfoLabel({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <UiTooltip delayDuration={150}>
+      <TooltipTrigger asChild>
+        <span
+          tabIndex={0}
+          className="inline-flex cursor-help items-center gap-1 rounded-sm text-[11px] text-muted-foreground focus-visible:outline-2 focus-visible:outline-ring"
+        >
+          {label}
+          <Info className="h-3 w-3 shrink-0 text-muted-foreground/70" aria-hidden="true" />
+        </span>
+      </TooltipTrigger>
+      <TooltipContent align="start" sideOffset={6} className="max-w-[280px] text-left text-[11px] leading-snug">
+        {children}
+      </TooltipContent>
+    </UiTooltip>
+  )
 }
 
 export function TeamOddsPanel({
@@ -75,6 +104,15 @@ export function TeamOddsPanel({
       : team.luckDelta > 0
         ? `+${(team.luckDelta * 100).toFixed(1)}% above goal-based pace`
         : `${(team.luckDelta * 100).toFixed(1)}% below goal-based pace`
+
+  const pct = (v: number) => `${(v * 100).toFixed(1)}%`
+  const metricHelp: Record<MetricKey, string> = {
+    playoffPct: `${team.name}'s chance to make the playoffs after each matchday, re-simulated using only the results known at that point. Start is the preseason projection.`,
+    avgSeed: snapshot.format.allTeamsQualify
+      ? `${team.name}'s projected average finishing seed after each matchday (#1 is best). Every team makes the playoffs this season, so seeding is the race.`
+      : `${team.name}'s projected average finishing seed after each matchday (#1 is best). The dashed line is the playoff cutoff (top ${snapshot.format.playoffSpots}).`,
+    ptsAbove500: `Points above or below a .500 pace (1.5 points per game played), BASH's version of Sports Club Stats' "points above .500". Above 0 means ${team.name} is earning more than half the available points.`,
+  }
 
   return (
     <section
@@ -154,7 +192,21 @@ export function TeamOddsPanel({
       {/* Quick context metrics strip */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 text-xs">
         <div className="rounded-md bg-muted/50 px-3 py-2">
-          <div className="text-[11px] text-muted-foreground">Rating &amp; Pace</div>
+          <InfoLabel label="Rating & Pace">
+            <p className="font-semibold">Strength (.{Math.round(team.strength * 1000).toString().padStart(3, "0")})</p>
+            <p className="mt-0.5 text-background/90">
+              {snapshot.mode === "50_50"
+                ? "Our 0–1 estimate of team quality (.500 = average). The 50/50 model ignores it and treats every remaining game as a coin flip."
+                : snapshot.mode === "classic"
+                  ? "Our 0–1 estimate of team quality (.500 = average), from points percentage pulled toward .500 early in the season (original Sports Club Stats formula). It sets the win odds for remaining games."
+                  : "Our 0–1 estimate of team quality (.500 = average), from goals for vs. against and pulled toward .500 early in the season. It sets the win odds for remaining games."}
+            </p>
+            <p className="mt-1.5 font-semibold">Pace</p>
+            <p className="mt-0.5 text-background/90">
+              Actual points % ({pct(team.actualPtsPct)}) vs. what their goals for/against predict ({pct(team.rawPythPct)}).
+              Above pace usually means close-game or OT luck; below pace means they&apos;ve outplayed their record.
+            </p>
+          </InfoLabel>
           <div className="mt-0.5 font-semibold text-foreground tabular-nums">
             .{Math.round(team.strength * 1000).toString().padStart(3, "0")} strength
           </div>
@@ -162,9 +214,31 @@ export function TeamOddsPanel({
         </div>
 
         <div className="rounded-md bg-muted/50 px-3 py-2">
-          <div className="text-[11px] text-muted-foreground">Record &amp; ROW</div>
+          <InfoLabel label="Record & ROW">
+            <p>
+              <span className="font-semibold">Record</span>{" "}
+              <span className="text-background/90">
+                is W–OTW/SOW–OTL–L ({team.gp} GP). Points: 3 for a regulation win, 2 for an OT/SO win, 1 for an OT/SO
+                loss.
+              </span>
+            </p>
+            <p className="mt-1">
+              <span className="font-semibold">ROW</span>{" "}
+              <span className="text-background/90">
+                = regulation + overtime wins (shootout wins don&apos;t count), the first tiebreaker after points.
+              </span>
+            </p>
+            <p className="mt-1">
+              <span className="font-semibold">GD</span> <span className="text-background/90">= goal differential.</span>{" "}
+              <span className="font-semibold">RPI</span>{" "}
+              <span className="text-background/90">
+                ranks record against strength of schedule — shown for reference, not used in the simulations.
+              </span>
+            </p>
+          </InfoLabel>
           <div className="mt-0.5 font-semibold text-foreground tabular-nums">
-            {team.w}-{team.otw + team.sow}-{team.otl}-{team.l} ({team.pts} pts)
+            {team.w}-{team.otw + team.sow}-{team.otl}-{team.l}
+            {team.ties ? `-${team.ties}T` : ""} ({team.pts} pts)
           </div>
           <div className="text-[11px] text-muted-foreground tabular-nums">
             ROW {team.row} · GD {team.gd > 0 ? `+${team.gd}` : team.gd} · RPI #{team.rpiRank}
@@ -172,7 +246,21 @@ export function TeamOddsPanel({
         </div>
 
         <div className="rounded-md bg-muted/50 px-3 py-2">
-          <div className="text-[11px] text-muted-foreground">Last game</div>
+          <InfoLabel label="Last game">
+            {team.lastGame
+              ? `${team.name}'s most recent completed regular-season game (${
+                  team.lastGame.resultLabel === "W" ||
+                  team.lastGame.resultLabel === "OTW" ||
+                  team.lastGame.resultLabel === "SOW"
+                    ? "win"
+                    : team.lastGame.resultLabel === "FFW"
+                      ? "forfeit win"
+                      : team.lastGame.resultLabel === "T"
+                        ? "tie"
+                        : "loss"
+                }). Click the result to open the game page.`
+              : `${team.name} hasn't completed a regular-season game yet.`}
+          </InfoLabel>
           {team.lastGame ? (
             <Link
               href={`/game/${team.lastGame.gameId}`}
@@ -190,7 +278,11 @@ export function TeamOddsPanel({
         </div>
 
         <div className="rounded-md bg-muted/50 px-3 py-2">
-          <div className="text-[11px] text-muted-foreground">Next game</div>
+          <InfoLabel label="Next game">
+            {team.nextGame
+              ? `${team.name}'s next scheduled regular-season game. See "This week's games" below for how each result would move their odds, or click to open the matchup page.`
+              : `${team.name} has no remaining regular-season games.`}
+          </InfoLabel>
           {team.nextGame ? (
             <Link
               href={`/game/${team.nextGame.gameId}`}
@@ -227,50 +319,54 @@ export function TeamOddsPanel({
             >
               {availableMetrics.map((metric, idx) => {
                 const active = effectiveChartMetric === metric
-                const label =
-                  metric === "playoffPct"
-                    ? "Playoff %"
-                    : metric === "avgSeed"
-                      ? "Avg seed"
-                      : "vs .500 pace"
+                const label = METRIC_LABELS[metric]
                 return (
-                  <button
-                    key={metric}
-                    type="button"
-                    role="tab"
-                    aria-selected={active}
-                    tabIndex={active ? 0 : -1}
-                    data-metric={metric}
-                    onClick={() => setChartMetric(metric)}
-                    onKeyDown={(e) => {
-                      let nextIdx: number
-                      if (e.key === "ArrowRight") nextIdx = (idx + 1) % availableMetrics.length
-                      else if (e.key === "ArrowLeft")
-                        nextIdx = (idx - 1 + availableMetrics.length) % availableMetrics.length
-                      else if (e.key === "Home") nextIdx = 0
-                      else if (e.key === "End") nextIdx = availableMetrics.length - 1
-                      else return
-                      e.preventDefault()
-                      const nextMetric = availableMetrics[nextIdx]
-                      setChartMetric(nextMetric)
-                      e.currentTarget.parentElement
-                        ?.querySelector<HTMLButtonElement>(`button[data-metric="${nextMetric}"]`)
-                        ?.focus()
-                    }}
-                    className={cn(
-                      "relative rounded px-2 py-0.5 font-medium transition-colors cursor-pointer",
-                      "aria-selected:after:content-[''] aria-selected:after:absolute aria-selected:after:inset-x-1.5 aria-selected:after:bottom-0 aria-selected:after:border-b-2 aria-selected:after:border-foreground",
-                      active
-                        ? "bg-card text-foreground shadow-xs"
-                        : "text-muted-foreground hover:text-foreground"
-                    )}
-                  >
-                    {label}
-                  </button>
+                  <UiTooltip key={metric} delayDuration={200}>
+                    <TooltipTrigger asChild>
+                      <button
+                        type="button"
+                        role="tab"
+                        aria-selected={active}
+                        tabIndex={active ? 0 : -1}
+                        data-metric={metric}
+                        onClick={() => setChartMetric(metric)}
+                        onKeyDown={(e) => {
+                          let nextIdx: number
+                          if (e.key === "ArrowRight") nextIdx = (idx + 1) % availableMetrics.length
+                          else if (e.key === "ArrowLeft")
+                            nextIdx = (idx - 1 + availableMetrics.length) % availableMetrics.length
+                          else if (e.key === "Home") nextIdx = 0
+                          else if (e.key === "End") nextIdx = availableMetrics.length - 1
+                          else return
+                          e.preventDefault()
+                          const nextMetric = availableMetrics[nextIdx]
+                          setChartMetric(nextMetric)
+                          e.currentTarget.parentElement
+                            ?.querySelector<HTMLButtonElement>(`button[data-metric="${nextMetric}"]`)
+                            ?.focus()
+                        }}
+                        className={cn(
+                          "relative rounded px-2 py-0.5 font-medium transition-colors cursor-pointer",
+                          "aria-selected:after:content-[''] aria-selected:after:absolute aria-selected:after:inset-x-1.5 aria-selected:after:bottom-0 aria-selected:after:border-b-2 aria-selected:after:border-foreground",
+                          active
+                            ? "bg-card text-foreground shadow-xs"
+                            : "text-muted-foreground hover:text-foreground"
+                        )}
+                      >
+                        {label}
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent sideOffset={6} className="max-w-[260px] text-left text-[11px] leading-snug">
+                      {metricHelp[metric]}
+                    </TooltipContent>
+                  </UiTooltip>
                 )
               })}
             </div>
           </div>
+
+          {/* Visible on every device (no hover needed) */}
+          <p className="text-[11px] leading-snug text-muted-foreground">{metricHelp[effectiveChartMetric]}</p>
 
           {chartData.length >= 2 ? (
             <div className="h-[220px] w-full rounded-md border border-border/50 bg-background/60 p-2">
@@ -398,6 +494,11 @@ export function TeamOddsPanel({
                   {team.whatIfRows.map((row) => (
                     <tr key={row.label} className="hover:bg-muted/30">
                       <th scope="row" className="px-2.5 py-1.5 text-left font-medium text-foreground">
+                        {row.lowSample && !row.isTailProbe && (
+                          <span className="mr-0.5 text-muted-foreground" title="Fewer than 250 simulated seasons">
+                            *
+                          </span>
+                        )}
                         {row.label}
                         {row.isTailProbe && (
                           <span className="ml-1.5 rounded bg-muted px-1 py-0.5 text-[9px] font-normal text-muted-foreground">
@@ -432,6 +533,13 @@ export function TeamOddsPanel({
             <div className="flex h-[120px] items-center justify-center rounded-md border border-border/50 bg-muted/20 text-xs text-muted-foreground">
               Regular season complete for {team.name}.
             </div>
+          )}
+
+          {team.whatIfRows.some((r) => r.lowSample && !r.isTailProbe) && (
+            <p className="text-[10px] text-muted-foreground/80">
+              Rows marked <span className="font-medium">*</span> come from fewer than 250 simulated seasons, so their
+              odds can be off by several points.
+            </p>
           )}
 
           {hasTailProbes && (

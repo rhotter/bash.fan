@@ -216,10 +216,16 @@ describe("Playoff Odds Engine — Format & Strength Models", () => {
     expect(neutral.rawPythPct).toBe(0.5)
 
     // Dominant goal differential shrinks gently toward 0.500 early in the season
+    // (with pre-ratio Gamma-Poisson goal shrinkage + post-ratio EB shrinkage)
     const earlyHot = computeWeightedStrength(20, 8, 4, BASH_CALIBRATION.fall)
-    expect(earlyHot.rawPythPct).toBeGreaterThan(0.7)
+    expect(earlyHot.rawPythPct).toBeGreaterThan(0.6)
     expect(earlyHot.strength).toBeLessThan(earlyHot.rawPythPct)
     expect(earlyHot.strength).toBeGreaterThan(0.55)
+
+    // Shutout in 1 game (3-0) must NOT produce an extreme >0.85 rawPythPct thanks to pre-ratio prior
+    const oneGameShutout = computeWeightedStrength(3, 0, 1, BASH_CALIBRATION.fall)
+    expect(oneGameShutout.rawPythPct).toBeLessThan(0.7)
+    expect(oneGameShutout.strength).toBeLessThan(0.6)
 
     // Symmetry & zero HFA in Log5
     expect(log5(0.5, 0.5)).toBe(0.5)
@@ -545,8 +551,10 @@ describe("Playoff Odds Engine — Monte Carlo Invariants, Big Games & Tail Probi
     expect(drawZeroBySlug.a.eliminated).toBe(false)
     expect(drawZeroBySlug.b.clinched).toBe(false)
     expect(drawZeroBySlug.b.eliminated).toBe(false)
-    expect(drawZeroBySlug.a.playoffPct).toBe(50)
-    expect(drawZeroBySlug.b.playoffPct).toBe(50)
+    // The locked result's margin is simulated (it could matter for GD tiebreaks), so a/b odds come
+    // from Monte Carlo rather than the zero-remaining exact path: symmetric within MC error.
+    expect(Math.abs(drawZeroBySlug.a.playoffPct - 50)).toBeLessThan(4)
+    expect(Math.abs(drawZeroBySlug.a.playoffPct + drawZeroBySlug.b.playoffPct - 100)).toBeLessThan(0.2)
 
     // Edge case 2: Subset point-pool clinch where 2 rivals individually have maxPts >= tMinPts
     // (spots = 2, contenders = {b, c} -> length 2 >= 2), BUT b & c play EACH OTHER in the only
@@ -726,5 +734,161 @@ describe("Playoff Odds Engine — Monte Carlo Invariants, Big Games & Tail Probi
         summerSnap.bigGames[i].totalSeedSwing - 0.001
       )
     }
+  })
+
+  it("verifies exact max-flow clinch on the 7-team 5-spot counterexample where simple pool checks leak", () => {
+    // 7 teams, 5 playoff spots:
+    // t0, t1, t2 each have 36 pts (12 wins); t3 has 0 pts; t4 has 24 pts (8 wins);
+    // t5 & t6 each have 21 pts (7 wins). Remaining games: (t0,t1), (t2,t3), (t5,t6).
+    // Only 1 of {t5, t6} can reach 24 pts (since they play each other), so at most 4 rivals
+    // {t0, t1, t2, winner(t5,t6)} can reach t4's 24 pts -> t4 MUST be mathematically clinched!
+    const games: PlayoffSimGame[] = []
+    let gid = 1
+    const addWins = (winner: string, loser: string, count: number) => {
+      for (let i = 0; i < count; i++) {
+        games.push(
+          makeGame({
+            id: `mf-${gid++}`,
+            date: "2026-10-10",
+            awaySlug: winner,
+            homeSlug: loser,
+            awayScore: 4,
+            homeScore: 1,
+            status: "final",
+          })
+        )
+      }
+    }
+    addWins("t0", "t3", 12) // t0=36
+    addWins("t1", "t3", 12) // t1=36
+    addWins("t2", "t3", 12) // t2=36
+    addWins("t4", "t3", 8)  // t4=24
+    addWins("t5", "t3", 7)  // t5=21
+    addWins("t6", "t3", 7)  // t6=21
+    games.push(
+      makeGame({ id: "mf-u1", date: "2026-10-24", awaySlug: "t0", homeSlug: "t1", status: "upcoming" }),
+      makeGame({ id: "mf-u2", date: "2026-10-24", awaySlug: "t2", homeSlug: "t3", status: "upcoming" }),
+      makeGame({ id: "mf-u3", date: "2026-10-24", awaySlug: "t5", homeSlug: "t6", status: "upcoming" })
+    )
+    const snap = computePlayoffOdds({
+      seasonId: "test-maxflow-7t",
+      seasonName: "MaxFlow 7T",
+      seasonType: "fall",
+      seasonStatus: "active",
+      configuredPlayoffTeams: 5,
+      games,
+      mode: "50_50",
+      iterations: 2_000,
+      includeTimeline: false,
+    })
+    const bySlug = Object.fromEntries(snap.teams.map((t) => [t.slug, t]))
+    expect(bySlug.t0.clinched).toBe(true)
+    expect(bySlug.t1.clinched).toBe(true)
+    expect(bySlug.t2.clinched).toBe(true)
+    expect(bySlug.t4.clinched).toBe(true)
+    expect(bySlug.t3.eliminated).toBe(true)
+    expect(bySlug.t5.clinched).toBe(false)
+    expect(bySlug.t6.clinched).toBe(false)
+  })
+
+  it("handles historical non-forfeit ties cleanly (1 pt each, 0 ROW, resultLabel 'T') and strips SOWG from PythagenPuck", () => {
+    const games: PlayoffSimGame[] = [
+      // Historical tie 3-3
+      makeGame({
+        id: "tie-1",
+        date: "2026-10-10",
+        awaySlug: "a",
+        homeSlug: "b",
+        awayScore: 3,
+        homeScore: 3,
+        status: "final",
+      }),
+      // Shootout win 4-3 (SOWG stripped -> 3 GF / 3 GA each for PythagenPuck!)
+      makeGame({
+        id: "so-1",
+        date: "2026-10-10",
+        awaySlug: "c",
+        homeSlug: "d",
+        awayScore: 4,
+        homeScore: 3,
+        hasShootout: true,
+        status: "final",
+      }),
+      makeGame({ id: "u-1", date: "2026-10-17", awaySlug: "a", homeSlug: "c", status: "upcoming" }),
+      makeGame({ id: "u-2", date: "2026-10-17", awaySlug: "b", homeSlug: "d", status: "upcoming" }),
+    ]
+    const snap = computePlayoffOdds({
+      seasonId: "test-ties-sowg",
+      seasonName: "Ties & SOWG",
+      seasonType: "fall",
+      seasonStatus: "active",
+      configuredPlayoffTeams: 2,
+      games,
+      mode: "weighted",
+      iterations: 2_000,
+      includeTimeline: false,
+    })
+    const bySlug = Object.fromEntries(snap.teams.map((t) => [t.slug, t]))
+    // Non-forfeit tie: 1 pt each, 1 tie, 0 ROW, resultLabel "T"
+    expect(bySlug.a.pts).toBe(1)
+    expect(bySlug.b.pts).toBe(1)
+    expect(bySlug.a.ties).toBe(1)
+    expect(bySlug.b.ties).toBe(1)
+    expect(bySlug.a.row).toBe(0)
+    expect(bySlug.b.row).toBe(0)
+    expect(bySlug.a.lastGame?.resultLabel).toBe("T")
+    expect(bySlug.b.lastGame?.resultLabel).toBe("T")
+
+    // Shootout winning goal stripped: c & d both have 3 non-SOWG GF and 3 GA -> identical 0.500 strength!
+    expect(bySlug.c.strength).toBeCloseTo(0.5, 4)
+    expect(bySlug.d.strength).toBeCloseTo(0.5, 4)
+    expect(bySlug.c.row).toBe(0) // Shootout win does NOT count as ROW
+    expect(bySlug.c.pts).toBe(2)
+    expect(bySlug.d.pts).toBe(1)
+  })
+
+  it("falls through disconnected 4-team H2H graphs to GD and shares RPI ranks on ties", () => {
+    // 4 teams all tied on 6 pts, 2 ROW; only (0 vs 1) and (2 vs 3) have played (disconnected graph!).
+    // Team 3 has best GD (+10) -> must win seed #1 instead of being distorted by intra-pair H2H.
+    const pts = Int16Array.from([6, 6, 6, 6])
+    const row = Int16Array.from([2, 2, 2, 2])
+    const gd = Int16Array.from([2, 1, 5, 10])
+    const gf = Int16Array.from([10, 9, 12, 18])
+    const h2hPts = new Int16Array(16)
+    const h2hPoss = new Int16Array(16)
+    // 0 beat 1 (3-0), 2 beat 3 (3-0), no cross-games between {0,1} and {2,3}
+    h2hPts[0 * 4 + 1] = 3
+    h2hPoss[0 * 4 + 1] = 3
+    h2hPoss[1 * 4 + 0] = 3
+    h2hPts[2 * 4 + 3] = 3
+    h2hPoss[2 * 4 + 3] = 3
+    h2hPoss[3 * 4 + 2] = 3
+
+    const order = rankTeamsRule213(
+      4,
+      pts,
+      row,
+      gd,
+      gf,
+      h2hPts,
+      h2hPoss,
+      Float64Array.from([0.5, 0.5, 0.5, 0.5])
+    )
+    expect(Array.from(order)).toEqual([3, 2, 0, 1])
+
+    // Competition ranking for tied RPIs (all 4 teams at 0 GP have identical 0.500 RPI -> all rank 1)
+    const zeroGames = buildSyntheticSeason(["a", "b", "c", "d"], 1, 0)
+    const snap = computePlayoffOdds({
+      seasonId: "test-rpi-ties",
+      seasonName: "RPI Ties",
+      seasonType: "fall",
+      seasonStatus: "active",
+      configuredPlayoffTeams: 2,
+      games: zeroGames,
+      mode: "50_50",
+      iterations: 1_000,
+      includeTimeline: false,
+    })
+    expect(snap.teams.every((t) => t.rpiRank === 1)).toBe(true)
   })
 })

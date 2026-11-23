@@ -877,7 +877,7 @@ describe("PlayoffOddsView & StandingsContent Integration", () => {
     expect(container.textContent).toContain("League seed impact: 1.20")
   })
 
-  it("displays rounded seed percentages in the matrix and exact 3-decimal probability on hover/focus", async () => {
+  it("displays rounded seed percentages in the matrix and honest 1-decimal probability with MC margin on hover/focus", async () => {
     // Unique season id avoids reusing SWR cache entries populated by earlier tests
     const customSnapshot: PlayoffOddsSnapshot = {
       ...sampleSnapshot,
@@ -907,15 +907,16 @@ describe("PlayoffOddsView & StandingsContent Integration", () => {
       ) as HTMLElement
       expect(seedCell).toBeTruthy()
 
-      // Hovering (pointerMove) opens tooltip with 3 decimal places ("55.791%")
+      // Hovering (pointerMove) opens tooltip with honest 1-decimal precision ("55.8%") and ± MC margin
       await act(async () => {
         seedCell.dispatchEvent(new MouseEvent("pointermove", { bubbles: true }))
         await new Promise((r) => setTimeout(r, 150))
       })
       const tooltip = Array.from(document.body.querySelectorAll('[role="tooltip"]')).find((el) =>
-        el.textContent?.includes("55.791%")
+        el.textContent?.includes("55.8%")
       )
       expect(tooltip).toBeTruthy()
+      expect(tooltip?.textContent).toContain("±")
       expect(tooltip?.textContent).toContain("Seed #1")
     } finally {
       globalThis.ResizeObserver = originalResizeObserver

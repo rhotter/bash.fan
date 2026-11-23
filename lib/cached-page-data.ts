@@ -33,7 +33,7 @@ const statsPageData = unstable_cache(
 )
 const activePlayoffOddsBySeasonId = unstable_cache(
   async (seasonId: string, mode: PlayoffOddsMode) => fetchPlayoffOdds(seasonId, mode),
-  ["playoff-odds-active-v4"],
+  ["playoff-odds-active-v5"],
   {
     revalidate: 60,
     tags: ["seasons", "playoff-odds", "public-page-data"],
@@ -41,7 +41,7 @@ const activePlayoffOddsBySeasonId = unstable_cache(
 )
 const completedPlayoffOddsBySeasonId = unstable_cache(
   async (seasonId: string, mode: PlayoffOddsMode) => fetchPlayoffOdds(seasonId, mode),
-  ["playoff-odds-completed-v4"],
+  ["playoff-odds-completed-v5"],
   {
     revalidate: 3600,
     tags: ["seasons", "playoff-odds", "public-page-data"],

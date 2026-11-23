@@ -31,28 +31,47 @@ const OUTCOME_KEYS: readonly BigGameOutcomeKey[] = [
 ] as const
 
 /**
- * Empirically calibrated BASH league constants (2,126 non-forfeit regular-season games:
- * 1,573 Fall + 553 Summer). See docs/research-sports-club-stats.md §6.
+ * Empirically calibrated BASH league constants via season-blocked Leave-One-Season-Out (LOSO)
+ * cross-validation across 2,107 non-forfeit, non-tie regular-season games (1,561 Fall across
+ * 27 seasons + 546 Summer across 27 seasons). See docs/research-sports-club-stats.md §6.
  */
 export const BASH_CALIBRATION: Record<SeasonKind, CalibrationProfile> = {
   fall: {
     pythagenPuckPower: 0.22,
-    ebShrinkageGames: 10,
+    ebShrinkageGames: 4,
+    goalPriorGames: 4,
+    leagueMeanGoalsPerTeam: 3.73,
     otRate: 0.075,
     soRate: 0.045,
     homeFieldAdvantage: 0.5,
+    // Calibrated on remaining-season pts% coverage: 80.3% / 89.4% nominal 80%/90% intervals
+    strengthConcentration: 2,
+    // Empirical Fall regulation goal-margin CDF (1..6+ goals, n=1,357)
+    regMarginCdf: [0.2174, 0.4149, 0.5976, 0.7406, 0.8305, 1.0],
+    // Empirical Fall mean regulation loser goals: 2.04
+    regLoserGoals: 2,
   },
   summer: {
-    pythagenPuckPower: 0.37,
-    ebShrinkageGames: 6,
+    pythagenPuckPower: 0.458,
+    ebShrinkageGames: 4,
+    goalPriorGames: 4,
+    leagueMeanGoalsPerTeam: 6.13,
     otRate: 0.055,
     soRate: 0.035,
     homeFieldAdvantage: 0.5,
+    // Calibrated on remaining-season pts% coverage: 82.7% / 92.0% nominal 80%/90% intervals
+    strengthConcentration: 3,
+    // Empirical Summer regulation goal-margin CDF (1..6+ goals, n=488)
+    regMarginCdf: [0.2152, 0.3914, 0.5451, 0.6701, 0.7766, 1.0],
+    // Empirical Summer mean regulation loser goals: 4.24
+    regLoserGoals: 4,
   },
 }
 
-// Discrete regulation margin distribution (1..6 goals) calibrated to BASH street hockey
-const REG_MARGIN_CDF = [0.28, 0.55, 0.75, 0.87, 0.95, 1.0] as const
+/** What-If finish rows need at least this many simulated seasons to be shown (else tail-probed). */
+const WHAT_IF_MIN_ROW_SAMPLES = 25
+/** What-If finish rows below this many simulated seasons are flagged as low-sample (`*`). */
+const WHAT_IF_LOW_SAMPLE = 250
 
 // ─── Deterministic Hashing & PRNG (xoshiro128** seeded via FNV-1a + SplitMix32) ─
 
@@ -199,9 +218,12 @@ export function computeWeightedStrength(
   if (gpPlayed <= 0) {
     return { strength: 0.5, rawPythPct: 0.5 }
   }
-  // Tiny Laplace smoothing (+0.25 goal) guards against 0-0 or shutout-only singularities
-  const gfg = (gfPlayed + 0.25) / gpPlayed
-  const gag = (gaPlayed + 0.25) / gpPlayed
+  const m = calibration.goalPriorGames ?? 0
+  const mu = calibration.leagueMeanGoalsPerTeam ?? 0
+  // Pre-ratio Gamma-Poisson goal-rate shrinkage when configured (eliminates shutout singularities
+  // cleanly); otherwise tiny Laplace smoothing (+0.25 goal) guards against 0-0 edge cases.
+  const gfg = m > 0 && mu > 0 ? (gfPlayed + m * mu) / (gpPlayed + m) : (gfPlayed + 0.25) / gpPlayed
+  const gag = m > 0 && mu > 0 ? (gaPlayed + m * mu) / (gpPlayed + m) : (gaPlayed + 0.25) / gpPlayed
   const exp = Math.max(0.5, Math.pow(gfg + gag, calibration.pythagenPuckPower))
   const gfPow = Math.pow(gfg, exp)
   const gaPow = Math.pow(gag, exp)
@@ -304,6 +326,33 @@ export function rankTeamsRule213(
   return order
 }
 
+function isH2hGroupConnected(
+  order: Int16Array,
+  start: number,
+  end: number,
+  teamCount: number,
+  h2hGames: Int16Array
+): boolean {
+  const size = end - start
+  const visited = new Uint8Array(size)
+  const stack = [0]
+  visited[0] = 1
+  let seen = 1
+  while (stack.length > 0) {
+    const x = stack.pop()!
+    const tx = order[start + x]
+    for (let y = 0; y < size; y++) {
+      if (visited[y]) continue
+      if (h2hGames[tx * teamCount + order[start + y]] > 0) {
+        visited[y] = 1
+        seen++
+        stack.push(y)
+      }
+    }
+  }
+  return seen === size
+}
+
 function resolveTiedSlice(
   order: Int16Array,
   start: number,
@@ -334,6 +383,12 @@ function resolveTiedSlice(
       break
     }
     h2hPctBuf[ti] = earned / (3 * games)
+  }
+
+  // H2H percentages are only comparable when the tied clubs' games link them all together
+  // (e.g. A–B and C–D played but no A/B vs C/D games → skip to goal differential).
+  if (allHaveH2h && end - start > 2 && !isH2hGroupConnected(order, start, end, teamCount, h2hGames)) {
+    allHaveH2h = false
   }
 
   if (allHaveH2h) {
@@ -423,12 +478,26 @@ interface TeamAccumulator {
   pts: number
   gf: number
   ga: number
-  /** Non-forfeit scoring stats used for PythagenPuck efficiency */
+  /** Historical (pre-shootout era) ties: 1 point each, no ROW */
+  ties: number
+  /**
+   * Non-forfeit scoring stats used for PythagenPuck efficiency. Shootout-deciding goals are
+   * excluded (they are not open-play goals), matching SCS "PythagenpatIgnoreShootOutWinningGoals".
+   */
   gpPlayed: number
   gfPlayed: number
   gaPlayed: number
+  /** Points earned in non-forfeit games (pairs with gpPlayed for the luck/pace comparison) */
+  ptsPlayed: number
   lastGame: TeamLastGame | null
   nextGame: TeamNextGame | null
+}
+
+interface LockedSimGame {
+  winner: number
+  loser: number
+  /** "reg": margin is simulated; "extra": OT vs SO (and therefore ROW) is simulated */
+  kind: "reg" | "extra"
 }
 
 interface ParsedSeasonState {
@@ -444,6 +513,10 @@ interface ParsedSeasonState {
   baseH2hGames: Int16Array
   rpiValues: number[]
   rpiRanks: number[]
+  /** What-If locked results whose margin / OT-vs-SO form is simulated each iteration */
+  lockedSimGames: LockedSimGame[]
+  /** Per-team count of locked OT/SO wins whose ROW credit is still undetermined */
+  uncertainRowWins: Int16Array
 }
 
 function applyLockedOutcomes(
@@ -457,15 +530,17 @@ function applyLockedOutcomes(
     if (g.status === "final") return g
     const pick = lockedOutcomes[g.id]
     if (!pick) return g
+    // Scores are placeholders for the winner/points only: regulation margins and OT-vs-SO
+    // (which decides ROW) are simulated per iteration via `whatIfLock`.
     switch (pick) {
       case "away_reg":
-        return { ...g, status: "final", awayScore: 4, homeScore: 2, isOvertime: false, hasShootout: false, isForfeit: false }
+        return { ...g, status: "final", awayScore: 1, homeScore: 0, isOvertime: false, hasShootout: false, isForfeit: false, whatIfLock: "reg" }
       case "away_ot":
-        return { ...g, status: "final", awayScore: 3, homeScore: 2, isOvertime: true, hasShootout: false, isForfeit: false }
+        return { ...g, status: "final", awayScore: 1, homeScore: 0, isOvertime: true, hasShootout: false, isForfeit: false, whatIfLock: "extra" }
       case "home_ot":
-        return { ...g, status: "final", awayScore: 2, homeScore: 3, isOvertime: true, hasShootout: false, isForfeit: false }
+        return { ...g, status: "final", awayScore: 0, homeScore: 1, isOvertime: true, hasShootout: false, isForfeit: false, whatIfLock: "extra" }
       case "home_reg":
-        return { ...g, status: "final", awayScore: 2, homeScore: 4, isOvertime: false, hasShootout: false, isForfeit: false }
+        return { ...g, status: "final", awayScore: 0, homeScore: 1, isOvertime: false, hasShootout: false, isForfeit: false, whatIfLock: "reg" }
     }
   })
 }
@@ -504,9 +579,11 @@ function parseSeasonState(
       pts: 0,
       gf: 0,
       ga: 0,
+      ties: 0,
       gpPlayed: 0,
       gfPlayed: 0,
       gaPlayed: 0,
+      ptsPlayed: 0,
       lastGame: null,
       nextGame: null,
     }
@@ -522,6 +599,8 @@ function parseSeasonState(
 
   const completedGames: PlayoffSimGame[] = []
   const remainingGames: PlayoffSimGame[] = []
+  const lockedSimGames: LockedSimGame[] = []
+  const uncertainRowWins = new Int16Array(T)
 
   // Sort chronologically by date + parsed 24h time so same-day doubleheaders order accurately
   const sortedGames = [...validGames].sort(compareGamesChronological)
@@ -573,6 +652,39 @@ function parseSeasonState(
 
       const aScore = g.awayScore
       const hScore = g.homeScore
+      baseH2hGames[aIdx * T + hIdx]++
+      baseH2hGames[hIdx * T + aIdx]++
+
+      // What-If locked result: points/standing are fixed; margin and OT-vs-SO are simulated
+      if (g.whatIfLock) {
+        const homeWon = hScore > aScore
+        const winner = homeWon ? home : away
+        const loser = homeWon ? away : home
+        const wIdx = homeWon ? hIdx : aIdx
+        const lIdx = homeWon ? aIdx : hIdx
+        if (g.whatIfLock === "reg") {
+          winner.w++
+          winner.row++
+          winner.pts += 3
+          loser.l++
+          basePts[wIdx] += 3
+          baseRow[wIdx]++
+          baseH2hPts[wIdx * T + lIdx] += 3
+        } else {
+          winner.otw++
+          winner.pts += 2
+          loser.otl++
+          loser.pts += 1
+          basePts[wIdx] += 2
+          basePts[lIdx] += 1
+          baseH2hPts[wIdx * T + lIdx] += 2
+          baseH2hPts[lIdx * T + wIdx] += 1
+          uncertainRowWins[wIdx]++
+        }
+        lockedSimGames.push({ winner: wIdx, loser: lIdx, kind: g.whatIfLock })
+        continue
+      }
+
       away.gf += aScore
       away.ga += hScore
       home.gf += hScore
@@ -582,54 +694,43 @@ function parseSeasonState(
       baseGd[aIdx] += aScore - hScore
       baseGd[hIdx] += hScore - aScore
 
-      if (!g.isForfeit) {
-        away.gpPlayed++
-        away.gfPlayed += aScore
-        away.gaPlayed += hScore
-        home.gpPlayed++
-        home.gfPlayed += hScore
-        home.gaPlayed += aScore
-      }
-
-      baseH2hGames[aIdx * T + hIdx]++
-      baseH2hGames[hIdx * T + aIdx]++
-
       const isExtra = g.isOvertime || g.hasShootout
       const isSO = g.hasShootout
 
-      if (hScore > aScore) {
-        if (isExtra) {
-          if (isSO) {
-            home.sow++
-          } else {
-            home.otw++
-            home.row++
-            baseRow[hIdx]++
-          }
-          home.pts += 2
-          away.otl++
-          away.pts += 1
-          basePts[hIdx] += 2
-          basePts[aIdx] += 1
-          baseH2hPts[hIdx * T + aIdx] += 2
-          baseH2hPts[aIdx * T + hIdx] += 1
-        } else {
-          home.w++
-          home.row++
-          home.pts += 3
-          away.l++
-          basePts[hIdx] += 3
-          baseRow[hIdx]++
-          baseH2hPts[hIdx * T + aIdx] += 3
-        }
+      if (!g.isForfeit) {
+        // Exclude the shootout-deciding goal from strength inputs (not an open-play goal)
+        const soAdj = isSO && hScore !== aScore ? 1 : 0
+        const homeAdj = soAdj && hScore > aScore ? 1 : 0
+        const awayAdj = soAdj && aScore > hScore ? 1 : 0
+        away.gpPlayed++
+        away.gfPlayed += aScore - awayAdj
+        away.gaPlayed += hScore - homeAdj
+        home.gpPlayed++
+        home.gfPlayed += hScore - homeAdj
+        home.gaPlayed += aScore - awayAdj
+      }
 
+      // Historical tie (pre-shootout seasons): 1 point each, no ROW
+      if (hScore === aScore) {
+        home.ties++
+        away.ties++
+        home.pts += 1
+        away.pts += 1
+        basePts[hIdx] += 1
+        basePts[aIdx] += 1
+        baseH2hPts[hIdx * T + aIdx] += 1
+        baseH2hPts[aIdx * T + hIdx] += 1
+        if (!g.isForfeit) {
+          home.ptsPlayed += 1
+          away.ptsPlayed += 1
+        }
         home.lastGame = {
           gameId: g.id,
           date: g.date,
           opponentSlug: away.slug,
           opponentName: away.name,
           isHome: true,
-          resultLabel: g.isForfeit ? "FFW" : isSO ? "SOW" : isExtra ? "OTW" : "W",
+          resultLabel: "T",
           teamScore: hScore,
           opponentScore: aScore,
         }
@@ -639,56 +740,70 @@ function parseSeasonState(
           opponentSlug: home.slug,
           opponentName: home.name,
           isHome: false,
-          resultLabel: g.isForfeit ? "FFL" : isSO ? "SOL" : isExtra ? "OTL" : "L",
+          resultLabel: "T",
           teamScore: aScore,
           opponentScore: hScore,
+        }
+        continue
+      }
+
+      const homeWon = hScore > aScore
+      const winner = homeWon ? home : away
+      const loser = homeWon ? away : home
+      const wIdx = homeWon ? hIdx : aIdx
+      const lIdx = homeWon ? aIdx : hIdx
+
+      if (isExtra) {
+        if (isSO) {
+          winner.sow++
+        } else {
+          winner.otw++
+          winner.row++
+          baseRow[wIdx]++
+        }
+        winner.pts += 2
+        loser.otl++
+        loser.pts += 1
+        basePts[wIdx] += 2
+        basePts[lIdx] += 1
+        baseH2hPts[wIdx * T + lIdx] += 2
+        baseH2hPts[lIdx * T + wIdx] += 1
+        if (!g.isForfeit) {
+          winner.ptsPlayed += 2
+          loser.ptsPlayed += 1
         }
       } else {
-        if (isExtra) {
-          if (isSO) {
-            away.sow++
-          } else {
-            away.otw++
-            away.row++
-            baseRow[aIdx]++
-          }
-          away.pts += 2
-          home.otl++
-          home.pts += 1
-          basePts[aIdx] += 2
-          basePts[hIdx] += 1
-          baseH2hPts[aIdx * T + hIdx] += 2
-          baseH2hPts[hIdx * T + aIdx] += 1
-        } else {
-          away.w++
-          away.row++
-          away.pts += 3
-          home.l++
-          basePts[aIdx] += 3
-          baseRow[aIdx]++
-          baseH2hPts[aIdx * T + hIdx] += 3
-        }
+        winner.w++
+        winner.row++
+        winner.pts += 3
+        loser.l++
+        basePts[wIdx] += 3
+        baseRow[wIdx]++
+        baseH2hPts[wIdx * T + lIdx] += 3
+        if (!g.isForfeit) winner.ptsPlayed += 3
+      }
 
-        away.lastGame = {
-          gameId: g.id,
-          date: g.date,
-          opponentSlug: home.slug,
-          opponentName: home.name,
-          isHome: false,
-          resultLabel: g.isForfeit ? "FFW" : isSO ? "SOW" : isExtra ? "OTW" : "W",
-          teamScore: aScore,
-          opponentScore: hScore,
-        }
-        home.lastGame = {
-          gameId: g.id,
-          date: g.date,
-          opponentSlug: away.slug,
-          opponentName: away.name,
-          isHome: true,
-          resultLabel: g.isForfeit ? "FFL" : isSO ? "SOL" : isExtra ? "OTL" : "L",
-          teamScore: hScore,
-          opponentScore: aScore,
-        }
+      const wScore = homeWon ? hScore : aScore
+      const lScore = homeWon ? aScore : hScore
+      winner.lastGame = {
+        gameId: g.id,
+        date: g.date,
+        opponentSlug: loser.slug,
+        opponentName: loser.name,
+        isHome: homeWon,
+        resultLabel: g.isForfeit ? "FFW" : isSO ? "SOW" : isExtra ? "OTW" : "W",
+        teamScore: wScore,
+        opponentScore: lScore,
+      }
+      loser.lastGame = {
+        gameId: g.id,
+        date: g.date,
+        opponentSlug: winner.slug,
+        opponentName: winner.name,
+        isHome: !homeWon,
+        resultLabel: g.isForfeit ? "FFL" : isSO ? "SOL" : isExtra ? "OTL" : "L",
+        teamScore: lScore,
+        opponentScore: wScore,
       }
     } else if (!treatUpcomingAsCancelled) {
       remainingGames.push(g)
@@ -734,6 +849,8 @@ function parseSeasonState(
     baseH2hGames,
     rpiValues,
     rpiRanks,
+    lockedSimGames,
+    uncertainRowWins,
   }
 }
 
@@ -779,10 +896,11 @@ function computeRpi(
   }
 
   const rpiValues = teams.map((_, i) => 0.25 * wp[i] + 0.5 * owp[i] + 0.25 * oowp[i])
-  const indices = teams.map((_, i) => i).sort((a, b) => rpiValues[b] - rpiValues[a])
-  const rpiRanks = new Array<number>(T).fill(1)
-  indices.forEach((teamIdx, pos) => {
-    rpiRanks[teamIdx] = pos + 1
+  // Competition ranking: exactly tied RPI values share a rank (no alphabetical tiebreak)
+  const rpiRanks = teams.map((_, i) => {
+    let higher = 0
+    for (let j = 0; j < T; j++) if (rpiValues[j] > rpiValues[i] + 1e-12) higher++
+    return higher + 1
   })
   return { rpiValues, rpiRanks }
 }
@@ -852,6 +970,106 @@ function resolveFinalBlocksWithDrawLots(state: ParsedSeasonState): {
   return { fwdOrder, blockStartByIdx, blockEndByIdx }
 }
 
+/**
+ * Tiny max-flow feasibility check (Edmonds–Karp on an adjacency matrix).
+ * Distributes each game's 3 points (any integer split 3-0 / 2-1 / 1-2 / 0-3 is possible under
+ * BASH 3-2-1 scoring) between its two teams so that each team receives at least `need[team]`.
+ * Returns true when every team's need can be met simultaneously.
+ */
+function canMeetPointNeeds(
+  games: ReadonlyArray<readonly [number, number]>,
+  teams: readonly number[],
+  need: (team: number) => number
+): boolean {
+  let totalNeed = 0
+  const needByTeam = new Map<number, number>()
+  for (const t of teams) {
+    const n = Math.max(0, need(t))
+    needByTeam.set(t, n)
+    totalNeed += n
+  }
+  if (totalNeed === 0) return true
+  if (3 * games.length < totalNeed) return false
+
+  // Nodes: 0 = source, 1..G = games, G+1..G+M = teams, G+M+1 = sink
+  const G = games.length
+  const M = teams.length
+  const N = G + M + 2
+  const sink = N - 1
+  const teamNode = new Map<number, number>()
+  teams.forEach((t, i) => teamNode.set(t, G + 1 + i))
+  const cap = new Int32Array(N * N)
+  for (let g = 0; g < G; g++) {
+    cap[0 * N + (g + 1)] = 3
+    const [u, v] = games[g]
+    const nu = teamNode.get(u)
+    const nv = teamNode.get(v)
+    if (nu !== undefined) cap[(g + 1) * N + nu] = 3
+    if (nv !== undefined) cap[(g + 1) * N + nv] = 3
+  }
+  for (const t of teams) cap[teamNode.get(t)! * N + sink] = needByTeam.get(t)!
+
+  let flow = 0
+  const parent = new Int32Array(N)
+  for (;;) {
+    parent.fill(-1)
+    parent[0] = 0
+    const queue = [0]
+    for (let qi = 0; qi < queue.length && parent[sink] === -1; qi++) {
+      const x = queue[qi]
+      for (let y = 0; y < N; y++) {
+        if (parent[y] === -1 && cap[x * N + y] > 0) {
+          parent[y] = x
+          queue.push(y)
+        }
+      }
+    }
+    if (parent[sink] === -1) break
+    let bottleneck = Infinity
+    for (let y = sink; y !== 0; y = parent[y]) bottleneck = Math.min(bottleneck, cap[parent[y] * N + y])
+    for (let y = sink; y !== 0; y = parent[y]) {
+      cap[parent[y] * N + y] -= bottleneck
+      cap[y * N + parent[y]] += bottleneck
+    }
+    flow += bottleneck
+    if (flow >= totalNeed) return true
+  }
+  return flow >= totalNeed
+}
+
+function forEachSubset(items: readonly number[], size: number, visit: (subset: number[]) => boolean): void {
+  const chosen: number[] = []
+  let stop = false
+  const rec = (start: number) => {
+    if (stop) return
+    if (chosen.length === size) {
+      if (visit(chosen)) stop = true
+      return
+    }
+    for (let i = start; i <= items.length - (size - chosen.length); i++) {
+      chosen.push(items[i])
+      rec(i + 1)
+      chosen.pop()
+      if (stop) return
+    }
+  }
+  rec(0)
+}
+
+/**
+ * Exact (points-level) clinch / elimination using max-flow over the remaining schedule.
+ *
+ * Clinched: in EVERY completion t finishes in the top `spots`. We look for a counterexample
+ * where t loses out in regulation and some set R of `spots` rivals all reach t's total
+ * (ties count against t unless the rival can never match t's minimum ROW).
+ *
+ * Eliminated: in EVERY completion at least `spots` rivals finish ahead. We look for a
+ * counterexample where t wins out in regulation and at most `spots-1` rivals finish above t
+ * (ties count in t's favor unless the rival already has more ROW than t can reach).
+ *
+ * Tiebreakers beyond ROW (H2H, GD) are treated conservatively, so neither label is ever
+ * awarded falsely — at worst a decided team shows ">99.9%" / "<0.1%".
+ */
 function computeExactClinchElim(
   state: ParsedSeasonState,
   format: PlayoffFormat
@@ -866,7 +1084,7 @@ function computeExactClinchElim(
     return { clinched, eliminated }
   }
 
-  if (state.remainingGames.length === 0) {
+  if (state.remainingGames.length === 0 && state.lockedSimGames.length === 0) {
     const { blockStartByIdx, blockEndByIdx } = resolveFinalBlocksWithDrawLots(state)
     for (let i = 0; i < T; i++) {
       const bestPossibleSeed = blockStartByIdx[i] + 1
@@ -877,100 +1095,152 @@ function computeExactClinchElim(
     return { clinched, eliminated }
   }
 
-  // Precompute pairwise remaining game counts between teams
-  const remPair = new Int16Array(T * T)
-  for (const g of state.remainingGames) {
-    const a = state.slugToIdx.get(g.awaySlug)!
-    const h = state.slugToIdx.get(g.homeSlug)!
-    remPair[a * T + h]++
-    remPair[h * T + a]++
+  const pairs: Array<readonly [number, number]> = state.remainingGames.map(
+    (g) => [state.slugToIdx.get(g.awaySlug)!, state.slugToIdx.get(g.homeSlug)!] as const
+  )
+  const rem = state.teams.map((t) => t.gamesRemaining)
+  const minRow = (i: number) => state.baseRow[i]
+  const maxRow = (i: number) => state.baseRow[i] + rem[i] + state.uncertainRowWins[i]
+
+  const binomialExceeds = (n: number, k: number, limit: number): boolean => {
+    if (k < 0 || k > n) return false
+    const kk = Math.min(k, n - k)
+    let res = 1
+    for (let i = 1; i <= kk; i++) {
+      res = (res * (n - kk + i)) / i
+      if (res > limit) return true
+    }
+    return false
   }
+  const MAX_SUBSETS = 2_000
+  const skipClinchExact = binomialExceeds(T - 1, spots, MAX_SUBSETS)
+  const skipElimExact = binomialExceeds(T - 1, Math.min(spots - 1, T - 1), MAX_SUBSETS)
 
   for (let t = 0; t < T; t++) {
+    const rivals = Array.from({ length: T }, (_, i) => i).filter((i) => i !== t)
+
+    // ── Clinch: can `spots` rivals all reach t's minimum total while t loses out? ──
     const tMinPts = state.basePts[t]
-    const tMaxPts = state.basePts[t] + 3 * state.teams[t].gamesRemaining
-    const tMinRow = state.baseRow[t]
-    const tMaxRow = state.baseRow[t] + state.teams[t].gamesRemaining
-
-    // 1. Conservative Elimination Check:
-    // Count rivals guaranteed strictly above t on PTS, or tied at t's max PTS with strictly unreachable ROW.
-    // Step 2 (ROW) is invariant to third teams joining the tie and to Step 6 Draw Lots.
-    let guaranteedAbove = 0
-    for (let r = 0; r < T; r++) {
-      if (r === t) continue
-      const rMinPts = state.basePts[r]
-      const rMinRow = state.baseRow[r]
-      if (rMinPts > tMaxPts || (rMinPts === tMaxPts && rMinRow > tMaxRow)) {
-        guaranteedAbove++
-      }
+    const tMinRow = minRow(t)
+    // Points each rival needs to finish at/above t (strictly above if it can never win the ROW tiebreak)
+    const clinchTarget = (r: number) =>
+      tMinPts + (maxRow(r) < tMinRow ? 1 : 0)
+    let counterexample = skipClinchExact
+    if (!skipClinchExact && rivals.length >= spots) {
+      forEachSubset(rivals, spots, (R) => {
+        const inR = new Set(R)
+        // Points each R member banks for free: wins over t and over non-R teams
+        const freePts = new Map<number, number>()
+        const internal: Array<readonly [number, number]> = []
+        for (const r of R) freePts.set(r, 0)
+        for (const [u, v] of pairs) {
+          const uIn = inR.has(u)
+          const vIn = inR.has(v)
+          if (uIn && vIn) internal.push([u, v])
+          else if (uIn) freePts.set(u, freePts.get(u)! + 3)
+          else if (vIn) freePts.set(v, freePts.get(v)! + 3)
+        }
+        const ok = canMeetPointNeeds(
+          internal,
+          R,
+          (r) => clinchTarget(r) - state.basePts[r] - freePts.get(r)!
+        )
+        if (ok) counterexample = true
+        return ok
+      })
     }
-    if (guaranteedAbove >= spots) {
-      eliminated[t] = true
-      continue
-    }
-
-    // 2. Conservative Clinch Check (with rival shared-game point-pool conservation):
-    // Rivals who individually can finish strictly ahead of tMinPts, or tie at tMinPts without losing on ROW.
-    const contenders: number[] = []
-    for (let r = 0; r < T; r++) {
-      if (r === t) continue
-      const rMaxPts = state.basePts[r] + 3 * state.teams[r].gamesRemaining
-      const rMaxRow = state.baseRow[r] + state.teams[r].gamesRemaining
-      if (rMaxPts > tMinPts || (rMaxPts === tMinPts && rMaxRow >= tMinRow)) {
-        contenders.push(r)
-      }
-    }
-
-    if (contenders.length < spots) {
+    if (!counterexample) {
       clinched[t] = true
       continue
     }
 
-    // Subset point-pool check for small leagues (T <= 12):
-    // Can ANY subset of `spots` rivals simultaneously finish >= tMinPts?
-    if (contenders.length <= 10) {
-      let anySubsetCanBeat = false
-      const chosen: number[] = []
-
-      const dfs = (idx: number) => {
-        if (anySubsetCanBeat) return
-        if (chosen.length === spots) {
-          let neededPts = 0
-          let internalGamesTwice = 0
-          let externalGames = 0
-          for (let i = 0; i < spots; i++) {
-            const u = chosen[i]
-            neededPts += Math.max(0, tMinPts - state.basePts[u])
-            let remWithSubset = 0
-            for (let j = 0; j < spots; j++) {
-              if (i !== j) remWithSubset += remPair[u * T + chosen[j]]
-            }
-            internalGamesTwice += remWithSubset
-            externalGames += state.teams[u].gamesRemaining - remWithSubset
-          }
-          const maxAvailablePts = 3 * (internalGamesTwice / 2) + 3 * externalGames
-          if (maxAvailablePts >= neededPts) {
-            anySubsetCanBeat = true
-          }
-          return
-        }
-        if (idx >= contenders.length || contenders.length - idx < spots - chosen.length) {
-          return
-        }
-        chosen.push(contenders[idx])
-        dfs(idx + 1)
-        chosen.pop()
-        dfs(idx + 1)
+    // ── Elimination: can t win out and have at most spots-1 rivals finish above it? ──
+    const tMaxPts = state.basePts[t] + 3 * rem[t]
+    const tMaxRow = maxRow(t)
+    // Max points a rival may finish with and still not be above t
+    const elimCap = (r: number) => tMaxPts - (minRow(r) > tMaxRow ? 1 : 0)
+    const gamesWithoutT = pairs.filter(([u, v]) => u !== t && v !== t)
+    let escape = skipElimExact
+    if (!skipElimExact) {
+      forEachSubset(rivals, Math.min(spots - 1, rivals.length), (S) => {
+      const inS = new Set(S)
+      const constrained = rivals.filter((r) => !inS.has(r))
+      // Constrained teams must stay at or below their cap; S teams may finish above t.
+      // Games involving an S team give all points to the S team; games vs t are wins for t.
+      for (const r of constrained) {
+        if (state.basePts[r] > elimCap(r)) return false
       }
-
-      dfs(0)
-      if (!anySubsetCanBeat) {
-        clinched[t] = true
-      }
+      const constrainedSet = new Set(constrained)
+      const internal = gamesWithoutT.filter(([u, v]) => constrainedSet.has(u) && constrainedSet.has(v))
+      // Feasible iff internal points (3 per game) fit under the caps: equivalently each game's
+      // 3 points must be absorbed by remaining capacity → a need of 3*games against capacities.
+      const capacity = (r: number) => elimCap(r) - state.basePts[r]
+      let totalCap = 0
+      for (const r of constrained) totalCap += capacity(r)
+      if (3 * internal.length > totalCap) return false
+      // Max-flow: games (3 each) -> constrained teams (capacity) ; need full saturation of games
+      const ok = canAbsorbGamePoints(internal, constrained, capacity)
+      if (ok) escape = true
+      return ok
+      })
     }
+    if (!escape) eliminated[t] = true
   }
 
   return { clinched, eliminated }
+}
+
+/**
+ * Max-flow check that every game's 3 points can be assigned to its two teams without any team
+ * exceeding `capacity(team)`.
+ */
+function canAbsorbGamePoints(
+  games: ReadonlyArray<readonly [number, number]>,
+  teams: readonly number[],
+  capacity: (team: number) => number
+): boolean {
+  if (games.length === 0) return true
+  const G = games.length
+  const M = teams.length
+  const N = G + M + 2
+  const sink = N - 1
+  const teamNode = new Map<number, number>()
+  teams.forEach((t, i) => teamNode.set(t, G + 1 + i))
+  const cap = new Int32Array(N * N)
+  for (let g = 0; g < G; g++) {
+    cap[g + 1] = 3
+    const [u, v] = games[g]
+    cap[(g + 1) * N + teamNode.get(u)!] = 3
+    cap[(g + 1) * N + teamNode.get(v)!] = 3
+  }
+  for (const t of teams) cap[teamNode.get(t)! * N + sink] = Math.max(0, capacity(t))
+  const required = 3 * G
+  let flow = 0
+  const parent = new Int32Array(N)
+  for (;;) {
+    parent.fill(-1)
+    parent[0] = 0
+    const queue = [0]
+    for (let qi = 0; qi < queue.length && parent[sink] === -1; qi++) {
+      const x = queue[qi]
+      for (let y = 0; y < N; y++) {
+        if (parent[y] === -1 && cap[x * N + y] > 0) {
+          parent[y] = x
+          queue.push(y)
+        }
+      }
+    }
+    if (parent[sink] === -1) break
+    let bottleneck = Infinity
+    for (let y = sink; y !== 0; y = parent[y]) bottleneck = Math.min(bottleneck, cap[parent[y] * N + y])
+    for (let y = sink; y !== 0; y = parent[y]) {
+      cap[parent[y] * N + y] -= bottleneck
+      cap[y * N + parent[y]] += bottleneck
+    }
+    flow += bottleneck
+    if (flow >= required) return true
+  }
+  return flow >= required
 }
 
 // ─── Core Monte Carlo Kernel ─────────────────────────────────────────────────
@@ -978,12 +1248,7 @@ function computeExactClinchElim(
 interface PrecomputedGame {
   awayIdx: number
   homeIdx: number
-  /** Cumulative 6-outcome probabilities: [homeReg, homeOt, homeSo, awaySo, awayOt, 1.0] */
-  c0: number
-  c1: number
-  c2: number
-  c3: number
-  c4: number
+  /** Point-estimate win probabilities (display only; simulation draws per-iteration probabilities) */
   homeWinProb: number
   awayWinProb: number
   bigGameIdx: number // -1 if not tracked in Big Games window
@@ -1003,55 +1268,123 @@ interface CoreSimResult {
   whatIfRows: WhatIfRecordRow[][]
 }
 
-function buildPrecomputedGames(
-  state: ParsedSeasonState,
-  strengths: number[],
-  calibration: CalibrationProfile,
-  trackedGameIdToBigIdx: Map<string, number>
-): PrecomputedGame[] {
-  return state.remainingGames.map((g) => {
-    const awayIdx = state.slugToIdx.get(g.awaySlug)!
-    const homeIdx = state.slugToIdx.get(g.homeSlug)!
-    const pHome = log5(strengths[homeIdx], strengths[awayIdx])
-    const closeness = 4 * pHome * (1 - pHome) // 1.0 for 50/50, shrinks for mismatches
-    const extraScale = 0.5 + 0.5 * closeness
-    const pOt = calibration.otRate * extraScale
-    const pSo = calibration.soRate * extraScale
-    const pReg = 1 - pOt - pSo
+/** Conditional home-win share slopes inside overtime and shootouts (OT favors the stronger team more than SO). */
+const OT_HOME_SLOPE = 0.7
+const SO_HOME_SLOPE = 0.3
+/** Upper bound on the per-game extra-time probability after normalization. */
+const MAX_EXTRA_TIME_PROB = 0.6
+/**
+ * Convert the Log5 strength-scale probability into a regulation propensity so the simulated
+ * expected 3-2-1 points share matches Log5 exactly (removes the ~9% "double compression" that
+ * occurs when OT/SO 2-1 splits are layered on top of a points-%-calibrated strength).
+ */
+const DECOMPRESS_POINTS = true
+/** Big Games: minimum samples per outcome before a cell is considered stable (else flagged `*`). */
+const BIG_GAME_LOW_SAMPLE = 500
+/** Big Games: a scoreboard-watching team is shown only if its swing clears both floors. */
+const WATCH_MIN_PLAYOFF_SWING = 0.5
+const WATCH_MIN_SEED_SWING = 0.15
+const WATCH_MIN_Z = 2.5
 
-    const pHomeReg = pReg * pHome
-    const pHomeOt = pOt * (0.5 + 0.7 * (pHome - 0.5))
-    const pHomeSo = pSo * (0.5 + 0.3 * (pHome - 0.5))
-    const pAwaySo = pSo - pHomeSo
-    const pAwayOt = pOt - pHomeOt
-
-    const c0 = pHomeReg
-    const c1 = c0 + pHomeOt
-    const c2 = c1 + pHomeSo
-    const c3 = c2 + pAwaySo
-    const c4 = c3 + pAwayOt
-
-    const homeWinProb = pHomeReg + pHomeOt + pHomeSo
-    return {
-      awayIdx,
-      homeIdx,
-      c0,
-      c1,
-      c2,
-      c3,
-      c4,
-      homeWinProb,
-      awayWinProb: 1 - homeWinProb,
-      bigGameIdx: trackedGameIdToBigIdx.get(g.id) ?? -1,
-    }
-  })
+function extraTimeCloseness(pHome: number): number {
+  return 0.5 + 0.5 * (4 * pHome * (1 - pHome))
 }
 
-function sampleRegMargin(u: number): number {
-  for (let i = 0; i < REG_MARGIN_CDF.length; i++) {
-    if (u <= REG_MARGIN_CDF[i]) return i + 1
+/**
+ * Writes cumulative 6-outcome probabilities [homeReg, homeOt, homeSo, awaySo, awayOt] into `out`
+ * (the remaining mass is the away regulation win) and returns the home win probability.
+ */
+function fillOutcomeCdf(
+  pHome: number,
+  calibration: CalibrationProfile,
+  extraNorm: number,
+  out: Float64Array,
+  off: number
+): number {
+  const scale = extraTimeCloseness(pHome) * extraNorm
+  let pOt = calibration.otRate * scale
+  let pSo = calibration.soRate * scale
+  const extra = pOt + pSo
+  if (extra > MAX_EXTRA_TIME_PROB) {
+    pOt *= MAX_EXTRA_TIME_PROB / extra
+    pSo *= MAX_EXTRA_TIME_PROB / extra
+  }
+  const pReg = 1 - pOt - pSo
+  let q = pHome
+  if (DECOMPRESS_POINTS) {
+    const k = (3 * pReg + OT_HOME_SLOPE * pOt + SO_HOME_SLOPE * pSo) / 3
+    if (k > 0) q = Math.max(0.02, Math.min(0.98, 0.5 + (pHome - 0.5) / k))
+  }
+  const d = q - 0.5
+  const pHomeReg = pReg * q
+  const pHomeOt = pOt * (0.5 + OT_HOME_SLOPE * d)
+  const pHomeSo = pSo * (0.5 + SO_HOME_SLOPE * d)
+  const pAwaySo = pSo - pHomeSo
+  const pAwayOt = pOt - pHomeOt
+  out[off] = pHomeReg
+  out[off + 1] = out[off] + pHomeOt
+  out[off + 2] = out[off + 1] + pHomeSo
+  out[off + 3] = out[off + 2] + pAwaySo
+  out[off + 4] = out[off + 3] + pAwayOt
+  return pHomeReg + pHomeOt + pHomeSo
+}
+
+/**
+ * Normalizes the matchup-closeness extra-time scaling so the league-average OT+SO rate across
+ * the season's matchups equals the calibrated target (closeness alone can only lower the rate).
+ */
+function computeExtraTimeNorm(
+  pairs: ReadonlyArray<readonly [number, number]>,
+  strengths: number[]
+): number {
+  if (pairs.length === 0) return 1
+  let sum = 0
+  for (const [a, h] of pairs) sum += extraTimeCloseness(log5(strengths[h], strengths[a]))
+  const mean = sum / pairs.length
+  return mean > 0 ? 1 / mean : 1
+}
+
+function sampleRegMargin(u: number, cdf: readonly number[]): number {
+  for (let i = 0; i < cdf.length; i++) {
+    if (u <= cdf[i]) return i + 1
   }
   return 1
+}
+
+// ─── Bayesian strength sampling (Marsaglia–Tsang Gamma → Beta) ────────────────
+
+function sampleStdNormal(rand: () => number): number {
+  const u1 = rand() || 1e-12
+  const u2 = rand()
+  return Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2)
+}
+
+function sampleGamma(shape: number, rand: () => number): number {
+  if (shape < 1) {
+    const u = rand() || 1e-12
+    return sampleGamma(shape + 1, rand) * Math.pow(u, 1 / shape)
+  }
+  const d = shape - 1 / 3
+  const c = 1 / Math.sqrt(9 * d)
+  for (;;) {
+    let x: number
+    let v: number
+    do {
+      x = sampleStdNormal(rand)
+      v = 1 + c * x
+    } while (v <= 0)
+    v = v * v * v
+    const u = rand() || 1e-12
+    if (u < 1 - 0.0331 * x * x * x * x) return d * v
+    if (Math.log(u) < 0.5 * x * x + d * (1 - v + Math.log(v))) return d * v
+  }
+}
+
+function sampleBeta(alpha: number, beta: number, rand: () => number): number {
+  const x = sampleGamma(alpha, rand)
+  const y = sampleGamma(beta, rand)
+  const sum = x + y
+  return sum > 0 ? x / sum : 0.5
 }
 
 function runCoreSimulation(opts: {
@@ -1083,19 +1416,21 @@ function runCoreSimulation(opts: {
   const T = state.teams.length
   const spots = format.playoffSpots
   const byeSpots = format.directByeSpots
+  const marginCdf = calibration.regMarginCdf
+  const loserGoals = calibration.regLoserGoals
+  const otShare =
+    calibration.otRate + calibration.soRate > 0
+      ? calibration.otRate / (calibration.otRate + calibration.soRate)
+      : 1
 
-  // 1. Compute team strengths from actual completed games (strengthState) so What-If lockedOutcomes
+  // 1. Point-estimate strengths from actual completed games (strengthState) so What-If lockedOutcomes
   // do not cause strength drift across other remaining games
   const strengths = new Array<number>(T).fill(0.5)
   const rawPythPcts = new Array<number>(T).fill(0.5)
+  const kappa = new Float64Array(T)
   for (let i = 0; i < T; i++) {
     const t = strengthState.teams[i] ?? state.teams[i]
-    const weighted = computeWeightedStrength(
-      t.gfPlayed,
-      t.gaPlayed,
-      t.gpPlayed,
-      calibration
-    )
+    const weighted = computeWeightedStrength(t.gfPlayed, t.gaPlayed, t.gpPlayed, calibration)
     rawPythPcts[i] = weighted.rawPythPct
     if (mode === "50_50") {
       strengths[i] = 0.5
@@ -1104,10 +1439,15 @@ function runCoreSimulation(opts: {
     } else {
       strengths[i] = weighted.strength
     }
+    // Posterior concentration ~ effective sample size (games observed + prior games)
+    const priorGames = calibration.ebShrinkageGames + (calibration.goalPriorGames ?? 0)
+    kappa[i] = calibration.strengthConcentration * (t.gpPlayed + priorGames)
   }
+  const sampleStrengths = mode !== "50_50" && calibration.strengthConcentration > 0
+  const lockedSim = state.lockedSimGames
 
-  // Fast path: 0 remaining games (completed, ended early, or all remaining games locked in What-If)
-  if (state.remainingGames.length === 0) {
+  // Fast path: 0 remaining games and nothing left to simulate (completed or ended early)
+  if (state.remainingGames.length === 0 && lockedSim.length === 0) {
     const { blockStartByIdx, blockEndByIdx } = resolveFinalBlocksWithDrawLots(state)
     const playoffPct = new Array<number>(T).fill(0)
     const directByePct = new Array<number>(T).fill(0)
@@ -1174,14 +1514,63 @@ function runCoreSimulation(opts: {
     }
   }
 
-  const preGames = buildPrecomputedGames(
-    state,
-    strengths,
-    calibration,
-    trackedGameIdToBigIdx
-  )
-  const G = preGames.length
+  // League-average OT/SO normalization over the season's matchups (completed + remaining)
+  const seasonPairs: Array<readonly [number, number]> = []
+  for (const g of [...state.completedGames, ...state.remainingGames]) {
+    const a = state.slugToIdx.get(g.awaySlug)
+    const h = state.slugToIdx.get(g.homeSlug)
+    if (a !== undefined && h !== undefined) seasonPairs.push([a, h])
+  }
+  const extraNorm = computeExtraTimeNorm(seasonPairs, strengths)
+
+  const G = state.remainingGames.length
+  const displayCdf = new Float64Array(5)
+  const preGames: PrecomputedGame[] = state.remainingGames.map((g) => {
+    const awayIdx = state.slugToIdx.get(g.awaySlug)!
+    const homeIdx = state.slugToIdx.get(g.homeSlug)!
+    const homeWinProb = fillOutcomeCdf(
+      log5(strengths[homeIdx], strengths[awayIdx]),
+      calibration,
+      extraNorm,
+      displayCdf,
+      0
+    )
+    return {
+      awayIdx,
+      homeIdx,
+      homeWinProb,
+      awayWinProb: 1 - homeWinProb,
+      bigGameIdx: trackedGameIdToBigIdx.get(g.id) ?? -1,
+    }
+  })
   const K = trackedGames.length
+
+  // Per-iteration outcome CDFs (fixed when strengths are not sampled, e.g. 50/50 mode)
+  const gameCdf = new Float64Array(G * 5)
+  const theta = new Float64Array(T)
+  const fillAllGameCdfs = (teamStrength: ArrayLike<number>) => {
+    for (let g = 0; g < G; g++) {
+      const game = preGames[g]
+      fillOutcomeCdf(
+        log5(teamStrength[game.homeIdx], teamStrength[game.awayIdx]),
+        calibration,
+        extraNorm,
+        gameCdf,
+        g * 5
+      )
+    }
+  }
+  if (!sampleStrengths) fillAllGameCdfs(strengths)
+
+  const drawIterationStrengths = (rng: () => number) => {
+    if (!sampleStrengths) return
+    for (let i = 0; i < T; i++) {
+      const s = strengths[i]
+      const k = Math.max(2, kappa[i])
+      theta[i] = clampStrength(sampleBeta(k * s, k * (1 - s), rng))
+    }
+    fillAllGameCdfs(theta)
+  }
 
   // 3. Allocate flat accumulators (zero allocations inside hot loop!)
   const playoffHits = new Int32Array(T)
@@ -1196,6 +1585,7 @@ function runCoreSimulation(opts: {
   const bgOutcomeCounts = new Int32Array(K * 4)
   const bgPlayoffHits = new Int32Array(K * 4 * T)
   const bgSeedSums = new Float64Array(K * 4 * T)
+  const bgSeedSqSums = new Float64Array(K * 4 * T)
   const iterBgOutcome = new Int8Array(K)
 
   // What-If finish-points accumulators
@@ -1219,116 +1609,106 @@ function runCoreSimulation(opts: {
   const seedOf = new Int16Array(T)
   const h2hPctScratch = new Float64Array(T)
 
-  const rand = createPrng(seed)
-
-  // 4. Main Monte Carlo Loop
-  for (let iter = 0; iter < iterations; iter++) {
+  const resetIteration = () => {
     pts.set(state.basePts)
     row.set(state.baseRow)
     gd.set(state.baseGd)
     gf.set(state.baseGf)
     h2hPts.set(state.baseH2hPts)
     h2hGames.set(state.baseH2hGames)
+  }
+
+  /** Regulation win for `w` over `l` with a simulated margin. */
+  const applyRegWin = (w: number, l: number, rng: () => number) => {
+    const margin = sampleRegMargin(rng(), marginCdf)
+    pts[w] += 3
+    row[w] += 1
+    gd[w] += margin
+    gd[l] -= margin
+    gf[w] += loserGoals + margin
+    gf[l] += loserGoals
+    h2hPts[w * T + l] += 3
+  }
+  /** OT (countsRow) or SO win for `w` over `l` (2-1 points, one-goal decision). */
+  const applyExtraWin = (w: number, l: number, countsRow: boolean) => {
+    pts[w] += 2
+    pts[l] += 1
+    if (countsRow) row[w] += 1
+    gd[w] += 1
+    gd[l] -= 1
+    gf[w] += loserGoals + 1
+    gf[l] += loserGoals
+    h2hPts[w * T + l] += 2
+    h2hPts[l * T + w] += 1
+  }
+  /** What-If locked results: points/H2H are fixed in base state; margin and OT-vs-SO (ROW) are simulated. */
+  const applyLockedSimGames = (rng: () => number) => {
+    for (let i = 0; i < lockedSim.length; i++) {
+      const lk = lockedSim[i]
+      if (lk.kind === "reg") {
+        const margin = sampleRegMargin(rng(), marginCdf)
+        gd[lk.winner] += margin
+        gd[lk.loser] -= margin
+        gf[lk.winner] += loserGoals + margin
+        gf[lk.loser] += loserGoals
+      } else {
+        if (rng() < otShare) row[lk.winner] += 1
+        gd[lk.winner] += 1
+        gd[lk.loser] -= 1
+        gf[lk.winner] += loserGoals + 1
+        gf[lk.loser] += loserGoals
+      }
+    }
+  }
+  /** Simulates game `g` from its CDF; returns the Big Games bucket (0=away_reg,1=away_ot,2=home_ot,3=home_reg). */
+  const simulateGame = (g: number, rng: () => number): number => {
+    const game = preGames[g]
+    const a = game.awayIdx
+    const h = game.homeIdx
+    const off = g * 5
+    const u = rng()
+    let bucket: number
+    if (u < gameCdf[off]) {
+      applyRegWin(h, a, rng)
+      bucket = 3
+    } else if (u < gameCdf[off + 1]) {
+      applyExtraWin(h, a, true)
+      bucket = 2
+    } else if (u < gameCdf[off + 2]) {
+      applyExtraWin(h, a, false)
+      bucket = 2
+    } else if (u < gameCdf[off + 3]) {
+      applyExtraWin(a, h, false)
+      bucket = 1
+    } else if (u < gameCdf[off + 4]) {
+      applyExtraWin(a, h, true)
+      bucket = 1
+    } else {
+      applyRegWin(a, h, rng)
+      bucket = 0
+    }
+    h2hGames[a * T + h] += 1
+    h2hGames[h * T + a] += 1
+    return bucket
+  }
+
+  const rand = createPrng(seed)
+
+  // 4. Main Monte Carlo Loop
+  for (let iter = 0; iter < iterations; iter++) {
+    resetIteration()
+    drawIterationStrengths(rand)
+    applyLockedSimGames(rand)
 
     for (let g = 0; g < G; g++) {
-      const game = preGames[g]
-      const a = game.awayIdx
-      const h = game.homeIdx
-      const u = rand()
-      let bgBucket: number // 0=away_reg, 1=away_ot, 2=home_ot, 3=home_reg
-
-      if (u < game.c0) {
-        // Home Reg Win (3-0, +1 ROW)
-        const margin = sampleRegMargin(rand())
-        pts[h] += 3
-        row[h] += 1
-        gd[h] += margin
-        gd[a] -= margin
-        gf[h] += 2 + margin
-        gf[a] += 2
-        h2hPts[h * T + a] += 3
-        bgBucket = 3
-      } else if (u < game.c1) {
-        // Home OT Win (2-1, +1 ROW)
-        pts[h] += 2
-        pts[a] += 1
-        row[h] += 1
-        gd[h] += 1
-        gd[a] -= 1
-        gf[h] += 3
-        gf[a] += 2
-        h2hPts[h * T + a] += 2
-        h2hPts[a * T + h] += 1
-        bgBucket = 2
-      } else if (u < game.c2) {
-        // Home SO Win (2-1, 0 ROW)
-        pts[h] += 2
-        pts[a] += 1
-        gd[h] += 1
-        gd[a] -= 1
-        gf[h] += 3
-        gf[a] += 2
-        h2hPts[h * T + a] += 2
-        h2hPts[a * T + h] += 1
-        bgBucket = 2
-      } else if (u < game.c3) {
-        // Away SO Win (1-2, 0 ROW)
-        pts[a] += 2
-        pts[h] += 1
-        gd[a] += 1
-        gd[h] -= 1
-        gf[a] += 3
-        gf[h] += 2
-        h2hPts[a * T + h] += 2
-        h2hPts[h * T + a] += 1
-        bgBucket = 1
-      } else if (u < game.c4) {
-        // Away OT Win (1-2, +1 ROW)
-        pts[a] += 2
-        pts[h] += 1
-        row[a] += 1
-        gd[a] += 1
-        gd[h] -= 1
-        gf[a] += 3
-        gf[h] += 2
-        h2hPts[a * T + h] += 2
-        h2hPts[h * T + a] += 1
-        bgBucket = 1
-      } else {
-        // Away Reg Win (0-3, +1 ROW)
-        const margin = sampleRegMargin(rand())
-        pts[a] += 3
-        row[a] += 1
-        gd[a] += margin
-        gd[h] -= margin
-        gf[a] += 2 + margin
-        gf[h] += 2
-        h2hPts[a * T + h] += 3
-        bgBucket = 0
-      }
-
-      h2hGames[a * T + h] += 1
-      h2hGames[h * T + a] += 1
-
-      if (game.bigGameIdx >= 0) {
-        iterBgOutcome[game.bigGameIdx] = bgBucket
-      }
+      const bucket = simulateGame(g, rand)
+      const bgIdx = preGames[g].bigGameIdx
+      if (bgIdx >= 0) iterBgOutcome[bgIdx] = bucket
     }
 
     for (let i = 0; i < T; i++) tiebreakRand[i] = rand()
 
-    rankTeamsRule213(
-      T,
-      pts,
-      row,
-      gd,
-      gf,
-      h2hPts,
-      h2hGames,
-      tiebreakRand,
-      order,
-      h2hPctScratch
-    )
+    rankTeamsRule213(T, pts, row, gd, gf, h2hPts, h2hGames, tiebreakRand, order, h2hPctScratch)
 
     for (let pos = 0; pos < T; pos++) {
       const idx = order[pos]
@@ -1355,7 +1735,8 @@ function runCoreSimulation(opts: {
       }
     }
 
-    // Single-pass conditional Big Games tallying (Ken Roberts Nov 2009 #10964)
+    // Single-pass conditional Big Games tallying (Ken Roberts Nov 2009 #10964). Because team strengths
+    // are drawn per iteration, conditioning on an outcome also performs the Bayesian strength update.
     for (let k = 0; k < K; k++) {
       const bucket = iterBgOutcome[k]
       const outIdx = k * 4 + bucket
@@ -1365,6 +1746,7 @@ function runCoreSimulation(opts: {
         const sNum = seedOf[t]
         if (sNum <= spots) bgPlayoffHits[baseOff + t]++
         bgSeedSums[baseOff + t] += sNum
+        bgSeedSqSums[baseOff + t] += sNum * sNum
       }
     }
   }
@@ -1407,7 +1789,7 @@ function runCoreSimulation(opts: {
       while (botHi - step >= 0) botHi -= step
 
       for (const forceWin of [true, false]) {
-        // Only run tail probe if the enclosing bucket in buildWhatIfRowsForTeam has < 10 samples
+        // Only run tail probe if the enclosing bucket in buildWhatIfRowsForTeam lacks enough samples
         if (wiCount) {
           const baseSlot = target * maxAddedPtsSlots
           const rangeLo = forceWin ? topLo : 0
@@ -1416,7 +1798,7 @@ function runCoreSimulation(opts: {
           for (let p = rangeLo; p <= rangeHi; p++) {
             bucketCount += wiCount[baseSlot + p]
           }
-          if (bucketCount >= 10) continue
+          if (bucketCount >= WHAT_IF_MIN_ROW_SAMPLES) continue
         }
         let poHits = 0
         let sSum = 0
@@ -1424,49 +1806,23 @@ function runCoreSimulation(opts: {
         let wSeed = 1
 
         for (let iter = 0; iter < TAIL_PROBE_ITERATIONS; iter++) {
-          pts.set(state.basePts)
-          row.set(state.baseRow)
-          gd.set(state.baseGd)
-          gf.set(state.baseGf)
-          h2hPts.set(state.baseH2hPts)
-          h2hGames.set(state.baseH2hGames)
+          resetIteration()
+          drawIterationStrengths(tailRand)
+          applyLockedSimGames(tailRand)
 
           for (let g = 0; g < G; g++) {
             const game = preGames[g]
             const a = game.awayIdx
             const h = game.homeIdx
             if (a === target || h === target) {
-              const targetWon = forceWin
-              const winner = targetWon ? target : a === target ? h : a
+              const winner = forceWin ? target : a === target ? h : a
               const loser = winner === a ? h : a
-              const margin = sampleRegMargin(tailRand())
-              pts[winner] += 3
-              row[winner] += 1
-              gd[winner] += margin
-              gd[loser] -= margin
-              gf[winner] += 2 + margin
-              gf[loser] += 2
-              h2hPts[winner * T + loser] += 3
+              applyRegWin(winner, loser, tailRand)
+              h2hGames[a * T + h] += 1
+              h2hGames[h * T + a] += 1
             } else {
-              const u = tailRand()
-              if (u < game.c0) {
-                const margin = sampleRegMargin(tailRand())
-                pts[h] += 3; row[h] += 1; gd[h] += margin; gd[a] -= margin; gf[h] += 2 + margin; gf[a] += 2; h2hPts[h * T + a] += 3
-              } else if (u < game.c1) {
-                pts[h] += 2; pts[a] += 1; row[h] += 1; gd[h] += 1; gd[a] -= 1; gf[h] += 3; gf[a] += 2; h2hPts[h * T + a] += 2; h2hPts[a * T + h] += 1
-              } else if (u < game.c2) {
-                pts[h] += 2; pts[a] += 1; gd[h] += 1; gd[a] -= 1; gf[h] += 3; gf[a] += 2; h2hPts[h * T + a] += 2; h2hPts[a * T + h] += 1
-              } else if (u < game.c3) {
-                pts[a] += 2; pts[h] += 1; gd[a] += 1; gd[h] -= 1; gf[a] += 3; gf[h] += 2; h2hPts[a * T + h] += 2; h2hPts[h * T + a] += 1
-              } else if (u < game.c4) {
-                pts[a] += 2; pts[h] += 1; row[a] += 1; gd[a] += 1; gd[h] -= 1; gf[a] += 3; gf[h] += 2; h2hPts[a * T + h] += 2; h2hPts[h * T + a] += 1
-              } else {
-                const margin = sampleRegMargin(tailRand())
-                pts[a] += 3; row[a] += 1; gd[a] += margin; gd[h] -= margin; gf[a] += 2 + margin; gf[h] += 2; h2hPts[a * T + h] += 3
-              }
+              simulateGame(g, tailRand)
             }
-            h2hGames[a * T + h] += 1
-            h2hGames[h * T + a] += 1
           }
 
           for (let i = 0; i < T; i++) tiebreakRand[i] = tailRand()
@@ -1516,14 +1872,14 @@ function runCoreSimulation(opts: {
     }
   }
 
-  // 8. Build Big Games conditional report
+  // 8. Build Big Games conditional report.
+  // Swings are anchored on the two regulation outcomes (the high-sample buckets, ~85–90% of
+  // simulations) so rare OT/SO cells (~4–6% each) cannot manufacture noise-driven swings.
   const bigGames: BigGameImpact[] = []
   if (trackBigGames && K > 0) {
     for (let k = 0; k < K; k++) {
       const rawGame = trackedGames[k]
-      const preGame = preGames.find(
-        (pg) => pg.bigGameIdx === k
-      )!
+      const preGame = preGames.find((pg) => pg.bigGameIdx === k)!
       const aIdx = preGame.awayIdx
       const hIdx = preGame.homeIdx
 
@@ -1542,77 +1898,81 @@ function runCoreSimulation(opts: {
         const isParticipant = t === aIdx || t === hIdx
         const curPo = playoffPct[t]
         const curSeed = avgSeed[t]
-        let minPo = 100
-        let maxPo = 0
-        let minSeed = T
-        let maxSeed = 1
 
+        // Raw (unrounded) conditional estimates + Monte Carlo standard errors per bucket
+        const rawPo = new Float64Array(4)
+        const sePo = new Float64Array(4)
+        const rawSeed = new Float64Array(4)
+        const seSeed = new Float64Array(4)
         const outcomes = {} as Record<BigGameOutcomeKey, BigGameOutcomeCell>
         for (let b = 0; b < 4; b++) {
           const key = OUTCOME_KEYS[b]
           const cnt = bgOutcomeCounts[k * 4 + b]
           const baseOff = (k * 4 + b) * T
-          const condPo = cnt > 0 ? round1((bgPlayoffHits[baseOff + t] / cnt) * 100) : curPo
-          const condSeed = cnt > 0 ? round2(bgSeedSums[baseOff + t] / cnt) : curSeed
-          const lowSample = cnt < 100
-
+          const p = cnt > 0 ? bgPlayoffHits[baseOff + t] / cnt : curPo / 100
+          const meanSeed = cnt > 0 ? bgSeedSums[baseOff + t] / cnt : curSeed
+          const varSeed =
+            cnt > 1 ? Math.max(0, bgSeedSqSums[baseOff + t] / cnt - meanSeed * meanSeed) : 0
+          rawPo[b] = p * 100
+          sePo[b] = cnt > 0 ? Math.sqrt((p * (1 - p)) / cnt) * 100 : Infinity
+          rawSeed[b] = meanSeed
+          seSeed[b] = cnt > 1 ? Math.sqrt(varSeed / cnt) : Infinity
+          const condPo = round1(rawPo[b])
+          const condSeed = round2(meanSeed)
           outcomes[key] = {
             playoffPct: condPo,
             playoffDelta: round1(condPo - curPo),
             avgSeed: condSeed,
             seedDelta: round2(condSeed - curSeed),
-            lowSample,
-          }
-
-          if (cnt > 0) {
-            if (condPo < minPo) minPo = condPo
-            if (condPo > maxPo) maxPo = condPo
-            if (condSeed < minSeed) minSeed = condSeed
-            if (condSeed > maxSeed) maxSeed = condSeed
+            lowSample: cnt < BIG_GAME_LOW_SAMPLE,
           }
         }
 
-        const poSwing = round1(Math.max(0, maxPo - minPo))
-        const sdSwing = round2(Math.max(0, maxSeed - minSeed))
-        totalPlayoffSwing += poSwing
-        totalSeedSwing += sdSwing
+        // Regulation-anchored swings (away_reg = 0, home_reg = 3) with z-scores
+        const poSwingRaw = Math.abs(rawPo[0] - rawPo[3])
+        const poSe = Math.sqrt(sePo[0] * sePo[0] + sePo[3] * sePo[3])
+        const poZ = !Number.isFinite(poSe)
+          ? 0
+          : poSe > 0
+            ? poSwingRaw / poSe
+            : poSwingRaw > 0
+              ? Infinity
+              : 0
+        const sdSwingRaw = Math.abs(rawSeed[0] - rawSeed[3])
+        const sdSe = Math.sqrt(seSeed[0] * seSeed[0] + seSeed[3] * seSeed[3])
+        const sdZ = !Number.isFinite(sdSe)
+          ? 0
+          : sdSe > 0
+            ? sdSwingRaw / sdSe
+            : sdSwingRaw > 0
+              ? Infinity
+              : 0
+        const poSwing = round1(poSwingRaw)
+        const sdSwing = round2(sdSwingRaw)
 
-        // Select bestOutcome consistent with the metric displayed by UI (avgSeed when allTeamsQualify or poSwing < 0.3)
-        const optimizeSeed = format.allTeamsQualify || poSwing < 0.3
-        let bestKey: BigGameOutcomeKey = "away_reg"
-        let bestPo = -1
-        let bestAvgS = T + 1
-        for (let b = 0; b < 4; b++) {
-          if (bgOutcomeCounts[k * 4 + b] <= 0) continue
-          const key = OUTCOME_KEYS[b]
-          const cell = outcomes[key]
-          if (optimizeSeed) {
-            if (
-              cell.avgSeed < bestAvgS - 1e-4 ||
-              (Math.abs(cell.avgSeed - bestAvgS) <= 1e-4 && cell.playoffPct > bestPo)
-            ) {
-              bestAvgS = cell.avgSeed
-              bestPo = cell.playoffPct
-              bestKey = key
-            }
-          } else {
-            if (
-              cell.playoffPct > bestPo + 0.05 ||
-              (Math.abs(cell.playoffPct - bestPo) <= 0.05 && cell.avgSeed < bestAvgS)
-            ) {
-              bestPo = cell.playoffPct
-              bestAvgS = cell.avgSeed
-              bestKey = key
-            }
-          }
+        const significantPo = poSwingRaw >= WATCH_MIN_PLAYOFF_SWING && poZ >= WATCH_MIN_Z
+        const significantSeed = sdSwingRaw >= WATCH_MIN_SEED_SWING && sdZ >= WATCH_MIN_Z
+
+        // Best outcome: the better regulation result, unless an OT/SO cell beats it by > 2 SE
+        const optimizeSeed = format.allTeamsQualify || !significantPo
+        const better = (x: number, y: number) =>
+          optimizeSeed ? rawSeed[x] < rawSeed[y] - 1e-9 : rawPo[x] > rawPo[y] + 1e-9
+        let bestB = better(3, 0) ? 3 : 0
+        for (const otB of [1, 2]) {
+          if (bgOutcomeCounts[k * 4 + otB] <= 0) continue
+          const margin = optimizeSeed
+            ? rawSeed[bestB] - rawSeed[otB] - 2 * Math.sqrt(seSeed[otB] ** 2 + seSeed[bestB] ** 2)
+            : rawPo[otB] - rawPo[bestB] - 2 * Math.sqrt(sePo[otB] ** 2 + sePo[bestB] ** 2)
+          if (margin > 0) bestB = otB
         }
+        const bestKey = OUTCOME_KEYS[bestB]
 
-        // Include both participating teams + any third-party team above Ken's 0.3% noise floor (or 0.15 seed swing)
-        if (
-          isParticipant ||
-          poSwing >= 0.3 ||
-          (format.allTeamsQualify && sdSwing >= 0.15)
-        ) {
+        // Participants always shown; scoreboard-watching teams only when the swing is real (not MC noise)
+        const include =
+          isParticipant || (format.allTeamsQualify ? significantSeed : significantPo || significantSeed)
+        if (include) {
+          totalPlayoffSwing += poSwing
+          totalSeedSwing += sdSwing
           affectedTeams.push({
             slug: state.teams[t].slug,
             name: state.teams[t].name,
@@ -1622,6 +1982,7 @@ function runCoreSimulation(opts: {
             playoffSwing: poSwing,
             seedSwing: sdSwing,
             bestOutcome: bestKey,
+            optimizeSeed,
             outcomes,
           })
         }
@@ -1728,7 +2089,7 @@ function buildWhatIfRowsForTeam(
       }
     }
 
-    if (cnt >= 10) {
+    if (cnt >= WHAT_IF_MIN_ROW_SAMPLES) {
       rows.push({
         label: lo === hi ? `+${hi} pts` : `+${lo}–${hi} pts`,
         minAddedPts: lo,
@@ -1741,6 +2102,7 @@ function buildWhatIfRowsForTeam(
         worstSeed: worst,
         simCount: cnt,
         isTailProbe: false,
+        lowSample: cnt < WHAT_IF_LOW_SAMPLE,
       })
     } else if (hi === maxAdd && tailWinOut) {
       rows.push({
@@ -1797,6 +2159,7 @@ function buildTimeline(opts: {
   latestState: ParsedSeasonState
   latestSim: CoreSimResult
   endedEarly: boolean
+  maxIterations: number
 }): TimelinePoint[] {
   const {
     allRegularGames,
@@ -1807,6 +2170,7 @@ function buildTimeline(opts: {
     latestState,
     latestSim,
     endedEarly,
+    maxIterations,
   } = opts
 
   const completedDates = [
@@ -1886,12 +2250,17 @@ function buildTimeline(opts: {
     )
     const st = parseSeasonState(replayGames, false)
     const daySeed = fnv1aHash(`${seasonId}|${mode}|${cutoffDate}|${st.completedGames.length}`)
+    // The point right before "now" drives the change badges, so run it at full precision
+    // (independent 10k-run noise alone would be ±1 pp at 95%).
+    const isPreviousMatchday = dIdx === completedDates.length - 2
     const sim = runCoreSimulation({
       state: st,
       format,
       mode,
       calibration,
-      iterations: TIMELINE_ITERATIONS,
+      iterations: isPreviousMatchday
+        ? Math.min(maxIterations, DEFAULT_ITERATIONS)
+        : Math.min(maxIterations, TIMELINE_ITERATIONS),
       seed: daySeed,
       trackBigGames: false,
       trackWhatIf: false,
@@ -1923,6 +2292,8 @@ export interface ComputePlayoffOddsOptions {
   seasonStatus: string
   configuredPlayoffTeams?: number | null
   actualPlayoffTeamCount?: number
+  /** Optional pre-resolved format (e.g., from baseline snapshot in client What-If) to avoid re-resolving. */
+  resolvedFormat?: PlayoffFormat
   games: PlayoffSimGame[]
   mode?: PlayoffOddsMode
   iterations?: number
@@ -1941,6 +2312,7 @@ export function computePlayoffOdds(options: ComputePlayoffOddsOptions): PlayoffO
     seasonStatus,
     configuredPlayoffTeams = null,
     actualPlayoffTeamCount = 0,
+    resolvedFormat,
     games,
     mode = "weighted",
     iterations = DEFAULT_ITERATIONS,
@@ -1965,13 +2337,15 @@ export function computePlayoffOdds(options: ComputePlayoffOddsOptions): PlayoffO
   const state = parseSeasonState(effectiveGames, endedEarly)
   // Compute strengths strictly from real completed games so What-If lockedOutcomes don't drift other games' odds
   const strengthState = hasLockedOverrides ? parseSeasonState(games, false) : state
-  const format = resolvePlayoffFormat({
-    seasonType,
-    seasonStatus,
-    configuredPlayoffTeams,
-    teamCount: state.teams.length,
-    actualPlayoffTeamCount,
-  })
+  const format =
+    resolvedFormat ??
+    resolvePlayoffFormat({
+      seasonType,
+      seasonStatus,
+      configuredPlayoffTeams,
+      teamCount: state.teams.length,
+      actualPlayoffTeamCount,
+    })
 
   // Canonical state hash guarantees bit-identical determinism across refreshes & serverless instances
   const sigParts = [
@@ -1983,7 +2357,7 @@ export function computePlayoffOdds(options: ComputePlayoffOddsOptions): PlayoffO
     ...effectiveGames
       .map(
         (g) =>
-          `${g.id}:${g.date}:${g.awaySlug}@${g.homeSlug}:${g.status}:${g.awayScore ?? ""}-${g.homeScore ?? ""}:${g.isOvertime ? 1 : 0}${g.hasShootout ? 1 : 0}${g.isForfeit ? 1 : 0}`
+          `${g.id}:${g.date}:${g.awaySlug}@${g.homeSlug}:${g.status}:${g.awayScore ?? ""}-${g.homeScore ?? ""}:${g.isOvertime ? 1 : 0}${g.hasShootout ? 1 : 0}${g.isForfeit ? 1 : 0}${g.whatIfLock ? `:${g.whatIfLock}` : ""}`
       )
       .sort(),
   ]
@@ -2036,6 +2410,7 @@ export function computePlayoffOdds(options: ComputePlayoffOddsOptions): PlayoffO
         latestState: state,
         latestSim: sim,
         endedEarly,
+        maxIterations: safeIterations,
       })
     : []
 
@@ -2046,7 +2421,8 @@ export function computePlayoffOdds(options: ComputePlayoffOddsOptions): PlayoffO
     // Keep actualPtsPct, luckDelta, and lastGame anchored to real completed games (strengthState)
     // so What-If lockedOutcomes never fabricate a "Last game" score or skew luck metrics.
     const realTeam = strengthState.teams[idx] ?? t
-    const actualPtsPct = realTeam.gp > 0 ? realTeam.pts / (3 * realTeam.gp) : 0.5
+    // Forfeits are excluded from both sides of the pace comparison (they are not played games)
+    const actualPtsPct = realTeam.gpPlayed > 0 ? realTeam.ptsPlayed / (3 * realTeam.gpPlayed) : 0.5
     const rawPythPct = sim.rawPythPcts[idx]
     const prevTeam = prevTimelinePoint?.teams[t.slug]
 
@@ -2062,6 +2438,7 @@ export function computePlayoffOdds(options: ComputePlayoffOddsOptions): PlayoffO
       sow: t.sow,
       otl: t.otl,
       l: t.l,
+      ...(t.ties > 0 ? { ties: t.ties } : {}),
       row: t.row,
       pts: t.pts,
       gf: t.gf,

@@ -1,6 +1,6 @@
 # TDD: BASH Playoff Odds Predictor — Stats Pipeline & Site/UX Architecture
 
-> **Status**: Ready for Implementation  
+> **Status**: Implemented  
 > **Author**: BASH Development Team  
 > **Created**: 2026-11-22  
 > **Branch**: `sports_club_stats_rebuild`  
@@ -117,65 +117,68 @@ Resolution order (`resolvePlayoffFormat`):
    - Else apply Rule 412 fallback: `teamCount >= 7 ? 5 : Math.min(4, teamCount)`.
 3. Set `hasPlayIn = seasonType === "fall" && playoffSpots === 5 && teamCount >= 7` and `directByeSpots = hasPlayIn ? 3 : 0`.
 
-### A.2.2 Calibration Constants (Empirically Verified on 2,126 BASH Games)
+### A.2.2 Calibration Constants (Season-Blocked LOSO CV on 2,107 BASH Games)
 
 ```ts
 export const BASH_CALIBRATION = {
   fall: {
-    pythagenPuckPower: 0.22,  // Optimal Fall P (R² = 0.8617, Brier = 0.2369)
-    ebShrinkageGames: 10,     // Empirical Bayes prior C = 10 games toward 0.500
-    otRate: 0.075,            // Calibrated OT win rate (counts toward ROW)
-    soRate: 0.045,            // Calibrated Shootout win rate (excluded from ROW)
-    homeFieldAdvantage: 0.50, // Empirical 49.32% — single outdoor venue (zero HFA)
+    pythagenPuckPower: 0.22,
+    ebShrinkageGames: 4,
+    goalPriorGames: 4,           // Pre-ratio Gamma-Poisson shrinkage toward league mean
+    leagueMeanGoalsPerTeam: 3.73,
+    otRate: 0.075,               // Calibrated OT win rate (counts toward ROW)
+    soRate: 0.045,               // Calibrated Shootout win rate (excluded from ROW)
+    homeFieldAdvantage: 0.50,    // Single outdoor venue (zero HFA)
+    strengthConcentration: 2,    // Beta posterior concentration (80.3% / 89.4% interval coverage)
+    regMarginCdf: [0.2174, 0.4149, 0.5976, 0.7406, 0.8305, 1.0],
+    regLoserGoals: 2,
   },
   summer: {
-    pythagenPuckPower: 0.37,  // Optimal Summer P (R² = 0.8048, Brier = 0.2264)
-    ebShrinkageGames: 6,      // Empirical Bayes prior C = 6 games toward 0.500
-    otRate: 0.055,            // Calibrated Summer OT rate
-    soRate: 0.035,            // Calibrated Summer SO rate
-    homeFieldAdvantage: 0.50, // Empirical 49.45% — zero HFA
+    pythagenPuckPower: 0.458,
+    ebShrinkageGames: 4,
+    goalPriorGames: 4,
+    leagueMeanGoalsPerTeam: 6.13,
+    otRate: 0.055,
+    soRate: 0.035,
+    homeFieldAdvantage: 0.50,
+    strengthConcentration: 3,    // Beta posterior concentration (82.7% / 92.0% interval coverage)
+    regMarginCdf: [0.2152, 0.3914, 0.5451, 0.6701, 0.7766, 1.0],
+    regLoserGoals: 4,
   },
 } as const
 ```
 
-### A.2.3 Team Strength Calculation (3 Modes)
+### A.2.3 Team Strength Calculation (3 Modes) & Per-Iteration Bayesian Uncertainty
 
-For each team $i$ from completed regular-season games (note: double forfeits give `0-5` loss & `0 pts` per Rule 208; single forfeits give `5-0` 3-pt win; non-forfeit goals are used for PythagenPuck scoring rates when non-forfeit GP $> 0$ so administrative forfeits don't distort true goal efficiency!):
-- **`weighted` (Default — BASH Calibrated)**:
-  - Compute $\text{GFg}_i = \text{GF}_{\text{played}} / \text{GP}_{\text{played}}$ and $\text{GAg}_i = \text{GA}_{\text{played}} / \text{GP}_{\text{played}}$ (with fallback `.500` if `0` GP; smooth `+0.5` total floor if `GF=0` or `GA=0` to prevent `0.000`/`1.000` Log5 singularities!).
-  - $E_i = \max(0.5, (\text{GFg}_i + \text{GAg}_i)^P)$
+For each team $i$ from completed regular-season games (double forfeits give `0-5` loss & `0 pts` per Rule 208; single forfeits give `5-0` 3-pt win; historical non-forfeit ties award `1 pt` each with `0` ROW and `resultLabel: "T"`; non-forfeit goals with shootout winning goals stripped are used for PythagenPuck scoring rates so administrative forfeits and shootout tiebreakers don't distort goal efficiency):
+- **`weighted` (Default — BASH Weighted)**:
+  - Pre-ratio Gamma-Poisson goal-rate shrinkage toward empirical league mean $\mu$ (`3.73` Fall, `6.13` Summer) with $m = 4$ prior games (eliminating shutout singularities):
+    $$\text{GFg}_i = \frac{\text{GF}_{\text{played}} + m \mu}{\text{GP}_{\text{played}} + m}, \qquad \text{GAg}_i = \frac{\text{GA}_{\text{played}} + m \mu}{\text{GP}_{\text{played}} + m}$$
+  - $E_i = \max(0.5, (\text{GFg}_i + \text{GAg}_i)^P)$ (`P = 0.22` Fall, `0.458` Summer)
   - $S_{\text{raw}, i} = \frac{\text{GFg}_i^{E_i}}{\text{GFg}_i^{E_i} + \text{GAg}_i^{E_i}}$
-  - $S_i = \frac{\text{GP}_{\text{played}} \cdot S_{\text{raw}, i} + C \cdot 0.5}{\text{GP}_{\text{played}} + C}$
-  - Clamped safely to `[0.05, 0.95]`.
+  - $S_i = \frac{\text{GP}_{\text{played}} \cdot S_{\text{raw}, i} + C \cdot 0.5}{\text{GP}_{\text{played}} + C}$ (`C = 4`), clamped to `[0.05, 0.95]`.
 - **`50_50` (Coin Flip)**:
-  - $S_i = 0.500$ for all teams.
+  - $S_i = 0.500$ for all teams (fixed across iterations).
 - **`classic` (Sports Club Stats Exact Replica)**:
   - $S_{\text{raw}, i} = \text{GP}_i > 0 ? \frac{\text{PTS}_i}{3 \cdot \text{GP}_i} : 0.5$
   - Season completion $f_i = \frac{\text{GP}_i}{\text{GP}_i + \text{Rem}_i}$
   - Ken's exact `p225` regression:
     $$r(f) = \begin{cases} (-1.5 f + 1.0) + 0.1 f & f < 0.5 \\ (-0.5 f + 0.5) + 0.1 f & f \ge 0.5 \end{cases}$$
   - $S_i = S_{\text{raw}, i} - (S_{\text{raw}, i} - 0.5) \cdot r(f_i)$, clamped to `[0.05, 0.95]`.
+- **Bayesian Strength Sampling (`weighted` & `classic`)**: At the start of each MC iteration, draw $\theta_i \sim \text{Beta}(\kappa_i S_i, \kappa_i (1 - S_i))$ via Marsaglia–Tsang Gamma sampling, where $\kappa_i = k \cdot (\text{GP}_{\text{played}} + C + m)$ (`k = 2` Fall, `k = 3` Summer), calibrated to nominal 80%/90% remaining-season points% coverage.
 
-### A.2.4 Matchup Outcome Probabilities (4/6-Outcome Distribution)
+### A.2.4 Matchup Outcome Probabilities (Normalized Extra-Time + 3-2-1 Decompression)
 
 For remaining game $g$ with Away team $a$ and Home team $h$:
 1. Overall win probability via **Bill James Log5** (`HFA = 0.50`):
-   $$p_h = \frac{S_h (1 - S_a)}{S_h (1 - S_a) + S_a (1 - S_h)}, \qquad p_a = 1 - p_h$$
-2. Matchup-scaled extra-time probability (evenly matched teams go to OT slightly more often than mismatches, preserving the league-average OT+SO rate):
-   $$m_g = 4 p_h (1 - p_h) \in (0, 1]$$
-   $$p_{\text{OT}, g} = \text{otRate} \cdot (0.5 + 0.5 \cdot m_g), \qquad p_{\text{SO}, g} = \text{soRate} \cdot (0.5 + 0.5 \cdot m_g)$$
-   $$p_{\text{extra}, g} = p_{\text{OT}, g} + p_{\text{SO}, g}$$
-3. Six exact mutually exclusive outcomes summing to `1.0`:
-   - `HOME_REG` (`+3 pts, +1 ROW` to home; `0` to away): $(1 - p_{\text{extra}, g}) \cdot p_h$
-   - `HOME_OT` (`+2 pts, +1 ROW` to home; `+1 pt` to away): $p_{\text{OT}, g} \cdot p_h^{\text{OT}}$, where $p_h^{\text{OT}} = 0.5 + 0.7 (p_h - 0.5)$ (sudden death retains strength edge)
-   - `HOME_SO` (`+2 pts, 0 ROW` to home; `+1 pt` to away): $p_{\text{SO}, g} \cdot (0.5 + 0.3 (p_h - 0.5))$ (shootouts are closer to 50/50)
-   - `AWAY_SO` (`+1 pt` to home; `+2 pts, 0 ROW` to away): $p_{\text{SO}, g} \cdot (1 - p_h^{\text{SO}})$
-   - `AWAY_OT` (`+1 pt` to home; `+2 pts, +1 ROW` to away): $p_{\text{OT}, g} \cdot (1 - p_h^{\text{OT}})$
-   - `AWAY_REG` (`0` to home; `+3 pts, +1 ROW` to away): $(1 - p_{\text{extra}, g}) \cdot (1 - p_h)$
-4. Precompute cumulative thresholds `[c0, c1, c2, c3, c4, 1.0]` per remaining game before entering the hot loop so each simulated game takes a single PRNG draw!
-5. Goal margin per simulated game (for `GD` / `GF` tiebreakers):
-   - OT/SO: winning margin = `1` (`GF += 3` winner, `2` loser).
-   - Regulation: discrete BASH empirical margin `[1, 2, 3, 4, 5, 6]` with weights `[0.28, 0.27, 0.20, 0.12, 0.08, 0.05]`, adding `margin` to `GD` and `loserGoals + margin` to `GF`.
+   $$p_h = \frac{\theta_h (1 - \theta_a)}{\theta_h (1 - \theta_a) + \theta_a (1 - \theta_h)}, \qquad p_a = 1 - p_h$$
+2. **Normalized matchup-scaled extra-time probability**: Compute closeness $c_g = \max(0.35, 1 - 2|p_h - 0.5|)$ and normalize by the season-wide mean closeness (`computeExtraTimeNorm`) so the simulated league-average OT+SO rate equals the calibrated target (`12.0%` Fall, `9.0%` Summer).
+3. **3-2-1 Points Decompression**: Solve for regulation propensity $q = \text{clamp}\!\left(\frac{p_h - 0.5 p_{\text{extra}}}{1 - p_{\text{extra}}}, 0.001, 0.999\right)$ so expected 3-2-1 points share matches Log5 $p_h$ without double compression.
+4. Six mutually exclusive outcomes summing to `1.0` (`HOME_REG`, `HOME_OT`, `HOME_SO`, `AWAY_SO`, `AWAY_OT`, `AWAY_REG`), with cumulative thresholds `[c0..c4, 1.0]` per game.
+5. **Empirical Goal Margins**:
+   - OT/SO: winning margin = `1` (`GF += loserGoals + 1` winner, `loserGoals` loser).
+   - Regulation: drawn from empirical Fall (`[0.2174, 0.4149, 0.5976, 0.7406, 0.8305, 1.0]`, `loserGoals = 2`) or Summer (`[0.2152, 0.3914, 0.5451, 0.6701, 0.7766, 1.0]`, `loserGoals = 4`) CDFs.
+   - What-If locked games (`whatIfLock: "reg" | "extra"`) also simulate realistic margins and OT-vs-SO ROW credit per iteration rather than using hardcoded scores.
 
 ### A.2.5 Exact Rule 213 Tiebreaker Implementation (Hot-Loop Optimized)
 
@@ -191,10 +194,10 @@ Sorting algorithm (`rankTeamsRule213`):
    - Resolve tied block recursively via `resolveTiedBlock(indices)`:
      - **Step 3 (H2H % of available points among tied clubs)**: For each team $i$ in the tied subset $S$:
        $$\text{avail}_i = 3 \sum_{j \in S,\, j \ne i} \text{h2hGames}[i, j], \qquad \text{h2hPct}_i = \frac{\sum_{j \in S,\, j \ne i} \text{h2hPts}[i, j]}{\text{avail}_i}$$
-       - Only apply H2H separation if every team in $S$ has played at least one game against the subset (`avail_i > 0`); otherwise proceed to GD.
+       - Only apply H2H separation if every team in $S$ has played at least one game against the subset (`avail_i > 0`) AND the H2H graph among $S$ is connected (`isH2hGroupConnected`); otherwise proceed to GD.
        - Sort $S$ by `h2hPct` descending. If this splits $S$ into smaller tied sub-groups (e.g., a 3-way tie narrows to a 2-way tie), recursively apply `resolveTiedBlock` on each remaining sub-group (official Rule 213 recursive tiebreaking!).
      - **Step 4 (`GD`)**: Sort any still-tied subgroup by `gd[i]` descending.
-     - **Step 5 (`GF`)**: Sort any still-tied subgroup by `gf[i]` descending.
+     - **Step 5 (`GF`)**: Sort any still-tied subgroup by `gf[i]` descending (standings-table fallback beyond official Rule 213(iv)).
      - **Step 6 (`DrawLots`)**: Break any absolute deadlocks using a per-iteration PRNG shuffle rank (eliminating alphabetical bias!).
 
 ### A.2.6 Single-Pass Big Games Conditional Accumulator (`O(N)`)
@@ -210,7 +213,8 @@ For the $K$ tracked upcoming games in the Big Games window (next matchday + next
 - After the loop, for every game $k$, outcome $o \in \{0..3\}$, and team $t$:
   - `P(playoffs | g_k = o) = bgPlayoffHits / bgOutcomeCounts`
   - `E[seed | g_k = o] = bgSeedSums / bgOutcomeCounts`
-  - `lowSample = bgOutcomeCounts < 100` (renders `*` flag).
+  - `lowSample = bgOutcomeCounts < 500` (renders `*` flag).
+  - Swings are **regulation-anchored** (`|P(Away Reg) - P(Home Reg)|`) and third-party watching teams are filtered by `z >= 2.5` + `≥ 0.5 pp` playoff swing (or `≥ 0.15` seed swing); OT/SO cells must beat the better regulation outcome by `> 2 SE` to claim `bestOutcome`.
 - Zero extra simulation passes; mathematically guaranteed consistency with the main table!
 
 ### A.2.7 Separate Unbiased What-If Tail Probing (`sidereal` `#10674` Fix)
@@ -220,16 +224,16 @@ After the main loop completes (only when remaining games $> 0$):
 - Run an **isolated** pass for each team $t$:
   - Force team $t$ to **win out** (all remaining games = regulation win, `+3 pts` each) across `1,000` independent iterations; simulate all other teams' games normally.
   - Force team $t$ to **lose out** (all remaining games = regulation loss, `0 pts` each) across `1,000` independent iterations; simulate all other teams' games normally.
-- Merge tail-probe buckets **only into `whatIfRows` where main-pass `count < 25`** (tagging those rows `isTailProbe: true`), and NEVER add them to main `playoffPct` or `seedPcts`!
+- Merge tail-probe buckets **only into `whatIfRows` where main-pass `count < 25`** (tagging those rows `isTailProbe: true`), flag non-tail rows with `count < 250` as `lowSample: true` (`*`), and NEVER add tail probes to main `playoffPct` or `seedPcts`!
 
-### A.2.8 Deterministic Clinch & Elimination Verification
+### A.2.8 Exact Max-Flow Clinch & Elimination Verification
 
 To guarantee `"In"` and `"Out"` badges are mathematically exact (avoiding Ken's `p270` false-elimination pitfall):
-1. **Exact Enumeration Fast Path**: When `remainingGames.length <= 10`, enumerate bounds or run exact checks.
-2. **Exact Point-Bound Sufficiency Check (for any remaining game count)**:
-   - **Guaranteed Clinched (`clinched: true`)**: Let $P_{\min}(t) = \text{pts}[t]$ (team $t$ gets 0 remaining points). Count rivals $r \ne t$ whose maximum possible points $P_{\max}(r) = \text{pts}[r] + 3 \cdot \text{rem}[r] \ge P_{\min}(t)$ (strictly `>` if $t$ cannot lose tiebreakers on `ROW`/`H2H`/`GD`, or `>=` conservatively!). Even stronger: account for mutual remaining games between contenders via total remaining points pool (`Σ pts awarded among rivals = 3 * internalGames + 3 * externalGames`). If the maximum number of rivals that can finish `>= P_min(t)` is `< playoffSpots`, mark `clinched = true` (`"In"`).
-   - **Guaranteed Eliminated (`eliminated: true`)**: Let $P_{\max}(t) = \text{pts}[t] + 3 \cdot \text{rem}[t]$. Count rivals $r \ne t$ whose current points `pts[r] > P_max(t)` (or `pts[r] === P_max(t)` when $r$ already strictly beats $t$ on `ROW` with zero remaining games for $t$ to catch up). If `guaranteedAhead >= playoffSpots`, mark `eliminated = true` (`"Out"`).
-3. If `playoffPct === 100` in MC but `!clinched`, display **`>99.9%`** (still technically catchable!). If `playoffPct === 0` in MC but `!eliminated`, display **`<0.1%`** (still mathematically alive!).
+1. **Edmonds–Karp Max-Flow over Remaining Schedule (`computeExactClinchElim`)**:
+   - **Guaranteed Clinched (`clinched: true`)**: Assume team $t$ loses out in regulation (`0` remaining points). Test whether *any* subset $R$ of `playoffSpots` rivals can simultaneously reach $t$'s point total (`canMeetPointNeeds`), accounting for shared remaining games between rivals (each game distributes exactly `3` points) and ROW bounds. If no such subset is feasible, mark `clinched = true` (`"In"`).
+   - **Guaranteed Eliminated (`eliminated: true`)**: Assume team $t$ wins out in regulation (`+3 pts/game`, `+1 ROW/game`). Test whether *any* completion allows at most `playoffSpots - 1` rivals to finish ahead of $t$ (`canAbsorbGamePoints`), respecting ROW bounds. If no completion saves $t$, mark `eliminated = true` (`"Out"`).
+   - Tiebreakers beyond ROW (H2H, GD) are treated conservatively so neither label is ever awarded falsely.
+2. If `playoffPct === 100` in MC but `!clinched`, display **`>99.9%`** (still technically catchable!). If `playoffPct === 0` in MC but `!eliminated`, display **`<0.1%`** (still mathematically alive!).
 
 ### A.2.9 Deterministic Historical Timeline & Matchday-over-Matchday Delta
 
@@ -237,7 +241,7 @@ Rather than relying on fragile historical cron snapshots that break whenever a s
 - Extract the sorted unique dates of completed regular-season games: $D = [d_1, d_2, \dots, d_m]$.
 - For each matchday $d_k \in D$ (plus pre-season baseline $d_0$ when $m \ge 1$):
   - Treat games with `date <= d_k` as final and games with `date > d_k` as upcoming.
-  - Run the exact same deterministic kernel at `10,000` iterations (`~10 ms` per matchday!) — except for the latest matchday $d_m$, which reuses the main `100,000`-iteration snapshot directly!
+  - Run the exact same deterministic kernel at `10,000` iterations for older matchdays, **`100,000` iterations for the immediately preceding matchday $d_{m-1}$** (eliminating bye-week delta jitter), and reuse the main `100,000`-iteration snapshot directly for $d_m$!
 - **Matchday Delta (`playoffDelta`, `avgSeedDelta`)**:
   - `currentSnapshot[t].playoffPct - previousMatchday[t].playoffPct`
   - `currentSnapshot[t].avgSeed - previousMatchday[t].avgSeed` (where negative delta = improved/higher seed, e.g., `2.9 → 2.4 = -0.5` ↑).
@@ -476,10 +480,11 @@ CREATE INDEX IF NOT EXISTS idx_playoff_odds_latest
 
 ```text
 components/
-├── playoff-odds-view.tsx          # Top-level client orchestrator (SWR, mode toggle, What-If locks, live client re-sim)
+├── playoff-odds-view.tsx          # Top-level client orchestrator (SWR, team selector, mode toggle, What-If locks, live client re-sim)
+├── playoff-odds-charts.tsx        # Franchise-colored season trend charts (Playoff %, Avg seed, vs .500 pace) + mobile logo selector
 ├── playoff-odds-table.tsx         # Signature Table #1: Playoff %, Cut lines, Seed 1..N heatmap, Avg Seed, Strength, RPI
 ├── big-games-section.tsx          # Signature Section #2: Upcoming Big Games, 4-outcome table, rooting highlights, What-If buttons
-├── team-odds-panel.tsx            # Team Drill-Down: Summary, Recharts Playoff % / Seed Timeline, What-If finish table, Team rooting list
+├── team-odds-panel.tsx            # Dedicated Team View: 4 tooltipped scorecards, 3 trajectory tabs, What-If finish table, Team rooting list
 └── playoff-odds-methodology.tsx   # Collapsible native <details> methodology, Rule 213 tiebreakers, calibration credits
 ```
 

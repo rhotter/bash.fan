@@ -18,11 +18,13 @@ export function PlayoffOddsMethodology({ snapshot }: { snapshot: PlayoffOddsSnap
 
       <div className="space-y-4 border-t border-border/50 px-4 py-4 leading-relaxed">
         <p>
-          Modeled after Ken Roberts&apos;s <span className="font-medium text-foreground">Sports Club Stats</span> and
-          calibrated empirically across 2,126 non-forfeit BASH regular-season games, the simulator plays out the
-          remaining schedule <span className="font-medium text-foreground tabular-nums">{iterations.toLocaleString()}</span>{" "}
-          times using a deterministic seed keyed to current results (so numbers stay stable on refresh until a new game
-          is finalized).
+          Credit where credit is due: Our methodology is an evolution of the previous{" "}
+          <span className="font-medium text-foreground">www.sportsclubstats.com</span> (now defunct), built by Ken
+          Roberts. Our league previously used this site to produce playoff statistics, but now we have our BASH-specific
+          iteration. The simulator plays out the remaining BASH schedule{" "}
+          <span className="font-medium text-foreground tabular-nums">{iterations.toLocaleString()}</span> times using a
+          deterministic simulation keyed to current results, and our BASH weighted model is calibrated empirically
+          across our history of 2,126 non-forfeit BASH regular-season games.
         </p>
 
         <div className="grid gap-4 md:grid-cols-2">
@@ -30,15 +32,24 @@ export function PlayoffOddsMethodology({ snapshot }: { snapshot: PlayoffOddsSnap
             <h3 className="font-semibold text-foreground">Simulation modes</h3>
             <ul className="list-disc space-y-1 pl-4">
               <li>
-                <span className="font-medium text-foreground">BASH Weighted (Default):</span> Estimates team strength via
-                BASH-calibrated <span className="font-medium">PythagenPuck</span> (power{" "}
+                <span className="font-medium text-foreground">BASH Weighted (Default):</span> Shrinks per-game goals
+                for and against (excluding shootout winning goals) toward the league mean (
+                <code className="rounded bg-muted px-1 py-0.5 text-[11px]">
+                  m = {calibration.goalPriorGames ?? 0}
+                </code>{" "}
+                prior games), applies BASH-calibrated <span className="font-medium">PythagenPuck</span> (power{" "}
                 <code className="rounded bg-muted px-1 py-0.5 text-[11px]">P = {calibration.pythagenPuckPower}</code>{" "}
-                for {seasonType === "summer" ? "Summer 4v4" : "Fall 5v5"}), shrunk toward{" "}
+                for {seasonType === "summer" ? "Summer 4v4" : "Fall 5v5"}), shrinks toward{" "}
                 <code className="rounded bg-muted px-1 py-0.5 text-[11px]">.500</code> with Empirical Bayes prior{" "}
                 <code className="rounded bg-muted px-1 py-0.5 text-[11px]">C = {calibration.ebShrinkageGames}</code>{" "}
-                games, then combined head-to-head via <span className="font-medium">Bill James Log5</span>. Outperforms
-                raw points percentage and NHL defaults in out-of-sample BASH backtests by filtering out one-goal and
-                small-sample variance.
+                games, and pairs teams via <span className="font-medium">Bill James Log5</span>. Outperforms 50/50 coin
+                flips and SCS Classic in out-of-sample LOSO cross-validation across both Fall and Summer BASH seasons.
+              </li>
+              <li>
+                <span className="font-medium text-foreground">Bayesian Strength Uncertainty:</span> In BASH Weighted and
+                SCS Classic modes, each simulated season draws team strength from a Beta posterior centered on its
+                estimated rating (narrowing as games played grows), preventing overconfident early-season probabilities.
+                Ratings do not adjust for opponent Strength of Schedule prior to a full round-robin cycle.
               </li>
               <li>
                 <span className="font-medium text-foreground">50/50:</span> Treats every remaining game as an unbiased
@@ -58,14 +69,17 @@ export function PlayoffOddsMethodology({ snapshot }: { snapshot: PlayoffOddsSnap
             <ul className="list-disc space-y-1 pl-4">
               <li>
                 <span className="font-medium text-foreground">3-2-1 Scoring &amp; Extra Time:</span> Regulation win = 3
-                pts, OT/SO win = 2 pts, OT/SO loss = 1 pt, regulation loss = 0 pts. Extra-time rate is calibrated to{" "}
-                <span className="tabular-nums">{extraPct}%</span> ({otPct}% OT, {soPct}% shootout) with zero home-ice
-                advantage (<code className="rounded bg-muted px-1 py-0.5 text-[11px]">50%</code>, single outdoor rink).
+                pts, OT/SO win = 2 pts, OT/SO loss = 1 pt, regulation loss = 0 pts. Extra-time probabilities are
+                normalized across matchups to preserve the calibrated league average of{" "}
+                <span className="tabular-nums">{extraPct}%</span> ({otPct}% OT, {soPct}% shootout), decompressed so
+                expected 3-2-1 points share matches Log5, with zero home-ice advantage (
+                <code className="rounded bg-muted px-1 py-0.5 text-[11px]">50%</code>, single outdoor rink).
               </li>
               <li>
                 <span className="font-medium text-foreground">Official Rule 213 Tiebreakers:</span> Points &rarr; ROW
                 (regulation + OT wins, excluding shootout wins) &rarr; head-to-head % of available points among tied
-                teams (recursive on multi-way ties) &rarr; goal differential &rarr; goals for &rarr; draw lots.
+                teams (recursive on connected multi-way ties) &rarr; goal differential &rarr; goals for (standings-table
+                fallback beyond Rule 213(iv)) &rarr; draw lots.
               </li>
               <li>
                 <span className="font-medium text-foreground">Playoff Format:</span>{" "}
@@ -78,19 +92,22 @@ export function PlayoffOddsMethodology({ snapshot }: { snapshot: PlayoffOddsSnap
               <li>
                 <span className="font-medium text-foreground">Clinch / Elimination Guardrail:</span>{" "}
                 <span className="font-medium text-foreground">In</span> and{" "}
-                <span className="font-medium text-foreground">Out</span> appear only when mathematically verified;
-                unverified extremes display as <span className="tabular-nums">&gt;99.9%</span> or{" "}
-                <span className="tabular-nums">&lt;0.1%</span>.
+                <span className="font-medium text-foreground">Out</span> appear only when mathematically verified via
+                exact remaining-schedule max-flow over points and ROW; unverified extremes display as{" "}
+                <span className="tabular-nums">&gt;99.9%</span> or <span className="tabular-nums">&lt;0.1%</span>.
               </li>
             </ul>
           </div>
         </div>
 
         <p className="border-t border-border/40 pt-3 text-[11px] text-muted-foreground/80">
-          Big Games impacts are tallied in a single pass during the main simulation (no strength drift across outcomes).
-          Team &ldquo;What If&rdquo; win-out and lose-out rows use an isolated 1,000-run tail probe so extreme scenarios
-          never distort main playoff probabilities. Methodology inspired by Ken Roberts (Sports Club Stats), Alan Ryder
-          (<em>Win Probabilities</em> / PythagenPuck), and Tom Tippett (Log5).
+          Big Games impacts are tallied in a single pass during the main simulation using regulation-anchored swings
+          with Monte Carlo noise filtering (<span className="font-medium text-foreground">*</span> marks outcomes with
+          &lt; 500 simulated seasons). Team &ldquo;What If&rdquo; finish rows with &lt; 250 simulated seasons are marked{" "}
+          <span className="font-medium text-foreground">*</span>, and win-out/lose-out tail rows use an isolated
+          1,000-run tail probe so extreme scenarios never distort main playoff probabilities. Methodology inspired by
+          Ken Roberts (Sports Club Stats), Alan Ryder (<em>Win Probabilities</em> / PythagenPuck), and Tom Tippett
+          (Log5).
         </p>
       </div>
     </details>

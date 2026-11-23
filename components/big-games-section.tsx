@@ -221,8 +221,8 @@ export function BigGamesSection({
             {snapshot.gamesRemaining === 0
               ? "All remaining regular-season games are locked in your What-If scenario."
               : snapshot.format.allTeamsQualify
-                ? "No games this week move this team's projected seed by 0.15 or more."
-                : "No games this week move this team's playoff odds by 0.3% or more."}
+                ? "No games this week measurably move this team's projected seed."
+                : "No games this week measurably move this team's playoff odds."}
           </p>
         </div>
       ) : (
@@ -242,13 +242,14 @@ export function BigGamesSection({
 
       {/* Footnote */}
       <p className="text-[11px] text-muted-foreground/80 leading-relaxed">
-        Outcomes marked <span className="font-semibold text-foreground">*</span> occurred in fewer than 100 simulated
-        seasons.{" "}
+        Outcomes marked <span className="font-semibold text-foreground">*</span> occurred in fewer than 500 simulated
+        seasons (wider error).{" "}
         <span className="rounded-xs bg-emerald-500/10 px-1 py-0.5 font-medium text-foreground ring-1 ring-inset ring-emerald-600/20">
           Highlighted cells
         </span>{" "}
-        mark the best single-game outcome for each team. Swings across separate games on the same day are not strictly
-        additive.
+        mark the best single-game outcome for each team. Swings compare the two regulation results; other teams are
+        listed only when the effect is larger than simulation noise. Swings across separate games on the same day are
+        not strictly additive.
       </p>
     </section>
   )
@@ -281,14 +282,17 @@ function BigGameCard({
     : displayedTeams.filter((t) => !t.isParticipant)
   const visibleRows = showWatching ? [...participantTeams, ...watchingTeams] : participantTeams
 
+  const isSeedRow = (team: BigGameAffectedTeam) =>
+    allTeamsQualify || (team.optimizeSeed ?? team.playoffSwing < 0.5)
+
   const showSeedFocus = focusedTeam
-    ? allTeamsQualify || focusedTeam.playoffSwing < 0.3
-    : allTeamsQualify || game.totalPlayoffSwing < 0.3
+    ? isSeedRow(focusedTeam)
+    : allTeamsQualify || game.totalPlayoffSwing < 0.5
 
   const allRowsUseSeed =
-    allTeamsQualify || (visibleRows.length > 0 && visibleRows.every((t) => t.playoffSwing < 0.3))
+    allTeamsQualify || (visibleRows.length > 0 && visibleRows.every(isSeedRow))
   const someRowsUseSeed =
-    !allRowsUseSeed && visibleRows.some((t) => t.playoffSwing < 0.3)
+    !allRowsUseSeed && visibleRows.some(isSeedRow)
   const baselineQualifier = isWhatIf
     ? "before this game is played (with your locked What-If picks)"
     : "before this game is played"
@@ -299,7 +303,7 @@ function BigGameCard({
       : `Each team's current chance to make the playoffs ${baselineQualifier}. The four columns to the right show the new odds and +/- change from this baseline.`
 
   const renderTeamRow = (team: BigGameAffectedTeam) => {
-    const useSeedRow = allTeamsQualify || team.playoffSwing < 0.3
+    const useSeedRow = isSeedRow(team)
     return (
       <tr key={team.slug} className="hover:bg-muted/25">
         <th scope="row" className="px-3.5 py-2 text-left font-medium text-foreground">
@@ -430,16 +434,16 @@ function BigGameCard({
                   <div className="space-y-1">
                     <div className="font-semibold">Projected seed swing for {focusedTeam.name}</div>
                     <p className="text-background/90">
-                      Difference between {focusedTeam.name}&apos;s best and worst projected average seed across all 4
-                      possible outcomes of this game.
+                      How far {focusedTeam.name}&apos;s projected average seed moves between an away regulation win
+                      and a home regulation win in this game.
                     </p>
                   </div>
                 ) : (
                   <div className="space-y-1">
                     <div className="font-semibold">Playoff-odds swing for {focusedTeam.name}</div>
                     <p className="text-background/90">
-                      Difference between {focusedTeam.name}&apos;s best and worst playoff probability across all 4
-                      possible outcomes of this game.
+                      How far {focusedTeam.name}&apos;s playoff odds move between an away regulation win and a home
+                      regulation win in this game.
                     </p>
                   </div>
                 )
@@ -447,16 +451,18 @@ function BigGameCard({
                 <div className="space-y-1">
                   <div className="font-semibold">League-wide seed swing</div>
                   <p className="text-background/90">
-                    Sum of each team&apos;s projected average seed range (best minus worst outcome across all 4 game
-                    results) added across every team in the league, used to rank game importance.
+                    How much each affected team&apos;s projected seed moves between the two regulation results, added
+                    up across the league and used to rank game importance. Teams whose change is within simulation
+                    noise are left out.
                   </p>
                 </div>
               ) : (
                 <div className="space-y-1">
                   <div className="font-semibold">League-wide probability swing</div>
                   <p className="text-background/90">
-                    Sum of each team&apos;s playoff-odds range (best minus worst outcome across all 4 game results)
-                    added across every team in the league, used to rank game importance.
+                    How much each affected team&apos;s playoff odds move between an away and a home regulation win,
+                    added up across the league and used to rank game importance. Teams whose change is within
+                    simulation noise are left out.
                   </p>
                   <p className="text-background/75">
                     Because several teams&apos; odds can shift on one result, late-season games can exceed 100pp.

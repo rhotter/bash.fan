@@ -150,6 +150,7 @@ export function PlayoffOddsView({
       seasonType: baselineSnapshot.seasonType,
       seasonStatus: baselineSnapshot.seasonStatus,
       configuredPlayoffTeams: baselineSnapshot.format.playoffSpots,
+      resolvedFormat: baselineSnapshot.format,
       games: baselineSnapshot.regularGames,
       mode: baselineMatchesRequest ? mode : baselineSnapshot.mode,
       iterations: CLIENT_WHATIF_ITERATIONS,

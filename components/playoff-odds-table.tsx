@@ -17,6 +17,21 @@ function formatPlayoffDisplay(row: TeamOddsRow): { text: string; kind: "in" | "o
   return { text: `${row.playoffPct.toFixed(1)}%`, kind: "pct" }
 }
 
+/** 1 decimal (2 for sub-1% tails): Monte Carlo noise makes further digits meaningless. */
+function formatSeedTooltipPct(pct: number): string {
+  if (pct <= 0) return "0%"
+  if (pct < 1) return `${pct.toFixed(2)}%`
+  return `${pct.toFixed(1)}%`
+}
+
+/** 95% Monte Carlo margin of error (percentage points) for a simulated probability. */
+function monteCarloMargin(pct: number, iterations: number): string {
+  const p = Math.min(1, Math.max(0, pct / 100))
+  const n = Math.max(1, iterations)
+  const moe = 1.96 * Math.sqrt((p * (1 - p)) / n) * 100
+  return moe < 0.05 ? "<0.1" : moe.toFixed(1)
+}
+
 function formatSeedCell(pct: number): string {
   if (pct <= 0) return "—"
   if (pct < 0.5) return "<1"
@@ -35,8 +50,21 @@ function getSeedCellStyle(pct: number, isQualifying: boolean, isDirectBye: boole
   return { backgroundColor: `rgb(14 165 233 / ${(alpha * 0.85).toFixed(3)})` }
 }
 
-function formatDelta(delta: number | null, suffix = "", invertSign = false): { label: string; tone: "pos" | "neg" | "flat" } | null {
-  if (delta === null || Math.abs(delta) < 0.05) return null
+/**
+ * Change badges are hidden when the move is within Monte Carlo noise: ~±0.45 pp for two
+ * independent 100k-run snapshots, ~±0.8 pp for a 20k-run What-If vs. the 100k baseline.
+ */
+const PLAYOFF_DELTA_NOISE_FLOOR = 0.5
+const WHAT_IF_PLAYOFF_DELTA_NOISE_FLOOR = 1.0
+const SEED_DELTA_NOISE_FLOOR = 0.05
+
+function formatDelta(
+  delta: number | null,
+  suffix = "",
+  invertSign = false,
+  noiseFloor = SEED_DELTA_NOISE_FLOOR
+): { label: string; tone: "pos" | "neg" | "flat" } | null {
+  if (delta === null || Math.abs(delta) < noiseFloor) return null
   const isPositiveOutcome = invertSign ? delta < 0 : delta > 0
   const sign = delta > 0 ? "+" : ""
   return {
@@ -395,7 +423,12 @@ export function PlayoffOddsTable({
               const deltaVal = isWhatIf && baseline
                 ? Math.round((row.playoffPct - baseline.playoffPct) * 10) / 10
                 : row.playoffDelta
-              const deltaBadge = formatDelta(deltaVal, "%")
+              const deltaBadge = formatDelta(
+                deltaVal,
+                "%",
+                false,
+                isWhatIf ? WHAT_IF_PLAYOFF_DELTA_NOISE_FLOOR : PLAYOFF_DELTA_NOISE_FLOOR
+              )
               const seedDeltaVal = isWhatIf && baseline
                 ? Math.round((row.avgSeed - baseline.avgSeed) * 10) / 10
                 : row.avgSeedDelta
@@ -410,7 +443,14 @@ export function PlayoffOddsTable({
                 format.hasPlayIn &&
                 idx === format.directByeSpots - 1
 
-              const strengthTooltip = `Strength: .${Math.round(row.strength * 1000).toString().padStart(3, "0")} | Raw PythagenPuck: ${(row.rawPythPct * 100).toFixed(1)}% | Actual Pts%: ${(row.actualPtsPct * 100).toFixed(1)}% | Luck: ${row.luckDelta >= 0 ? "+" : ""}${(row.luckDelta * 100).toFixed(1)}%`
+              const strengthLabel = `Strength: .${Math.round(row.strength * 1000).toString().padStart(3, "0")}`
+              const paceLabel = `Actual Pts%: ${(row.actualPtsPct * 100).toFixed(1)}% | Goal-based: ${(row.rawPythPct * 100).toFixed(1)}% | Pace: ${row.luckDelta >= 0 ? "+" : ""}${(row.luckDelta * 100).toFixed(1)}%`
+              const strengthTooltip =
+                snapshot.mode === "50_50"
+                  ? `${strengthLabel} (not used: every remaining game is 50/50) | ${paceLabel}`
+                  : snapshot.mode === "classic"
+                    ? `${strengthLabel} (points % regressed toward .500) | ${paceLabel}`
+                    : `${strengthLabel} (goal-based, shrunk toward .500) | ${paceLabel}`
 
               return (
                 <tr
@@ -492,6 +532,7 @@ export function PlayoffOddsTable({
                     title={`${row.gp} GP · ROW ${row.row}`}
                   >
                     {row.w}-{row.otw + row.sow}-{row.otl}-{row.l}
+                    {row.ties ? `-${row.ties}T` : ""}
                   </td>
                   <td
                     className={cn(
@@ -590,8 +631,10 @@ export function PlayoffOddsTable({
                           </td>
                         </TooltipTrigger>
                         <TooltipContent sideOffset={4} className="px-2 py-1 text-[11px] tabular-nums">
-                          <span className="font-semibold">{pct.toFixed(3)}%</span>
-                          <span className="ml-1.5 text-background/70">Seed #{seedNum}</span>
+                          <span className="font-semibold">{formatSeedTooltipPct(pct)}</span>
+                          <span className="ml-1 text-background/70">
+                            ±{monteCarloMargin(pct, snapshot.iterations)} · Seed #{seedNum}
+                          </span>
                         </TooltipContent>
                       </Tooltip>
                     )

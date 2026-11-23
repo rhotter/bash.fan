@@ -185,12 +185,31 @@ We ran two read-only empirical calibration scripts across all non-forfeit BASH r
 | **Goal Overdispersion (`var/mean`)** | **1.633** (median `1.500`) | **1.604** (median `1.501`) | `~1.05–1.15` |
 | **OT + Shootout Rate** | **12.97%** all-time (**11.69%** 2018+) | **10.49%** all-time (**8.72%** 2018+) | `~24.4%` (`12.0%` OT + `12.4%` SO) |
 | **OT vs. Shootout Split (calibrated)** | **~7.5% OT / ~4.5% SO** (`12.0%` total) | **~5.5% OT / ~3.5% SO** (`9.0%` total) | `50/50` split |
-| **Optimal PythagenPuck Power $P$** | **$P = 0.22$** ($E \approx 1.54$, $R^2 = 0.8617$ vs pts%) | **$P = 0.37$** ($E \approx 2.48$, $R^2 = 0.8048$ vs pts%) | $P = 0.458$ ($E \approx 2.15$) |
-| **Optimal EB Shrinkage Prior $C$** | **$C = 10$ games** | **$C = 6$ games** | Ken `p225` piecewise |
+| **Optimal PythagenPuck Power $P$ (LOSO CV)** | **$P = 0.22$** (with $m = 4$ goal prior) | **$P = 0.458$** (with $m = 4$ goal prior) | $P = 0.458$ ($E \approx 2.15$) |
+| **Optimal EB Shrinkage Prior ($m, C$)** | **$m = 4$ goal prior, $C = 4$ EB games** (or $C = 10$ with $m = 0$) | **$m = 4$ goal prior, $C = 4$ EB games** (or $C = 8\text{–}10$ with $m = 0$) | Ken `p225` piecewise |
+| **Bayesian Strength Concentration $k$** | **$k = 2$** (`80.3%` / `89.4%` interval coverage) | **$k = 3$** (`82.7%` / `92.0%` interval coverage) | Plug-in ($k = 0$) |
 
 > **Why NHL `P = 0.458` fails on BASH Fall**: With 7.45 goals/game, $7.45^{0.458} \approx 2.51$—far too steep for an overdispersed league with `var/mean = 1.63`, causing $R^2$ vs. actual points% to collapse to `0.6922` (worse than fixed $E = 2.0$ at `0.8108`) and out-of-sample game Brier score to degrade to `0.2719` (worse than a coin flip!). Compressing to $P = 0.22$ yields $E = 7.45^{0.22} \approx 1.56$ and jumps $R^2$ to `0.8617`.
 
-### 6.2 Out-of-Sample Game Prediction Backtest (Both Teams $\ge 3$ GP)
+### 6.2 Nested Season-Blocked LOSO Cross-Validation (`minGp >= 1`, 2,107 Games, 54 Seasons)
+
+To eliminate in-sample selection bias, we ran strict **season-blocked Leave-One-Season-Out (LOSO)** cross-validation across all 27 Fall seasons (`1,561` games) and 27 Summer seasons (`546` games) with SOWG stripped, evaluating 4-outcome Ranked Probability Score (RPS), 3-2-1 expected-points RMSE, binary Brier, and LogLoss under the decompressed + normalized extra-time model:
+
+| Model (Nested LOSO Out-of-Sample) | Fall RPS | Fall Pts RMSE | Fall Brier | Summer RPS | Summer Pts RMSE | Summer Brier |
+|---|---:|---:|---:|---:|---:|---:|
+| **BASH Weighted Decompressed (`P, C, m` nested)** | **0.23515** | **1.3690** | **0.23832** | **0.23598** | **1.3941** | **0.23593** |
+| BASH Weighted Decompressed (`m = 0` post-ratio only) | 0.23536 | 1.3697 | 0.23853 | 0.23649 | 1.3957 | 0.23645 |
+| BASH Weighted Compressed (`m = 0`) | 0.23545 | 1.3700 | 0.23858 | 0.23654 | 1.3959 | 0.23660 |
+| BASH EB Shrunk `Pts%` (nested `C`) | 0.23660 | 1.3737 | 0.23956 | 0.24074 | 1.4095 | 0.24119 |
+| SCS Classic (Ken `p225` regression) | 0.23951 | 1.3826 | 0.24239 | 0.25636 | 1.4582 | 0.25521 |
+| 50/50 Coin Flip | 0.24703 | 1.4078 | 0.25000 | 0.24857 | 1.4343 | 0.25000 |
+
+- **Paired Season-Block Bootstrap (2,000 resamples)**: BASH Weighted beats `50/50` (`100.0%` Fall, `99.0%` Summer) and `SCS Classic` (`97.9%` Fall, `100.0%` Summer) at 95% confidence, and beats `EB Pts%` significantly in Summer (`97.7%`) while edging it out in Fall (`84.7%`).
+- **Pre-Ratio Gamma-Poisson Shrinkage (`m = 4, C = 4`)**: Shrinking goals for/against toward the empirical league mean (`3.73` Fall, `6.13` Summer) before PythagenPuck improves all four metrics over post-ratio-only shrinkage in both Fall (`P = 0.22`) and Summer (`P = 0.458`) while cleanly eliminating shutout singularities.
+- **Bayesian Strength Concentration (`strengthConcentration`)**: Without per-iteration Beta draws (`k = 0`), Fall remaining-season points% 80%/90% intervals severely under-cover (`71.2%` / `83.2%`). Calibrating `k = 2` (Fall) yields near-exact `80.3%` / `89.4%` coverage, and `k = 3` (Summer) yields `82.7%` / `92.0%`.
+- **Empirical Regulation Margins**: Fall (`n = 1,357`) `regMarginCdf = [0.2174, 0.4149, 0.5976, 0.7406, 0.8305, 1.0]`, mean loser goals `2.04`; Summer (`n = 488`) `regMarginCdf = [0.2152, 0.3914, 0.5451, 0.6701, 0.7766, 1.0]`, mean loser goals `4.24`.
+
+### 6.2b Original Sequential Backtest Reference (Both Teams $\ge 3$ GP)
 
 Every model was evaluated strictly sequentially (predicting each game using *only* games played prior to that date):
 

@@ -23,6 +23,12 @@ export interface PlayoffSimGame {
   isOvertime: boolean
   hasShootout: boolean
   isForfeit: boolean
+  /**
+   * Internal What-If marker: a locked result whose exact form is not decided by the pick.
+   * "reg" = regulation win with simulated margin; "extra" = OT/SO win (OT vs SO, and thus ROW,
+   * is simulated). Never set on real games.
+   */
+  whatIfLock?: "reg" | "extra"
 }
 
 export interface PlayoffFormat {
@@ -36,9 +42,25 @@ export interface PlayoffFormat {
 export interface CalibrationProfile {
   pythagenPuckPower: number
   ebShrinkageGames: number
+  /** Pre-ratio Gamma-Poisson prior games toward league-average goals/game (0 = Laplace +0.25) */
+  goalPriorGames?: number
+  /** Empirical league-average goals scored per team-game (SOWG stripped) */
+  leagueMeanGoalsPerTeam?: number
+  /** League-average share of games decided in overtime (target mean across matchups) */
   otRate: number
+  /** League-average share of games decided by shootout (target mean across matchups) */
   soRate: number
   homeFieldAdvantage: number
+  /**
+   * Concentration multiplier for per-simulation Bayesian strength draws:
+   * theta ~ Beta(kappa*s, kappa*(1-s)) with kappa = strengthConcentration * (GP + ebShrinkageGames + goalPriorGames).
+   * 0 disables parameter uncertainty (plug-in strengths).
+   */
+  strengthConcentration: number
+  /** Regulation goal-margin CDF for margins 1..N (last entry = 1.0) */
+  regMarginCdf: readonly number[]
+  /** Typical goals scored by the losing team in a regulation game (used for GF tiebreak tallies) */
+  regLoserGoals: number
 }
 
 export interface TeamLastGame {
@@ -47,7 +69,7 @@ export interface TeamLastGame {
   opponentSlug: string
   opponentName: string
   isHome: boolean
-  resultLabel: "W" | "OTW" | "SOW" | "OTL" | "SOL" | "L" | "FFW" | "FFL"
+  resultLabel: "W" | "OTW" | "SOW" | "OTL" | "SOL" | "L" | "T" | "FFW" | "FFL"
   teamScore: number
   opponentScore: number
 }
@@ -73,6 +95,8 @@ export interface WhatIfRecordRow {
   worstSeed: number
   simCount: number
   isTailProbe: boolean
+  /** Fewer than 250 simulated seasons landed in this row (wide Monte Carlo error) */
+  lowSample?: boolean
 }
 
 export interface TeamOddsRow {
@@ -87,6 +111,8 @@ export interface TeamOddsRow {
   sow: number
   otl: number
   l: number
+  /** Historical (pre-shootout era) ties; 1 point each */
+  ties?: number
   /** Regulation + Overtime wins (excludes shootout wins per BASH Rule 213) */
   row: number
   pts: number
@@ -133,6 +159,8 @@ export interface BigGameAffectedTeam {
   playoffSwing: number
   seedSwing: number
   bestOutcome: BigGameOutcomeKey
+  /** True when bestOutcome optimizes avgSeed rather than playoffPct (all-in or insignificant playoff swing). */
+  optimizeSeed?: boolean
   outcomes: Record<BigGameOutcomeKey, BigGameOutcomeCell>
 }
 
