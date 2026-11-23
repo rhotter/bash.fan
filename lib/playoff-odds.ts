@@ -2044,7 +2044,15 @@ function runCoreSimulation(opts: {
 }
 
 function whatIfStepForRem(rem: number): number {
-  return rem <= 3 ? 1 : rem <= 6 ? 3 : rem <= 11 ? 4 : 6
+  return rem < 10 ? 3 : 6
+}
+
+function formatRegWinLabel(lo: number, hi: number): string {
+  if (hi <= 0) return "0 wins"
+  const minWins = Math.ceil(lo / 3)
+  const maxWins = Math.ceil(hi / 3)
+  if (minWins === maxWins) return `${maxWins} ${maxWins === 1 ? "win" : "wins"}`
+  return `${minWins}–${maxWins} wins`
 }
 
 function buildWhatIfRowsForTeam(
@@ -2091,7 +2099,7 @@ function buildWhatIfRowsForTeam(
 
     if (cnt >= WHAT_IF_MIN_ROW_SAMPLES) {
       rows.push({
-        label: lo === hi ? `+${hi} pts` : `+${lo}–${hi} pts`,
+        label: formatRegWinLabel(lo, hi),
         minAddedPts: lo,
         maxAddedPts: hi,
         minFinalPts: team.pts + lo,
@@ -2106,7 +2114,7 @@ function buildWhatIfRowsForTeam(
       })
     } else if (hi === maxAdd && tailWinOut) {
       rows.push({
-        label: `Win out (+${maxAdd} pts)`,
+        label: `Win out (${rem} ${rem === 1 ? "win" : "wins"})`,
         minAddedPts: maxAdd,
         maxAddedPts: maxAdd,
         minFinalPts: team.pts + maxAdd,
@@ -2120,7 +2128,7 @@ function buildWhatIfRowsForTeam(
       })
     } else if (lo === 0 && tailLoseOut) {
       rows.push({
-        label: "Lose out (+0 pts)",
+        label: "Lose out",
         minAddedPts: 0,
         maxAddedPts: 0,
         minFinalPts: team.pts,

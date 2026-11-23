@@ -12,6 +12,7 @@ import type {
   BigGameOutcomeKey,
   PlayoffOddsSnapshot,
   PlayoffSimGame,
+  TeamOddsRow,
 } from "@/lib/playoff-odds-types"
 
 const OUTCOME_ORDER: readonly BigGameOutcomeKey[] = [
@@ -52,6 +53,89 @@ function outcomeButtonLabel(
   }
 }
 
+/**
+ * Shared 4-outcome What-If picker: "What-If Outcome:" label + two equal-width
+ * `[Reg | OT]` segmented controls (Away on left, Home on right) so every
+ * card has uniform button widths on both mobile and desktop.
+ */
+function OutcomeQuickPicker({
+  awayName,
+  homeName,
+  selectedOutcome,
+  onPick,
+  showLabel = false,
+}: {
+  awayName: string
+  homeName: string
+  selectedOutcome?: BigGameOutcomeKey
+  onPick: (outcome: BigGameOutcomeKey) => void
+  showLabel?: boolean
+}) {
+  const short = (name: string) => {
+    const words = name.split(" ")
+    return words[words.length - 1] || name
+  }
+  const hasSelection = selectedOutcome !== undefined
+
+  return (
+    <div
+      className={cn(
+        "w-full sm:w-auto",
+        showLabel && "flex flex-col gap-1 sm:flex-row sm:items-end sm:gap-2.5"
+      )}
+    >
+      {showLabel && (
+        <span className="hidden shrink-0 text-[10px] font-medium text-muted-foreground sm:flex sm:h-[22px] sm:items-center">
+          What-If Outcome:
+        </span>
+      )}
+      <div
+        className="grid w-full grid-cols-2 gap-2 sm:w-[264px] sm:shrink-0"
+        role="group"
+        aria-label={`Simulate outcome for ${awayName} at ${homeName}`}
+      >
+        {(
+          [
+            { teamName: awayName, keys: ["away_reg", "away_ot"] as const },
+            { teamName: homeName, keys: ["home_ot", "home_reg"] as const },
+          ] as const
+        ).map((group) => (
+          <div key={group.teamName} className="min-w-0 space-y-1">
+            <div className="truncate px-0.5 text-[10px] font-medium text-muted-foreground">
+              {short(group.teamName)}
+            </div>
+            <div className="grid grid-cols-2 overflow-hidden rounded border border-border/70 bg-background divide-x divide-border/70">
+              {group.keys.map((key) => {
+                const isReg = key === "away_reg" || key === "home_reg"
+                const active = selectedOutcome === key
+                const fullLabel = outcomeButtonLabel(key, awayName, homeName)
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => onPick(key)}
+                    title={`Lock ${fullLabel} in What-If mode`}
+                    aria-label={`Lock ${fullLabel} in What-If mode`}
+                    aria-pressed={hasSelection ? active : undefined}
+                    className={cn(
+                      "py-1 text-center text-[10px] font-medium transition-colors cursor-pointer sm:py-0.5",
+                      active
+                        ? "bg-primary text-primary-foreground"
+                        : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+                    )}
+                  >
+                    {isReg ? "Reg" : "OT"}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export function BigGamesSection({
   snapshot,
   lockedOutcomes,
@@ -59,6 +143,8 @@ export function BigGamesSection({
   onClearLocked,
   allUpcomingGames,
   lockedTeamSlug = null,
+  baselineTeam,
+  whatIfTeam,
 }: {
   snapshot: PlayoffOddsSnapshot
   lockedOutcomes: Record<string, BigGameOutcomeKey>
@@ -67,6 +153,10 @@ export function BigGamesSection({
   allUpcomingGames: PlayoffSimGame[]
   /** When set (team view), ranks games by impact on this team and shows only its row */
   lockedTeamSlug?: string | null
+  /** Baseline (pre-What-If) row for the focused team, used in the Locked What-If summary */
+  baselineTeam?: TeamOddsRow
+  /** Current What-If row for the focused team, used in the Locked What-If summary */
+  whatIfTeam?: TeamOddsRow
 }) {
   const lockedGameList = useMemo(() => {
     const lockedIds = Object.keys(lockedOutcomes)
@@ -139,16 +229,25 @@ export function BigGamesSection({
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h2 className="text-sm font-semibold text-foreground">
-            This week&apos;s games
+            This week&apos;s games &amp; What-If Scenarios
           </h2>
           <p className="text-[11px] text-muted-foreground">
-            {focusedTeamName
-              ? snapshot.format.allTeamsQualify
-                ? `Ranked by seed swing for ${focusedTeamName} — includes their own games and scoreboard-watching matchups that move their projected seed.`
-                : `Ranked by playoff swing for ${focusedTeamName} — includes their own games and scoreboard-watching matchups that move their odds.`
-              : snapshot.format.allTeamsQualify
-                ? "Ranked by league-wide seed swing. Pick a team above to see the games that move their seed, or lock any outcome to test a What-If."
-                : "Ranked by league-wide probability swing. Pick a team above to see the games that move their odds, or lock any outcome to test a What-If."}
+            {focusedTeamName ? (
+              snapshot.format.allTeamsQualify ? (
+                `Ranked by seed swing for ${focusedTeamName} — includes their own games and scoreboard-watching matchups that move their projected seed.`
+              ) : (
+                `Ranked by playoff swing for ${focusedTeamName} — includes their own games and scoreboard-watching matchups that move their odds.`
+              )
+            ) : (
+              <>
+                Ranked by largest {snapshot.format.allTeamsQualify ? "seeding" : "playoff picture"} impact. Lock any
+                outcome to test a What-If scenario.{" "}
+                <span className="rounded-xs bg-emerald-500/10 px-1 py-0.5 font-medium text-foreground ring-1 ring-inset ring-emerald-600/20">
+                  Highlighted
+                </span>{" "}
+                = best outcome for selected team.
+              </>
+            )}
           </p>
         </div>
 
@@ -162,10 +261,18 @@ export function BigGamesSection({
       {/* Currently Locked What-If Games Strip */}
       {lockedGameList.length > 0 && (
         <div className="rounded-lg border border-primary/40 bg-primary/[0.04] p-3 space-y-2.5">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
-              <Lock className="h-3.5 w-3.5 text-primary" />
-              <span>Locked What-If picks ({lockedGameList.length})</span>
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div className="space-y-0.5">
+              <div className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
+                <Lock className="h-3.5 w-3.5 text-primary" />
+                <span>Locked What-If picks ({lockedGameList.length})</span>
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                <span className="sm:hidden">All odds, charts &amp; tables updated.</span>
+                <span className="hidden sm:inline">
+                  All playoff odds, charts, and tables on this page reflect your What-If picks.
+                </span>
+              </p>
             </div>
             <button
               type="button"
@@ -176,6 +283,50 @@ export function BigGamesSection({
               Reset all picks
             </button>
           </div>
+          {baselineTeam && whatIfTeam && (
+            <div className="rounded-md border border-border/50 bg-card/80 px-3 py-2 text-[11px] tabular-nums space-y-1.5">
+              {(
+                [
+                  { label: "Current:", row: baselineTeam, highlight: false },
+                  { label: "What-if:", row: whatIfTeam, highlight: true },
+                ] as const
+              ).map(({ label, row, highlight }) => (
+                <div
+                  key={label}
+                  className="grid grid-cols-[52px_1fr_auto] sm:grid-cols-[56px_175px_140px] items-baseline gap-x-2.5 sm:gap-x-5 gap-y-0.5"
+                >
+                  <span
+                    className={cn(
+                      "font-semibold",
+                      highlight ? "text-primary" : "text-muted-foreground"
+                    )}
+                  >
+                    {label}
+                  </span>
+                  <div className="min-w-0">
+                    <div className={cn("font-semibold", highlight ? "text-foreground" : "text-foreground/90")}>
+                      {snapshot.format.allTeamsQualify
+                        ? `${row.seedPcts[0]?.toFixed(1) ?? "0.0"}% #1 seed`
+                        : `${row.playoffPct.toFixed(1)}% playoffs`}
+                    </div>
+                    {!snapshot.format.allTeamsQualify && snapshot.format.hasPlayIn && (
+                      <div className="text-[10px] text-muted-foreground">
+                        {row.directByePct.toFixed(1)}% top 3, {row.playInPct.toFixed(1)}% play-in
+                      </div>
+                    )}
+                  </div>
+                  <div className="text-right sm:text-left">
+                    <div className={cn("font-semibold", highlight ? "text-foreground" : "text-foreground/90")}>
+                      #{row.avgSeed.toFixed(1)} proj seed
+                    </div>
+                    <div className="text-[10px] text-muted-foreground">
+                      #{row.bestSeed}–#{row.worstSeed} seed range
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
           <div className="space-y-2">
             {lockedGameList.map(({ game, pick }) => (
               <div
@@ -188,26 +339,12 @@ export function BigGamesSection({
                     {game.awayName} @ {game.homeName}
                   </span>
                 </div>
-                <div className="flex flex-wrap items-center gap-1">
-                  {OUTCOME_ORDER.map((key) => {
-                    const active = pick === key
-                    return (
-                      <button
-                        key={key}
-                        type="button"
-                        onClick={() => onToggleOutcome(game.id, key)}
-                        className={cn(
-                          "rounded px-2 py-0.5 text-[10px] font-medium transition-colors cursor-pointer",
-                          active
-                            ? "bg-primary text-primary-foreground"
-                            : "bg-muted text-muted-foreground hover:text-foreground"
-                        )}
-                      >
-                        {outcomeButtonLabel(key, game.awayName, game.homeName)}
-                      </button>
-                    )
-                  })}
-                </div>
+                <OutcomeQuickPicker
+                  awayName={game.awayName}
+                  homeName={game.homeName}
+                  selectedOutcome={pick}
+                  onPick={(key) => onToggleOutcome(game.id, key)}
+                />
               </div>
             ))}
           </div>
@@ -241,15 +378,11 @@ export function BigGamesSection({
       )}
 
       {/* Footnote */}
-      <p className="text-[11px] text-muted-foreground/80 leading-relaxed">
-        Outcomes marked <span className="font-semibold text-foreground">*</span> occurred in fewer than 500 simulated
-        seasons (wider error).{" "}
+      <p className="text-[10px] leading-relaxed text-muted-foreground/80">
         <span className="rounded-xs bg-emerald-500/10 px-1 py-0.5 font-medium text-foreground ring-1 ring-inset ring-emerald-600/20">
-          Highlighted cells
+          Highlighted
         </span>{" "}
-        mark the best single-game outcome for each team. Swings compare the two regulation results; other teams are
-        listed only when the effect is larger than simulation noise. Swings across separate games on the same day are
-        not strictly additive.
+        = best outcome · Swings compare reg wins (not additive).
       </p>
     </section>
   )
@@ -269,6 +402,7 @@ function BigGameCard({
   onPickOutcome: (outcome: BigGameOutcomeKey) => void
 }) {
   const [showWatching, setShowWatching] = useState(false)
+  const [swingOpen, setSwingOpen] = useState(false)
 
   const displayedTeams = focusedTeamSlug
     ? game.affectedTeams.filter((t) => t.slug === focusedTeamSlug)
@@ -384,8 +518,8 @@ function BigGameCard({
   return (
     <article className="overflow-hidden rounded-lg border border-border/60 bg-card">
       {/* Card Header */}
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/50 bg-muted/30 px-3.5 py-2.5">
-        <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 min-w-0">
+      <div className="flex flex-wrap items-end justify-between gap-x-3 gap-y-2 border-b border-border/50 bg-muted/30 px-3.5 py-2.5">
+        <div className="flex flex-col items-start gap-1.5 min-w-0">
           <Link
             href={`/game/${game.gameId}`}
             title={`View ${game.awayName} @ ${game.homeName} matchup`}
@@ -407,13 +541,13 @@ function BigGameCard({
               ({game.homeWinProb.toFixed(0)}%)
             </span>
           </Link>
-        </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <Tooltip delayDuration={150}>
+          <Tooltip open={swingOpen} onOpenChange={setSwingOpen} delayDuration={150}>
             <TooltipTrigger asChild>
-              <span
-                tabIndex={0}
+              <button
+                type="button"
+                onClick={() => setSwingOpen((v) => !v)}
+                aria-expanded={swingOpen}
                 className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-0.5 text-[10px] font-semibold tabular-nums text-foreground cursor-help focus-visible:outline-2 focus-visible:outline-ring"
               >
                 <span>
@@ -426,9 +560,14 @@ function BigGameCard({
                       : `League Playoff impact: ${game.totalPlayoffSwing.toFixed(1)}pp`}
                 </span>
                 <Info className="h-3 w-3 shrink-0 text-muted-foreground" aria-hidden="true" />
-              </span>
+              </button>
             </TooltipTrigger>
-            <TooltipContent align="end" sideOffset={6} className="max-w-[290px] text-left text-[11px] leading-snug">
+            <TooltipContent
+              align="start"
+              collisionPadding={12}
+              sideOffset={6}
+              className="max-w-[290px] text-left text-[11px] leading-snug"
+            >
               {focusedTeam ? (
                 showSeedFocus ? (
                   <div className="space-y-1">
@@ -471,22 +610,15 @@ function BigGameCard({
               )}
             </TooltipContent>
           </Tooltip>
-
-          {/* Interactive What-If quick picker */}
-          <div className="flex flex-wrap items-center gap-1" role="group" aria-label={`Simulate outcome for ${game.awayName} at ${game.homeName}`}>
-            {OUTCOME_ORDER.map((key) => (
-              <button
-                key={key}
-                type="button"
-                onClick={() => onPickOutcome(key)}
-                title={`Lock ${outcomeButtonLabel(key, game.awayName, game.homeName)} in What-If mode`}
-                className="rounded border border-border/70 bg-background px-2 py-0.5 text-[10px] font-medium text-muted-foreground hover:border-primary/60 hover:text-foreground transition-colors cursor-pointer"
-              >
-                {outcomeButtonLabel(key, game.awayName, game.homeName)}
-              </button>
-            ))}
-          </div>
         </div>
+
+        {/* Interactive What-If quick picker */}
+        <OutcomeQuickPicker
+          awayName={game.awayName}
+          homeName={game.homeName}
+          onPick={onPickOutcome}
+          showLabel
+        />
       </div>
 
       {/* 4-Outcome Conditional Table */}
@@ -500,13 +632,13 @@ function BigGameCard({
         }
         className="overflow-x-auto focus-visible:outline-2 focus-visible:outline-ring"
       >
-        <table className="w-full min-w-[540px] text-[11px] border-collapse">
+        <table className="w-full min-w-[560px] table-fixed text-[11px] border-collapse">
           <thead>
             <tr className="border-b border-border/40 text-[10px] text-muted-foreground bg-muted/10">
-              <th scope="col" className="px-3.5 py-2 text-left font-medium w-[170px]">
+              <th scope="col" className="w-[155px] sm:w-[200px] px-3.5 py-2 text-left font-medium">
                 Team
               </th>
-              <th scope="col" className="px-2 py-2 text-right font-medium border-r border-border/40">
+              <th scope="col" className="w-[64px] sm:w-[76px] px-2 py-2 text-right font-medium border-r border-border/40">
                 <Tooltip delayDuration={150}>
                   <TooltipTrigger asChild>
                     <span

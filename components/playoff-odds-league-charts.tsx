@@ -58,7 +58,7 @@ export function PlayoffOddsLeagueCharts({
   }, [snapshot.teams, snapshot.teamColors])
 
   const chartData = useMemo(() => {
-    return snapshot.timeline.map((pt) => {
+    const base = snapshot.timeline.map((pt) => {
       const row: Record<string, number | string> = { label: pt.label, date: pt.date }
       for (const t of chartTeams) {
         const entry = pt.teams[t.slug]
@@ -68,7 +68,26 @@ export function PlayoffOddsLeagueCharts({
       }
       return row
     })
-  }, [snapshot.timeline, chartTeams, snapshot.format.teamCount])
+
+    if (isWhatIfActive && base.length > 0) {
+      const last = base[base.length - 1]
+      const whatIfRow: Record<string, number | string> = { label: "What-If", date: "What-If" }
+      const bySlug = new Map(snapshot.teams.map((t) => [t.slug, t]))
+      for (const t of chartTeams) {
+        const teamRow = bySlug.get(t.slug)
+        if (!teamRow) continue
+        last[`whatIf:pts:${t.slug}`] = last[`pts:${t.slug}`]
+        last[`whatIf:playoffPct:${t.slug}`] = last[`playoffPct:${t.slug}`]
+        last[`whatIf:avgSeed:${t.slug}`] = last[`avgSeed:${t.slug}`]
+        whatIfRow[`whatIf:pts:${t.slug}`] = teamRow.pts
+        whatIfRow[`whatIf:playoffPct:${t.slug}`] = teamRow.playoffPct
+        whatIfRow[`whatIf:avgSeed:${t.slug}`] = teamRow.avgSeed
+      }
+      base.push(whatIfRow)
+    }
+
+    return base
+  }, [snapshot.timeline, snapshot.teams, chartTeams, snapshot.format.teamCount, isWhatIfActive])
 
   const hasHistory = chartData.length >= 2
   const secondMetric: LeagueMetric = allTeamsQualify ? "avgSeed" : "playoffPct"
@@ -78,7 +97,7 @@ export function PlayoffOddsLeagueCharts({
       <p className="text-[11px] text-muted-foreground/80">
         <span className="sm:hidden">Tap a team logo to highlight it on both charts.</span>
         <span className="hidden sm:inline">Hover a line or team to highlight it on both charts.</span>
-        {isWhatIfActive && " Charts show real results (What-If picks not included)."}
+        {isWhatIfActive && " Dashed segment shows active What-If scenario."}
       </p>
 
       {hasHistory ? (
@@ -93,6 +112,7 @@ export function PlayoffOddsLeagueCharts({
             teamCount={snapshot.format.teamCount}
             playoffSpots={snapshot.format.playoffSpots}
             allTeamsQualify={allTeamsQualify}
+            isWhatIfActive={isWhatIfActive}
             className="order-2 md:order-1"
           />
           <LeagueChart
@@ -105,6 +125,7 @@ export function PlayoffOddsLeagueCharts({
             teamCount={snapshot.format.teamCount}
             playoffSpots={snapshot.format.playoffSpots}
             allTeamsQualify={allTeamsQualify}
+            isWhatIfActive={isWhatIfActive}
             className="order-1 md:order-2"
           />
         </div>
@@ -191,6 +212,7 @@ function LeagueChart({
   teamCount,
   playoffSpots,
   allTeamsQualify,
+  isWhatIfActive,
   className,
 }: {
   title: string
@@ -202,6 +224,7 @@ function LeagueChart({
   teamCount: number
   playoffSpots: number
   allTeamsQualify: boolean
+  isWhatIfActive: boolean
   className?: string
 }) {
   const formatValue = (v: number) =>
@@ -241,19 +264,42 @@ function LeagueChart({
               <ReferenceLine y={playoffSpots + 0.5} stroke="var(--muted-foreground)" strokeDasharray="4 4" strokeOpacity={0.6} />
             )}
             <Tooltip
-              contentStyle={{
-                backgroundColor: "var(--popover)",
-                borderColor: "var(--border)",
-                borderRadius: "6px",
-                fontSize: "11px",
-                padding: "6px 8px",
+              content={({ active, label, payload }) => {
+                if (!active || !payload || payload.length === 0) return null
+                // Deduplicate bridge point where both `<metric>:<slug>` and `whatIf:<metric>:<slug>` exist
+                const byTeam = new Map<string, (typeof payload)[number]>()
+                for (const item of payload) {
+                  if (item.value === undefined || item.value === null) continue
+                  const key = String(item.dataKey ?? "")
+                  const teamName = String(item.name ?? key)
+                  if (!byTeam.has(teamName) || !key.startsWith("whatIf:")) {
+                    byTeam.set(teamName, item)
+                  }
+                }
+                if (byTeam.size === 0) return null
+                const items = Array.from(byTeam.values()).sort((a, b) => {
+                  const av = Number(a.value ?? 0)
+                  const bv = Number(b.value ?? 0)
+                  return metric === "avgSeed" ? av - bv : bv - av
+                })
+                return (
+                  <div className="rounded-md border border-border bg-popover px-2 py-1.5 text-[11px] shadow-md">
+                    <div className="mb-1 font-medium text-popover-foreground">{label}</div>
+                    <div className="space-y-0.5">
+                      {items.map((item) => (
+                        <div key={String(item.dataKey)} className="flex items-center justify-between gap-3">
+                          <span className="truncate" style={{ color: item.color }}>
+                            {item.name}
+                          </span>
+                          <span className="font-medium tabular-nums text-popover-foreground">
+                            {formatValue(Number(item.value ?? 0))}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )
               }}
-              itemStyle={{ padding: 0 }}
-              itemSorter={(item) => {
-                const v = Number(item.value ?? 0)
-                return metric === "avgSeed" ? v : -v
-              }}
-              formatter={(value: number, name: string) => [formatValue(Number(value)), name]}
             />
             {/* Outline underlays keep very light team colors (e.g., white/yellow) visible on white */}
             {teams
@@ -300,6 +346,54 @@ function LeagueChart({
                 />
               )
             })}
+            {isWhatIfActive &&
+              teams
+                .filter((t) => t.outline)
+                .map((t) => {
+                  const active = highlightedSlug === t.slug
+                  const dimmed = highlightedSlug !== null && !active
+                  return (
+                    <Line
+                      key={`whatif-outline-${t.slug}`}
+                      type="linear"
+                      dataKey={`whatIf:${metric}:${t.slug}`}
+                      stroke={t.outline!}
+                      strokeWidth={active ? 5.5 : 3.5}
+                      strokeDasharray="4 4"
+                      strokeOpacity={dimmed ? 0.12 : 0.9}
+                      dot={false}
+                      activeDot={false}
+                      legendType="none"
+                      tooltipType="none"
+                      isAnimationActive={false}
+                    />
+                  )
+                })}
+            {isWhatIfActive &&
+              teams.map((t) => {
+                const active = highlightedSlug === t.slug
+                const dimmed = highlightedSlug !== null && !active
+                return (
+                  <Line
+                    key={`whatif-${t.slug}`}
+                    type="linear"
+                    dataKey={`whatIf:${metric}:${t.slug}`}
+                    name={t.name}
+                    stroke={t.color}
+                    strokeWidth={active ? 3.5 : 2}
+                    strokeDasharray="4 4"
+                    strokeOpacity={dimmed ? 0.18 : 1}
+                    dot={false}
+                    activeDot={
+                      dimmed
+                        ? false
+                        : { r: 3.5, fill: t.color, stroke: t.outline ?? t.color, strokeWidth: t.outline ? 1.5 : 0 }
+                    }
+                    isAnimationActive={false}
+                    onMouseEnter={() => onHighlight(t.slug)}
+                  />
+                )
+              })}
           </LineChart>
         </ResponsiveContainer>
       </div>
