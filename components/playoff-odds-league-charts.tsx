@@ -269,9 +269,17 @@ function LeagueChart({
                 // Deduplicate bridge point where both `<metric>:<slug>` and `whatIf:<metric>:<slug>` exist
                 const byTeam = new Map<string, (typeof payload)[number]>()
                 for (const item of payload) {
-                  if (item.value === undefined || item.value === null) continue
+                  if (
+                    item.value === undefined ||
+                    item.value === null ||
+                    item.tooltipType === "none" ||
+                    !item.name ||
+                    String(item.name) === String(item.dataKey)
+                  ) {
+                    continue
+                  }
                   const key = String(item.dataKey ?? "")
-                  const teamName = String(item.name ?? key)
+                  const teamName = String(item.name)
                   if (!byTeam.has(teamName) || !key.startsWith("whatIf:")) {
                     byTeam.set(teamName, item)
                   }
@@ -287,7 +295,7 @@ function LeagueChart({
                     <div className="mb-1 font-medium text-popover-foreground">{label}</div>
                     <div className="space-y-0.5">
                       {items.map((item) => (
-                        <div key={String(item.dataKey)} className="flex items-center justify-between gap-3">
+                        <div key={String(item.name)} className="flex items-center justify-between gap-3">
                           <span className="truncate" style={{ color: item.color }}>
                             {item.name}
                           </span>

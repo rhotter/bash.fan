@@ -1266,6 +1266,7 @@ interface CoreSimResult {
   rawPythPcts: number[]
   bigGames: BigGameImpact[]
   whatIfRows: WhatIfRecordRow[][]
+  whatIfRowsNoOt: WhatIfRecordRow[][]
 }
 
 /** Conditional home-win share slopes inside overtime and shootouts (OT favors the stronger team more than SO). */
@@ -1457,6 +1458,7 @@ function runCoreSimulation(opts: {
     const bestSeed = new Array<number>(T).fill(1)
     const worstSeed = new Array<number>(T).fill(1)
     const whatIfRows: WhatIfRecordRow[][] = Array.from({ length: T }, () => [])
+    const whatIfRowsNoOt: WhatIfRecordRow[][] = Array.from({ length: T }, () => [])
 
     for (let idx = 0; idx < T; idx++) {
       const bStart = blockStartByIdx[idx]
@@ -1495,6 +1497,7 @@ function runCoreSimulation(opts: {
       rawPythPcts,
       bigGames: [],
       whatIfRows,
+      whatIfRowsNoOt,
     }
   }
 
@@ -1598,11 +1601,19 @@ function runCoreSimulation(opts: {
   const wiWorst = trackWhatIf ? new Int16Array(T * maxRegWinSlots).fill(1) : null
   const wiMinPts = trackWhatIf ? new Int16Array(T * maxRegWinSlots).fill(9999) : null
   const wiMaxPts = trackWhatIf ? new Int16Array(T * maxRegWinSlots).fill(-9999) : null
+  const wiNoOtCount = trackWhatIf ? new Int32Array(T * maxRegWinSlots) : null
+  const wiNoOtPlayoff = trackWhatIf ? new Int32Array(T * maxRegWinSlots) : null
+  const wiNoOtSeedSum = trackWhatIf ? new Float64Array(T * maxRegWinSlots) : null
+  const wiNoOtBest = trackWhatIf ? new Int16Array(T * maxRegWinSlots).fill(T) : null
+  const wiNoOtWorst = trackWhatIf ? new Int16Array(T * maxRegWinSlots).fill(1) : null
+  const wiNoOtMinPts = trackWhatIf ? new Int16Array(T * maxRegWinSlots).fill(9999) : null
+  const wiNoOtMaxPts = trackWhatIf ? new Int16Array(T * maxRegWinSlots).fill(-9999) : null
 
   // Per-iteration reusable scratch buffers
   const pts = new Int16Array(T)
   const row = new Int16Array(T)
   const regWins = new Int16Array(T)
+  const otGames = new Int16Array(T)
   const gd = new Int16Array(T)
   const gf = new Int16Array(T)
   const h2hPts = new Int16Array(T * T)
@@ -1616,6 +1627,7 @@ function runCoreSimulation(opts: {
     pts.set(state.basePts)
     row.set(state.baseRow)
     regWins.fill(0)
+    otGames.fill(0)
     gd.set(state.baseGd)
     gf.set(state.baseGf)
     h2hPts.set(state.baseH2hPts)
@@ -1638,6 +1650,8 @@ function runCoreSimulation(opts: {
   const applyExtraWin = (w: number, l: number, countsRow: boolean) => {
     pts[w] += 2
     pts[l] += 1
+    otGames[w] += 1
+    otGames[l] += 1
     if (countsRow) row[w] += 1
     gd[w] += 1
     gd[l] -= 1
@@ -1739,6 +1753,24 @@ function runCoreSimulation(opts: {
         if (seedNum > wiWorst[slot]) wiWorst[slot] = seedNum
         if (pts[idx] < wiMinPts[slot]) wiMinPts[slot] = pts[idx]
         if (pts[idx] > wiMaxPts[slot]) wiMaxPts[slot] = pts[idx]
+        if (
+          otGames[idx] === 0 &&
+          wiNoOtCount &&
+          wiNoOtPlayoff &&
+          wiNoOtSeedSum &&
+          wiNoOtBest &&
+          wiNoOtWorst &&
+          wiNoOtMinPts &&
+          wiNoOtMaxPts
+        ) {
+          wiNoOtCount[slot]++
+          if (inPlayoffs) wiNoOtPlayoff[slot]++
+          wiNoOtSeedSum[slot] += seedNum
+          if (seedNum < wiNoOtBest[slot]) wiNoOtBest[slot] = seedNum
+          if (seedNum > wiNoOtWorst[slot]) wiNoOtWorst[slot] = seedNum
+          if (pts[idx] < wiNoOtMinPts[slot]) wiNoOtMinPts[slot] = pts[idx]
+          if (pts[idx] > wiNoOtMaxPts[slot]) wiNoOtMaxPts[slot] = pts[idx]
+        }
       }
     }
 
@@ -1801,10 +1833,17 @@ function runCoreSimulation(opts: {
           const rangeLo = forceWin ? topLo : 0
           const rangeHi = forceWin ? rem : botHi
           let bucketCount = 0
+          let noOtBucketCount = 0
           for (let w = rangeLo; w <= rangeHi; w++) {
             bucketCount += wiCount[baseSlot + w]
+            if (wiNoOtCount) noOtBucketCount += wiNoOtCount[baseSlot + w]
           }
-          if (bucketCount >= WHAT_IF_MIN_ROW_SAMPLES) continue
+          if (
+            bucketCount >= WHAT_IF_MIN_ROW_SAMPLES &&
+            (!wiNoOtCount || noOtBucketCount >= WHAT_IF_MIN_ROW_SAMPLES)
+          ) {
+            continue
+          }
         }
         let poHits = 0
         let sSum = 0
@@ -1861,6 +1900,7 @@ function runCoreSimulation(opts: {
 
   // 7. Build What-If Finish Tables per team
   const whatIfRows: WhatIfRecordRow[][] = Array.from({ length: T }, () => [])
+  const whatIfRowsNoOt: WhatIfRecordRow[][] = Array.from({ length: T }, () => [])
   if (trackWhatIf && wiCount && wiPlayoff && wiSeedSum && wiBest && wiWorst && wiMinPts && wiMaxPts) {
     for (let i = 0; i < T; i++) {
       whatIfRows[i] = buildWhatIfRowsForTeam(
@@ -1877,6 +1917,30 @@ function runCoreSimulation(opts: {
         tailWinOut.get(i) ?? null,
         tailLoseOut.get(i) ?? null
       )
+      if (
+        wiNoOtCount &&
+        wiNoOtPlayoff &&
+        wiNoOtSeedSum &&
+        wiNoOtBest &&
+        wiNoOtWorst &&
+        wiNoOtMinPts &&
+        wiNoOtMaxPts
+      ) {
+        whatIfRowsNoOt[i] = buildWhatIfRowsForTeam(
+          i,
+          state.teams[i],
+          maxRegWinSlots,
+          wiNoOtCount,
+          wiNoOtPlayoff,
+          wiNoOtSeedSum,
+          wiNoOtBest,
+          wiNoOtWorst,
+          wiNoOtMinPts,
+          wiNoOtMaxPts,
+          tailWinOut.get(i) ?? null,
+          tailLoseOut.get(i) ?? null
+        )
+      }
     }
   }
 
@@ -2048,6 +2112,7 @@ function runCoreSimulation(opts: {
     rawPythPcts,
     bigGames,
     whatIfRows,
+    whatIfRowsNoOt,
   }
 }
 
@@ -2056,6 +2121,7 @@ function whatIfStepForRem(rem: number): number {
 }
 
 function formatRegWinLabel(lo: number, hi: number): string {
+  if (lo === 0 && hi === 0) return "0 reg wins"
   if (lo === hi) return `${hi} ${hi === 1 ? "win" : "wins"}`
   return `${lo}–${hi} wins`
 }
@@ -2481,6 +2547,7 @@ export function computePlayoffOdds(options: ComputePlayoffOddsOptions): PlayoffO
       lastGame: realTeam.lastGame,
       nextGame: t.nextGame,
       whatIfRows: sim.whatIfRows[idx],
+      whatIfRowsNoOt: sim.whatIfRowsNoOt[idx],
     }
   })
 

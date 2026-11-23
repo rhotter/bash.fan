@@ -14,6 +14,7 @@ import {
 } from "recharts"
 import { IntentLink as Link } from "@/components/intent-link"
 import { TeamLogo } from "@/components/team-logo"
+import { Switch } from "@/components/ui/switch"
 import { Tooltip as UiTooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { getTeamChartColor } from "@/lib/chart-colors"
 import { cn } from "@/lib/utils"
@@ -72,6 +73,7 @@ export function TeamOddsPanel({
   const [chartMetric, setChartMetric] = useState<ChartMetric>(
     snapshot.format.allTeamsQualify ? "avgSeed" : "playoffPct"
   )
+  const [withOtl, setWithOtl] = useState(true)
   const effectiveChartMetric: ChartMetric =
     snapshot.format.allTeamsQualify && chartMetric === "playoffPct" ? "avgSeed" : chartMetric
   const availableMetrics: ChartMetric[] = snapshot.format.allTeamsQualify
@@ -131,7 +133,8 @@ export function TeamOddsPanel({
         ? "whatIfAvgSeed"
         : "whatIfPtsAbove500"
 
-  const hasTailProbes = team.whatIfRows.some((r) => r.isTailProbe)
+  const activeWhatIfRows = !withOtl && team.whatIfRowsNoOt ? team.whatIfRowsNoOt : team.whatIfRows
+  const hasTailProbes = activeWhatIfRows.some((r) => r.isTailProbe)
   const { stroke: teamColor, outline: teamOutline } = getTeamChartColor(team.slug, snapshot.teamColors)
   const luckText =
     Math.abs(team.luckDelta) < 0.025
@@ -556,16 +559,35 @@ export function TeamOddsPanel({
         {/* What-If Finish Table (hidden when 0 games remain or season is complete) */}
         {showWhatIfFinish && (
           <div className="min-w-0 space-y-2.5">
-            <div className="flex items-center justify-between gap-2">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <h4 className="text-xs font-semibold text-foreground">
-                Finish scenarios ({team.gamesRemaining} {team.gamesRemaining === 1 ? "game" : "games"} left)
+                Finish scenarios (
+                <span className="sm:hidden">{team.gamesRemaining}gms left</span>
+                <span className="hidden sm:inline">
+                  {team.gamesRemaining} {team.gamesRemaining === 1 ? "game" : "games"} left
+                </span>
+                )
               </h4>
-              <span className="shrink-0 text-[11px] text-muted-foreground tabular-nums">
-                Max {team.pts + team.gamesRemaining * 3} pts
-              </span>
+              <div className="flex items-center gap-3">
+                {team.whatIfRowsNoOt && team.whatIfRowsNoOt.length > 0 && (
+                  <label className="inline-flex cursor-pointer items-center gap-1.5 text-[11px] text-muted-foreground">
+                    <span className="sm:hidden">OTLs:</span>
+                    <span className="hidden sm:inline">With OTLs</span>
+                    <Switch
+                      checked={withOtl}
+                      onCheckedChange={setWithOtl}
+                      aria-label="Include OT/SO games in finish scenarios"
+                      className="scale-90"
+                    />
+                  </label>
+                )}
+                <span className="shrink-0 text-[11px] text-muted-foreground tabular-nums">
+                  Max {team.pts + team.gamesRemaining * 3} pts
+                </span>
+              </div>
             </div>
 
-            {team.whatIfRows.length > 0 ? (
+            {activeWhatIfRows.length > 0 ? (
               <div className="overflow-x-auto rounded-md border border-border/50">
                 <table className="w-full text-[10px] sm:text-[11px]">
                   <thead>
@@ -588,7 +610,7 @@ export function TeamOddsPanel({
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border/30">
-                    {team.whatIfRows.map((row) => (
+                    {activeWhatIfRows.map((row) => (
                       <tr key={row.label} className="hover:bg-muted/30">
                         <th scope="row" className="whitespace-nowrap px-1.5 py-1.5 sm:px-2.5 text-left font-medium text-foreground">
                           {row.lowSample && !row.isTailProbe && (
@@ -632,7 +654,7 @@ export function TeamOddsPanel({
               </div>
             )}
 
-            {team.whatIfRows.some((r) => r.lowSample && !r.isTailProbe) && (
+            {activeWhatIfRows.some((r) => r.lowSample && !r.isTailProbe) && (
               <p className="text-[10px] text-muted-foreground/80">
                 Rows marked <span className="font-medium">*</span> come from fewer than 250 simulated seasons, so their
                 odds can be off by several points.

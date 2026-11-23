@@ -140,6 +140,8 @@ export interface TeamOddsRow {
   lastGame: TeamLastGame | null
   nextGame: TeamNextGame | null
   whatIfRows: WhatIfRecordRow[]
+  /** Finish rows conditioned on 0 remaining OT/SO games for this team (regulation wins/losses only) */
+  whatIfRowsNoOt?: WhatIfRecordRow[]
 }
 
 export interface BigGameOutcomeCell {
