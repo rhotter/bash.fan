@@ -922,4 +922,53 @@ describe("PlayoffOddsView & StandingsContent Integration", () => {
       globalThis.ResizeObserver = originalResizeObserver
     }
   })
+
+  it("renders completed seasons as historical replays with charts and final table while hiding Big Games and Team What-If", async () => {
+    const completedSnapshot: PlayoffOddsSnapshot = {
+      ...sampleSnapshot,
+      seasonId: "2019-2020",
+      seasonName: "Fall 2019-2020",
+      seasonStatus: "completed",
+      endedEarly: true,
+      gamesRemaining: 0,
+      bigGames: [],
+      teams: sampleSnapshot.teams.map((t) => ({
+        ...t,
+        gamesRemaining: 0,
+        nextGame: null,
+        whatIfRows: [],
+      })),
+    }
+
+    await act(async () => {
+      root.render(<PlayoffOddsView season="2019-2020" initialData={completedSnapshot} />)
+    })
+
+    // Archival indicator + truncated-season note visible
+    expect(container.textContent).toContain("Fall 2019-2020 playoff odds")
+    expect(container.textContent).toContain("Final regular season")
+    expect(container.textContent).toContain("Season ended early.")
+
+    // League charts and final odds table stay visible
+    expect(container.textContent).toContain("Chance will make playoffs")
+    expect(container.textContent).toContain("Chance to make playoffs")
+
+    // Big Games section is hidden in All Teams view (no empty-state card)
+    expect(container.textContent).not.toContain("This week's games")
+    expect(container.textContent).not.toContain("Regular season complete — no remaining games")
+
+    // Switch to Team View for Seals
+    const teamsGroup = container.querySelector('[role="group"][aria-label="Teams"]') as HTMLElement
+    const sealsBtn = Array.from(teamsGroup.querySelectorAll("button")).find(
+      (b) => b.textContent === "Seals"
+    ) as HTMLButtonElement
+    await act(async () => {
+      sealsBtn.click()
+    })
+
+    // Team View scorecards & trajectory chart render, while What-If finish & Big Games stay hidden
+    expect(container.textContent).toContain("Season trajectory")
+    expect(container.textContent).not.toContain("How Seals needs to finish")
+    expect(container.textContent).not.toContain("This week's games")
+  })
 })

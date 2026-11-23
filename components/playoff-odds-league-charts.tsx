@@ -93,6 +93,7 @@ export function PlayoffOddsLeagueCharts({
             teamCount={snapshot.format.teamCount}
             playoffSpots={snapshot.format.playoffSpots}
             allTeamsQualify={allTeamsQualify}
+            className="order-2 md:order-1"
           />
           <LeagueChart
             title={allTeamsQualify ? "Projected seed" : "Chance will make playoffs"}
@@ -104,6 +105,7 @@ export function PlayoffOddsLeagueCharts({
             teamCount={snapshot.format.teamCount}
             playoffSpots={snapshot.format.playoffSpots}
             allTeamsQualify={allTeamsQualify}
+            className="order-1 md:order-2"
           />
         </div>
       ) : (
@@ -189,6 +191,7 @@ function LeagueChart({
   teamCount,
   playoffSpots,
   allTeamsQualify,
+  className,
 }: {
   title: string
   metric: LeagueMetric
@@ -199,12 +202,16 @@ function LeagueChart({
   teamCount: number
   playoffSpots: number
   allTeamsQualify: boolean
+  className?: string
 }) {
   const formatValue = (v: number) =>
     metric === "playoffPct" ? `${v.toFixed(1)}%` : metric === "avgSeed" ? `#${v.toFixed(1)}` : `${v}`
 
   return (
-    <figure className="rounded-lg border border-border/60 bg-card p-3" aria-label={`${title} by matchday`}>
+    <figure
+      className={cn("rounded-lg border border-border/60 bg-card p-3", className)}
+      aria-label={`${title} by matchday`}
+    >
       <figcaption className="mb-1.5 text-center text-[11px] font-medium text-muted-foreground">{title}</figcaption>
       <div className="h-[200px] sm:h-[240px] w-full">
         <ResponsiveContainer width="100%" height="100%">

@@ -301,8 +301,11 @@ export function TeamOddsPanel({
         </div>
       </div>
 
-      {/* Main 2-column content: Timeline Chart + What-If Table */}
-      <div className="grid gap-5 lg:grid-cols-2">
+      {/* Main content: Timeline Chart + What-If Table (hidden when 0 games remain) */}
+      {(() => {
+        const showWhatIfFinish = team.gamesRemaining > 0 && snapshot.seasonStatus !== "completed"
+        return (
+          <div className={showWhatIfFinish ? "grid gap-5 lg:grid-cols-2" : "grid gap-5"}>
         {/* Timeline Chart */}
         <div className="space-y-2.5">
           <div className="flex flex-wrap items-center justify-between gap-2">
@@ -457,99 +460,103 @@ export function TeamOddsPanel({
           )}
         </div>
 
-        {/* What-If Finish Table */}
-        <div className="space-y-2.5">
-          <div className="flex items-center justify-between gap-2">
-            <h4 className="text-xs font-semibold text-foreground">
-              How {team.name} needs to finish ({team.gamesRemaining} games left)
-            </h4>
-            <span className="text-[11px] text-muted-foreground tabular-nums">
-              Max {team.pts + team.gamesRemaining * 3} pts
-            </span>
-          </div>
+        {/* What-If Finish Table (hidden when 0 games remain or season is complete) */}
+        {showWhatIfFinish && (
+          <div className="space-y-2.5">
+            <div className="flex items-center justify-between gap-2">
+              <h4 className="text-xs font-semibold text-foreground">
+                How {team.name} needs to finish ({team.gamesRemaining} games left)
+              </h4>
+              <span className="text-[11px] text-muted-foreground tabular-nums">
+                Max {team.pts + team.gamesRemaining * 3} pts
+              </span>
+            </div>
 
-          {team.whatIfRows.length > 0 ? (
-            <div className="overflow-x-auto rounded-md border border-border/50">
-              <table className="w-full text-[11px]">
-                <thead>
-                  <tr className="border-b border-border/50 bg-muted/40 text-muted-foreground">
-                    <th scope="col" className="px-2.5 py-1.5 text-left font-medium">
-                      Remaining pts
-                    </th>
-                    <th scope="col" className="px-2 py-1.5 text-right font-medium">
-                      Final PTS
-                    </th>
-                    <th scope="col" className="px-2 py-1.5 text-right font-medium">
-                      {snapshot.format.allTeamsQualify ? "Avg seed" : "Playoff %"}
-                    </th>
-                    <th scope="col" className="px-2 py-1.5 text-right font-medium">
-                      Seed range
-                    </th>
-                    <th scope="col" className="px-2.5 py-1.5 text-right font-medium">
-                      Sims
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border/30">
-                  {team.whatIfRows.map((row) => (
-                    <tr key={row.label} className="hover:bg-muted/30">
-                      <th scope="row" className="px-2.5 py-1.5 text-left font-medium text-foreground">
-                        {row.lowSample && !row.isTailProbe && (
-                          <span className="mr-0.5 text-muted-foreground" title="Fewer than 250 simulated seasons">
-                            *
-                          </span>
-                        )}
-                        {row.label}
-                        {row.isTailProbe && (
-                          <span className="ml-1.5 rounded bg-muted px-1 py-0.5 text-[9px] font-normal text-muted-foreground">
-                            probe
-                          </span>
-                        )}
+            {team.whatIfRows.length > 0 ? (
+              <div className="overflow-x-auto rounded-md border border-border/50">
+                <table className="w-full text-[11px]">
+                  <thead>
+                    <tr className="border-b border-border/50 bg-muted/40 text-muted-foreground">
+                      <th scope="col" className="px-2.5 py-1.5 text-left font-medium">
+                        Remaining pts
                       </th>
-                      <td className="px-2 py-1.5 text-right tabular-nums text-muted-foreground">
-                        {row.minFinalPts === row.maxFinalPts
-                          ? row.minFinalPts
-                          : `${row.minFinalPts}–${row.maxFinalPts}`}
-                      </td>
-                      <td className="px-2 py-1.5 text-right font-semibold tabular-nums text-foreground">
-                        {snapshot.format.allTeamsQualify
-                          ? `#${row.avgSeed.toFixed(1)}`
-                          : `${row.playoffPct.toFixed(1)}%`}
-                      </td>
-                      <td className="px-2 py-1.5 text-right tabular-nums text-muted-foreground">
-                        {row.bestSeed === row.worstSeed
-                          ? `#${row.bestSeed}`
-                          : `#${row.bestSeed}–#${row.worstSeed}`}
-                      </td>
-                      <td className="px-2.5 py-1.5 text-right tabular-nums text-muted-foreground">
-                        {row.simCount.toLocaleString()}
-                      </td>
+                      <th scope="col" className="px-2 py-1.5 text-right font-medium">
+                        Final PTS
+                      </th>
+                      <th scope="col" className="px-2 py-1.5 text-right font-medium">
+                        {snapshot.format.allTeamsQualify ? "Avg seed" : "Playoff %"}
+                      </th>
+                      <th scope="col" className="px-2 py-1.5 text-right font-medium">
+                        Seed range
+                      </th>
+                      <th scope="col" className="px-2.5 py-1.5 text-right font-medium">
+                        Sims
+                      </th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <div className="flex h-[120px] items-center justify-center rounded-md border border-border/50 bg-muted/20 text-xs text-muted-foreground">
-              Regular season complete for {team.name}.
-            </div>
-          )}
+                  </thead>
+                  <tbody className="divide-y divide-border/30">
+                    {team.whatIfRows.map((row) => (
+                      <tr key={row.label} className="hover:bg-muted/30">
+                        <th scope="row" className="px-2.5 py-1.5 text-left font-medium text-foreground">
+                          {row.lowSample && !row.isTailProbe && (
+                            <span className="mr-0.5 text-muted-foreground" title="Fewer than 250 simulated seasons">
+                              *
+                            </span>
+                          )}
+                          {row.label}
+                          {row.isTailProbe && (
+                            <span className="ml-1.5 rounded bg-muted px-1 py-0.5 text-[9px] font-normal text-muted-foreground">
+                              probe
+                            </span>
+                          )}
+                        </th>
+                        <td className="px-2 py-1.5 text-right tabular-nums text-muted-foreground">
+                          {row.minFinalPts === row.maxFinalPts
+                            ? row.minFinalPts
+                            : `${row.minFinalPts}–${row.maxFinalPts}`}
+                        </td>
+                        <td className="px-2 py-1.5 text-right font-semibold tabular-nums text-foreground">
+                          {snapshot.format.allTeamsQualify
+                            ? `#${row.avgSeed.toFixed(1)}`
+                            : `${row.playoffPct.toFixed(1)}%`}
+                        </td>
+                        <td className="px-2 py-1.5 text-right tabular-nums text-muted-foreground">
+                          {row.bestSeed === row.worstSeed
+                            ? `#${row.bestSeed}`
+                            : `#${row.bestSeed}–#${row.worstSeed}`}
+                        </td>
+                        <td className="px-2.5 py-1.5 text-right tabular-nums text-muted-foreground">
+                          {row.simCount.toLocaleString()}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="flex h-[120px] items-center justify-center rounded-md border border-border/50 bg-muted/20 text-xs text-muted-foreground">
+                Regular season complete for {team.name}.
+              </div>
+            )}
 
-          {team.whatIfRows.some((r) => r.lowSample && !r.isTailProbe) && (
-            <p className="text-[10px] text-muted-foreground/80">
-              Rows marked <span className="font-medium">*</span> come from fewer than 250 simulated seasons, so their
-              odds can be off by several points.
-            </p>
-          )}
+            {team.whatIfRows.some((r) => r.lowSample && !r.isTailProbe) && (
+              <p className="text-[10px] text-muted-foreground/80">
+                Rows marked <span className="font-medium">*</span> come from fewer than 250 simulated seasons, so their
+                odds can be off by several points.
+              </p>
+            )}
 
-          {hasTailProbes && (
-            <p className="text-[10px] text-muted-foreground/80">
-              Rows tagged <span className="font-medium">probe</span> use an isolated 1,000-run simulation so extreme
-              win-out/lose-out outcomes stay visible without biasing main playoff odds.
-            </p>
-          )}
-        </div>
-      </div>
+            {hasTailProbes && (
+              <p className="text-[10px] text-muted-foreground/80">
+                Rows tagged <span className="font-medium">probe</span> use an isolated 1,000-run simulation so extreme
+                win-out/lose-out outcomes stay visible without biasing main playoff odds.
+              </p>
+            )}
+          </div>
+        )}
+          </div>
+        )
+      })()}
 
     </section>
   )

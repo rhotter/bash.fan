@@ -229,6 +229,10 @@ export function PlayoffOddsView({
   const teamOptions = [...activeSnapshot.teams]
     .sort((a, b) => a.name.localeCompare(b.name))
     .map((t) => ({ slug: t.slug, name: t.name }))
+  const isSeasonComplete =
+    lockedCount === 0 &&
+    (activeSnapshot.seasonStatus === "completed" || activeSnapshot.gamesRemaining === 0)
+  const showBigGames = !isSeasonComplete
 
   return (
     <div className="flex flex-col gap-6">
@@ -246,7 +250,14 @@ export function PlayoffOddsView({
         </div>
 
         <div className="space-y-1">
-          <h2 className="text-base font-semibold text-foreground">{activeSnapshot.seasonName} playoff odds</h2>
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="text-base font-semibold text-foreground">{activeSnapshot.seasonName} playoff odds</h2>
+            {isSeasonComplete && (
+              <span className="inline-flex items-center rounded-full border border-border bg-muted/60 px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+                Final regular season
+              </span>
+            )}
+          </div>
           <p className="text-xs text-muted-foreground">
             We ran {activeSnapshot.iterations.toLocaleString()} Monte Carlo simulations with {STATS_MODEL_OPTIONS.length}{" "}
             different models.
@@ -312,14 +323,16 @@ export function PlayoffOddsView({
                 onClose={() => handleSelectTeam(null)}
               />
 
-              <BigGamesSection
-                snapshot={activeSnapshot}
-                lockedOutcomes={effectiveLockedOutcomes}
-                onToggleOutcome={handleToggleOutcome}
-                onClearLocked={handleClearLocked}
-                allUpcomingGames={allUpcomingGames}
-                lockedTeamSlug={selectedTeam.slug}
-              />
+              {showBigGames && (
+                <BigGamesSection
+                  snapshot={activeSnapshot}
+                  lockedOutcomes={effectiveLockedOutcomes}
+                  onToggleOutcome={handleToggleOutcome}
+                  onClearLocked={handleClearLocked}
+                  allUpcomingGames={allUpcomingGames}
+                  lockedTeamSlug={selectedTeam.slug}
+                />
+              )}
             </>
           ) : (
             <>
@@ -342,13 +355,15 @@ export function PlayoffOddsView({
               />
 
               {/* This week's games ("Who should we root for?") */}
-              <BigGamesSection
-                snapshot={activeSnapshot}
-                lockedOutcomes={effectiveLockedOutcomes}
-                onToggleOutcome={handleToggleOutcome}
-                onClearLocked={handleClearLocked}
-                allUpcomingGames={allUpcomingGames}
-              />
+              {showBigGames && (
+                <BigGamesSection
+                  snapshot={activeSnapshot}
+                  lockedOutcomes={effectiveLockedOutcomes}
+                  onToggleOutcome={handleToggleOutcome}
+                  onClearLocked={handleClearLocked}
+                  allUpcomingGames={allUpcomingGames}
+                />
+              )}
             </>
           )}
 

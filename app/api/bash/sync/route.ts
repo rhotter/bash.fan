@@ -39,7 +39,7 @@ async function syncScheduleScores(leagueId: string, seasonId: string) {
     if (!gameIds.includes(match[1])) gameIds.push(match[1])
   }
 
-  const updates: { id: string; homeScore: number; awayScore: number; isOT: boolean; isForfeit: boolean }[] = []
+  const updates: { id: string; homeScore: number; awayScore: number; isOT: boolean; hasShootout: boolean; isForfeit: boolean }[] = []
   const rows = html.split(/(?=GID=\d+)/)
 
   for (const row of rows) {
@@ -47,14 +47,15 @@ async function syncScheduleScores(leagueId: string, seasonId: string) {
     if (!gidMatch) continue
     const gid = gidMatch[1]
     const text = stripHtml(row)
-    const isOT = /\(OT\)/i.test(text)
+    const hasShootout = /\((?:ShootOut|SO)\)/i.test(text)
+    const isOT = hasShootout || /\((?:OT|Overtime)\)/i.test(text)
     const isForfeit = /\((?:Dbl\s+)?Forfeit\)/i.test(text)
     const atMatch = text.match(/(\d+)\s*(?:\([^)]*\))?\s+at\s+.*?(\d+)\s*(?:\([^)]*\))?\s*$/i)
     if (atMatch) {
       const awayScore = parseInt(atMatch[1])
       const homeScore = parseInt(atMatch[2])
       if (!isNaN(awayScore) && !isNaN(homeScore)) {
-        updates.push({ id: gid, homeScore, awayScore, isOT, isForfeit })
+        updates.push({ id: gid, homeScore, awayScore, isOT, hasShootout, isForfeit })
       }
     }
   }
@@ -69,10 +70,10 @@ async function syncScheduleScores(leagueId: string, seasonId: string) {
     const updatedRows = await rawSql(sql`
       UPDATE games
       SET home_score = ${u.homeScore}, away_score = ${u.awayScore},
-          status = 'final', is_overtime = ${u.isOT}, is_forfeit = ${u.isForfeit}
+          status = 'final', is_overtime = ${u.isOT}, has_shootout = ${u.hasShootout}, is_forfeit = ${u.isForfeit}
       WHERE id = ${u.id} AND season_id = ${seasonId}
         AND (home_score IS NULL OR home_score != ${u.homeScore} OR away_score != ${u.awayScore}
-             OR is_overtime != ${u.isOT} OR is_forfeit != ${u.isForfeit})
+             OR is_overtime != ${u.isOT} OR has_shootout != ${u.hasShootout} OR is_forfeit != ${u.isForfeit})
       RETURNING id
     `)
     if (updatedRows.length > 0) {
@@ -176,7 +177,8 @@ async function syncFullSchedule(leagueId: string, seasonId: string) {
     const gameText = stripHtml(gameCellHtml).trim()
 
     const isPlayoff = /\(Pla\)/i.test(gameText)
-    const isOT = /Overtime|ShootOut/i.test(gameCellHtml)
+    const hasShootout = /\((?:ShootOut|SO)\)/i.test(gameText) || /ShootOut/i.test(gameCellHtml)
+    const isOT = hasShootout || /Overtime|\(OT\)/i.test(gameCellHtml)
     const isForfeit = /\((?:Dbl\s+)?Forfeit\)/i.test(gameText)
 
     // Parse "Away Score at Home Score"
@@ -246,6 +248,7 @@ async function syncFullSchedule(leagueId: string, seasonId: string) {
           homeScore,
           status,
           isOvertime: isOT,
+          hasShootout,
           isPlayoff,
           isForfeit,
           location,
@@ -275,6 +278,7 @@ async function syncFullSchedule(leagueId: string, seasonId: string) {
           homeScore,
           status,
           isOvertime: isOT,
+          hasShootout,
           isPlayoff,
           isForfeit,
           location,
@@ -291,6 +295,7 @@ async function syncFullSchedule(leagueId: string, seasonId: string) {
             homeScore: sql`EXCLUDED.home_score`,
             status: sql`EXCLUDED.status`,
             isOvertime: sql`EXCLUDED.is_overtime`,
+            hasShootout: sql`EXCLUDED.has_shootout`,
             isPlayoff: sql`EXCLUDED.is_playoff`,
             isForfeit: sql`EXCLUDED.is_forfeit`,
             location: sql`EXCLUDED.location`,
