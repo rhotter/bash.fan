@@ -191,6 +191,9 @@ describe("PlayoffOddsView & StandingsContent Integration", () => {
     expect(container.textContent).toContain("Kings")
     expect(container.textContent).toContain("Seals")
     expect(container.textContent).toContain("How playoff odds are calculated")
+    const fullMethodologyLink = container.querySelector('a[href="/about/playoff-odd-calculations"]')
+    expect(fullMethodologyLink).toBeTruthy()
+    expect(fullMethodologyLink?.textContent).toContain("See our full methodology here")
 
     // Odds table rows no longer carry a chevron expand button
     expect(container.querySelector('button[aria-label="Show Seals breakdown"]')).toBeNull()
@@ -518,12 +521,9 @@ describe("PlayoffOddsView & StandingsContent Integration", () => {
       await act(async () => {
         root.render(<PlayoffOddsView season="broken-season-2099" />)
       })
-      await act(async () => {
-        await new Promise((r) => setTimeout(r, 20))
+      await vi.waitFor(() => {
+        expect(container.querySelector('[role="alert"]')).toBeTruthy()
       })
-
-      const alert = container.querySelector('[role="alert"]')
-      expect(alert).toBeTruthy()
       expect(container.textContent).not.toContain("BASH 2026-2027")
     } finally {
       fetchSpy.mockRestore()
@@ -565,12 +565,9 @@ describe("PlayoffOddsView & StandingsContent Integration", () => {
       await act(async () => {
         root.render(<PlayoffOddsView season={undefined} initialMode="weighted" />)
       })
-      await act(async () => {
-        await new Promise((r) => setTimeout(r, 20))
+      await vi.waitFor(() => {
+        expect(container.querySelector('[role="alert"]')).toBeTruthy()
       })
-
-      const alert = container.querySelector('[role="alert"]')
-      expect(alert).toBeTruthy()
       expect(container.textContent).not.toContain("Fall 2024-25")
     } finally {
       fetchSpy.mockRestore()

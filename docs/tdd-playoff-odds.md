@@ -448,7 +448,7 @@ CREATE INDEX IF NOT EXISTS idx_playoff_odds_latest
 - Fetches `season` metadata (via cached `getSeasonById` / `getCurrentSeason`) + season regular & playoff `games` in a single `Promise.all` wave (`neon-http` rule compliant).
 - Runs `computePlayoffOddsSnapshot(...)` from `lib/playoff-odds.ts`.
 - Wrapped in split `unstable_cache` buckets inside `lib/cached-page-data.ts` (active seasons `revalidate: 60`, immutable completed seasons `revalidate: 3600`, tags `["seasons", "playoff-odds", "public-page-data"]`), strictly canonicalizing `season` via cached `getSeasonById` / `getCurrentSeason` *before* touching `unstable_cache` so arbitrary query strings cannot amplify cache keys or trigger CPU DoS.
-- Exported `revalidatePlayoffOdds()` helper (`lib/revalidate-playoff-odds.ts`) calls `revalidateTag("playoff-odds", { expire: 0 })` for immediate cache expiration after scorekeeper finalization (`app/api/bash/scorekeeper/[id]/finalize/route.ts`), admin schedule edits (`app/api/bash/admin/seasons/[id]/schedule/[gameId]/route.ts`), and daily sync (`app/api/bash/sync/route.ts`).
+- Exported `revalidatePlayoffOdds()` helper (`lib/revalidate-playoff-odds.ts`) calls `revalidateTag("playoff-odds", { expire: 0 })` for immediate cache expiration after scorekeeper finalization (`app/api/bash/scorekeeper/[id]/finalize/route.ts`), admin schedule edits (`app/api/bash/admin/seasons/[id]/schedule/[gameId]/route.ts`), and daily sync (`app/api/bash/sync/route.ts`, which also persists `games.has_shootout` across both quick and full sync paths so shootout wins are accurately excluded from ROW and SOWG).
 
 ### REST API (`app/api/bash/playoff-odds/route.ts`)
 - **Endpoint**: `GET /api/bash/playoff-odds?season=<id>&mode=weighted|50_50|classic`
@@ -475,17 +475,21 @@ CREATE INDEX IF NOT EXISTS idx_playoff_odds_latest
 2. **`/playoff-odds` (`app/playoff-odds/page.tsx` + `app/playoff-odds/loading.tsx`)**:
    - Dedicated Server Component with `generateMetadata` (*"Playoff Odds | BASH"*), `export const revalidate = 60`, server-side `fetchPlayoffOddsPageData(season, mode)` prefetch, and `PageLoading` skeleton (no duplicate `<SiteHeader />`!).
    - Updates `SiteHeader` (`components/site-header.tsx`) so `/playoff-odds` highlights the `Standings` nav item (keeping header compact at 4 links).
+3. **`/about/playoff-odd-calculations` (`app/about/playoff-odd-calculations/page.tsx`)**:
+   - Static editorial/blog-style methodology & reproducibility guide linked from the bottom of `PlayoffOddsMethodology` (omitted from top nav; highlights `About` when active). Documents workflow, equations, LOSO/Bayesian calibration tables, Wikipedia/origin concept links, and archived Sports Club Stats sources.
 
 ### Frontend Component Tree
 
 ```text
 components/
-├── playoff-odds-view.tsx          # Top-level client orchestrator (SWR, team selector, mode toggle, What-If locks, live client re-sim)
-├── playoff-odds-charts.tsx        # Franchise-colored season trend charts (Playoff %, Avg seed, vs .500 pace) + mobile logo selector
-├── playoff-odds-table.tsx         # Signature Table #1: Playoff %, Cut lines, Seed 1..N heatmap, Avg Seed, Strength, RPI
-├── big-games-section.tsx          # Signature Section #2: Upcoming Big Games, 4-outcome table, rooting highlights, What-If buttons
-├── team-odds-panel.tsx            # Dedicated Team View: 4 tooltipped scorecards, 3 trajectory tabs, What-If finish table, Team rooting list
-└── playoff-odds-methodology.tsx   # Collapsible native <details> methodology, Rule 213 tiebreakers, calibration credits
+├── playoff-odds-page-client.tsx   # Dedicated /playoff-odds page shell (SeasonSelector + PlayoffOddsView)
+├── playoff-odds-view.tsx          # Top-level client orchestrator (SWR, team selector, mode toggle, completed-season replay, What-If locks)
+├── playoff-odds-filter-bar.tsx    # Top-level Teams & Stats Model selectors (desktop pills + mobile dropdowns)
+├── playoff-odds-league-charts.tsx # Franchise-colored Points & Playoff Odds charts (Playoff Odds stacked above Points on mobile, single-row logo legend)
+├── playoff-odds-table.tsx         # Signature Table #1: Playoff %, Cut lines, Seed 1..N heatmap with ± MC tooltip, Avg Seed, Strength, RPI
+├── big-games-section.tsx          # Signature Section #2: Upcoming Big Games, 4-outcome table, rooting highlights, What-If buttons (hidden on completed seasons)
+├── team-odds-panel.tsx            # Dedicated Team View: 4 tooltipped scorecards, 3 trajectory tabs, What-If finish table (hidden when 0 games left)
+└── playoff-odds-methodology.tsx   # Collapsible native <details> disclosure (3 modes, BASH rules, bottom Bayesian/noise notes, link to /about/playoff-odd-calculations)
 ```
 
 ### Interactive Client-Side "What-If" Simulation Architecture

@@ -140,7 +140,7 @@ Strict adherence to `AGENTS.md` and `modern-web-guidance` (`content-first-noise-
 #### Section 1: Top-Level Team Selector & Season Header
 - **Top-Level Team Filter Bar** (above all content, zero metadata clutter above it): `All teams` + one button per team (compact `<select>` on mobile) to switch cleanly between the league overview and any team's dedicated view.
 - **Season Header**: `[Season name] playoff odds` (e.g., `Fall 2026-2027 playoff odds`), followed by *"We ran 100,000 Monte Carlo simulations with 3 different models."* and the active `[Model]: [Model description]` line alongside the segmented **Model Mode** control (`BASH Weighted` | `50/50` | `SCS Classic`).
-- **Season Trend Charts (`PlayoffOddsCharts`)**: Franchise/team-colored line charts (`Chance will make playoffs`, `Projected avg seed`, `Points vs .500 pace`) with interactive team highlight pills on desktop and a clean single-row team-logo selector bar on mobile.
+- **Season Trend Charts (`PlayoffOddsLeagueCharts`)**: Franchise/team-colored line charts (`Points` and `Chance will make playoffs` / `Projected seed`) with interactive team highlight pills on desktop and a clean single-row team-logo selector bar on mobile; on mobile (`< md`), the Playoff Odds chart stacks above the Points chart.
 - If the user has locked hypothetical winners in **What-If Mode**, a clean dismissible banner appears right above the table: *"What-If scenario active (2 games locked) — showing live projected odds"* with a one-click **Reset picks** CTA.
 
 #### Section 2: Playoff Odds & Seed Distribution Table (Signature Deliverable #1)
@@ -174,12 +174,12 @@ When a user selects a team from the top selector, table row, or URL (`?team=<slu
 3. **"What If" ("How They Need to Finish") Table**: Lists achievable remaining point totals / record buckets with `Final PTS`, `Playoff %`, `Projected Seed`, and `Sim Count` (flagging `< 250` simulated seasons with `*`, and using isolated 1,000-run tail probes for extreme win-out / lose-out rows).
 4. **Team-Specific Upcoming Schedule & Rooting Guide**: Upcoming games ranked by how strongly they move *this specific team's* odds.
 
-#### Section 5: Methodology & Rules Disclosure
+#### Section 5: Methodology & Rules Disclosure + Full Methodology Guide
 - Native HTML `<details>` disclosure block at the bottom of the page (`How playoff odds are calculated`), keeping the main viewport clean and uncluttered (`content-first-noise-reduction`) while providing full transparency:
-  - Explains Weighted (BASH-calibrated PythagenPuck + Empirical Bayes shrinkage + Log5) vs. 50/50 vs. SCS Classic.
-  - Documents empirical BASH calibration (`HFA = 50%`, `12%` Fall / `9%` Summer OT/SO rate, `P = 0.22` / `0.37`).
-  - Lists official Rule 213 tiebreakers (`PTS → ROW → H2H pts% → GD → GF`).
-  - Credits Ken Roberts (Sports Club Stats), Alan Ryder (*Win Probabilities*), and Tom Tippett (*Log5*).
+  - Opens by crediting Ken Roberts and `www.sportsclubstats.com` (now defunct) before explaining BASH's iteration.
+  - Lists strictly the 3 simulation modes (**BASH Weighted**, **50/50**, **SCS Classic**) with inline Wikipedia / origin links (`PythagenPuck`, `Empirical Bayes`, `Bill James Log5`, `LOSO cross-validation`, `Ken Roberts's p225 curve`, `max-flow`, `Beta posterior`).
+  - Places **Bayesian strength uncertainty** and Big Games / What-If footnotes in the bottom notes block, ending with a **"See our full methodology here"** link to `/about/playoff-odd-calculations`.
+- **Dedicated Blog-Style Methodology Page (`/about/playoff-odd-calculations`)**: Accessible only via the disclosure link (not the main nav menu), documenting the full 6-step workflow, stacked-fraction equations, LOSO cross-validation & Bayesian coverage tables, and verified Internet Archive / paper references so readers can reproduce the simulator end to end.
 
 ---
 
@@ -187,11 +187,11 @@ When a user selects a team from the top selector, table row, or URL (`?team=<slu
 
 | State | Expected Product Behavior |
 |---|---|
-| **Pre-season / 0 games played** | Every team starts at `.500` strength; Weighted and 50/50 produce identical symmetric odds (`~playoffSpots / N`), Big Games shows Opening Day matchups, Timeline shows initial pre-season baseline. |
-| **Early season (1–4 GP)** | Empirical Bayes shrinkage (`C = 10` Fall / `6` Summer) keeps strengths anchored near `.500` so a `2-0` team isn't falsely projected at `99%`. |
-| **Mid-season active (`bash-2026-2027`, 15/63 final)** | Full experience: live Playoff %, Seed 1–7 matrix, Play-In cut line, matchday-over-matchday `Change`, Big Games for upcoming Saturday, 5-matchday Timeline, What-If picker. |
-| **Completed historical season (e.g., `2018-2019`, `2025-2026`)** | Final standings show `In` (`100%`) / `Out` (`0%`) at actual finishing seeds, Big Games shows *"Regular season complete — no remaining games"*, AND **Playoff Odds Timeline** still renders the entire season's dramatic odds trajectory week by week! |
-| **Truncated / cancelled season (`2019-2020`, 60/63 played, `status = completed`)** | Recognizes `status === "completed"` and displays final recorded standings + season timeline with a note that the regular season ended early (3 games unplayed). |
+| **Pre-season / 0 games played** | Every team starts at `.500` strength; BASH Weighted and 50/50 produce identical symmetric odds (`~playoffSpots / N`), Big Games shows Opening Day matchups, Timeline shows initial pre-season baseline. |
+| **Early season (1–4 GP)** | Pre-ratio Gamma-Poisson goal shrinkage (`m = 4`) + post-ratio Empirical Bayes shrinkage (`C = 4`) + per-iteration Bayesian Beta draws (`k = 2` Fall / `3` Summer) keep early-season odds well-calibrated instead of falsely projecting `2-0` teams at `99%`. |
+| **Mid-season active (`bash-2026-2027`, 15/63 final)** | Full experience: live Playoff %, Seed 1–7 matrix, Play-In cut line, WoW `Change`, Big Games for upcoming Saturday, season trend charts, What-If picker. |
+| **Completed historical season (e.g., `2018-2019`, `2025-2026`)** | Displays a subtle **`Final regular season`** pill badge alongside the season title, keeps the league trajectory charts, final odds/seed table (`In`/`Out`), and Team View (scorecards + full-width trajectory chart) intact as a historical replay, and hides both `BigGamesSection` and the Team What-If finish table. |
+| **Truncated / cancelled season (`2019-2020`, 60/63 played, `status = completed`)** | Recognizes `status === "completed"` and displays the `Final regular season` badge plus `"Season ended early."` alongside final recorded standings and season trajectory charts, hiding Big Games and Team What-If. |
 | **Summer season (`playoffSpots === teamCount`)** | Switches primary highlight from qualification % to **Seed 1–N & #1 Seed / Bye odds**; Big Games ranks by Avg Seed swing so every game remains meaningful. |
 | **Forfeits & Double Forfeits** | Properly applies Rule 208 (`5–0` 3-pt win for single forfeit; `0–5` 0-pt loss for both teams on double forfeit) in standings, tiebreakers, and goal differential (excluding forfeits from PythagenPuck scoring efficiency if desired, or keeping consistent with official GF/GA—documented clearly in TDD). |
 | **All-Time Season Selector (`?season=all`)** | Displays the same clear message as Standings (*"Playoff odds require a specific season"*). |

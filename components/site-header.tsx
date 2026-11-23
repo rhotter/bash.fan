@@ -75,7 +75,7 @@ export function SiteHeader() {
   if (pathname === "/admin" || pathname.startsWith("/admin/")) return null
 
   const activeTab = pathname === "/" ? "scores"
-    : ["/about", "/how-to", "/rulebook"].includes(pathname) ? "about"
+    : pathname === "/about" || pathname.startsWith("/about/") || ["/how-to", "/rulebook"].includes(pathname) ? "about"
     : pathname === "/standings" || pathname === "/playoff-odds" ? "standings"
     : pathname === "/stats" ? "stats"
     : undefined

@@ -97,7 +97,7 @@ Each page follows: async Server Component (data fetch via `React.cache` / `lib/c
 - `lib/schedule-utils.ts` — Round-robin and playoff bracket generation, Berger tables, and simulated annealing equity optimizer (home/away, intra-day time slots)
 - `lib/standings.ts` & `lib/head-to-head.ts` — Regular-season standings (`computeStandings`) and pairwise head-to-head series computation (`computeHeadToHead`)
 - `lib/playoff-odds.ts`, `lib/playoff-odds-types.ts`, `lib/fetch-playoff-odds.ts`, & `lib/revalidate-playoff-odds.ts` — Pure deterministic Monte Carlo playoff odds engine (100k server / 20k client What-If iterations, Rule 213 tiebreakers, LOSO-calibrated BASH Weighted PythagenPuck + Gamma-Poisson/EB shrinkage + Log5 with per-iteration Bayesian Beta strength sampling, exact max-flow clinch/elimination, regulation-anchored single-pass Big Games, isolated tail probes), single-wave DB loader, and immediate cache-tag invalidation helper
-- `components/` — Page-level components (scores-tab, standings-tab, head-to-head-tab, playoff-odds-view, playoff-odds-charts, playoff-odds-table, big-games-section, team-odds-panel, playoff-odds-methodology, stats-tab, etc.)
+- `components/` — Page-level components (scores-tab, standings-tab, head-to-head-tab, playoff-odds-view, playoff-odds-filter-bar, playoff-odds-league-charts, playoff-odds-table, big-games-section, team-odds-panel, playoff-odds-methodology, stats-tab, etc.)
 - `components/intent-link.tsx` — Link wrapper that prefetches full RSC payloads (`PrefetchKind.FULL`) on hover/focus/touch
 - `components/loading-state.tsx` & `components/page-loading.tsx` — Standardized skeleton loading states and action spinners
 - `components/site-banner.tsx` — Responsive public site banner with protected countdown truncation
@@ -120,6 +120,7 @@ Playoff Odds (`lib/playoff-odds.ts`, served via `GET /api/bash/playoff-odds`) ru
 - `/register` — Player registration flow (temporary — will be removed)
 - `/standings`, `/stats` — List pages filtered by `?season=YYYY-YYYY` (`/standings` also supports `?view=h2h&team=<slug>` for Head to Head and `?view=odds&mode=weighted|50_50|classic` for Playoff Odds; `/stats` supports `?view=goalies` and `?view=teams`)
 - `/playoff-odds` — Direct shareable Playoff Odds Predictor route (supports `?season=<id>&mode=weighted|50_50|classic&team=<slug>`)
+- `/about/playoff-odd-calculations` — Full reproducible Playoff Odds methodology & statistical explainer (linked from the Playoff Odds methodology disclosure, not in the top nav)
 - `/player/[slug]`, `/team/[slug]`, `/game/[id]` — Detail pages
 - `/draft/[season]` — Public draft board (e.g., `/draft/2026-summer`)
 - `/scorekeeper/[id]` — Live game scorekeeper
