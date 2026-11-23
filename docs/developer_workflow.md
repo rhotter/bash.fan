@@ -126,6 +126,12 @@ Navigate to `http://localhost:3000` in your browser. The app should now be runni
   npx vitest run tests/banners
   ```
 
+- **Running Playoff Odds Tests**: To verify the Monte Carlo simulation engine (Rule 213 tiebreakers, probability conservation, Big Games conditional accounting, clinch/elimination math) and UI/API integration:
+  ```bash
+  npx vitest run lib/__tests__/playoff-odds.test.ts tests/playoff-odds-ui.test.tsx
+  ```
+  *(Note: Playoff Odds computes directly from existing `games`, `seasons`, and `teams` tables—no extra DB schema migration is required. Any new route that mutates regular-season scores or schedules should call `revalidatePlayoffOdds()` from `lib/revalidate-playoff-odds.ts` to expire the `playoff-odds` cache tag immediately.)*
+
 - **Running Scripts requiring DB access**: 
   If you write custom one-off scripts in the `scripts/` directory that need to talk to the DB, run them like this:
   ```bash

@@ -3,6 +3,7 @@ import { db, schema, rawSql } from "@/lib/db"
 import { sql, eq, and } from "drizzle-orm"
 import { getSession } from "@/lib/admin-session"
 import { revalidateTag } from "next/cache"
+import { revalidatePlayoffOdds } from "@/lib/revalidate-playoff-odds"
 import { nextGameId } from "@/lib/db/game-id"
 import { normalizeTimeForStorage } from "@/lib/format-time"
 import { syncForfeitRosterStats } from "@/lib/forfeit-sync"
@@ -156,6 +157,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
 
     // @ts-expect-error - Next.js canary changed revalidateTag signature // TODO: Remove after Next.js stabilizes
     revalidateTag("seasons")
+    revalidatePlayoffOdds()
 
     return NextResponse.json({ success: true, gameId })
   } catch (error) {
@@ -200,6 +202,7 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
 
     // @ts-expect-error - Next.js canary changed revalidateTag signature // TODO: Remove after Next.js stabilizes
     revalidateTag("seasons")
+    revalidatePlayoffOdds()
 
     return NextResponse.json({ success: true })
   } catch (error) {

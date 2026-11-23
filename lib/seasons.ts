@@ -12,6 +12,7 @@ export interface Season {
   status: string
   statsOnly: boolean
   enableSync: boolean
+  playoffTeams: number | null
 }
 
 // ─── Module-level Next.js tag cache ──────────────────────────────────────────
@@ -27,6 +28,7 @@ function mapRow(s: typeof schema.seasons.$inferSelect): Season {
     status: s.status,
     statsOnly: s.statsOnly,
     enableSync: s.enableSync,
+    playoffTeams: s.playoffTeams ?? null,
   }
 }
 
@@ -66,7 +68,7 @@ export const getCurrentSeason = unstable_cache(
     }
     throw new Error("No seasons configured in the database.")
   },
-  ['current-season', 'canonical-names-v1'],
+  ['current-season', 'canonical-names-v1', 'playoff-teams-v1'],
   { tags: ['seasons'], revalidate: 3600 }
 )
 
@@ -77,7 +79,7 @@ export const getAllSeasons = unstable_cache(
     })
     return rows.map(mapRow).sort(compareSeasonsDesc)
   },
-  ['all-seasons', 'canonical-names-v1'],
+  ['all-seasons', 'canonical-names-v1', 'playoff-teams-v1'],
   { tags: ['seasons'], revalidate: 3600 }
 )
 

@@ -1,10 +1,11 @@
 import { fetchApi as fetch, readApiJson, errorMessage } from "@/lib/api-errors"
-import useSWR from "swr"
+import useSWR, { useSWRConfig } from "swr"
 import type { BashApiData, BashGame, Standing } from "@/app/api/bash/route"
 import type { PlayerStatsData, SkaterStat, GoalieStat, TeamSkaterStat, TeamGoalieStat, TeamStatsData } from "@/app/api/bash/players/route"
 import type { RefStatsData, RefStat } from "@/app/api/bash/refs/route"
 import type { BashGameDetail } from "@/app/api/bash/game/[id]/route"
 import type { SeasonsData } from "@/app/api/bash/seasons/route"
+import type { PlayoffOddsMode, PlayoffOddsSnapshot } from "@/lib/playoff-odds-types"
 import { REFRESH, DEDUPE } from "@/lib/sync-config"
 
 export type {
@@ -21,6 +22,8 @@ export type {
   RefStat,
   BashGameDetail,
   SeasonsData,
+  PlayoffOddsMode,
+  PlayoffOddsSnapshot,
 }
 
 const fetcher = (url: string) => fetch(url).then((res) => readApiJson(res))
@@ -140,6 +143,57 @@ export function useLiveGame(gameId: string | null, fallbackData?: unknown) {
     isLoading,
     isError: !!error,
     errorMessage: error ? errorMessage(error) : undefined,
+  }
+}
+
+export function usePlayoffOdds(
+  season?: string,
+  mode: PlayoffOddsMode = "weighted",
+  fallbackData?: PlayoffOddsSnapshot,
+  enabled = true
+) {
+  const params = new URLSearchParams()
+  if (season && season !== "all") params.set("season", season)
+  if (mode !== "weighted") params.set("mode", mode)
+  const qs = params.toString()
+  const url =
+    enabled && season !== "all"
+      ? qs
+        ? `/api/bash/playoff-odds?${qs}`
+        : "/api/bash/playoff-odds"
+      : null
+
+  const matchingFallback =
+    fallbackData &&
+    fallbackData.mode === mode &&
+    (!season || fallbackData.seasonId === season)
+      ? fallbackData
+      : undefined
+
+  const { cache } = useSWRConfig()
+  const { data, error, isLoading, isValidating, mutate } = useSWR<PlayoffOddsSnapshot>(url, fetcher, {
+    refreshInterval: REFRESH.PLAYOFF_ODDS,
+    revalidateOnMount: matchingFallback ? false : undefined,
+    revalidateOnFocus: true,
+    dedupingInterval: DEDUPE.PLAYOFF_ODDS,
+    keepPreviousData: true,
+    fallbackData: matchingFallback,
+  })
+
+  // Detect whether SWR returned laggy data from a previous key (including when returning
+  // to the default Current Season where `season` is undefined).
+  const hasCurrentKeyData = Boolean(url && cache.get(url)?.data !== undefined)
+  const isStaleFallbackOverride = Boolean(matchingFallback && data && !hasCurrentKeyData)
+  const isStaleData = Boolean(!matchingFallback && data && !hasCurrentKeyData)
+
+  return {
+    snapshot: isStaleFallbackOverride ? matchingFallback! : (data ?? null),
+    isLoading: matchingFallback ? false : isLoading,
+    isValidating,
+    isStaleData,
+    isError: !!error,
+    errorMessage: error ? errorMessage(error) : undefined,
+    refresh: mutate,
   }
 }
 

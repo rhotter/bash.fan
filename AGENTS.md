@@ -8,7 +8,7 @@ When a task is requested by Raffi, commit and push the task's changes when finis
 
 ## Project Overview
 
-Bay Area Street Hockey (BASH) league stats website. Displays scores, standings, player stats, game details, and live draft boards. Data is synced daily from Sportability (external API) into a Neon Postgres database.
+Bay Area Street Hockey (BASH) league stats website. Displays scores, standings, Monte Carlo playoff odds, player stats, game details, and live draft boards. Data is synced daily from Sportability (external API) into a Neon Postgres database.
 
 ## Commands
 
@@ -55,7 +55,7 @@ Prefer neutral theme tokens (`text-foreground`, `text-muted-foreground`, `bg-mut
    - Filter in SQL (e.g., `playerSlugSql` in `lib/player-slug-sql.ts`) rather than fetching full directory tables into Node to filter in JS.
 2. **Server Caching & Client Hydration Deduplication:**
    - Wrap server-side page data fetchers (`lib/fetch-*.ts`) in React's `cache()` so `generateMetadata()` and the page Server Component share a single read per render pass.
-   - Use `lib/cached-page-data.ts` (`unstable_cache`, 30s TTL) for shared public snapshots (`/stats`, `/team/[slug]`), while keeping `/player/[slug]` on uncached (`revalidate = 0`) fresh reads (two query waves: season metadata + SQL slug identity lookup first, followed by a single batched CTE query for all 23 stat sections).
+   - Use `lib/cached-page-data.ts` (`unstable_cache`, 30s TTL for `/stats` and `/team/[slug]`; 60s active / 3600s completed TTL tagged `playoff-odds` for `/standings?view=odds` and `/playoff-odds`), while keeping `/player/[slug]` on uncached (`revalidate = 0`) fresh reads (two query waves: season metadata + SQL slug identity lookup first, followed by a single batched CTE query for all 23 stat sections). Always call `revalidatePlayoffOdds()` (`lib/revalidate-playoff-odds.ts`, immediate `{ expire: 0 }`) in any route that writes regular-season scores or schedules.
    - When passing server `fallbackData` to SWR hooks (`lib/hockey-data.ts`), set `revalidateOnMount: fallbackData ? false : undefined` so the client does not immediately re-fetch the same snapshot on mount.
 3. **Speculative Prefetching & Persistent Layout:**
    - **Use `IntentLink` (`components/intent-link.tsx`)** instead of raw `next/link` for public detail navigation (`/player/[slug]`, `/team/[slug]`, `/game/[id]`) so pointer hover, focus, and touch-start trigger full RSC prefetching (`PrefetchKind.FULL`). Never use `<div onClick={() => router.push(...)}>` for navigable rows — use `<Link>` overlays so Next.js can prefetch and keyboard accessibility is preserved.
@@ -96,7 +96,8 @@ Each page follows: async Server Component (data fetch via `React.cache` / `lib/c
 - `lib/trade-helpers.ts` — Mid-season trade payload validation (2-team and N-team circular trades, Fall target season resolution, and round-based acquired pick provenance)
 - `lib/schedule-utils.ts` — Round-robin and playoff bracket generation, Berger tables, and simulated annealing equity optimizer (home/away, intra-day time slots)
 - `lib/standings.ts` & `lib/head-to-head.ts` — Regular-season standings (`computeStandings`) and pairwise head-to-head series computation (`computeHeadToHead`)
-- `components/` — Page-level components (scores-tab, standings-tab, head-to-head-tab, stats-tab, etc.)
+- `lib/playoff-odds.ts`, `lib/playoff-odds-types.ts`, `lib/fetch-playoff-odds.ts`, & `lib/revalidate-playoff-odds.ts` — Pure deterministic Monte Carlo playoff odds engine (100k server / 20k client What-If iterations, Rule 213 tiebreakers, LOSO-calibrated BASH Weighted PythagenPuck + Gamma-Poisson/EB shrinkage + Log5 with per-iteration Bayesian Beta strength sampling, exact max-flow clinch/elimination, regulation-anchored single-pass Big Games, isolated tail probes), single-wave DB loader, and immediate cache-tag invalidation helper
+- `components/` — Page-level components (scores-tab, standings-tab, head-to-head-tab, playoff-odds-view, playoff-odds-filter-bar, playoff-odds-league-charts, playoff-odds-table, big-games-section, team-odds-panel, playoff-odds-methodology, stats-tab, etc.)
 - `components/intent-link.tsx` — Link wrapper that prefetches full RSC payloads (`PrefetchKind.FULL`) on hover/focus/touch
 - `components/loading-state.tsx` & `components/page-loading.tsx` — Standardized skeleton loading states and action spinners
 - `components/site-banner.tsx` — Responsive public site banner with protected countdown truncation
@@ -107,15 +108,19 @@ Each page follows: async Server Component (data fetch via `React.cache` / `lib/c
 - `app/admin/scoresheet/[gameId]/page.tsx` — Print-optimized game scoresheet (US Letter, one page)
 - `scripts/` — DB seeding, logo WebP optimization (`optimize-logos.mjs`), schema migration (`deploy-banners-schema.ts`, `deploy-trades-schema.ts`), production DB sync (`export-prod-db.ts`), and data maintenance utilities
 
-### Standings Computation
+### Standings & Playoff Odds Computation
 
 Standings (`lib/standings.ts`) and pairwise Head-to-Head breakdowns (`lib/head-to-head.ts`) are computed from the regular-season games array (not stored): W=3pts, OTW=2pts, OTL=1pt, L=0pts. Standings are sorted by points → goal diff → goals for. Regular season only (playoff and exhibition games filtered out).
+
+Playoff Odds (`lib/playoff-odds.ts`, served via `GET /api/bash/playoff-odds`) runs deterministic Monte Carlo simulations on the same regular-season schedule (no extra DB tables required) using official BASH Rule 213 tiebreakers (`PTS → ROW [excluding shootout wins] → recursive H2H % of available points → GD → GF → draw lots`), Rule 412 / Rule 219 playoff qualification formats, and three modes (`weighted` BASH-calibrated PythagenPuck + Empirical Bayes + Log5, `50_50`, and `classic` Sports Club Stats replica).
 
 ### URL Structure
 
 - `/` — Home (scores grouped by date/week)
 - `/register` — Player registration flow (temporary — will be removed)
-- `/standings`, `/stats` — List pages filtered by `?season=YYYY-YYYY` (`/standings` also supports `?view=h2h&team=<slug>` for Head to Head; `/stats` supports `?view=goalies` and `?view=teams`)
+- `/standings`, `/stats` — List pages filtered by `?season=YYYY-YYYY` (`/standings` also supports `?view=h2h&team=<slug>` for Head to Head and `?view=odds&mode=weighted|50_50|classic` for Playoff Odds; `/stats` supports `?view=goalies` and `?view=teams`)
+- `/playoff-odds` — Direct shareable Playoff Odds Predictor route (supports `?season=<id>&mode=weighted|50_50|classic&team=<slug>`)
+- `/about/playoff-odd-calculations` — Full reproducible Playoff Odds methodology & statistical explainer (linked from the Playoff Odds methodology disclosure, not in the top nav)
 - `/player/[slug]`, `/team/[slug]`, `/game/[id]` — Detail pages
 - `/draft/[season]` — Public draft board (e.g., `/draft/2026-summer`)
 - `/scorekeeper/[id]` — Live game scorekeeper

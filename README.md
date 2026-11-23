@@ -1,6 +1,6 @@
 # BASH Hockey
 
-A stats website for the Bay Area Street Hockey (BASH) league. View live scores, standings, player stats, game boxscores, live scorekeeper, and real-time draft boards.
+A stats website for the Bay Area Street Hockey (BASH) league. View live scores, standings, Monte Carlo playoff odds, player stats, game boxscores, live scorekeeper, and real-time draft boards.
 
 ## Getting Started
 
