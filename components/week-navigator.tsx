@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo, useRef, useEffect, useCallback, Fragment } from "react"
+import { useState, useMemo, useRef, useEffect, useCallback, Fragment, type ReactNode } from "react"
 import { type BashGame } from "@/lib/hockey-data"
 import { compareGamesChronological } from "@/lib/format-time"
 import { cn } from "@/lib/utils"
@@ -76,12 +76,14 @@ export function WeekNavigator({
   exhibitionGames,
   tryoutGames,
   gameHref,
+  firstDateAction,
 }: {
   games: BashGame[]
   playoffGames?: BashGame[]
   exhibitionGames?: BashGame[]
   tryoutGames?: BashGame[]
   gameHref?: (game: BashGame) => string
+  firstDateAction?: ReactNode
 }) {
   const regularWeeks = useMemo(() => buildWeeks(games), [games])
   const pWeeks = useMemo(() => buildWeeks(playoffGames || []), [playoffGames])
@@ -217,8 +219,15 @@ export function WeekNavigator({
 
       {/* Games for selected week */}
       <div className="flex flex-col">
-        {selectedWeek.dates.map(({ date, games: dateGames }) => (
-          <DateSection key={date} date={date} games={dateGames} allGames={allFlatGames} gameHref={gameHref} />
+        {selectedWeek.dates.map(({ date, games: dateGames }, i) => (
+          <DateSection
+            key={date}
+            date={date}
+            games={dateGames}
+            allGames={allFlatGames}
+            gameHref={gameHref}
+            headerAction={i === 0 ? firstDateAction : undefined}
+          />
         ))}
       </div>
     </div>

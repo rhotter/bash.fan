@@ -92,6 +92,13 @@ Allows players, captains, and spectators to export games directly into external 
     *   **Team Schedule**: "ADD TO CAL" button on `/team/[slug]` ([`components/team-page-content.tsx`](file:///Users/christorres/Desktop/bash/components/team-page-content.tsx)) to download the full seasonal fixture list.
 *   **Data Pipelines**: `fetchGameDetail` and `fetchTeamDetail` query `gameLength` from `schema.seasons` and forward it to client components.
 
+### 5. Public Full Season Schedule (`/schedule`)
+Provides a single-page, chronological full-season schedule view (mirroring Sportability's all-games schedule list) without adding an extra item to the top `SiteHeader` navigation:
+*   **Entry Point**: A right-aligned `"Full schedule"` button on the Scores page (`/`) opposite the first date heading (just above the first scorecard row), preserving the active `?season=` query param.
+*   **Scope**: Displays all games for the selected season in chronological order grouped by date — including past final results, live games, and upcoming matchups across Regular Season, Tryouts, Playoffs, and Exhibition games (with non-regular game-type badges and custom game titles).
+*   **Filtering & Navigation**: Includes client-side **Team** and **Game Type** filters, a **"Next game"** jump button, and **auto-jump** on initial load to the first live or upcoming game in the season. Does not include an `.ics` calendar export button (calendar export remains on `/game/[id]` and `/team/[slug]`).
+*   **Links**: Each row links to `/game/[id]`, with inline team links to `/team/[slug]` (skipping `"tbd"` placeholder teams).
+
 ---
 
 ## Decisions Made
@@ -258,7 +265,8 @@ UPDATE games SET game_type = 'regular' WHERE is_playoff = false;
 
 ### 4. Public Site Integration
 
-*   **Public Schedule & Calendar Export**: ✅ **Complete**. Public scoreboard (`/`), game details (`/game/[id]`), and team pages (`/team/[slug]`) display scheduled games in chronological order and provide one-click iCalendar export buttons.
+*   **Public Schedule & Calendar Export**: ✅ **Complete**. Public scoreboard (`/`), full season schedule (`/schedule`), game details (`/game/[id]`), and team pages (`/team/[slug]`) display scheduled games in chronological order, with `/game/[id]` and `/team/[slug]` providing one-click iCalendar export buttons.
+*   **Full Season Schedule Route (`app/schedule/page.tsx`, `components/schedule-content.tsx`)**: ✅ **Complete**. Dedicated `/schedule` route linked from the `"Full schedule"` button on `/` (opposite the first date heading in `WeekNavigator` / `DateSection`), displaying all game types (Regular Season, Tryouts, Playoffs, Exhibition) with Team/Game Type filters and auto-jump to the next live or upcoming game.
 *   **Public Bracket Display**: ⏳ **Deferred**. Public-facing visual tournament bracket view is deferred to a follow-up phase once the admin playoff workflow is battle-tested.
 
 ---
