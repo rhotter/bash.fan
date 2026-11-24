@@ -7,6 +7,7 @@ import { IntentLink } from "@/components/intent-link"
 import { LoadingState } from "@/components/loading-state"
 import { ErrorNotice } from "@/components/error-notice"
 import { TeamLogo } from "@/components/team-logo"
+import { PlayoffBracket, hasBracketMetadata } from "@/components/playoff-bracket"
 import { useBashData, type BashApiData, type BashGame } from "@/lib/hockey-data"
 import { compareGamesChronological, formatGameDate, formatGameTime } from "@/lib/format-time"
 import { isLegacyTeamSlug } from "@/lib/team-filters"
@@ -28,22 +29,74 @@ const CATEGORY_LABELS: Record<Exclude<GameTypeFilter, "all">, string> = {
   exhibition: "Exhibition",
 }
 
+function parseGameTypeParam(raw: string | null): GameTypeFilter {
+  if (!raw) return "all"
+  const val = raw.toLowerCase()
+  if (val === "playoff" || val === "playoffs") return "playoff"
+  if (val === "tryout" || val === "tryouts") return "tryout"
+  if (val === "regular") return "regular"
+  if (val === "exhibition") return "exhibition"
+  return "all"
+}
+
 export function ScheduleContent({ initialData }: { initialData?: BashApiData }) {
   const searchParams = useSearchParams()
   const season = searchParams.get("season") || undefined
   const { games, isLoading, isError, errorMessage } = useBashData(season, initialData)
 
-  const [teamFilter, setTeamFilter] = useState<string>("all")
-  const [typeFilter, setTypeFilter] = useState<GameTypeFilter>("all")
+  const paramTeam = searchParams.get("team") || "all"
+  const paramType = parseGameTypeParam(searchParams.get("gameType"))
+
+  const [teamFilter, setTeamFilter] = useState<string>(paramTeam)
+  const [typeFilter, setTypeFilter] = useState<GameTypeFilter>(paramType)
   const [highlightedNext, setHighlightedNext] = useState(false)
 
   const nextGameRef = useRef<HTMLDivElement>(null)
   const hasAutoJumped = useRef(false)
+  const prevSeasonRef = useRef(season)
 
-  // Reset filters & auto-jump when season changes
+  const syncFilterUrl = (nextTeam: string, nextType: GameTypeFilter) => {
+    if (typeof window === "undefined") return
+    const params = new URLSearchParams(window.location.search)
+    if (nextTeam !== "all") params.set("team", nextTeam)
+    else params.delete("team")
+    if (nextType !== "all") params.set("gameType", nextType)
+    else params.delete("gameType")
+    const qs = params.toString()
+    window.history.replaceState(null, "", qs ? `${window.location.pathname}?${qs}` : window.location.pathname)
+  }
+
+  const handleTeamChange = (nextTeam: string) => {
+    setTeamFilter(nextTeam)
+    syncFilterUrl(nextTeam, typeFilter)
+  }
+
+  const handleTypeChange = (nextType: GameTypeFilter) => {
+    setTypeFilter(nextType)
+    syncFilterUrl(teamFilter, nextType)
+  }
+
+  // Sync Next.js client navigation updates to URL searchParams
   useEffect(() => {
-    setTeamFilter("all")
-    setTypeFilter("all")
+    setTeamFilter(paramTeam)
+    setTypeFilter(paramType)
+  }, [paramTeam, paramType])
+
+  // Sync browser back/forward navigation
+  useEffect(() => {
+    const onPopState = () => {
+      const params = new URLSearchParams(window.location.search)
+      setTeamFilter(params.get("team") || "all")
+      setTypeFilter(parseGameTypeParam(params.get("gameType")))
+    }
+    window.addEventListener("popstate", onPopState)
+    return () => window.removeEventListener("popstate", onPopState)
+  }, [])
+
+  // Reset auto-jump only when season actually changes
+  useEffect(() => {
+    if (prevSeasonRef.current === season) return
+    prevSeasonRef.current = season
     hasAutoJumped.current = false
   }, [season])
 
@@ -105,15 +158,15 @@ export function ScheduleContent({ initialData }: { initialData?: BashApiData }) 
     return groups
   }, [sortedFilteredGames])
 
-  // Auto-jump to today/next game once on initial load
+  // Auto-jump to today/next game once on initial load (skip in playoff view so bracket stays visible)
   useEffect(() => {
-    if (hasAutoJumped.current) return
+    if (hasAutoJumped.current || typeFilter === "playoff") return
     if (!nextGameId || !nextGameRef.current) return
     hasAutoJumped.current = true
     requestAnimationFrame(() => {
       nextGameRef.current?.scrollIntoView({ behavior: "instant", block: "center" })
     })
-  }, [nextGameId])
+  }, [nextGameId, typeFilter])
 
   const handleJumpToNext = () => {
     if (!nextGameRef.current) return
@@ -152,7 +205,7 @@ export function ScheduleContent({ initialData }: { initialData?: BashApiData }) 
           <h1 className="text-sm font-bold tracking-tight text-foreground truncate">Season Schedule</h1>
         </div>
 
-        {nextGameId && (
+        {nextGameId && typeFilter !== "playoff" && (
           <button
             type="button"
             onClick={handleJumpToNext}
@@ -178,7 +231,7 @@ export function ScheduleContent({ initialData }: { initialData?: BashApiData }) 
                   <select
                     aria-label="Filter by team"
                     value={teamFilter}
-                    onChange={(e) => setTeamFilter(e.target.value)}
+                    onChange={(e) => handleTeamChange(e.target.value)}
                     className="rounded-md bg-card border border-border/40 px-2 py-1.5 text-[11px] font-semibold text-foreground appearance-none cursor-pointer pr-6 bg-[length:10px] bg-[right_6px_center] bg-no-repeat min-h-[36px] w-full"
                     style={{
                       backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`,
@@ -202,7 +255,7 @@ export function ScheduleContent({ initialData }: { initialData?: BashApiData }) 
                     <select
                       aria-label="Filter by team"
                       value={teamFilter}
-                      onChange={(e) => setTeamFilter(e.target.value)}
+                      onChange={(e) => handleTeamChange(e.target.value)}
                       className="rounded-md bg-card border border-border/40 px-2.5 py-1.5 text-[11px] font-semibold text-foreground appearance-none cursor-pointer pr-7 bg-[length:12px] bg-[right_8px_center] bg-no-repeat w-40"
                       style={{
                         backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`,
@@ -219,7 +272,7 @@ export function ScheduleContent({ initialData }: { initialData?: BashApiData }) 
                     <div className="flex gap-1.5 overflow-x-auto pb-1">
                       <button
                         type="button"
-                        onClick={() => setTeamFilter("all")}
+                        onClick={() => handleTeamChange("all")}
                         className={cn(
                           "shrink-0 rounded-md px-2.5 py-1 text-[10px] font-medium transition-colors flex items-center gap-1 cursor-pointer",
                           teamFilter === "all"
@@ -233,7 +286,7 @@ export function ScheduleContent({ initialData }: { initialData?: BashApiData }) 
                         <button
                           key={t.slug}
                           type="button"
-                          onClick={() => setTeamFilter(t.slug)}
+                          onClick={() => handleTeamChange(t.slug)}
                           className={cn(
                             "shrink-0 rounded-md px-2.5 py-1 text-[10px] font-medium transition-colors flex items-center gap-1 cursor-pointer",
                             teamFilter === t.slug
@@ -258,7 +311,7 @@ export function ScheduleContent({ initialData }: { initialData?: BashApiData }) 
                 <select
                   aria-label="Filter by game type"
                   value={typeFilter}
-                  onChange={(e) => setTypeFilter(e.target.value as GameTypeFilter)}
+                  onChange={(e) => handleTypeChange(e.target.value as GameTypeFilter)}
                   className="rounded-md bg-card border border-border/40 px-2 py-1.5 text-[11px] font-semibold text-foreground appearance-none cursor-pointer pr-6 bg-[length:10px] bg-[right_6px_center] bg-no-repeat min-h-[36px] sm:min-h-0 w-full"
                   style={{
                     backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`,
@@ -275,6 +328,11 @@ export function ScheduleContent({ initialData }: { initialData?: BashApiData }) 
             )}
           </div>
         </div>
+      )}
+
+      {/* Playoff Bracket (when All Teams + Playoff is selected and bracket metadata exists) */}
+      {teamFilter === "all" && typeFilter === "playoff" && hasBracketMetadata(sortedFilteredGames) && (
+        <PlayoffBracket games={sortedFilteredGames} />
       )}
 
       {/* Schedule List */}
@@ -306,6 +364,7 @@ export function ScheduleContent({ initialData }: { initialData?: BashApiData }) 
                       game={g}
                       rowRef={isNext ? nextGameRef : undefined}
                       highlighted={isNext && highlightedNext}
+                      hideCategoryBadge={typeFilter !== "all"}
                     />
                   )
                 })}
@@ -322,10 +381,12 @@ function ScheduleGameRow({
   game: g,
   rowRef,
   highlighted,
+  hideCategoryBadge,
 }: {
   game: BashGame
   rowRef?: React.RefObject<HTMLDivElement | null>
   highlighted?: boolean
+  hideCategoryBadge?: boolean
 }) {
   const isFinal = g.status === "final"
   const isLive = g.status === "live"
@@ -382,9 +443,9 @@ function ScheduleGameRow({
           <span className="text-[10px] text-muted-foreground/50 shrink-0">@</span>
           <TeamCell name={homeName} slug={g.homeSlug} won={homeWon} muted={isFinal && !homeWon} />
         </div>
-        {(g.title || category !== "regular") && (
+        {(g.title || (!hideCategoryBadge && category !== "regular")) && (
           <div className="flex flex-wrap items-center gap-1.5">
-            {category !== "regular" && (
+            {!hideCategoryBadge && category !== "regular" && (
               <span className="text-[10px] font-medium text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
                 {CATEGORY_LABELS[category]}
               </span>
@@ -402,11 +463,11 @@ function ScheduleGameRow({
       <div className="w-10 sm:w-16 shrink-0 text-right font-mono tabular-nums text-[11px] sm:text-xs">
         {isFinal || isLive ? (
           <span className="inline-flex items-center justify-end gap-0.5 sm:gap-1">
-            <span className={cn(awayWon ? "font-bold text-foreground" : "text-muted-foreground")}>
+            <span className={cn(awayWon ? "font-bold text-foreground" : isFinal ? "text-muted-foreground/50" : "text-muted-foreground")}>
               {g.awayScore ?? 0}
             </span>
             <span className="text-muted-foreground/40">–</span>
-            <span className={cn(homeWon ? "font-bold text-foreground" : "text-muted-foreground")}>
+            <span className={cn(homeWon ? "font-bold text-foreground" : isFinal ? "text-muted-foreground/50" : "text-muted-foreground")}>
               {g.homeScore ?? 0}
             </span>
           </span>
@@ -432,12 +493,12 @@ function TeamCell({
   const isTbd = !slug || slug === "tbd"
   const textClass = cn(
     "truncate",
-    won ? "font-semibold text-foreground" : muted ? "text-muted-foreground" : "font-medium text-foreground",
+    won ? "font-bold text-foreground" : muted ? "text-muted-foreground/60" : "font-medium text-foreground",
   )
 
   return (
     <span className="inline-flex items-center gap-1 sm:gap-1.5 min-w-0">
-      <TeamLogo slug={slug || "tbd"} name={name} size={18} className="shrink-0" />
+      <TeamLogo slug={slug || "tbd"} name={name} size={18} className={cn("shrink-0", muted && "opacity-50")} />
       {isTbd ? (
         <span className={textClass}>{name}</span>
       ) : (

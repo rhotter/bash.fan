@@ -117,6 +117,7 @@ Playoff Odds (`lib/playoff-odds.ts`, served via `GET /api/bash/playoff-odds`) ru
 ### URL Structure
 
 - `/` — Home (scores grouped by date/week)
+- `/schedule` — Full season schedule (supports `?season=`, `?team=`, `?gameType=playoff` with automatic Playoff Bracket & OG preview)
 - `/register` — Player registration flow (temporary — will be removed)
 - `/standings`, `/stats` — List pages filtered by `?season=YYYY-YYYY` (`/standings` also supports `?view=h2h&team=<slug>` for Head to Head and `?view=odds&mode=weighted|50_50|classic` for Playoff Odds; `/stats` supports `?view=goalies` and `?view=teams`)
 - `/playoff-odds` — Direct shareable Playoff Odds Predictor route (supports `?season=<id>&mode=weighted|50_50|classic&team=<slug>`)

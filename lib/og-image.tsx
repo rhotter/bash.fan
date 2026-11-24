@@ -3,6 +3,7 @@ import { readFileSync, existsSync } from 'fs'
 import { join } from 'path'
 import { getTeamLogoUrl } from './team-logos'
 import { getTeamChartColor } from './chart-colors'
+import type { BracketRoundColumn, BracketSeries, SeriesSide } from './playoff-bracket-utils'
 import type { PlayoffOddsSnapshot } from './playoff-odds-types'
 
 export const ogSize = { width: 1200, height: 630 }
@@ -263,6 +264,184 @@ export function generateDraftOGImage(opts: {
   )
 }
 
+function renderOGSeriesTeamRow(side: SeriesSide, score: number | string, won: boolean, lost: boolean) {
+  const logo = !side.isTbd ? getTeamLogoBase64(side.slug) : null
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        padding: '8px 12px',
+        gap: 8,
+        opacity: lost ? 0.5 : 1,
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+        {logo ? (
+          <img src={logo} width={22} height={22} alt="" style={{ objectFit: 'contain' }} />
+        ) : (
+          <div
+            style={{
+              width: 22,
+              height: 22,
+              borderRadius: 11,
+              backgroundColor: '#e5e7eb',
+            }}
+          />
+        )}
+        <div
+          style={{
+            fontSize: 16,
+            fontWeight: won ? 700 : 500,
+            color: '#111111',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {side.name}
+        </div>
+      </div>
+      <div
+        style={{
+          fontSize: 16,
+          fontWeight: won ? 700 : 600,
+          color: won ? '#111111' : '#666666',
+        }}
+      >
+        {String(score)}
+      </div>
+    </div>
+  )
+}
+
+function renderOGSeriesCard(series: BracketSeries) {
+  const isSingleGame = series.games.length === 1
+  const singleGame = isSingleGame ? series.games[0] : null
+  const seriesLabel =
+    series.seriesId === 'play-in' ? 'Play-In' : series.seriesId === 'final' ? 'Final' : series.seriesId.toUpperCase()
+
+  const topScore = isSingleGame
+    ? singleGame?.status === 'final' || singleGame?.status === 'live'
+      ? (singleGame.awayScore ?? 0)
+      : '–'
+    : series.top.wins
+  const bottomScore = isSingleGame
+    ? singleGame?.status === 'final' || singleGame?.status === 'live'
+      ? (singleGame.homeScore ?? 0)
+      : '–'
+    : series.bottom.wins
+
+  return (
+    <div
+      key={series.seriesId}
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        borderRadius: 10,
+        border: '1px solid #e2e4ea',
+        backgroundColor: '#ffffff',
+        overflow: 'hidden',
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '5px 12px',
+          backgroundColor: '#f3f4f6',
+          borderBottom: '1px solid #e5e7eb',
+          fontSize: 12,
+          color: '#6b7280',
+        }}
+      >
+        <div style={{ fontWeight: 700 }}>{seriesLabel}</div>
+        <div>{isSingleGame ? 'Single Game' : `Best of ${series.games.length}`}</div>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column' }}>
+        {renderOGSeriesTeamRow(series.top, topScore, series.clinchedBy === 'top', series.clinchedBy === 'bottom')}
+        <div style={{ height: 1, backgroundColor: '#f1f5f9' }} />
+        {renderOGSeriesTeamRow(series.bottom, bottomScore, series.clinchedBy === 'bottom', series.clinchedBy === 'top')}
+      </div>
+    </div>
+  )
+}
+
+export function generatePlayoffBracketOGImage(rounds: BracketRoundColumn[], seasonLabel?: string) {
+  return new ImageResponse(
+    (
+      <div
+        style={{
+          width: '100%',
+          height: '100%',
+          display: 'flex',
+          flexDirection: 'column',
+          padding: '32px 40px 64px 40px',
+          backgroundColor: '#f8f9fc',
+          position: 'relative',
+          gap: 20,
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            <img src={bashLogoBase64()} width={44} height={44} alt="" />
+            <div style={{ fontSize: 32, fontWeight: 700, color: '#111111', letterSpacing: '-0.02em' }}>
+              Playoff Bracket
+            </div>
+          </div>
+          {seasonLabel && (
+            <div style={{ fontSize: 20, fontWeight: 600, color: '#6b7280' }}>
+              {seasonLabel}
+            </div>
+          )}
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'row', flex: 1, gap: 20 }}>
+          {rounds.map((col) => (
+            <div
+              key={col.round}
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                flex: 1,
+                gap: 10,
+              }}
+            >
+              <div
+                style={{
+                  fontSize: 13,
+                  fontWeight: 700,
+                  color: '#6b7280',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.06em',
+                }}
+              >
+                {col.label}
+              </div>
+              <div
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  flex: 1,
+                  justifyContent: col.round === 'play-in' ? 'flex-start' : 'space-around',
+                  gap: 14,
+                }}
+              >
+                {col.series.map((s) => renderOGSeriesCard(s))}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <BashWatermark />
+      </div>
+    ),
+    { ...ogSize }
+  )
+}
+
 export function generatePlayoffOddsOGImage(snapshot: PlayoffOddsSnapshot, seasonLabel?: string) {
   const allTeamsQualify = snapshot.format.allTeamsQualify
   const title = allTeamsQualify ? 'Projected Seed' : 'Chance Will Make Playoffs'
@@ -357,6 +536,7 @@ export function generatePlayoffOddsOGImage(snapshot: PlayoffOddsSnapshot, season
             }}
           >
             <div style={{ display: 'flex', flexDirection: 'row', gap: 10 }}>
+              {/* Y-axis labels */}
               <div
                 style={{
                   display: 'flex',
@@ -375,6 +555,7 @@ export function generatePlayoffOddsOGImage(snapshot: PlayoffOddsSnapshot, season
                 ))}
               </div>
 
+              {/* SVG plot */}
               <svg width={chartW} height={chartH} viewBox={`0 0 ${chartW} ${chartH}`}>
                 {yTicks.map((tick) => {
                   const y = yForValue(tick)
@@ -444,6 +625,7 @@ export function generatePlayoffOddsOGImage(snapshot: PlayoffOddsSnapshot, season
               </svg>
             </div>
 
+            {/* X-axis labels */}
             <div
               style={{
                 display: 'flex',

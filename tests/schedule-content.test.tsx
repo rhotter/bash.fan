@@ -228,4 +228,96 @@ describe("ScheduleContent & ScoresTab Full Schedule link", () => {
     expect(fullScheduleLink).toBeTruthy()
     expect(fullScheduleLink?.textContent).toContain("Full schedule")
   })
+
+  it("renders PlayoffBracket automatically only when All Teams + Playoff is selected and bracket metadata exists", async () => {
+    const bracketGames: BashGame[] = [
+      makeGame({
+        id: "sf-1",
+        date: "2027-01-03",
+        time: "9:00am",
+        gameType: "playoff",
+        isPlayoff: true,
+        bracketRound: "semifinal",
+        seriesId: "sf-a",
+        seriesGameNumber: 1,
+        awayTeam: "Seals",
+        awaySlug: "seals",
+        homeTeam: "No ReGretzkys",
+        homeSlug: "no-regretzkys",
+        awayScore: 2,
+        homeScore: 4,
+        status: "final",
+      }),
+      makeGame({
+        id: "sf-2",
+        date: "2027-01-04",
+        time: "9:00am",
+        gameType: "playoff",
+        isPlayoff: true,
+        bracketRound: "semifinal",
+        seriesId: "sf-a",
+        seriesGameNumber: 2,
+        awayTeam: "No ReGretzkys",
+        awaySlug: "no-regretzkys",
+        homeTeam: "Seals",
+        homeSlug: "seals",
+        awayScore: 5,
+        homeScore: 1,
+        status: "final",
+      }),
+      makeGame({
+        id: "sf-3",
+        date: "2027-01-05",
+        time: "9:00am",
+        gameType: "playoff",
+        isPlayoff: true,
+        bracketRound: "semifinal",
+        seriesId: "sf-a",
+        seriesGameNumber: 3,
+        awayTeam: "Seals",
+        awaySlug: "seals",
+        homeTeam: "No ReGretzkys",
+        homeSlug: "no-regretzkys",
+        awayScore: null,
+        homeScore: null,
+        status: "upcoming",
+      }),
+      ...SAMPLE_GAMES.map((g) =>
+        g.id === "g-playoff-tbd" ? { ...g, bracketRound: "final", seriesId: "final", seriesGameNumber: 1 } : g,
+      ),
+    ]
+
+    await act(async () => {
+      root.render(<ScheduleContent initialData={{ ...SAMPLE_DATA, games: bracketGames }} />)
+    })
+
+    // Not shown while Game Type = All
+    expect(container.querySelector('section[aria-label="Playoff Bracket"]')).toBeNull()
+
+    const typeSelect = container.querySelector('select[aria-label="Filter by game type"]') as HTMLSelectElement
+    await act(async () => {
+      typeSelect.value = "playoff"
+      typeSelect.dispatchEvent(new Event("change", { bubbles: true }))
+    })
+
+    const bracket = container.querySelector('section[aria-label="Playoff Bracket"]')
+    expect(bracket).toBeTruthy()
+    expect(bracket?.textContent).toContain("Semifinals")
+    expect(bracket?.textContent).toContain("Finals")
+    expect(bracket?.textContent).toContain("SER")
+    // Played games show inline scores on team rows and have no date chips; unplayed G3 keeps its date chip
+    expect(bracket?.textContent).not.toContain("G1: Jan 3")
+    expect(bracket?.textContent).not.toContain("G2: Jan 4")
+    expect(bracket?.textContent).toContain("G3: Jan 5")
+    expect(bracket?.querySelector('a[href="/game/sf-1"]')?.textContent).toContain("G1")
+    expect(bracket?.querySelector('a[href="/game/sf-2"]')?.textContent).toContain("G2")
+
+    // Selecting a specific team hides the bracket
+    const teamSelect = container.querySelector('select[aria-label="Filter by team"]') as HTMLSelectElement
+    await act(async () => {
+      teamSelect.value = "seals"
+      teamSelect.dispatchEvent(new Event("change", { bubbles: true }))
+    })
+    expect(container.querySelector('section[aria-label="Playoff Bracket"]')).toBeNull()
+  })
 })
