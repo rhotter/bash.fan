@@ -147,15 +147,6 @@ export function AwardsClient({ seasons, allPlayers }: { seasons: Season[]; allPl
   const [newHofAchievements, setNewHofAchievements] = useState("")
   const [isHofSaving, setIsHofSaving] = useState(false)
 
-  useEffect(() => {
-    if (activeTab === "awards" && selectedSeason) {
-      fetchAwards()
-    } else if (activeTab === "hof" && hof.length === 0) {
-      fetchHof()
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, selectedSeason])
-
   const fetchAwards = async () => {
     setIsAwardsLoading(true)
     try {
@@ -185,6 +176,15 @@ export function AwardsClient({ seasons, allPlayers }: { seasons: Season[]; allPl
       setIsHofLoading(false)
     }
   }
+
+  useEffect(() => {
+    if (activeTab === "awards" && selectedSeason) {
+      fetchAwards()
+    } else if (activeTab === "hof" && hof.length === 0) {
+      fetchHof()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, selectedSeason])
 
   const handleAddAward = async () => {
     const selectedPlayer = players.find((player) => player.id === selectedAwardPlayerId) ?? null

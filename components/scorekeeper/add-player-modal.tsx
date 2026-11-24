@@ -75,25 +75,27 @@ export function AddPlayerModal({
     }
 
     let cancelled = false
-    const timer = setTimeout(async () => {
-      setIsSearching(true)
-      setSearchError("")
-      try {
-        const headers: HeadersInit = {}
-        if (pin) headers["x-pin"] = pin
-        const res = await fetch(`/api/bash/scorekeeper/${gameId}/search-players?q=${encodeURIComponent(searchQuery)}`, { headers })
-        if (res.ok) {
-          const data = await readApiJson(res)
-          if (!cancelled) setSearchResults(data.players || [])
+    const timer = setTimeout(() => {
+      void (async () => {
+        setIsSearching(true)
+        setSearchError("")
+        try {
+          const headers: HeadersInit = {}
+          if (pin) headers["x-pin"] = pin
+          const res = await fetch(`/api/bash/scorekeeper/${gameId}/search-players?q=${encodeURIComponent(searchQuery)}`, { headers })
+          if (res.ok) {
+            const data = await readApiJson(res)
+            if (!cancelled) setSearchResults(data.players || [])
+          }
+        } catch (error) {
+          if (!cancelled) {
+            setSearchResults([])
+            setSearchError(errorMessage(error, "Could not search players. Please try again."))
+          }
+        } finally {
+          if (!cancelled) setIsSearching(false)
         }
-      } catch (error) {
-        if (!cancelled) {
-          setSearchResults([])
-          setSearchError(errorMessage(error, "Could not search players. Please try again."))
-        }
-      } finally {
-        if (!cancelled) setIsSearching(false)
-      }
+      })()
     }, 250)
 
     return () => { cancelled = true; clearTimeout(timer) }

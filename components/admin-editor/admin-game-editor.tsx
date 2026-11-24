@@ -51,7 +51,7 @@ export function AdminGameEditor({
     return s
   })
   const savedState = useRef(initialState)
-  const needsFinalization = useRef(initialState.finalizationPending?.phase === "failed")
+  const [needsFinalization, setNeedsFinalization] = useState(initialState.finalizationPending?.phase === "failed")
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState("")
 
@@ -80,10 +80,10 @@ export function AdminGameEditor({
     setError("")
     try {
       const mode = gameEditMode(savedState.current, state)
-      if (mode === "unchanged" && !needsFinalization.current) { onSaved(); return }
+      if (mode === "unchanged" && !needsFinalization) { onSaved(); return }
       // A shot-only correction never replays historical events. Full edits are
       // validated together by finalization before the proposed state is saved.
-      const shotsOnly = mode === "shots" && !needsFinalization.current
+      const shotsOnly = mode === "shots" && !needsFinalization
       const response = await fetch(`/api/bash/scorekeeper/${gameId}/${shotsOnly ? "state" : "finalize"}`, {
         method: shotsOnly ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json", "x-pin": pin },
@@ -98,11 +98,11 @@ export function AdminGameEditor({
       if (result.stateSaved && result.state) {
         savedState.current = result.state
         setState(result.state)
-        needsFinalization.current = true
+        setNeedsFinalization(true)
       }
       if (!response.ok) throw new Error(result.error || "Failed to save game")
 
-      needsFinalization.current = false
+      setNeedsFinalization(false)
       onSaved()
     } catch (err) {
       setError(errorMessage(err, "Unknown error"))
@@ -136,7 +136,7 @@ export function AdminGameEditor({
         </div>
       </div>
 
-      {needsFinalization.current && <p className="mb-4 text-xs text-destructive">The previous save needs to finish rebuilding its statistics. Save again to retry.</p>}
+      {needsFinalization && <p className="mb-4 text-xs text-destructive">The previous save needs to finish rebuilding its statistics. Save again to retry.</p>}
 
       {/* Editor sections */}
       <fieldset disabled={saving} className="space-y-8">

@@ -47,9 +47,9 @@ export async function POST(request: NextRequest, context: RouteContext) {
 
   try {
     if (action === "confirm") {
-      return handleConfirm(request, draftId)
+      return await handleConfirm(request, draftId)
     }
-    return handlePreview(request, draftId)
+    return await handlePreview(request, draftId)
   } catch (error: unknown) {
     console.error("Draft pool CSV import failed:", error)
     return NextResponse.json(

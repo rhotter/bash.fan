@@ -427,7 +427,7 @@ describe("PlayoffOddsView & StandingsContent Integration", () => {
       })
       // Allow SWR promise rejection to flush
       await act(async () => {
-        await new Promise((r) => setTimeout(r, 20))
+        await new Promise<void>((r) => { setTimeout(r, 20) })
       })
 
       const alert = container.querySelector('[role="alert"]')
@@ -523,7 +523,7 @@ describe("PlayoffOddsView & StandingsContent Integration", () => {
         root.render(<PlayoffOddsView season="failing-season" />)
       })
       await act(async () => {
-        await new Promise((r) => setTimeout(r, 20))
+        await new Promise<void>((r) => { setTimeout(r, 20) })
       })
 
       const alert = container.querySelector('[role="alert"]')
@@ -938,7 +938,7 @@ describe("PlayoffOddsView & StandingsContent Integration", () => {
       // Hovering (pointerMove) opens tooltip with honest 1-decimal precision ("55.8%") and ± MC margin
       await act(async () => {
         seedCell.dispatchEvent(new MouseEvent("pointermove", { bubbles: true }))
-        await new Promise((r) => setTimeout(r, 150))
+        await new Promise<void>((r) => { setTimeout(r, 150) })
       })
       const tooltip = Array.from(document.body.querySelectorAll('[role="tooltip"]')).find((el) =>
         el.textContent?.includes("55.8%")

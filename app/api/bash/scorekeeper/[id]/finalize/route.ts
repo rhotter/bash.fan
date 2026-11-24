@@ -786,10 +786,10 @@ export async function POST(
     if (!cleanState) throw new Error("The completed finalization claim could not be cleared")
 
     revalidatePlayoffOdds()
-    after(() => dispatchSportsUpdates().catch(error => console.error("Game alert dispatch failed", error)))
+    after(() => dispatchSportsUpdates().catch((error: unknown) => console.error("Game alert dispatch failed", error)))
     return NextResponse.json({ ok: true, homeScore, awayScore, isOvertime, state: cleanState })
   } catch (error) {
     console.error("Failed to finalize game:", error)
-    return await failedFinalization("Failed to finalize game", 500, error instanceof Error ? error.message : String(error))
+    return failedFinalization("Failed to finalize game", 500, error instanceof Error ? error.message : String(error))
   }
 }

@@ -14,7 +14,7 @@ let root: Root
 async function flush(action: () => void) {
   await act(async () => {
     action()
-    await new Promise((resolve) => setTimeout(resolve, 10))
+    await new Promise<void>((resolve) => { setTimeout(resolve, 10) })
   })
 }
 

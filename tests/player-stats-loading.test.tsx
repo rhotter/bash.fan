@@ -29,7 +29,7 @@ async function withStats(initialData: PlayerStatsData | undefined, check: (fetch
 describe("Stats initial data", () => {
   it("uses the server snapshot without sending a duplicate mount request", async () => {
     await withStats(snapshot, async (fetchMock, container) => {
-      await act(async () => { await new Promise((resolve) => setTimeout(resolve, 20)) })
+      await act(async () => { await new Promise<void>((resolve) => { setTimeout(resolve, 20) }) })
       expect(container.textContent).toBe("Ready")
       expect(fetchMock).not.toHaveBeenCalled()
     })

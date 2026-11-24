@@ -209,7 +209,7 @@ export function DraftWizard({ open, onOpenChange, seasonId, seasonType, teams, r
             }
           }
         })
-        .catch((error) => {
+        .catch((error: unknown) => {
           if (requestId !== rosterRequest.current) return
           const message = errorMessage(error, "Could not load the roster. Please try again.")
           setRosterLoadError(message)
