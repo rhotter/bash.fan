@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, type ReactNode } from "react"
 import { cn } from "@/lib/utils"
 import { IntentLink } from "@/components/intent-link"
 import { TeamLogo } from "@/components/team-logo"
@@ -123,13 +123,26 @@ export function GameCard({ game, href, seriesText }: { game: BashGame; href?: st
   )
 }
 
-export function DateSection({ date, games, allGames, gameHref }: { date: string; games: BashGame[]; allGames?: BashGame[]; gameHref?: (game: BashGame) => string }) {
+export function DateSection({
+  date,
+  games,
+  allGames,
+  gameHref,
+  headerAction,
+}: {
+  date: string
+  games: BashGame[]
+  allGames?: BashGame[]
+  gameHref?: (game: BashGame) => string
+  headerAction?: ReactNode
+}) {
   return (
     <div className="mb-4">
-      <div className="mb-1.5">
+      <div className="mb-1.5 flex items-center justify-between gap-2">
         <span className="text-[11px] font-semibold text-muted-foreground">
           {formatGameDate(date)}
         </span>
+        {headerAction}
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
         {games.map((game) => (

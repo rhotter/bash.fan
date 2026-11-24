@@ -34,6 +34,7 @@ export function useBashData(season?: string, fallbackData?: BashApiData) {
   const { data, error, isLoading, mutate } = useSWR<BashApiData>(url, fetcher, {
     refreshInterval: (latestData) => (latestData ?? fallbackData)?.games?.some((g) => g.status === "live") ? REFRESH.LIVE_GAME : REFRESH.SCORES,
     revalidateOnFocus: true,
+    revalidateOnMount: fallbackData ? false : undefined,
     dedupingInterval: DEDUPE.SCORES,
     fallbackData,
   })

@@ -449,7 +449,10 @@ function BigGameCard({
                 <TooltipTrigger asChild>
                   <span
                     tabIndex={0}
-                    className="shrink-0 cursor-help rounded bg-muted px-1.5 py-0.5 text-[9px] font-normal text-muted-foreground"
+                    className={cn(
+                      "shrink-0 cursor-help rounded bg-muted px-1.5 py-0.5 text-[9px] font-normal text-muted-foreground",
+                      !focusedTeamSlug && "hidden sm:inline-flex",
+                    )}
                   >
                     Watching
                   </span>
