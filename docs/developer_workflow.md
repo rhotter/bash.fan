@@ -3,7 +3,7 @@
 ## Prerequisites
 
 Before starting development on the BASH Hockey website, assure you have the following installed on your local machine:
-- **Node.js** (Version 18 or higher)
+- **Node.js** (Version 22.18+ or 24+, required to load `oxlint.config.ts` natively)
 - **pnpm** (Package manager, install via `npm install -g pnpm`)
 - A **Neon Postgres** database instance (or any compatible PostgreSQL database).
 
@@ -94,14 +94,14 @@ Navigate to `http://localhost:3000` in your browser. The app should now be runni
 
 ## Common Development Tasks
 
-- **Linting**: To ensure code quality and prevent common errors, run:
+- **Linting**: Runs Oxlint (`oxlint.config.ts`) extending `@cloudflare/oxlint-config` with `tsrs` type-aware rules and `eslint-plugin-drizzle` (`jsPlugins`) to guard against unguarded `db.delete()` / `db.update()` queries. Pre-commit hooks (`husky` + `lint-staged`) also run `oxlint --deny-warnings` on staged files:
   ```bash
   pnpm lint
   ```
 
-- **Type Checking**: To verify full type safety across the project (catches errors not caught by lint):
+- **Type Checking**: To verify full type safety across the project (Oxlint does not replace `tsc`):
   ```bash
-  npx tsc --noEmit
+  pnpm typecheck
   ```
   > **Note:** There are a small number of pre-existing type errors in legacy files. When adding new code, ensure your changes introduce zero new errors.
 
@@ -112,7 +112,7 @@ Navigate to `http://localhost:3000` in your browser. The app should now be runni
 
 - **Full Quality Gate**: Run all three checks before pushing:
   ```bash
-  pnpm lint && npx tsc --noEmit && pnpm build
+  pnpm lint && pnpm typecheck && pnpm build
   ```
 
 - **Optimizing Team & League Logos**: When adding or updating a PNG logo in `public/team-logos/` (and registering it in `lib/team-logos.ts`), regenerate the static `64px`/`128px`/`256px` WebP variants and manifest:
