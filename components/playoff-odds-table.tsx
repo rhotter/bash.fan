@@ -5,9 +5,18 @@ import { ChevronDown, ChevronUp } from "lucide-react"
 import { TeamLogo } from "@/components/team-logo"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
-import type { PlayoffOddsSnapshot, TeamOddsRow } from "@/lib/playoff-odds-types"
+import { isGoalWeightedMode, type PlayoffOddsSnapshot, type TeamOddsRow } from "@/lib/playoff-odds-types"
 
-type SortKey = "playoffPct" | "seed1Pct" | "pts" | "avgSeed" | "strength" | "rpiRank" | "gd"
+type SortKey =
+  | "playoffPct"
+  | "seed1Pct"
+  | "pts"
+  | "avgSeed"
+  | "avgAttendance"
+  | "strength"
+  | "fullStrength"
+  | "rpiRank"
+  | "gd"
 
 function formatPlayoffDisplay(row: TeamOddsRow): { text: string; kind: "in" | "out" | "pct" } {
   if (row.clinched) return { text: "In", kind: "in" }
@@ -99,14 +108,14 @@ export function PlayoffOddsTable({
   } | null>(null)
   const [mobileGroup, setMobileGroup] = useState<"seeds" | "details">("seeds")
 
-  const sortKey =
-    userSort && userSort.allTeamsQualify === format.allTeamsQualify
-      ? userSort.key
-      : defaultSortKey
-  const sortDir =
-    userSort && userSort.allTeamsQualify === format.allTeamsQualify
-      ? userSort.dir
-      : defaultSortDir
+  const isWeightedFamily = isGoalWeightedMode(snapshot.mode)
+  const isUserSortActive = Boolean(
+    userSort &&
+      userSort.allTeamsQualify === format.allTeamsQualify &&
+      !(userSort.key === "fullStrength" && !isWeightedFamily)
+  )
+  const sortKey = isUserSortActive ? userSort!.key : defaultSortKey
+  const sortDir = isUserSortActive ? userSort!.dir : defaultSortDir
 
   const toggleSort = (key: SortKey, fallbackDir: "asc" | "desc" = "desc") => {
     setUserSort({
@@ -118,6 +127,21 @@ export function PlayoffOddsTable({
 
   const sortedTeams = useMemo(() => {
     return [...teams].sort((a, b) => {
+      if (sortKey === "avgAttendance") {
+        const aAtt =
+          typeof a.avgAttendance === "number" && Number.isFinite(a.avgAttendance)
+            ? a.avgAttendance
+            : null
+        const bAtt =
+          typeof b.avgAttendance === "number" && Number.isFinite(b.avgAttendance)
+            ? b.avgAttendance
+            : null
+        if (aAtt === null && bAtt === null) return 0
+        if (aAtt === null) return 1
+        if (bAtt === null) return -1
+        const diff = aAtt - bAtt
+        return sortDir === "desc" ? -diff : diff
+      }
       let diff = 0
       switch (sortKey) {
         case "playoffPct":
@@ -138,6 +162,18 @@ export function PlayoffOddsTable({
         case "strength":
           diff = a.strength - b.strength
           break
+        case "fullStrength": {
+          const aFull =
+            typeof a.fullStrength === "number" && Number.isFinite(a.fullStrength)
+              ? a.fullStrength
+              : a.strength
+          const bFull =
+            typeof b.fullStrength === "number" && Number.isFinite(b.fullStrength)
+              ? b.fullStrength
+              : b.strength
+          diff = aFull - bFull || a.strength - b.strength
+          break
+        }
         case "rpiRank":
           diff = a.rpiRank - b.rpiRank
           break
@@ -295,10 +331,20 @@ export function PlayoffOddsTable({
               </th>
               <th
                 scope="colgroup"
-                colSpan={3}
+                colSpan={4}
                 className={cn(
                   "px-2 py-1.5 text-center font-medium",
-                  mobileGroup === "details" ? "table-cell" : "hidden md:table-cell"
+                  mobileGroup === "details" ? "table-cell sm:hidden" : "hidden"
+                )}
+              >
+                Summary
+              </th>
+              <th
+                scope="colgroup"
+                colSpan={5}
+                className={cn(
+                  "px-2 py-1.5 text-center font-medium",
+                  mobileGroup === "details" ? "hidden sm:table-cell" : "hidden md:table-cell"
                 )}
               >
                 Summary
@@ -394,6 +440,21 @@ export function PlayoffOddsTable({
               </th>
               <th
                 scope="col"
+                aria-sort={ariaSortFor("avgAttendance")}
+                className={cn(
+                  "px-2 py-2 text-right font-medium whitespace-nowrap",
+                  mobileGroup === "details" ? "table-cell" : "hidden md:table-cell"
+                )}
+              >
+                {renderSortButton(
+                  "Att",
+                  "avgAttendance",
+                  "desc",
+                  "Average dressed players per game (skaters + goalies)"
+                )}
+              </th>
+              <th
+                scope="col"
                 aria-sort={ariaSortFor("strength")}
                 className={cn(
                   "px-2 py-2 text-right font-medium",
@@ -401,6 +462,26 @@ export function PlayoffOddsTable({
                 )}
               >
                 {renderSortButton("Str", "strength", "desc", "Regressed team strength rating (0.000–1.000)")}
+              </th>
+              <th
+                scope="col"
+                aria-sort={isWeightedFamily ? ariaSortFor("fullStrength") : undefined}
+                title="Full-Strength Rating: projected strength at even headcounts (team = opponent)."
+                className={cn(
+                  "px-2 py-2 text-right font-medium whitespace-nowrap",
+                  mobileGroup === "details" ? "hidden sm:table-cell" : "hidden md:table-cell"
+                )}
+              >
+                {isWeightedFamily ? (
+                  renderSortButton(
+                    "Full Str",
+                    "fullStrength",
+                    "desc",
+                    "Full-Strength Rating: projected strength at even headcounts (team = opponent)."
+                  )
+                ) : (
+                  <span>Full Str</span>
+                )}
               </th>
               <th
                 scope="col"
@@ -443,14 +524,36 @@ export function PlayoffOddsTable({
                 format.hasPlayIn &&
                 idx === format.directByeSpots - 1
 
+              const avgAttendance =
+                typeof row.avgAttendance === "number" && Number.isFinite(row.avgAttendance)
+                  ? row.avgAttendance
+                  : null
+              const fullStrength =
+                typeof row.fullStrength === "number" && Number.isFinite(row.fullStrength)
+                  ? row.fullStrength
+                  : row.strength
+              const attendanceDelta =
+                typeof row.attendanceDelta === "number" && Number.isFinite(row.attendanceDelta)
+                  ? row.attendanceDelta
+                  : 0
               const strengthLabel = `Strength: .${Math.round(row.strength * 1000).toString().padStart(3, "0")}`
-              const paceLabel = `Actual Pts%: ${(row.actualPtsPct * 100).toFixed(1)}% | Goal-based: ${(row.rawPythPct * 100).toFixed(1)}% | Pace: ${row.luckDelta >= 0 ? "+" : ""}${(row.luckDelta * 100).toFixed(1)}%`
+              const fullStrDigits = Math.round(fullStrength * 1000).toString().padStart(3, "0")
+              const deltaSign = attendanceDelta >= 0 ? "+" : ""
+              const showFullStrDelta =
+                avgAttendance !== null && Math.abs(attendanceDelta) >= 0.001
+              const fullStrDetail =
+                isWeightedFamily
+                  ? ` | Full Str: .${fullStrDigits}${showFullStrDelta ? ` (${deltaSign}${attendanceDelta.toFixed(3)})` : ""}`
+                  : ""
+              const paceLabel = `Actual Pts%: ${(row.actualPtsPct * 100).toFixed(1)}% | Goal-based: ${(row.rawPythPct * 100).toFixed(1)}% | Pace: ${row.luckDelta >= 0 ? "+" : ""}${(row.luckDelta * 100).toFixed(1)}%${fullStrDetail}`
               const strengthTooltip =
                 snapshot.mode === "50_50"
                   ? `${strengthLabel} (not used: every remaining game is 50/50) | ${paceLabel}`
                   : snapshot.mode === "classic"
                     ? `${strengthLabel} (points % regressed toward .500) | ${paceLabel}`
-                    : `${strengthLabel} (goal-based, shrunk toward .500) | ${paceLabel}`
+                    : snapshot.mode === "full_strength"
+                      ? `${strengthLabel} (observed goal-based; simulations use Full Str) | ${paceLabel}`
+                      : `${strengthLabel} (goal-based, shrunk toward .500) | ${paceLabel}`
 
               return (
                 <tr
@@ -640,7 +743,7 @@ export function PlayoffOddsTable({
                     )
                   })}
 
-                  {/* Summary Columns: Avg Seed, Strength, RPI */}
+                  {/* Summary Columns: Avg Seed, Attendance, Strength, Full Strength, RPI */}
                   <td
                     className={cn(
                       "px-2 py-2.5 text-right tabular-nums whitespace-nowrap",
@@ -660,6 +763,30 @@ export function PlayoffOddsTable({
                     )}
                   </td>
                   <td
+                    title={
+                      avgAttendance !== null
+                        ? `Avg dressed players: ${avgAttendance.toFixed(1)} (${row.attendanceTier === "low" ? "Low" : row.attendanceTier === "high" ? "High" : "Avg"})`
+                        : "No boxscore attendance recorded"
+                    }
+                    className={cn(
+                      "px-2 py-2.5 text-right tabular-nums whitespace-nowrap text-muted-foreground",
+                      mobileGroup === "details" ? "table-cell" : "hidden md:table-cell"
+                    )}
+                  >
+                    {avgAttendance !== null ? (
+                      <span className="inline-flex items-center justify-end gap-1">
+                        <span className="text-foreground">{avgAttendance.toFixed(1)}</span>
+                        {(row.attendanceTier === "low" || row.attendanceTier === "high") && (
+                          <span className="rounded border border-border/50 bg-muted px-1 py-px text-[9px] font-medium text-muted-foreground">
+                            {row.attendanceTier === "low" ? "Low" : "High"}
+                          </span>
+                        )}
+                      </span>
+                    ) : (
+                      "—"
+                    )}
+                  </td>
+                  <td
                     title={strengthTooltip}
                     className={cn(
                       "px-2 py-2.5 text-right tabular-nums text-muted-foreground",
@@ -667,6 +794,30 @@ export function PlayoffOddsTable({
                     )}
                   >
                     .{Math.round(row.strength * 1000).toString().padStart(3, "0")}
+                  </td>
+                  <td
+                    title={
+                      isWeightedFamily
+                        ? `Full-Strength Rating: projected strength at even headcounts (team = opponent).${avgAttendance !== null ? ` Delta vs. Str: ${deltaSign}${attendanceDelta.toFixed(3)}` : ""}`
+                        : "Full-Strength Rating: projected strength at even headcounts (team = opponent). Available in BASH Weighted and BASH Full-Strength Adj modes."
+                    }
+                    className={cn(
+                      "px-2 py-2.5 text-right tabular-nums whitespace-nowrap text-muted-foreground",
+                      mobileGroup === "details" ? "hidden sm:table-cell" : "hidden md:table-cell"
+                    )}
+                  >
+                    {isWeightedFamily ? (
+                      <span className="inline-flex items-baseline justify-end gap-1">
+                        <span className="text-foreground">.{fullStrDigits}</span>
+                        {showFullStrDelta && (
+                          <span className="text-[10px] text-muted-foreground/80">
+                            ({deltaSign}{attendanceDelta.toFixed(3)})
+                          </span>
+                        )}
+                      </span>
+                    ) : (
+                      "—"
+                    )}
                   </td>
                   <td
                     title={`RPI value: ${row.rpi.toFixed(3)}`}

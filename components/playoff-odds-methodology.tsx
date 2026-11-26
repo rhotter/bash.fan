@@ -82,6 +82,11 @@ export function PlayoffOddsMethodology({ snapshot }: { snapshot: PlayoffOddsSnap
                 across both Fall and Summer BASH seasons.
               </li>
               <li>
+                <span className="font-medium text-foreground">BASH Full-Strength Adj:</span> Uses the same PythagenPuck +
+                Empirical Bayes pipeline as BASH Weighted, but symmetrically de-attends each played game&apos;s goals for
+                and against back to even headcounts before computing team strength.
+              </li>
+              <li>
                 <span className="font-medium text-foreground">50/50:</span> Treats every remaining game as an unbiased
                 coin flip (same overtime/shootout rates and tiebreakers) to isolate pure schedule and standings math.
               </li>
@@ -147,20 +152,6 @@ export function PlayoffOddsMethodology({ snapshot }: { snapshot: PlayoffOddsSnap
         </div>
 
         <div className="space-y-2 border-t border-border/40 pt-3 text-[11px] text-muted-foreground/80">
-          <p>
-            <span className="font-medium text-foreground">Bayesian strength uncertainty:</span> In BASH Weighted and SCS
-            Classic modes, each simulated season draws team strength from a{" "}
-            <a
-              href="https://en.wikipedia.org/wiki/Beta_distribution"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="underline decoration-border underline-offset-2 hover:text-primary hover:decoration-primary"
-            >
-              Beta posterior
-            </a>{" "}
-            centered on its estimated rating (narrowing as games played grows), preventing overconfident early-season
-            probabilities. Ratings do not adjust for opponent Strength of Schedule prior to a full round-robin cycle.
-          </p>
           <p>
             Big Games impacts are tallied in a single pass during the main simulation using regulation-anchored swings
             with Monte Carlo noise filtering (<span className="font-medium text-foreground">*</span> marks outcomes with

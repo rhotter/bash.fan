@@ -7,9 +7,11 @@ import { TeamLogo } from "@/components/team-logo"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import type {
+  AttendanceTier,
   BigGameAffectedTeam,
   BigGameImpact,
   BigGameOutcomeKey,
+  GameAttendanceOverride,
   PlayoffOddsSnapshot,
   PlayoffSimGame,
   TeamOddsRow,
@@ -145,6 +147,10 @@ export function BigGamesSection({
   lockedTeamSlug = null,
   baselineTeam,
   whatIfTeam,
+  showAttendanceWhatIf = false,
+  attendanceOverrides,
+  onChangeAttendanceOverride,
+  isWhatIfActive = false,
 }: {
   snapshot: PlayoffOddsSnapshot
   lockedOutcomes: Record<string, BigGameOutcomeKey>
@@ -157,6 +163,10 @@ export function BigGamesSection({
   baselineTeam?: TeamOddsRow
   /** Current What-If row for the focused team, used in the Locked What-If summary */
   whatIfTeam?: TeamOddsRow
+  showAttendanceWhatIf?: boolean
+  attendanceOverrides?: Record<string, GameAttendanceOverride>
+  onChangeAttendanceOverride?: (gameId: string, side: "away" | "home", tier: AttendanceTier | null) => void
+  isWhatIfActive?: boolean
 }) {
   const lockedGameList = useMemo(() => {
     const lockedIds = Object.keys(lockedOutcomes)
@@ -370,7 +380,12 @@ export function BigGamesSection({
               game={game}
               allTeamsQualify={snapshot.format.allTeamsQualify}
               focusedTeamSlug={effectiveTeamFilter === "all" ? null : effectiveTeamFilter}
-              isWhatIf={lockedGameList.length > 0}
+              isWhatIf={isWhatIfActive || lockedGameList.length > 0}
+              hasLockedPicks={lockedGameList.length > 0}
+              isLocked={Boolean(lockedOutcomes[game.gameId])}
+              showAttendanceWhatIf={showAttendanceWhatIf}
+              attendanceOverride={attendanceOverrides?.[game.gameId]}
+              onChangeAttendanceOverride={onChangeAttendanceOverride}
               onPickOutcome={(outcome) => onToggleOutcome(game.gameId, outcome)}
             />
           ))}
@@ -388,21 +403,40 @@ export function BigGamesSection({
   )
 }
 
+const ATTENDANCE_TIERS: ReadonlyArray<{ value: AttendanceTier; label: string }> = [
+  { value: "low", label: "Low" },
+  { value: "avg", label: "Avg" },
+  { value: "high", label: "High" },
+]
+
 function BigGameCard({
   game,
   allTeamsQualify,
   focusedTeamSlug,
   isWhatIf,
+  hasLockedPicks = false,
+  isLocked,
+  showAttendanceWhatIf,
+  attendanceOverride,
+  onChangeAttendanceOverride,
   onPickOutcome,
 }: {
   game: BigGameImpact
   allTeamsQualify: boolean
   focusedTeamSlug: string | null
   isWhatIf: boolean
+  hasLockedPicks?: boolean
+  isLocked: boolean
+  showAttendanceWhatIf: boolean
+  attendanceOverride?: GameAttendanceOverride
+  onChangeAttendanceOverride?: (gameId: string, side: "away" | "home", tier: AttendanceTier | null) => void
   onPickOutcome: (outcome: BigGameOutcomeKey) => void
 }) {
   const [showWatching, setShowWatching] = useState(false)
   const [swingOpen, setSwingOpen] = useState(false)
+  const [benchOpen, setBenchOpen] = useState(false)
+  const hasBenchOverride = Boolean(attendanceOverride?.away || attendanceOverride?.home)
+  const isBenchExpanded = benchOpen && !isLocked
 
   const displayedTeams = focusedTeamSlug
     ? game.affectedTeams.filter((t) => t.slug === focusedTeamSlug)
@@ -427,9 +461,11 @@ function BigGameCard({
     allTeamsQualify || (visibleRows.length > 0 && visibleRows.every(isSeedRow))
   const someRowsUseSeed =
     !allRowsUseSeed && visibleRows.some(isSeedRow)
-  const baselineQualifier = isWhatIf
+  const baselineQualifier = hasLockedPicks
     ? "before this game is played (with your locked What-If picks)"
-    : "before this game is played"
+    : isWhatIf
+      ? "before this game is played (with your active What-If scenario)"
+      : "before this game is played"
   const currentHeaderTooltip = allRowsUseSeed
     ? `Each team's projected average seed ${baselineQualifier}. The four columns to the right show the new seed and +/- change from this baseline.`
     : someRowsUseSeed
@@ -518,11 +554,56 @@ function BigGameCard({
     )
   }
 
+  const renderAttendanceToggle = (visibilityClass: string) =>
+    showAttendanceWhatIf ? (
+      <button
+        type="button"
+        disabled={isLocked}
+        aria-expanded={isBenchExpanded}
+        onClick={() => setBenchOpen((prev) => !prev)}
+        title={
+          isLocked
+            ? "What-If Attendance disabled while game outcome is locked"
+            : "Test projected Win% under Low / Avg / High attendance"
+        }
+        className={cn(
+          "shrink-0 items-center gap-1 rounded border px-2 py-0.5 text-[10px] font-medium whitespace-nowrap transition-colors sm:h-[24px] sm:py-1",
+          visibilityClass,
+          isLocked
+            ? "cursor-not-allowed border-border/40 bg-muted/40 text-muted-foreground/60 opacity-50"
+            : hasBenchOverride
+              ? "cursor-pointer border-primary/50 bg-primary/10 text-foreground"
+              : "cursor-pointer border-border/60 bg-background text-muted-foreground hover:text-foreground"
+        )}
+      >
+        <ChevronRight
+          className={cn(
+            "h-3 w-3 shrink-0 transition-transform duration-150",
+            isBenchExpanded && "rotate-90"
+          )}
+          aria-hidden="true"
+        />
+        <span>What-If Attendance</span>
+        {hasBenchOverride && !isLocked && (
+          <span className="text-[9px] text-muted-foreground">
+            (
+            {[
+              attendanceOverride?.away ? `A:${attendanceOverride.away}` : null,
+              attendanceOverride?.home ? `H:${attendanceOverride.home}` : null,
+            ]
+              .filter(Boolean)
+              .join(" ")}
+            )
+          </span>
+        )}
+      </button>
+    ) : null
+
   return (
     <article className="overflow-hidden rounded-lg border border-border/60 bg-card">
       {/* Card Header */}
       <div className="flex flex-wrap items-end justify-between gap-x-3 gap-y-2 border-b border-border/50 bg-muted/30 px-3.5 py-2.5">
-        <div className="flex flex-col items-start gap-1.5 min-w-0">
+        <div className="flex w-full flex-col items-start gap-1.5 min-w-0 sm:w-auto">
           <Link
             href={`/game/${game.gameId}`}
             title={`View ${game.awayName} @ ${game.homeName} matchup`}
@@ -545,8 +626,9 @@ function BigGameCard({
             </span>
           </Link>
 
-          <Tooltip open={swingOpen} onOpenChange={setSwingOpen} delayDuration={150}>
-            <TooltipTrigger asChild>
+          <div className="flex w-full items-center justify-between gap-2 sm:w-auto">
+            <Tooltip open={swingOpen} onOpenChange={setSwingOpen} delayDuration={150}>
+              <TooltipTrigger asChild>
               <button
                 type="button"
                 onClick={() => setSwingOpen((v) => !v)}
@@ -613,16 +695,70 @@ function BigGameCard({
               )}
             </TooltipContent>
           </Tooltip>
+            {renderAttendanceToggle("inline-flex sm:hidden")}
+          </div>
         </div>
 
         {/* Interactive What-If quick picker */}
-        <OutcomeQuickPicker
-          awayName={game.awayName}
-          homeName={game.homeName}
-          onPick={onPickOutcome}
-          showLabel
-        />
+        <div className="flex flex-col items-end gap-1.5 w-full sm:w-auto sm:flex-row sm:items-end sm:gap-2.5">
+          <OutcomeQuickPicker
+            awayName={game.awayName}
+            homeName={game.homeName}
+            onPick={onPickOutcome}
+            showLabel
+          />
+          {renderAttendanceToggle("hidden sm:inline-flex")}
+        </div>
       </div>
+
+      {/* Expandable Per-Game What-If Attendance Picker */}
+      {showAttendanceWhatIf && isBenchExpanded && (
+        <div className="flex items-center justify-end border-b border-border/40 bg-muted/20 px-3.5 py-2 text-[10px]">
+          <div className="grid w-full grid-cols-2 gap-2 sm:w-auto sm:flex sm:items-center sm:gap-4">
+            {(
+              [
+                { side: "away" as const, name: game.awayName, value: attendanceOverride?.away },
+                { side: "home" as const, name: game.homeName, value: attendanceOverride?.home },
+              ] as const
+            ).map(({ side, name, value }) => (
+              <div key={side} className="flex items-center gap-1.5 min-w-0">
+                <span className="hidden sm:inline truncate font-medium text-foreground">{name}:</span>
+                <div
+                  role="group"
+                  aria-label={`${name} bench turnout`}
+                  className="grid w-full grid-cols-3 overflow-hidden rounded border border-border/70 bg-background divide-x divide-border/70 sm:inline-flex sm:w-auto sm:shrink-0"
+                >
+                  {ATTENDANCE_TIERS.map((tier) => {
+                    const active = value === tier.value
+                    return (
+                      <button
+                        key={tier.value}
+                        type="button"
+                        aria-pressed={active}
+                        onClick={() =>
+                          onChangeAttendanceOverride?.(
+                            game.gameId,
+                            side,
+                            active ? null : tier.value
+                          )
+                        }
+                        className={cn(
+                          "px-2 py-1 text-[10px] font-medium transition-colors cursor-pointer sm:py-0.5",
+                          active
+                            ? "bg-primary text-primary-foreground"
+                            : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+                        )}
+                      >
+                        {tier.label}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* 4-Outcome Conditional Table */}
       <div

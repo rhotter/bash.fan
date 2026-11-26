@@ -21,7 +21,7 @@ Base URL: https://bayareastreethockey.com
 
 - \`GET /api/bash/seasons\` — List all seasons with \`hasGames\`/\`hasStats\` flags. Use this first to discover valid season ids.
 - \`GET /api/bash?season={id}\` — Games + computed standings for one season. Default: current season.
-- \`GET /api/bash/playoff-odds?season={id}&mode={weighted|50_50|classic}\` — Monte Carlo playoff qualification & seed probabilities, Big Games rooting impacts, team What-If finish tables, and season-long odds timeline. Default: current season, \`weighted\` mode.
+- \`GET /api/bash/playoff-odds?season={id}&mode={weighted|full_strength|50_50|classic}\` — Monte Carlo playoff qualification & seed probabilities, Big Games rooting impacts, team What-If finish tables, and season-long odds timeline. Default: current season, \`weighted\` mode.
 - \`GET /api/bash/players?season={id}&playoff={true|false}\` — Season skater + goalie stat leaderboards.
 - \`GET /api/bash/player/{slug}?season={id|all}\` — Player detail: regular + playoff stats (season/all-time/per-season), game logs, championships, awards, hall of fame.
 - \`GET /api/bash/team/{slug}?season={id}\` — Team roster with per-player stats and team record.

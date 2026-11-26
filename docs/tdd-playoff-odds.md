@@ -6,6 +6,7 @@
 > **Branch**: `sports_club_stats_rebuild`  
 > **Related Docs**:
 > - [Product Requirements Document](./prd-playoff-odds.md)
+> - [Attendance Impact & Full-Strength Design Doc](./superpowers/specs/2026-11-23-playoff-odds-attendance-design.md)
 > - [Deep Research Report](./research-sports-club-stats.md)
 
 ---
@@ -17,7 +18,7 @@ Per product requirements, this technical design is strictly separated into two i
 ```mermaid
 flowchart LR
   subgraph PartA["Part A: Stats Pipeline (Computation, Cadence & Cache)"]
-    DB["Neon Postgres (games, seasons, teams)"] --> Load["Season Schedule Loader"]
+    DB["Neon Postgres (games, seasons, teams, player_game_stats, goalie_game_stats)"] --> Load["Season Schedule & Boxscore Attendance Loader"]
     Load --> Sig["State Signature Hash (FNV-1a)"]
     Sig --> Kernel["Monte Carlo Kernel (100k iters, ~110ms)"]
     Kernel --> BG["Single-Pass Big Games Accumulator"]
@@ -129,9 +130,16 @@ export const BASH_CALIBRATION = {
     otRate: 0.075,               // Calibrated OT win rate (counts toward ROW)
     soRate: 0.045,               // Calibrated Shootout win rate (excluded from ROW)
     homeFieldAdvantage: 0.50,    // Single outdoor venue (zero HFA)
-    strengthConcentration: 2,    // Beta posterior concentration (80.3% / 89.4% interval coverage)
+    strengthConcentration: 1.5,  // Beta posterior concentration (84.9% / 91.9% coverage, PIT var 0.0833)
     regMarginCdf: [0.2174, 0.4149, 0.5976, 0.7406, 0.8305, 1.0],
     regLoserGoals: 2,
+    otLoserGoals: 3,
+    attendance: {
+      lowP20: 9, medianP50: 11, highP80: 13,
+      presetHeadcounts: { low: 8.3, avg: 11.0, high: 13.8 },
+      logOddsSlope: 1.703,
+      goalDiffSlope: 3.882,
+    },
   },
   summer: {
     pythagenPuckPower: 0.458,
@@ -144,11 +152,18 @@ export const BASH_CALIBRATION = {
     strengthConcentration: 3,    // Beta posterior concentration (82.7% / 92.0% interval coverage)
     regMarginCdf: [0.2152, 0.3914, 0.5451, 0.6701, 0.7766, 1.0],
     regLoserGoals: 4,
+    otLoserGoals: 5,
+    attendance: {
+      lowP20: 7, medianP50: 9, highP80: 11,
+      presetHeadcounts: { low: 6.0, avg: 9.0, high: 11.8 },
+      logOddsSlope: 1.276,
+      goalDiffSlope: 2.747,
+    },
   },
 } as const
 ```
 
-### A.2.3 Team Strength Calculation (3 Modes) & Per-Iteration Bayesian Uncertainty
+### A.2.3 Team Strength Calculation (4 Modes) & Per-Iteration Bayesian Uncertainty
 
 For each team $i$ from completed regular-season games (double forfeits give `0-5` loss & `0 pts` per Rule 208; single forfeits give `5-0` 3-pt win; historical non-forfeit ties award `1 pt` each with `0` ROW and `resultLabel: "T"`; non-forfeit goals with shootout winning goals stripped are used for PythagenPuck scoring rates so administrative forfeits and shootout tiebreakers don't distort goal efficiency):
 - **`weighted` (Default — BASH Weighted)**:
@@ -157,6 +172,8 @@ For each team $i$ from completed regular-season games (double forfeits give `0-5
   - $E_i = \max(0.5, (\text{GFg}_i + \text{GAg}_i)^P)$ (`P = 0.22` Fall, `0.458` Summer)
   - $S_{\text{raw}, i} = \frac{\text{GFg}_i^{E_i}}{\text{GFg}_i^{E_i} + \text{GAg}_i^{E_i}}$
   - $S_i = \frac{\text{GP}_{\text{played}} \cdot S_{\text{raw}, i} + C \cdot 0.5}{\text{GP}_{\text{played}} + C}$ (`C = 4`), clamped to `[0.05, 0.95]`.
+- **`full_strength` (BASH Full-Strength Adj)**:
+  - For each played non-forfeit game with two-sided boxscores (`teamAtt > 0 && oppAtt > 0`), symmetrically de-attends goals by $\Delta g = \text{goalDiffSlope} \cdot \ln(\text{teamAtt} / \text{oppAtt})$ ($\text{adjGF} = \max(0, \text{GF} - 0.5\Delta g)$, $\text{adjGA} = \max(0, \text{GA} + 0.5\Delta g)$, preserving $\text{GF} + \text{GA}$) and passes the de-attended totals through the exact same `computeWeightedStrength()` pipeline. `TeamOddsRow.strength` continues to report Observed `Str` while simulations and timeline replay use `fullStrength`.
 - **`50_50` (Coin Flip)**:
   - $S_i = 0.500$ for all teams (fixed across iterations).
 - **`classic` (Sports Club Stats Exact Replica)**:
@@ -165,19 +182,19 @@ For each team $i$ from completed regular-season games (double forfeits give `0-5
   - Ken's exact `p225` regression:
     $$r(f) = \begin{cases} (-1.5 f + 1.0) + 0.1 f & f < 0.5 \\ (-0.5 f + 0.5) + 0.1 f & f \ge 0.5 \end{cases}$$
   - $S_i = S_{\text{raw}, i} - (S_{\text{raw}, i} - 0.5) \cdot r(f_i)$, clamped to `[0.05, 0.95]`.
-- **Bayesian Strength Sampling (`weighted` & `classic`)**: At the start of each MC iteration, draw $\theta_i \sim \text{Beta}(\kappa_i S_i, \kappa_i (1 - S_i))$ via Marsaglia–Tsang Gamma sampling, where $\kappa_i = k \cdot (\text{GP}_{\text{played}} + C + m)$ (`k = 2` Fall, `k = 3` Summer), calibrated to nominal 80%/90% remaining-season points% coverage.
+- **Bayesian Strength Sampling (`weighted` & `full_strength` only)**: At the start of each MC iteration, draw $\theta_i \sim \text{Beta}(\kappa_i S_i, \kappa_i (1 - S_i))$ via Marsaglia–Tsang Gamma sampling, where $\kappa_i = k \cdot (\text{GP}_{\text{played}} + C + m)$ (`k = 1.5` Fall, `k = 3` Summer), calibrated to remaining-season CRPS and PIT variance. `classic` mode uses fixed regressed strengths (no Beta sampling) for faithful Sports Club Stats parity.
 
 ### A.2.4 Matchup Outcome Probabilities (Normalized Extra-Time + 3-2-1 Decompression)
 
 For remaining game $g$ with Away team $a$ and Home team $h$:
 1. Overall win probability via **Bill James Log5** (`HFA = 0.50`):
    $$p_h = \frac{\theta_h (1 - \theta_a)}{\theta_h (1 - \theta_a) + \theta_a (1 - \theta_h)}, \qquad p_a = 1 - p_h$$
-2. **Normalized matchup-scaled extra-time probability**: Compute closeness $c_g = \max(0.35, 1 - 2|p_h - 0.5|)$ and normalize by the season-wide mean closeness (`computeExtraTimeNorm`) so the simulated league-average OT+SO rate equals the calibrated target (`12.0%` Fall, `9.0%` Summer).
+2. **Normalized matchup-scaled extra-time probability**: Compute closeness $c_g = \max(0.35, 1 - 2|p_h - 0.5|)$ and normalize by the season-wide mean closeness (`computeExtraTimeNorm`) — using a deterministic 100-draw pre-loop expectation when Beta strength sampling is enabled to prevent concave Jensen's-inequality drift — so the simulated league-average OT+SO rate equals the calibrated target (`12.0%` Fall, `9.0%` Summer).
 3. **3-2-1 Points Decompression**: Solve for regulation propensity $q = \text{clamp}\!\left(\frac{p_h - 0.5 p_{\text{extra}}}{1 - p_{\text{extra}}}, 0.001, 0.999\right)$ so expected 3-2-1 points share matches Log5 $p_h$ without double compression.
 4. Six mutually exclusive outcomes summing to `1.0` (`HOME_REG`, `HOME_OT`, `HOME_SO`, `AWAY_SO`, `AWAY_OT`, `AWAY_REG`), with cumulative thresholds `[c0..c4, 1.0]` per game.
 5. **Empirical Goal Margins**:
-   - OT/SO: winning margin = `1` (`GF += loserGoals + 1` winner, `loserGoals` loser).
-   - Regulation: drawn from empirical Fall (`[0.2174, 0.4149, 0.5976, 0.7406, 0.8305, 1.0]`, `loserGoals = 2`) or Summer (`[0.2152, 0.3914, 0.5451, 0.6701, 0.7766, 1.0]`, `loserGoals = 4`) CDFs.
+   - OT/SO: winning margin = `1` (`GF += otLoserGoals + 1` winner, `otLoserGoals` loser — `3` Fall / `5` Summer).
+   - Regulation: drawn from empirical Fall (`[0.2174, 0.4149, 0.5976, 0.7406, 0.8305, 1.0]`, `regLoserGoals = 2`) or Summer (`[0.2152, 0.3914, 0.5451, 0.6701, 0.7766, 1.0]`, `regLoserGoals = 4`) CDFs.
    - What-If locked games (`whatIfLock: "reg" | "extra"`) also simulate realistic margins and OT-vs-SO ROW credit per iteration rather than using hardcoded scores.
 
 ### A.2.5 Exact Rule 213 Tiebreaker Implementation (Hot-Loop Optimized)
@@ -263,9 +280,49 @@ Displayed as an informational column matching Sports Club Stats (never used in s
 Clean, JSON-serializable contract shared across server pipeline, REST API, SWR hook, and React components:
 
 ```ts
-export type PlayoffOddsMode = "weighted" | "50_50" | "classic"
+export type PlayoffOddsMode = "weighted" | "full_strength" | "50_50" | "classic"
 
 export type BigGameOutcomeKey = "away_reg" | "away_ot" | "home_ot" | "home_reg"
+
+export type AttendanceTier = "low" | "avg" | "high"
+
+export interface AttendanceCalibration {
+  lowP20: number
+  medianP50: number
+  highP80: number
+  presetHeadcounts: Record<AttendanceTier, number>
+  logOddsSlope: number
+  goalDiffSlope: number
+}
+
+export interface GameAttendanceOverride {
+  away?: AttendanceTier
+  home?: AttendanceTier
+}
+
+export function isGoalWeightedMode(mode: PlayoffOddsMode): boolean {
+  return mode === "weighted" || mode === "full_strength"
+}
+
+export interface PlayoffSimGame {
+  id: string
+  date: string
+  time: string
+  location: string
+  awaySlug: string
+  awayName: string
+  homeSlug: string
+  homeName: string
+  awayScore: number | null
+  homeScore: number | null
+  awayAttendance?: number | null
+  homeAttendance?: number | null
+  status: "final" | "upcoming" | "live"
+  isOvertime: boolean
+  hasShootout: boolean
+  isForfeit: boolean
+  whatIfLock?: "reg" | "extra"
+}
 
 export interface PlayoffOddsSnapshot {
   seasonId: string
@@ -280,6 +337,7 @@ export interface PlayoffOddsSnapshot {
   gamesPlayed: number
   gamesRemaining: number
   totalRegularGames: number
+  endedEarly: boolean
   format: {
     teamCount: number
     playoffSpots: number
@@ -290,16 +348,24 @@ export interface PlayoffOddsSnapshot {
   calibration: {
     pythagenPuckPower: number
     ebShrinkageGames: number
+    goalPriorGames?: number
+    leagueMeanGoalsPerTeam?: number
     otRate: number
     soRate: number
     homeFieldAdvantage: number
+    strengthConcentration: number
+    regMarginCdf: readonly number[]
+    regLoserGoals: number
+    otLoserGoals: number
+    attendance: AttendanceCalibration
   }
   teams: TeamOddsRow[]
   bigGames: BigGameImpact[]
   nextMatchdayDate: string | null
   timeline: TimelinePoint[]
-  /** Compact upcoming games list enabling zero-fetch client-side What-If overrides */
-  upcomingGames: UpcomingSimGame[]
+  /** Compact regular-season schedule enabling zero-fetch client-side What-If overrides */
+  regularGames: PlayoffSimGame[]
+  teamColors?: Record<string, string>
 }
 
 export interface TeamOddsRow {
@@ -314,6 +380,7 @@ export interface TeamOddsRow {
   sow: number
   otl: number
   l: number
+  ties?: number
   row: number // Regulation + OT wins (excludes shootout wins, Rule 213)
   pts: number
   gf: number
@@ -330,10 +397,14 @@ export interface TeamOddsRow {
   avgSeedDelta: number | null
   bestSeed: number          // Best observed seed (1..teamCount)
   worstSeed: number         // Worst observed seed (1..teamCount)
-  strength: number          // Regressed strength rating (0..1)
+  strength: number          // Observed regressed strength rating (0..1)
   rawPythPct: number        // Unshrunk PythagenPuck expected win% (for Luck tooltip)
   actualPtsPct: number      // pts / (3 * gp)
   luckDelta: number         // actualPtsPct - rawPythPct
+  avgAttendance: number | null
+  attendanceTier: AttendanceTier | null
+  fullStrength: number      // Attendance-neutral goal-rate de-attended strength (0..1)
+  attendanceDelta: number   // fullStrength - strength
   rpi: number
   rpiRank: number
   lastGame: {
@@ -342,7 +413,7 @@ export interface TeamOddsRow {
     opponentSlug: string
     opponentName: string
     isHome: boolean
-    resultLabel: "W" | "OTW" | "SOW" | "OTL" | "SOL" | "L" | "FFW" | "FFL"
+    resultLabel: "W" | "OTW" | "SOW" | "OTL" | "SOL" | "L" | "T" | "FFW" | "FFL"
     teamScore: number
     opponentScore: number
   } | null
@@ -355,6 +426,7 @@ export interface TeamOddsRow {
     isHome: boolean
   } | null
   whatIfRows: WhatIfRecordRow[]
+  whatIfRowsNoOt?: WhatIfRecordRow[]
 }
 
 export interface BigGameImpact {
@@ -445,13 +517,13 @@ CREATE INDEX IF NOT EXISTS idx_playoff_odds_latest
 ## B.3 Server Data Layer & REST API
 
 ### Server Fetcher (`lib/fetch-playoff-odds.ts`)
-- Fetches `season` metadata (via cached `getSeasonById` / `getCurrentSeason`) + season regular & playoff `games` in a single `Promise.all` wave (`neon-http` rule compliant).
-- Runs `computePlayoffOddsSnapshot(...)` from `lib/playoff-odds.ts`.
-- Wrapped in split `unstable_cache` buckets inside `lib/cached-page-data.ts` (active seasons `revalidate: 60`, immutable completed seasons `revalidate: 3600`, tags `["seasons", "playoff-odds", "public-page-data"]`), strictly canonicalizing `season` via cached `getSeasonById` / `getCurrentSeason` *before* touching `unstable_cache` so arbitrary query strings cannot amplify cache keys or trigger CPU DoS.
+- Fetches `season` metadata (via cached `getSeasonById` / `getCurrentSeason`) + season regular & playoff `games`, team colors, and per-game dressed boxscore headcounts (`player_game_stats ∪ goalie_game_stats`, distinct `player_id` union where `team_slug IS NOT NULL` and `skaters > 0`, no goalie cap) in a single 3-query `Promise.all` wave (`neon-http` rule compliant).
+- Runs `computePlayoffOdds(...)` from `lib/playoff-odds.ts` (keeping baseline `stateHash` independent of raw boxscore attendance; precomputing `Float64Array` odds multipliers outside the Monte Carlo hot loop for `gameAttendanceOverrides`).
+- Wrapped in split `unstable_cache` buckets (`playoff-odds-active-v6` / `playoff-odds-completed-v6`) inside `lib/cached-page-data.ts` (active seasons `revalidate: 60`, immutable completed seasons `revalidate: 3600`, tags `["seasons", "playoff-odds", "public-page-data"]`), strictly canonicalizing `season` via cached `getSeasonById` / `getCurrentSeason` *before* touching `unstable_cache` so arbitrary query strings cannot amplify cache keys or trigger CPU DoS.
 - Exported `revalidatePlayoffOdds()` helper (`lib/revalidate-playoff-odds.ts`) calls `revalidateTag("playoff-odds", { expire: 0 })` for immediate cache expiration after scorekeeper finalization (`app/api/bash/scorekeeper/[id]/finalize/route.ts`), admin schedule edits (`app/api/bash/admin/seasons/[id]/schedule/[gameId]/route.ts`), and daily sync (`app/api/bash/sync/route.ts`, which also persists `games.has_shootout` across both quick and full sync paths so shootout wins are accurately excluded from ROW and SOWG).
 
 ### REST API (`app/api/bash/playoff-odds/route.ts`)
-- **Endpoint**: `GET /api/bash/playoff-odds?season=<id>&mode=weighted|50_50|classic`
+- **Endpoint**: `GET /api/bash/playoff-odds?season=<id>&mode=weighted|full_strength|50_50|classic`
 - **Validation**: Rejects `season=all` (`400`), invalid `mode` (`400`), and unknown explicit `season` (`404` before touching cache/compute); defaults to current season and `weighted`.
 - **Caching Headers**: `Cache-Control: public, s-maxage=60, stale-while-revalidate=120` for active seasons (`s-maxage=3600, stale-while-revalidate=86400` for completed seasons) and explicit error handling via `lib/api-errors.ts`.
 
@@ -459,7 +531,7 @@ CREATE INDEX IF NOT EXISTS idx_playoff_odds_latest
 - Add `PLAYOFF_ODDS: 120_000` to `REFRESH` and `PLAYOFF_ODDS: 30_000` to `DEDUPE` in `lib/sync-config.ts`.
 - Add `usePlayoffOdds(season?: string, mode: PlayoffOddsMode = "weighted", fallbackData?: PlayoffOddsSnapshot)`:
   - Sets `revalidateOnMount: fallbackData ? false : undefined` (per `AGENTS.md` hydration deduplication rule!).
-  - Keeps previous data visible (`keepPreviousData: true`) when switching between `Weighted`, `50/50`, and `SCS Classic` so the table transitions smoothly without flashing a skeleton!
+  - Keeps previous data visible (`keepPreviousData: true`) when switching between `BASH Weighted`, `BASH Full-Strength Adj`, `50/50`, and `SCS Classic` so the table transitions smoothly without flashing a skeleton!
 
 ## B.4 Routing, Navigation & Component Architecture
 
@@ -471,7 +543,7 @@ CREATE INDEX IF NOT EXISTS idx_playoff_odds_latest
      - Shallow URL sync via `window.history.replaceState`:
        - `/standings` (default)
        - `/standings?view=h2h&team=<slug>`
-       - `/standings?view=odds&mode=weighted` (and optional `&team=<slug>`)
+       - `/standings?view=odds&mode=weighted|full_strength|50_50|classic` (and optional `&team=<slug>`)
 2. **`/playoff-odds` (`app/playoff-odds/page.tsx` + `app/playoff-odds/loading.tsx`)**:
    - Dedicated Server Component with `generateMetadata` (*"Playoff Odds | BASH"*), `export const revalidate = 60`, server-side `fetchPlayoffOddsPageData(season, mode)` prefetch, and `PageLoading` skeleton (no duplicate `<SiteHeader />`!).
    - Updates `SiteHeader` (`components/site-header.tsx`) so `/playoff-odds` highlights the `Standings` nav item (keeping header compact at 4 links).
@@ -486,19 +558,19 @@ components/
 ├── playoff-odds-view.tsx          # Top-level client orchestrator (SWR, team selector, mode toggle, completed-season replay, What-If locks)
 ├── playoff-odds-filter-bar.tsx    # Top-level Teams & Stats Model selectors (desktop pills + mobile dropdowns)
 ├── playoff-odds-league-charts.tsx # Franchise-colored Points & Playoff Odds charts (Playoff Odds stacked above Points on mobile, single-row logo legend)
-├── playoff-odds-table.tsx         # Signature Table #1: Playoff %, Cut lines, Seed 1..N heatmap with ± MC tooltip, Avg Seed, Strength, RPI
-├── big-games-section.tsx          # Signature Section #2: Upcoming Big Games, 4-outcome table, rooting highlights, What-If buttons (hidden on completed seasons)
+├── playoff-odds-table.tsx         # Signature Table #1: Playoff %, Cut lines, Seed 1..N heatmap with ± MC tooltip, Avg Seed, Att, Strength, Full Str, RPI
+├── big-games-section.tsx          # Signature Section #2: Upcoming Big Games, 4-outcome table, rooting highlights, What-If outcome & collapsible What-If Attendance buttons (hidden on completed seasons)
 ├── team-odds-panel.tsx            # Dedicated Team View: 4 tooltipped scorecards, 3 trajectory tabs, What-If finish table (hidden when 0 games left)
-└── playoff-odds-methodology.tsx   # Collapsible native <details> disclosure (3 modes, BASH rules, bottom Bayesian/noise notes, link to /about/playoff-odd-calculations)
+└── playoff-odds-methodology.tsx   # Collapsible native <details> disclosure (4 modes, BASH rules, attendance impact & caveats, bottom Bayesian/noise notes, link to /about/playoff-odd-calculations)
 ```
 
 ### Interactive Client-Side "What-If" Simulation Architecture
-- Because `lib/playoff-odds.ts` is 100% pure TypeScript with zero Node/DB imports, `playoff-odds-view.tsx` imports `simulatePlayoffOdds` directly!
-- When a user clicks any outcome button on an upcoming game in `BigGamesSection` (e.g., locking `Seals reg win over Loons`):
-  1. `lockedOutcomes: Record<string, BigGameOutcomeKey>` updates in React state.
-  2. `useMemo` calls `simulatePlayoffOdds(...)` with those synthetic games marked final at `20,000` iterations (`~20–30 ms` on main thread—instant!).
+- Because `lib/playoff-odds.ts` is 100% pure TypeScript with zero Node/DB imports, `playoff-odds-view.tsx` imports `computePlayoffOdds` directly!
+- When a user clicks any outcome button or sets a non-neutral `What-If Attendance` tier mismatch on an upcoming game in `BigGamesSection` (e.g., locking `Seals reg win over Loons` or setting `Low` vs `High` bench turnout):
+  1. `lockedOutcomes: Record<string, BigGameOutcomeKey>` and/or `attendanceOverrides: Record<string, GameAttendanceOverride>` update in React state (net-neutral overrides such as `Avg` alone or `Low` vs `Low` are filtered out so no redundant simulation runs, and switching to `50_50` or `classic` clears `attendanceOverrides`).
+  2. `useMemo` calls `computePlayoffOdds(...)` with synthetic locked games and `gameAttendanceOverrides` at `20,000` iterations (`CLIENT_WHATIF_ITERATIONS`, `~20–30 ms` on main thread—instant!).
   3. Both `PlayoffOddsTable` (showing updated odds + delta vs. real baseline!) and `BigGamesSection` (showing updated conditional impacts for remaining unlocked games!) update immediately.
-  4. Clicking **Reset picks** clears `lockedOutcomes` and restores the official 100,000-iteration server snapshot.
+  4. Clicking **Reset What-If** (or **Reset all picks** in the locked-picks strip) clears What-If overrides and restores the official 100,000-iteration server snapshot.
 
 ### Accessibility & Modern Web Guidance Compliance
 - **`responsive-table`**: Semantic `<table>`, `<thead>`, `<th scope="col">`, `<th scope="row">`, `aria-sort` on sortable headers, `tabular-nums`, sticky left `Team` column with `overflow-x-auto` wrapper and subtle edge fade, plus a compact mobile `Seeds | Stats` column toggle so mobile users never struggle with 14 cramped columns.
@@ -513,7 +585,8 @@ components/
 1. **Unit & Mathematical Invariant Tests (`lib/__tests__/playoff-odds.test.ts`)**:
    - Rule 213 tiebreakers: `PTS → ROW (excluding shootout wins!) → 2-way H2H pts% → 3-way circular & subgroup H2H pts% → GD → GF`.
    - Forfeits (`5–0` 3-pt win) & Double Forfeits (`0–5` 0-pt loss to both).
-   - Probability conservation: $\sum_t P(\text{playoffs}_t) = \text{playoffSpots} \times 100\%$ and $\sum_t P(\text{seed}_{t, k}) = 100\%$ across all modes (`weighted`, `50_50`, `classic`).
+   - Probability conservation: $\sum_t P(\text{playoffs}_t) = \text{playoffSpots} \times 100\%$ and $\sum_t P(\text{seed}_{t, k}) = 100\%$ across all modes (`weighted`, `full_strength`, `50_50`, `classic`).
+   - Attendance model & Full-Strength tests (`lib/__tests__/playoff-odds.test.ts`, `tests/fetch-playoff-odds-attendance.test.ts`, `tests/playoff-odds-ui.test.tsx`): goal-rate de-attending preserving `GF + GA`, baseline `stateHash` invariance, Fall vs. Summer thresholds/slopes, 3-query parallel DB wave, `Att`/`Full Str` table rendering, `BASH Full-Strength Adj` model switching, and Big Games `What-If Attendance` overrides.
    - Deterministic reproducibility: identical inputs yield identical outputs.
    - Single-pass Big Games consistency: weighted average of conditional outcome probabilities equals unconditional playoff probability!
    - Unbiased What-If tail probing: enabling tail probes does NOT alter main `playoffPct` or `seedPcts`.

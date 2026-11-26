@@ -20,7 +20,7 @@ export async function GET(request: Request) {
     if (modeParam !== null) {
       if (!isValidPlayoffOddsMode(modeParam)) {
         return NextResponse.json(
-          { error: 'Invalid simulation mode. Expected "weighted", "50_50", or "classic".' },
+          { error: 'Invalid simulation mode. Expected "weighted", "full_strength", "50_50", or "classic".' },
           { status: 400 }
         )
       }

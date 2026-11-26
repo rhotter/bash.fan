@@ -17,7 +17,9 @@ import { TeamLogo } from "@/components/team-logo"
 import { Switch } from "@/components/ui/switch"
 import { Tooltip as UiTooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { getTeamChartColor } from "@/lib/chart-colors"
+import { BASH_CALIBRATION } from "@/lib/playoff-odds"
 import { cn } from "@/lib/utils"
+import { isGoalWeightedMode } from "@/lib/playoff-odds-types"
 import type {
   PlayoffOddsSnapshot,
   TeamOddsRow,
@@ -144,6 +146,65 @@ export function TeamOddsPanel({
         : `${(team.luckDelta * 100).toFixed(1)}% below goal-based pace`
 
   const pct = (v: number) => `${(v * 100).toFixed(1)}%`
+  const attendanceSplits = useMemo(() => {
+    let winSum = 0
+    let winCount = 0
+    let lossSum = 0
+    let lossCount = 0
+    for (const g of snapshot.regularGames) {
+      if (
+        g.status !== "final" ||
+        g.isForfeit ||
+        g.whatIfLock ||
+        g.awayScore === null ||
+        g.homeScore === null ||
+        g.awayScore === g.homeScore
+      ) {
+        continue
+      }
+      const isHome = g.homeSlug === team.slug
+      const isAway = g.awaySlug === team.slug
+      if (!isHome && !isAway) continue
+      const att = isHome ? g.homeAttendance : g.awayAttendance
+      if (typeof att !== "number" || !Number.isFinite(att) || att <= 0) continue
+      const won = isHome ? g.homeScore > g.awayScore : g.awayScore > g.homeScore
+      if (won) {
+        winSum += att
+        winCount += 1
+      } else {
+        lossSum += att
+        lossCount += 1
+      }
+    }
+    return {
+      avgInWins: winCount > 0 ? winSum / winCount : null,
+      avgInLosses: lossCount > 0 ? lossSum / lossCount : null,
+    }
+  }, [snapshot.regularGames, team.slug])
+
+  const attCal =
+    snapshot.calibration?.attendance ??
+    BASH_CALIBRATION[snapshot.seasonType === "summer" ? "summer" : "fall"].attendance
+  const avgAttendance =
+    typeof team.avgAttendance === "number" && Number.isFinite(team.avgAttendance)
+      ? team.avgAttendance
+      : null
+  const fullStrength =
+    typeof team.fullStrength === "number" && Number.isFinite(team.fullStrength)
+      ? team.fullStrength
+      : team.strength
+  const attendanceDelta =
+    typeof team.attendanceDelta === "number" && Number.isFinite(team.attendanceDelta)
+      ? team.attendanceDelta
+      : 0
+
+  const attendanceTierLabel =
+    team.attendanceTier === "low"
+      ? "Low"
+      : team.attendanceTier === "high"
+        ? "High"
+        : null
+
   const metricHelp: Record<MetricKey, string> = {
     playoffPct: `${team.name}'s chance to make the playoffs after each matchday, re-simulated using only the results known at that point. Start is the preseason projection.`,
     avgSeed: snapshot.format.allTeamsQualify
@@ -253,7 +314,9 @@ export function TeamOddsPanel({
                 ? "Our 0–1 estimate of team quality (.500 = average). The 50/50 model ignores it and treats every remaining game as a coin flip."
                 : snapshot.mode === "classic"
                   ? "Our 0–1 estimate of team quality (.500 = average), from points percentage pulled toward .500 early in the season (original Sports Club Stats formula). It sets the win odds for remaining games."
-                  : "Our 0–1 estimate of team quality (.500 = average), from goals for vs. against and pulled toward .500 early in the season. It sets the win odds for remaining games."}
+                  : snapshot.mode === "full_strength"
+                    ? "Observed goal-based strength (.500 = average). In BASH Full-Strength Adj mode, remaining games are simulated using each team's attendance-adjusted Full Str rating instead."
+                    : "Our 0–1 estimate of team quality (.500 = average), from goals for vs. against and pulled toward .500 early in the season. It sets the win odds for remaining games."}
             </p>
             <p className="mt-1.5 font-semibold">Pace</p>
             <p className="mt-0.5 text-background/90">
@@ -263,6 +326,18 @@ export function TeamOddsPanel({
           </InfoLabel>
           <div className="mt-0.5 font-semibold text-foreground tabular-nums">
             .{Math.round(team.strength * 1000).toString().padStart(3, "0")} strength
+            {isGoalWeightedMode(snapshot.mode) && (
+              <span className="ml-1.5 text-[11px] font-medium text-muted-foreground">
+                · Full .{Math.round(fullStrength * 1000).toString().padStart(3, "0")}
+                {avgAttendance !== null && Math.abs(attendanceDelta) >= 0.001 && (
+                  <span>
+                    {" "}
+                    ({attendanceDelta >= 0 ? "+" : ""}
+                    {attendanceDelta.toFixed(3)})
+                  </span>
+                )}
+              </span>
+            )}
           </div>
           <div className="text-[11px] text-muted-foreground">{luckText}</div>
         </div>
@@ -295,54 +370,39 @@ export function TeamOddsPanel({
         </div>
 
         <div className="rounded-md bg-muted/50 px-3 py-2">
-          <InfoLabel label="Schedule">
-            <p>
-              <span className="font-semibold">Last game:</span>{" "}
-              <span className="text-background/90">
-                {team.lastGame
-                  ? `${team.name}'s most recent completed regular-season game (${
-                      team.lastGame.resultLabel === "W" ||
-                      team.lastGame.resultLabel === "OTW" ||
-                      team.lastGame.resultLabel === "SOW"
-                        ? "win"
-                        : team.lastGame.resultLabel === "FFW"
-                          ? "forfeit win"
-                          : team.lastGame.resultLabel === "T"
-                            ? "tie"
-                            : "loss"
-                    }).`
-                  : `${team.name} hasn't completed a regular-season game yet.`}
-              </span>
+          <InfoLabel label="Attendance">
+            <p className="font-semibold">Average bench size and bucket.</p>
+            <p className="mt-0.5 text-background/90">
+              {snapshot.seasonType === "summer" ? "Summer" : "Fall"} 20th / 50th / 80th tiers: ≤
+              {attCal.lowP20} Low · {attCal.lowP20 + 1}–{attCal.highP80 - 1} Avg · ≥{attCal.highP80} High.
             </p>
             <p className="mt-1">
-              <span className="font-semibold">Next game:</span>{" "}
+              <span className="font-semibold">Wins vs. Losses:</span>{" "}
               <span className="text-background/90">
-                {team.nextGame
-                  ? `${team.name}'s next scheduled regular-season matchup. Click either line to open its game page.`
-                  : `${team.name} has no remaining regular-season games.`}
+                Average headcount in {team.name}&apos;s non-forfeit wins compared to non-forfeit losses.
               </span>
             </p>
           </InfoLabel>
-          {team.lastGame ? (
-            <Link
-              href={`/game/${team.lastGame.gameId}`}
-              className="mt-0.5 block font-semibold text-foreground hover:text-primary transition-colors"
-            >
-              {team.lastGame.resultLabel} {team.lastGame.teamScore}–{team.lastGame.opponentScore}{" "}
-              {team.lastGame.isHome ? "vs" : "@"} {team.lastGame.opponentName}
-            </Link>
+          {avgAttendance !== null ? (
+            <>
+              <div className="mt-0.5 flex items-center gap-1.5 font-semibold text-foreground tabular-nums">
+                <span>{avgAttendance.toFixed(1)} avg</span>
+                {attendanceTierLabel && (
+                  <span className="rounded border border-border/50 bg-background/70 px-1 py-px text-[9px] font-medium text-muted-foreground">
+                    {attendanceTierLabel}
+                  </span>
+                )}
+              </div>
+              <div className="text-[11px] text-muted-foreground tabular-nums">
+                Wins: {attendanceSplits.avgInWins !== null ? attendanceSplits.avgInWins.toFixed(1) : "—"} · Losses:{" "}
+                {attendanceSplits.avgInLosses !== null ? attendanceSplits.avgInLosses.toFixed(1) : "—"}
+              </div>
+            </>
           ) : (
-            <div className="mt-0.5 font-medium text-muted-foreground">No games played</div>
-          )}
-          {team.nextGame ? (
-            <Link
-              href={`/game/${team.nextGame.gameId}`}
-              className="block text-[11px] text-muted-foreground hover:text-foreground transition-colors"
-            >
-              Next: {team.nextGame.isHome ? "vs" : "@"} {team.nextGame.opponentName}
-            </Link>
-          ) : (
-            <div className="text-[11px] text-muted-foreground">Season complete</div>
+            <>
+              <div className="mt-0.5 font-medium text-muted-foreground">—</div>
+              <div className="text-[11px] text-muted-foreground">No boxscore data</div>
+            </>
           )}
         </div>
       </div>

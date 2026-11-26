@@ -4,8 +4,11 @@ import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { computePlayoffOdds } from "@/lib/playoff-odds"
 import { BigGamesSection } from "@/components/big-games-section"
+import { PlayoffOddsMethodology } from "@/components/playoff-odds-methodology"
+import { PlayoffOddsTable } from "@/components/playoff-odds-table"
 import { PlayoffOddsView } from "@/components/playoff-odds-view"
 import { StandingsContent } from "@/components/standings-content"
+import { TeamOddsPanel } from "@/components/team-odds-panel"
 import { GET as getPlayoffOddsApi } from "@/app/api/bash/playoff-odds/route"
 import type { BigGameImpact, BigGameOutcomeCell, PlayoffOddsSnapshot, PlayoffSimGame } from "@/lib/playoff-odds-types"
 import type { BashGame, Standing } from "@/app/api/bash/route"
@@ -149,6 +152,26 @@ describe("GET /api/bash/playoff-odds", () => {
     )
     expect(resDone.status).toBe(200)
     expect(resDone.headers.get("Cache-Control")).toContain("s-maxage=3600")
+
+    // Accepts mode=full_strength and passes it to fetchPlayoffOddsPageData
+    mockGetSeasonById.mockResolvedValueOnce({
+      id: "bash-2026-2027",
+      name: "BASH 2026-2027",
+      seasonType: "fall",
+      status: "active",
+      playoffTeams: 5,
+    })
+    mockFetchPlayoffOddsPageData.mockResolvedValueOnce({
+      ...sampleSnapshot,
+      mode: "full_strength",
+    })
+    const resFullStr = await getPlayoffOddsApi(
+      new Request("http://localhost/api/bash/playoff-odds?season=bash-2026-2027&mode=full_strength")
+    )
+    expect(resFullStr.status).toBe(200)
+    expect(mockFetchPlayoffOddsPageData).toHaveBeenLastCalledWith("bash-2026-2027", "full_strength")
+    const fullBody = await resFullStr.json()
+    expect(fullBody.mode).toBe("full_strength")
   })
 })
 
@@ -183,7 +206,7 @@ describe("PlayoffOddsView & StandingsContent Integration", () => {
 
     // Signature sections present in "All teams" view (SCS-style trend charts + odds table + this week's games)
     expect(container.textContent).toContain("BASH 2026-2027 playoff odds")
-    expect(container.textContent).toContain("We ran 5k simulations for 3 different models.")
+    expect(container.textContent).toContain("We ran 5k simulations for 4 different models.")
     expect(container.textContent).toContain("BASH Weighted: Goal-based team strength calibrated on 2,100+ past BASH games")
     expect(container.textContent).toContain("Chance will make playoffs")
     expect(container.textContent).toContain("Chance to make playoffs")
@@ -265,7 +288,7 @@ describe("PlayoffOddsView & StandingsContent Integration", () => {
 
     // Reset What-If picks
     const resetBtn = Array.from(container.querySelectorAll("button")).find((b) =>
-      b.textContent?.includes("Reset picks")
+      b.textContent?.includes("Reset What-If")
     ) as HTMLButtonElement
     expect(resetBtn).toBeTruthy()
     await act(async () => {
@@ -975,5 +998,640 @@ describe("PlayoffOddsView & StandingsContent Integration", () => {
     expect(container.textContent).toContain("Season trajectory")
     expect(container.textContent).not.toContain("Finish scenarios")
     expect(container.textContent).not.toContain("This week's games")
+  })
+
+  it("renders Att and Full Str columns in PlayoffOddsTable with null-safe formatting and weighted-mode scoping", async () => {
+    const attGames: PlayoffSimGame[] = sampleSimGames.map((g) => {
+      if (g.id === "g1") return { ...g, awayAttendance: 8, homeAttendance: 13 }
+      if (g.id === "g2") return { ...g, awayAttendance: 11, homeAttendance: 11 }
+      // g3, g4 intentionally lack attendance; seals played g1 (13) and g3 (null), kings played g1 (8) and g4 (null),
+      // while teams without any boxscores in another scenario show "—"
+      return g
+    })
+    const attSnapshot = computePlayoffOdds({
+      seasonId: "att-table-test",
+      seasonName: "Attendance Table Test",
+      seasonType: "fall",
+      seasonStatus: "active",
+      configuredPlayoffTeams: 2,
+      games: attGames,
+      mode: "weighted",
+      iterations: 2_000,
+    })
+
+    // Force one team (yetis) to have null avgAttendance and kings to have exact 8.3 / .542 / +0.042 for deterministic display assertions
+    const customSnapshot: PlayoffOddsSnapshot = {
+      ...attSnapshot,
+      teams: attSnapshot.teams.map((t) => {
+        if (t.slug === "kings") {
+          return {
+            ...t,
+            avgAttendance: 8.3,
+            attendanceTier: "low",
+            strength: 0.5,
+            fullStrength: 0.542,
+            attendanceDelta: 0.042,
+          }
+        }
+        if (t.slug === "yetis") {
+          return {
+            ...t,
+            avgAttendance: null,
+            attendanceTier: null,
+            fullStrength: t.strength,
+            attendanceDelta: 0,
+          }
+        }
+        return t
+      }),
+    }
+
+    await act(async () => {
+      root.render(
+        <PlayoffOddsTable
+          snapshot={customSnapshot}
+          selectedTeamSlug={null}
+          onSelectTeam={() => {}}
+        />
+      )
+    })
+
+    // Switch mobile column tab to "Record & strength"
+    const detailsTab = Array.from(container.querySelectorAll('[role="tab"]')).find((b) =>
+      b.textContent?.includes("Record & strength")
+    ) as HTMLButtonElement
+    expect(detailsTab).toBeTruthy()
+    await act(async () => {
+      detailsTab.click()
+    })
+
+    expect(container.textContent).toContain("Att")
+    expect(container.textContent).toContain("Full Str")
+    expect(container.textContent).toContain("8.3")
+    expect(container.textContent).toContain("Low")
+    expect(container.textContent).toContain(".542")
+    expect(container.textContent).toContain("+0.042")
+    expect(container.textContent).toContain("—")
+
+    const fullStrTooltipCell = Array.from(container.querySelectorAll("td, th")).find((el) =>
+      el.getAttribute("title")?.includes("Full-Strength Rating: projected strength at even headcounts (team = opponent).")
+    )
+    expect(fullStrTooltipCell).toBeTruthy()
+
+    // Sorting Att places null ("—") last in both descending and ascending order
+    const attSortBtn = Array.from(container.querySelectorAll("thead button")).find((b) =>
+      b.textContent?.trim() === "Att"
+    ) as HTMLButtonElement
+    expect(attSortBtn).toBeTruthy()
+    await act(async () => {
+      attSortBtn.click()
+    })
+    let rowNames = Array.from(container.querySelectorAll("tbody tr th button")).map((b) => b.textContent)
+    expect(rowNames[rowNames.length - 1]).toBe("Yetis")
+    await act(async () => {
+      attSortBtn.click()
+    })
+    rowNames = Array.from(container.querySelectorAll("tbody tr th button")).map((b) => b.textContent)
+    expect(rowNames[rowNames.length - 1]).toBe("Yetis")
+
+    // Non-weighted mode (50_50) scopes Full Str out (renders "—" instead of projected Full Str)
+    await act(async () => {
+      root.render(
+        <PlayoffOddsTable
+          snapshot={{ ...customSnapshot, mode: "50_50" }}
+          selectedTeamSlug={null}
+          onSelectTeam={() => {}}
+        />
+      )
+    })
+    expect(container.textContent).not.toContain(".542")
+  })
+
+  it("renders PlayoffOddsMethodology with 4 simulation modes and defers detailed attendance/Bayesian sections to the full methodology page", async () => {
+    await act(async () => {
+      root.render(<PlayoffOddsMethodology snapshot={sampleSnapshot} />)
+    })
+
+    expect(container.textContent).toContain("BASH Weighted (Default):")
+    expect(container.textContent).toContain("BASH Full-Strength Adj:")
+    expect(container.textContent).toContain("50/50:")
+    expect(container.textContent).toContain("SCS Classic:")
+    expect(container.textContent).toContain("See our full methodology here")
+    expect(container.textContent).not.toContain("Attendance impact & full-strength rating")
+    expect(container.textContent).not.toContain("Bayesian strength uncertainty:")
+  })
+
+  it("switches to BASH Full-Strength Adj mode, preserves Observed Str, applies What-If Attendance overrides, and ignores net-neutral overrides", async () => {
+    const attGames: PlayoffSimGame[] = sampleSimGames.map((g) => {
+      if (g.status !== "final") return g
+      // Kings consistently short-benched (7 vs 14) so Full-Strength Adj shifts odds upward
+      if (g.awaySlug === "kings") return { ...g, awayAttendance: 7, homeAttendance: 14 }
+      if (g.homeSlug === "kings") return { ...g, awayAttendance: 14, homeAttendance: 7 }
+      return { ...g, awayAttendance: 11, homeAttendance: 11 }
+    })
+    const attSnapshot = computePlayoffOdds({
+      seasonId: "bash-2026-2027",
+      seasonName: "BASH 2026-2027",
+      seasonType: "fall",
+      seasonStatus: "active",
+      configuredPlayoffTeams: 2,
+      games: attGames,
+      mode: "weighted",
+      iterations: 2_000,
+    })
+
+    const fullStrSnapshot = computePlayoffOdds({
+      seasonId: "bash-2026-2027",
+      seasonName: "BASH 2026-2027",
+      seasonType: "fall",
+      seasonStatus: "active",
+      configuredPlayoffTeams: 2,
+      games: attGames,
+      mode: "full_strength",
+      iterations: 2_000,
+    })
+
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const url = String(input)
+      const snap = url.includes("mode=full_strength") ? fullStrSnapshot : attSnapshot
+      return new Response(JSON.stringify(snap), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      })
+    })
+
+    try {
+      await act(async () => {
+        root.render(<PlayoffOddsView season="bash-2026-2027" initialData={attSnapshot} />)
+      })
+
+      const modelSelect = container.querySelector("#playoff-odds-stats-model") as HTMLSelectElement
+      const optionValues = Array.from(modelSelect.options).map((o) => o.value)
+      const optionLabels = Array.from(modelSelect.options).map((o) => o.textContent)
+      expect(optionValues).toEqual(["weighted", "full_strength", "50_50", "classic"])
+      expect(optionLabels).toEqual([
+        "BASH Weighted",
+        "BASH Full-Strength Adj",
+        "50/50",
+        "SCS Classic",
+      ])
+      // Filter bar no longer renders a separate Full-Strength What-If toggle
+      expect(container.textContent).not.toContain("Full-Strength What-If")
+
+      const kingsBaselineStr = attSnapshot.teams.find((t) => t.slug === "kings")!.strength
+      const kingsBaselineStrLabel = `.${Math.round(kingsBaselineStr * 1000).toString().padStart(3, "0")}`
+      expect(container.textContent).toContain(kingsBaselineStrLabel)
+
+      await act(async () => {
+        modelSelect.value = "full_strength"
+        modelSelect.dispatchEvent(new Event("change", { bubbles: true }))
+      })
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 20))
+      })
+
+      // Observed Str stays rendered on the table row in BASH Full-Strength Adj mode, and What-If Attendance stays available
+      expect(container.textContent).toContain(kingsBaselineStrLabel)
+      expect(container.textContent).toContain("BASH Full-Strength Adj")
+      expect(container.textContent).toContain("What-If Attendance")
+
+      // Net-neutral attendance selections (Avg alone, or equal Low/Low) must NOT activate What-If mode
+      const benchToggle = Array.from(container.querySelectorAll("button")).find((b) =>
+        b.textContent?.includes("What-If Attendance")
+      ) as HTMLButtonElement
+      await act(async () => {
+        benchToggle.click()
+      })
+      const firstCard = benchToggle.closest("article") as HTMLElement
+      const avgButtons = Array.from(firstCard.querySelectorAll("button")).filter(
+        (b) => b.textContent?.trim() === "Avg"
+      ) as HTMLButtonElement[]
+      const lowButtons = Array.from(firstCard.querySelectorAll("button")).filter(
+        (b) => b.textContent?.trim() === "Low"
+      ) as HTMLButtonElement[]
+      const highButtons = Array.from(firstCard.querySelectorAll("button")).filter(
+        (b) => b.textContent?.trim() === "High"
+      ) as HTMLButtonElement[]
+
+      await act(async () => {
+        avgButtons[0].click()
+      })
+      expect(container.textContent).not.toContain("What-If scenario active")
+
+      await act(async () => {
+        lowButtons[0].click()
+        lowButtons[1].click()
+      })
+      expect(container.textContent).not.toContain("What-If scenario active")
+
+      // Asymmetric Low vs High DOES activate What-If in full_strength mode and resets via Reset What-If
+      await act(async () => {
+        highButtons[1].click()
+      })
+      expect(container.textContent).toContain("What-If scenario active")
+      expect(container.textContent).toContain("1 bench")
+
+      const resetBtn = Array.from(container.querySelectorAll("button")).find((b) =>
+        b.textContent?.includes("Reset What-If")
+      ) as HTMLButtonElement
+      expect(resetBtn).toBeTruthy()
+      await act(async () => {
+        resetBtn.click()
+      })
+      expect(container.textContent).not.toContain("What-If scenario active")
+    } finally {
+      fetchSpy.mockRestore()
+    }
+  })
+
+  it("expands What-If Attendance on Big Game cards, shifts odds, clears on re-click or outcome lock, and disables locked cards", async () => {
+    await act(async () => {
+      root.render(<PlayoffOddsView season="bash-2026-2027" initialData={sampleSnapshot} />)
+    })
+
+    const benchToggle = Array.from(container.querySelectorAll("button")).find((b) =>
+      b.textContent?.includes("What-If Attendance")
+    ) as HTMLButtonElement
+    expect(benchToggle).toBeTruthy()
+    expect(benchToggle.getAttribute("aria-expanded")).toBe("false")
+
+    await act(async () => {
+      benchToggle.click()
+    })
+    expect(benchToggle.getAttribute("aria-expanded")).toBe("true")
+
+    const firstCard = benchToggle.closest("article") as HTMLElement
+    const lowButtons = Array.from(firstCard.querySelectorAll("button")).filter(
+      (b) => b.textContent?.trim() === "Low"
+    ) as HTMLButtonElement[]
+    const highButtons = Array.from(firstCard.querySelectorAll("button")).filter(
+      (b) => b.textContent?.trim() === "High"
+    ) as HTMLButtonElement[]
+    expect(lowButtons.length).toBeGreaterThanOrEqual(2)
+    expect(highButtons.length).toBeGreaterThanOrEqual(2)
+
+    await act(async () => {
+      lowButtons[0].click()
+      highButtons[1].click()
+    })
+    expect(container.textContent).toContain("What-If scenario active")
+    expect(container.textContent).toContain("1 bench")
+    expect(lowButtons[0].getAttribute("aria-pressed")).toBe("true")
+    expect(highButtons[1].getAttribute("aria-pressed")).toBe("true")
+
+    // Re-clicking active tier clears that side back to default
+    await act(async () => {
+      lowButtons[0].click()
+    })
+    expect(lowButtons[0].getAttribute("aria-pressed")).toBe("false")
+    expect(highButtons[1].getAttribute("aria-pressed")).toBe("true")
+
+    // Locking an outcome on that card clears its attendance override
+    const lockBtn = firstCard.querySelector('button[title*="in What-If mode"]') as HTMLButtonElement
+    expect(lockBtn).toBeTruthy()
+    await act(async () => {
+      lockBtn.click()
+    })
+    expect(container.textContent).toContain("1 game locked")
+    expect(container.textContent).not.toContain("1 bench")
+
+    // Standalone BigGamesSection disables What-If Attendance on a card whose gameId is locked
+    const targetBigGame =
+      sampleSnapshot.bigGames.find((g) => g.isNextMatchday) ?? sampleSnapshot.bigGames[0]
+    await act(async () => {
+      root.render(
+        <BigGamesSection
+          snapshot={sampleSnapshot}
+          lockedOutcomes={{ [targetBigGame.gameId]: "away_reg" }}
+          onToggleOutcome={() => {}}
+          onClearLocked={() => {}}
+          allUpcomingGames={sampleSnapshot.regularGames.filter((g) => g.status !== "final")}
+          showAttendanceWhatIf
+          attendanceOverrides={{}}
+          onChangeAttendanceOverride={() => {}}
+        />
+      )
+    })
+    const lockedCard = container
+      .querySelector(`a[href="/game/${targetBigGame.gameId}"]`)
+      ?.closest("article") as HTMLElement
+    expect(lockedCard).toBeTruthy()
+    const disabledBenchBtn = Array.from(lockedCard.querySelectorAll("button")).find((b) =>
+      b.textContent?.includes("What-If Attendance")
+    ) as HTMLButtonElement
+    expect(disabledBenchBtn).toBeTruthy()
+    expect(disabledBenchBtn.disabled).toBe(true)
+  })
+
+  it("hides and clears attendance What-If overrides when switching to 50_50 or classic so they do not resurrect on return", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const url = String(input)
+      const nextMode = url.includes("mode=classic")
+        ? "classic"
+        : url.includes("mode=50_50")
+          ? "50_50"
+          : url.includes("mode=full_strength")
+            ? "full_strength"
+            : "weighted"
+      const nextSnap = computePlayoffOdds({
+        seasonId: "bash-2026-2027",
+        seasonName: "BASH 2026-2027",
+        seasonType: "fall",
+        seasonStatus: "active",
+        configuredPlayoffTeams: 2,
+        games: sampleSimGames,
+        mode: nextMode,
+        iterations: 1_000,
+      })
+      return new Response(JSON.stringify(nextSnap), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      })
+    })
+
+    try {
+      await act(async () => {
+        root.render(<PlayoffOddsView season="bash-2026-2027" initialData={sampleSnapshot} />)
+      })
+
+      const benchToggle = Array.from(container.querySelectorAll("button")).find((b) =>
+        b.textContent?.includes("What-If Attendance")
+      ) as HTMLButtonElement
+      await act(async () => {
+        benchToggle.click()
+      })
+      const firstCard = benchToggle.closest("article") as HTMLElement
+      const lowBtn = Array.from(firstCard.querySelectorAll("button")).find(
+        (b) => b.textContent?.trim() === "Low"
+      ) as HTMLButtonElement
+      await act(async () => {
+        lowBtn.click()
+      })
+      expect(container.textContent).toContain("What-If scenario active")
+
+      const modelSelect = container.querySelector("#playoff-odds-stats-model") as HTMLSelectElement
+      await act(async () => {
+        modelSelect.value = "50_50"
+        modelSelect.dispatchEvent(new Event("change", { bubbles: true }))
+      })
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 20))
+      })
+
+      expect(
+        Array.from(container.querySelectorAll("button")).some((b) =>
+          b.textContent?.includes("What-If Attendance")
+        )
+      ).toBe(false)
+      expect(container.textContent).not.toContain("What-If scenario active")
+
+      await act(async () => {
+        modelSelect.value = "classic"
+        modelSelect.dispatchEvent(new Event("change", { bubbles: true }))
+      })
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 20))
+      })
+
+      expect(
+        Array.from(container.querySelectorAll("button")).some((b) =>
+          b.textContent?.includes("What-If Attendance")
+        )
+      ).toBe(false)
+      expect(container.textContent).not.toContain("What-If scenario active")
+
+      // Switching back to full_strength must NOT resurrect the cleared weighted attendance override
+      await act(async () => {
+        modelSelect.value = "full_strength"
+        modelSelect.dispatchEvent(new Event("change", { bubbles: true }))
+      })
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 20))
+      })
+
+      expect(
+        Array.from(container.querySelectorAll("button")).some((b) =>
+          b.textContent?.includes("What-If Attendance")
+        )
+      ).toBe(true)
+      expect(container.textContent).not.toContain("What-If scenario active")
+      expect(container.textContent).not.toContain("1 bench")
+    } finally {
+      fetchSpy.mockRestore()
+    }
+  })
+
+  it("renders TeamOddsPanel Attendance scorecard with Low/High-only badges, win/loss splits, and mode-aware Full Str", async () => {
+    const panelGames: PlayoffSimGame[] = [
+      // Kings win (att 9) vs Seals loss (att 11)
+      { id: "g1", date: "2026-10-10", time: "9:00am", location: "The Lick", awaySlug: "kings", awayName: "Kings", homeSlug: "seals", homeName: "Seals", awayScore: 5, homeScore: 2, awayAttendance: 9, homeAttendance: 11, status: "final", isOvertime: false, hasShootout: false, isForfeit: false },
+      // Kings loss (att 7) vs Loons win (att 14)
+      { id: "g2", date: "2026-10-10", time: "11:00am", location: "The Lick", awaySlug: "loons", awayName: "Loons", homeSlug: "kings", homeName: "Kings", awayScore: 4, homeScore: 2, awayAttendance: 14, homeAttendance: 7, status: "final", isOvertime: false, hasShootout: false, isForfeit: false },
+      // Forfeit win for Kings (att 15) — must be excluded from win/loss attendance splits
+      { id: "g3", date: "2026-10-17", time: "9:00am", location: "The Lick", awaySlug: "kings", awayName: "Kings", homeSlug: "yetis", homeName: "Yetis", awayScore: 5, homeScore: 0, awayAttendance: 15, homeAttendance: null, status: "final", isOvertime: false, hasShootout: false, isForfeit: true },
+      // Tie between Seals (att 11) and Loons (att 13) — must be excluded from win/loss splits
+      { id: "g4", date: "2026-10-17", time: "11:00am", location: "The Lick", awaySlug: "seals", awayName: "Seals", homeSlug: "loons", homeName: "Loons", awayScore: 3, homeScore: 3, awayAttendance: 11, homeAttendance: 13, status: "final", isOvertime: false, hasShootout: false, isForfeit: false },
+      // Upcoming
+      { id: "g5", date: "2026-10-24", time: "9:00am", location: "The Lick", awaySlug: "kings", awayName: "Kings", homeSlug: "seals", homeName: "Seals", awayScore: null, homeScore: null, status: "upcoming", isOvertime: false, hasShootout: false, isForfeit: false },
+      { id: "g6", date: "2026-10-24", time: "11:00am", location: "The Lick", awaySlug: "yetis", awayName: "Yetis", homeSlug: "loons", homeName: "Loons", awayScore: null, homeScore: null, status: "upcoming", isOvertime: false, hasShootout: false, isForfeit: false },
+    ]
+    const panelSnapshot = computePlayoffOdds({
+      seasonId: "bash-2026-2027",
+      seasonName: "BASH 2026-2027",
+      seasonType: "fall",
+      seasonStatus: "active",
+      configuredPlayoffTeams: 2,
+      games: panelGames,
+      mode: "weighted",
+      iterations: 1_000,
+    })
+
+    const kings = panelSnapshot.teams.find((t) => t.slug === "kings")!
+    const seals = panelSnapshot.teams.find((t) => t.slug === "seals")!
+    const loons = panelSnapshot.teams.find((t) => t.slug === "loons")!
+    const yetis = panelSnapshot.teams.find((t) => t.slug === "yetis")!
+
+    // Low-tier team (Kings: avg 8.0, Wins 9.0, Losses 7.0, forfeit excluded) + Full Str visible in weighted mode
+    await act(async () => {
+      root.render(<TeamOddsPanel team={kings} snapshot={panelSnapshot} isWhatIfActive={false} />)
+    })
+    expect(container.textContent).toContain("Attendance")
+    expect(container.textContent).toContain("8.0 avg")
+    expect(container.textContent).toContain("Low")
+    expect(container.textContent).toContain("Wins: 9.0 · Losses: 7.0")
+    expect(container.textContent).toContain("· Full .")
+
+    // Full Str also renders in full_strength mode
+    await act(async () => {
+      root.render(
+        <TeamOddsPanel
+          team={kings}
+          snapshot={{ ...panelSnapshot, mode: "full_strength" }}
+          isWhatIfActive={false}
+        />
+      )
+    })
+    expect(container.textContent).toContain("· Full .")
+
+    // Full Str hides in 50_50 and classic modes
+    for (const nonWeightedMode of ["50_50", "classic"] as const) {
+      await act(async () => {
+        root.render(
+          <TeamOddsPanel
+            team={kings}
+            snapshot={{ ...panelSnapshot, mode: nonWeightedMode }}
+            isWhatIfActive={false}
+          />
+        )
+      })
+      expect(container.textContent).not.toContain("· Full .")
+    }
+
+    // Avg-tier team (Seals: avg 11.0, 0 wins, 1 loss at 11.0, tie excluded) omits the redundant "Avg" badge
+    await act(async () => {
+      root.render(<TeamOddsPanel team={seals} snapshot={panelSnapshot} isWhatIfActive={false} />)
+    })
+    expect(container.textContent).toContain("11.0 avg")
+    expect(container.textContent).toContain("Wins: — · Losses: 11.0")
+    expect(
+      Array.from(container.querySelectorAll("span")).some((s) => s.textContent?.trim() === "Avg")
+    ).toBe(false)
+
+    // High-tier team (Loons: avg 13.5, Wins 14.0, 0 losses, tie excluded) shows High badge
+    await act(async () => {
+      root.render(<TeamOddsPanel team={loons} snapshot={panelSnapshot} isWhatIfActive={false} />)
+    })
+    expect(container.textContent).toContain("13.5 avg")
+    expect(container.textContent).toContain("High")
+    expect(container.textContent).toContain("Wins: 14.0 · Losses: —")
+
+    // Team with no boxscore data (Yetis) renders fallback copy
+    await act(async () => {
+      root.render(<TeamOddsPanel team={yetis} snapshot={panelSnapshot} isWhatIfActive={false} />)
+    })
+    expect(container.textContent).toContain("No boxscore data")
+  })
+
+  it("gracefully hydrates legacy pre-deploy v5 snapshots missing attendance fields without throwing or rendering NaN", async () => {
+    const legacyCalibration = { ...sampleSnapshot.calibration } as Record<string, unknown>
+    delete legacyCalibration.attendance
+    const legacyTeams = sampleSnapshot.teams.map((t) => {
+      const copy = { ...t } as Record<string, unknown>
+      delete copy.avgAttendance
+      delete copy.attendanceTier
+      delete copy.fullStrength
+      delete copy.attendanceDelta
+      return copy
+    })
+    const legacySnapshot = {
+      ...sampleSnapshot,
+      calibration: legacyCalibration,
+      teams: legacyTeams,
+    } as unknown as PlayoffOddsSnapshot
+
+    await act(async () => {
+      root.render(
+        <PlayoffOddsTable
+          snapshot={legacySnapshot}
+          selectedTeamSlug={null}
+          onSelectTeam={() => {}}
+        />
+      )
+    })
+
+    // Switch mobile tab to Record & strength and exercise Att & Full Str sorting
+    const detailsTab = Array.from(container.querySelectorAll('[role="tab"]')).find((b) =>
+      b.textContent?.includes("Record & strength")
+    ) as HTMLButtonElement
+    await act(async () => {
+      detailsTab.click()
+    })
+    const attSortBtn = Array.from(container.querySelectorAll("thead button")).find(
+      (b) => b.textContent?.trim() === "Att"
+    ) as HTMLButtonElement
+    const fullStrSortBtn = Array.from(container.querySelectorAll("thead button")).find(
+      (b) => b.textContent?.trim() === "Full Str"
+    ) as HTMLButtonElement
+    await act(async () => {
+      attSortBtn.click()
+      fullStrSortBtn.click()
+    })
+    expect(container.textContent).not.toContain("NaN")
+    expect(
+      Array.from(container.querySelectorAll("[title]")).some((el) =>
+        el.getAttribute("title")?.includes("NaN")
+      )
+    ).toBe(false)
+
+    // TeamOddsPanel & PlayoffOddsMethodology also render safely on v5 snapshots
+    const legacyKings = legacySnapshot.teams[0]
+    await act(async () => {
+      root.render(
+        <>
+          <TeamOddsPanel team={legacyKings} snapshot={legacySnapshot} isWhatIfActive={false} />
+          <PlayoffOddsMethodology snapshot={legacySnapshot} />
+        </>
+      )
+    })
+    expect(container.textContent).toContain("No boxscore data")
+    expect(container.textContent).toContain("How playoff odds are calculated")
+    expect(container.textContent).not.toContain("NaN")
+  })
+
+  it("immediately hides What-If Attendance while a switch from weighted to 50_50 is still in flight", async () => {
+    let resolveDeferred: ((res: Response) => void) | null = null
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(() => {
+      return new Promise<Response>((resolve) => {
+        resolveDeferred = resolve
+      })
+    })
+
+    try {
+      await act(async () => {
+        root.render(<PlayoffOddsView season="bash-2026-2027" initialData={sampleSnapshot} />)
+      })
+
+      expect(
+        Array.from(container.querySelectorAll("button")).some((b) =>
+          b.textContent?.includes("What-If Attendance")
+        )
+      ).toBe(true)
+
+      // Switch to 50_50 while the fetch stays unresolved (keepPreviousData still holds weighted snapshot)
+      const modelSelect = container.querySelector("#playoff-odds-stats-model") as HTMLSelectElement
+      await act(async () => {
+        modelSelect.value = "50_50"
+        modelSelect.dispatchEvent(new Event("change", { bubbles: true }))
+      })
+
+      expect(
+        Array.from(container.querySelectorAll("button")).some((b) =>
+          b.textContent?.includes("What-If Attendance")
+        )
+      ).toBe(false)
+
+      // Resolve deferred response to clean up pending promise
+      const fiftySnap = computePlayoffOdds({
+        seasonId: "bash-2026-2027",
+        seasonName: "BASH 2026-2027",
+        seasonType: "fall",
+        seasonStatus: "active",
+        configuredPlayoffTeams: 2,
+        games: sampleSimGames,
+        mode: "50_50",
+        iterations: 1_000,
+      })
+      await act(async () => {
+        resolveDeferred?.(
+          new Response(JSON.stringify(fiftySnap), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          })
+        )
+        await new Promise((r) => setTimeout(r, 10))
+      })
+    } finally {
+      fetchSpy.mockRestore()
+    }
   })
 })
