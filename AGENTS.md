@@ -14,7 +14,8 @@ Bay Area Street Hockey (BASH) league stats website. Displays scores, standings, 
 
 - `pnpm dev` — Start dev server
 - `pnpm build` — Production build (automatically runs `pnpm logos:optimize`)
-- `pnpm lint` — Run ESLint
+- `pnpm lint` — Run Oxlint (`oxlint.config.ts`, extending `@cloudflare/oxlint-config` with `tsrs` type-aware rules and `eslint-plugin-drizzle` via `jsPlugins`)
+- `pnpm typecheck` — Run TypeScript compiler check (`tsc --noEmit`)
 - `pnpm logos:optimize` — Pre-generate 64/128/256px content-hashed WebP logos in `public/optimized-logos/` and update `lib/optimized-logos.json`
 - `npx tsx scripts/seed.ts` — Seed database from Sportability API
 - `PROD_URL='<prod-db-url>' DEV_URL='<dev-db-url>' npx tsx scripts/export-prod-db.ts` — Sync recent seasons, boxscores, and draft boards from production into dev database (or `pnpm db:export-prod --from '...' --to '...'`)
@@ -26,6 +27,7 @@ Bay Area Street Hockey (BASH) league stats website. Displays scores, standings, 
 - **Styling:** Tailwind CSS v4 with oklch() color variables
 - **UI:** shadcn/ui (Radix UI primitives) in `components/ui/`
 - **Client Data:** SWR hooks with server-side fallback data
+- **Linting:** Oxlint (`oxlint.config.ts`) with `@cloudflare/oxlint-config`, `tsrs`, and `eslint-plugin-drizzle` (`jsPlugins`); `lint-staged` runs `oxlint --deny-warnings` on pre-commit
 - **Icons:** lucide-react
 
 ## Style Guide

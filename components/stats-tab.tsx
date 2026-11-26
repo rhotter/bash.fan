@@ -62,13 +62,6 @@ export function StatsTab({ initialData }: { initialData?: PlayerStatsData }) {
   }, [season])
 
   useEffect(() => {
-    setMinTeamGames(getDefaultMinTeamGames(gameType, seasonType))
-    if (seasonType === "summer") {
-      setFranchiseFilter("all")
-    }
-  }, [gameType, seasonType])
-
-  useEffect(() => {
     const handlePopState = () => {
       const search = window.location.search
       const params = new URLSearchParams(search)
@@ -130,6 +123,13 @@ export function StatsTab({ initialData }: { initialData?: PlayerStatsData }) {
   const [franchiseFilter, setFranchiseFilter] = useState<string>("all")
   const [nameFilter, setNameFilter] = useState("")
   const [teamFilter, setTeamFilter] = useState<string>("all")
+
+  useEffect(() => {
+    setMinTeamGames(getDefaultMinTeamGames(gameType, seasonType))
+    if (seasonType === "summer") {
+      setFranchiseFilter("all")
+    }
+  }, [gameType, seasonType])
 
   const availableFranchises = useMemo(() => {
     const map = new Map<string, string>()

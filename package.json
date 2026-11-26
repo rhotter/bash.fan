@@ -7,7 +7,8 @@
     "build": "node scripts/optimize-logos.mjs && next build --webpack",
     "logos:optimize": "node scripts/optimize-logos.mjs",
     "start": "next start",
-    "lint": "eslint .",
+    "lint": "oxlint .",
+    "typecheck": "tsc --noEmit",
     "seed": "npx tsx scripts/seed.ts",
     "db:export-prod": "npx tsx scripts/export-prod-db.ts",
     "test": "vitest",
@@ -81,36 +82,33 @@
     "zod": "^3.24.1"
   },
   "devDependencies": {
+    "@cloudflare/oxlint-config": "^0.2.0",
     "@electric-sql/pglite": "0.5.11",
-    "@eslint/js": "^10.0.1",
     "@tailwindcss/postcss": "^4.1.13",
     "@tailwindcss/typography": "^0.5.19",
     "@types/node": "^22",
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
-    "@typescript-eslint/eslint-plugin": "^8.59.0",
-    "@typescript-eslint/parser": "^8.59.0",
     "@typescript-eslint/utils": "^8.59.0",
     "@vitest/coverage-v8": "^4.0.18",
     "dotenv": "^17.3.1",
     "drizzle-kit": "^0.31.9",
-    "eslint": "^10.2.1",
     "eslint-plugin-drizzle": "^0.2.3",
-    "eslint-plugin-react-hooks": "^7.1.1",
     "husky": "^9.1.7",
     "jsdom": "^26.1.0",
     "lint-staged": "^16.4.0",
+    "oxlint": "^1.95.0",
     "postcss": "^8.5",
     "tailwindcss": "^4.1.9",
+    "tsrs": "7.1.0-beta.tsrs5",
     "tsx": "^4.19.0",
     "tw-animate-css": "1.3.3",
     "typescript": "5.7.3",
-    "typescript-eslint": "^8.59.0",
     "vitest": "^4.0.18"
   },
   "lint-staged": {
-    "*.{ts,tsx}": [
-      "eslint --max-warnings 0"
+    "*.{ts,tsx,js,jsx,mjs,cjs}": [
+      "oxlint --deny-warnings"
     ]
   }
 }

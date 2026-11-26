@@ -355,7 +355,7 @@ export function ScorekeeperApp({
     let cancelled = false
 
     async function tryFinalize() {
-      await new Promise(r => setTimeout(r, 2000))
+      await new Promise<void>(r => { setTimeout(r, 2000) })
       if (cancelled || finalizationInFlight.current) return
       if (!correctionExpectedRef.current && !latestState.current.finalizationPending &&
         syncRef.current?.canAutoRetry() === false) return
@@ -364,7 +364,7 @@ export function ScorekeeperApp({
 
     tryFinalize()
 
-    const handler = () => tryFinalize()
+    const handler = () => { void tryFinalize() }
     window.addEventListener("online", handler)
     return () => {
       cancelled = true

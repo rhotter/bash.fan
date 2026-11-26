@@ -10,7 +10,10 @@ export function tokenMatches(token: string, hash: string) {
   if (!/^[a-f0-9]{64}$/.test(hash)) return false
   return timingSafeEqual(Buffer.from(digestToken(token), "hex"), Buffer.from(hash, "hex"))
 }
-export function fail(message: string, status = 400): never { throw Response.json({ error: message }, { status }) }
+export function fail(message: string, status = 400): never {
+  // oxlint-disable-next-line typescript/only-throw-error -- Intentional Web Response throw caught by API route handlers
+  throw Response.json({ error: message }, { status })
+}
 export async function adminVideo(sessionId?: string) {
   if (!sessionId || await reviewSessionId() !== sessionId) await requireAdminSession()
   if (process.env.VIDEO_ENABLED !== "1") fail("Video is not enabled in this environment", 503)

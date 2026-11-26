@@ -82,19 +82,21 @@ export function AdhocRosterModal({
       return
     }
 
-    const timer = setTimeout(async () => {
-      setIsSearching(true)
-      try {
-        const res = await fetch(`/api/bash/admin/players?q=${encodeURIComponent(searchQuery)}`)
-        if (res.ok) {
-          const data = await readApiJson(res)
-          setSearchResults(data.players || [])
+    const timer = setTimeout(() => {
+      void (async () => {
+        setIsSearching(true)
+        try {
+          const res = await fetch(`/api/bash/admin/players?q=${encodeURIComponent(searchQuery)}`)
+          if (res.ok) {
+            const data = await readApiJson(res)
+            setSearchResults(data.players || [])
+          }
+        } catch (err) {
+          console.error(err)
+        } finally {
+          setIsSearching(false)
         }
-      } catch (err) {
-        console.error(err)
-      } finally {
-        setIsSearching(false)
-      }
+      })()
     }, 300)
 
     return () => clearTimeout(timer)

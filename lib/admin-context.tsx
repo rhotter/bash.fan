@@ -8,14 +8,14 @@ interface AdminContextValue {
   isAdmin: boolean
   pin: string
   login: (pin: string) => void
-  logout: () => void
+  logout: () => Promise<void>
 }
 
 const AdminContext = createContext<AdminContextValue>({
   isAdmin: false,
   pin: "",
   login: () => {},
-  logout: () => {},
+  logout: async () => {},
 })
 
 export function AdminProvider({ children }: { children: React.ReactNode }) {

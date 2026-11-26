@@ -1151,7 +1151,7 @@ describe("scripts/backfill-historical-trades.ts", () => {
       const dir = fs.mkdtempSync(path.join(os.tmpdir(), "backfill-lock-"))
       const lockFile = path.join(dir, ".lock-h.neon.tech")
       let release!: () => void
-      const holder = withBackfillLock("h.neon.tech", dir, () => new Promise<string>((r) => (release = () => r("first"))))
+      const holder = withBackfillLock("h.neon.tech", dir, () => new Promise<string>((r) => { release = () => r("first") }))
       await Promise.resolve()
       expect(fs.readFileSync(lockFile, "utf8")).toMatch(/^pid \d+ since /)
 

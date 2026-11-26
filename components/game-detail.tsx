@@ -569,6 +569,7 @@ function EventLog({ isPlayoff = false, periodLength = 1200, state, homeSlug, awa
                     </div>
                   )
                 }
+                return null
               })}
             </div>
           </div>

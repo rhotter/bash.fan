@@ -569,6 +569,8 @@ function applyLockedOutcomes(
         return { ...g, status: "final", awayScore: 0, homeScore: 1, isOvertime: true, hasShootout: false, isForfeit: false, whatIfLock: "extra" }
       case "home_reg":
         return { ...g, status: "final", awayScore: 0, homeScore: 1, isOvertime: false, hasShootout: false, isForfeit: false, whatIfLock: "reg" }
+      default:
+        return g
     }
   })
 }

@@ -203,7 +203,7 @@ export function EditGameModal({
 
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [forfeitingSide, setForfeitingSide] = useState<ForfeitingSide>("away")
-  const preForfeitSnapshotRef = useRef<{
+  const [preForfeitSnapshot, setPreForfeitSnapshot] = useState<{
     status: string
     homeScore: number | null
     awayScore: number | null
@@ -293,7 +293,7 @@ export function EditGameModal({
       if (game) {
         setFormData(game)
         setForfeitingSide(inferForfeitingSide(game))
-        preForfeitSnapshotRef.current = game.isForfeit
+        setPreForfeitSnapshot(game.isForfeit
           ? null
           : {
               status: game.status,
@@ -301,7 +301,7 @@ export function EditGameModal({
               awayScore: game.awayScore,
               isOvertime: game.isOvertime,
               hasShootout: game.hasShootout,
-            }
+            })
 
         const initialTab = game.status === "final" && !game.isForfeit ? "boxscore" : "settings"
         setModalTab(initialTab)
@@ -338,13 +338,13 @@ export function EditGameModal({
         setEditorData(null)
         setIsLoadingEditor(false)
         setForfeitingSide("away")
-        preForfeitSnapshotRef.current = {
+        setPreForfeitSnapshot({
           status: "upcoming",
           homeScore: null,
           awayScore: null,
           isOvertime: false,
           hasShootout: false,
-        }
+        })
         setFormData({
           date: new Date().toISOString().split("T")[0],
           time: "12:00",
@@ -397,7 +397,7 @@ export function EditGameModal({
   }
 
   const derivedStats = useMemo(() => {
-    const isUnforfeitedWithoutSnapshot = Boolean(game?.isForfeit && !formData.isForfeit && !preForfeitSnapshotRef.current)
+    const isUnforfeitedWithoutSnapshot = Boolean(game?.isForfeit && !formData.isForfeit && !preForfeitSnapshot)
     const fallbackScoreWhenUnforfeited =
       Number(editorData?.liveState?.period ?? 0) === 0 ? null : 0
     return deriveBoxscoreStats(
@@ -423,6 +423,7 @@ export function EditGameModal({
     formData.isOvertime,
     formData.hasShootout,
     formData.isForfeit,
+    preForfeitSnapshot,
     formData.gameType,
     game?.isForfeit,
     game?.homeTeam,
@@ -962,18 +963,18 @@ export function EditGameModal({
               checked={formData.isForfeit}
               onCheckedChange={(checked) => {
                 if (checked) {
-                  preForfeitSnapshotRef.current = {
+                  setPreForfeitSnapshot({
                     status: formData.status,
                     homeScore: formData.homeScore,
                     awayScore: formData.awayScore,
                     isOvertime: formData.isOvertime,
                     hasShootout: formData.hasShootout,
-                  }
+                  })
                   const inferred = inferForfeitingSide(formData)
                   setForfeitingSide(inferred)
                   setFormData({ ...formData, ...applyForfeitPreset(inferred) })
-                } else if (preForfeitSnapshotRef.current) {
-                  const snap = preForfeitSnapshotRef.current
+                } else if (preForfeitSnapshot) {
+                  const snap = preForfeitSnapshot
                   setFormData({
                     ...formData,
                     isForfeit: false,

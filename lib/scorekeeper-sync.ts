@@ -161,7 +161,7 @@ export function createSyncManager(gameId: string, pin: string, initialState?: Li
     onStatusChange?.("pending")
 
     if (timer) clearTimeout(timer)
-    timer = setTimeout(() => flush(), 500)
+    timer = setTimeout(() => { void flush() }, 500)
   }
 
   function sendBeacon(state: LiveGameState) {

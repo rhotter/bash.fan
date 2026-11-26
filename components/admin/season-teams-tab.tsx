@@ -76,10 +76,6 @@ export function SeasonTeamsTab({ seasonId, seasonStatus, initialTeams, onTeamsCh
     setHasUnsavedChanges(false)
   }, [initialTeams])
 
-  useEffect(() => {
-    fetchData(fallOnly)
-  }, [fallOnly])
-
   const fetchData = async (filterFall: boolean) => {
     try {
       const teamsUrl = filterFall
@@ -103,6 +99,10 @@ export function SeasonTeamsTab({ seasonId, seasonStatus, initialTeams, onTeamsCh
       setIsLoading(false)
     }
   }
+
+  useEffect(() => {
+    fetchData(fallOnly)
+  }, [fallOnly])
 
   const addTeam = async (team: Team) => {
     if (!isEditable) return

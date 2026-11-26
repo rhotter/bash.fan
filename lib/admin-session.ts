@@ -152,6 +152,7 @@ export async function getSession(): Promise<boolean> {
 export async function requireAdminSession(): Promise<void> {
   const isValid = await getSession()
   if (!isValid) {
+    // oxlint-disable-next-line typescript/only-throw-error -- Intentional Web Response throw caught by API route handlers
     throw new Response(JSON.stringify({ error: "Unauthorized" }), {
       status: 401,
       headers: { "Content-Type": "application/json" },

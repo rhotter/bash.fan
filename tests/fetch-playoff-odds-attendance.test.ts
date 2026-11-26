@@ -165,7 +165,7 @@ describe("fetchPlayoffOdds parallel attendance query", () => {
 
     const snapshotPromise = fetchPlayoffOdds(null, "weighted")
     // Allow getCurrentSeason() microtask to resolve and launch Promise.all
-    await new Promise((r) => setTimeout(r, 0))
+    await new Promise<void>((r) => { setTimeout(r, 0) })
 
     // All 3 rawSql queries must have been dispatched simultaneously before any resolves
     expect(mockRawSql).toHaveBeenCalledTimes(3)
