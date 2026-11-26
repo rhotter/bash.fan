@@ -1474,7 +1474,7 @@ export function ScorekeeperApp({
                 .sort((a, b) => a.period - b.period || parseClockString(b.clock) - parseClockString(a.clock))
                 .map((item) => {
                   if (item.type === "goal") {
-                    const g = item.event as GoalEvent
+                    const g = item.event
                     const teamName = g.team === homeSlug ? homeTeam : awayTeam
                     return (
                       <div key={g.id} className="flex items-center gap-2 py-2 border-t border-border/20 cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => editGoal(g)}>
@@ -1497,7 +1497,7 @@ export function ScorekeeperApp({
                       </div>
                     )
                   } else if (item.type === "penalty") {
-                    const p = item.event as PenaltyEvent
+                    const p = item.event
                     const teamName = p.team === homeSlug ? homeTeam : awayTeam
                     return (
                       <div key={p.id} className="flex items-center gap-2 py-2 border-t border-border/20 cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => editPenalty(p)}>
@@ -1517,7 +1517,7 @@ export function ScorekeeperApp({
                       </div>
                     )
                   } else if (item.type === "timeout") {
-                    const t = item.event as TimeoutEvent
+                    const t = item.event
                     const teamName = t.team === homeSlug ? homeTeam : awayTeam
                     return (
                       <div key={t.id} className="flex items-center gap-2 py-2 border-t border-border/20 cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => editTimeout(t)}>
@@ -1554,7 +1554,7 @@ export function ScorekeeperApp({
                       </div>
                     )
                   } else {
-                    const c = item.event as GoalieChangeEvent
+                    const c = item.event
                     const teamName = c.team === homeSlug ? homeTeam : awayTeam
                     return (
                       <div key={c.id} className="flex items-center gap-2 py-2 border-t border-border/20">

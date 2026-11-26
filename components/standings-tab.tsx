@@ -2,7 +2,7 @@
 
 import { LoadingState } from "@/components/loading-state"
 import { useMemo } from "react"
-import { type Standing } from "@/lib/hockey-data"
+import type { Standing } from "@/lib/hockey-data"
 import { cn } from "@/lib/utils"
 import { IntentLink as Link } from "@/components/intent-link"
 import { sortedStatCellClass, useSort, SortableTh, statsRowClass } from "@/components/stats-table"
@@ -21,8 +21,8 @@ export function StandingsTab({
 
   const sorted = useMemo(() => {
     return [...standings].sort((a, b) => {
-      const av = a[sortKey] as number
-      const bv = b[sortKey] as number
+      const av = a[sortKey]
+      const bv = b[sortKey]
       return sortDir === "desc" ? bv - av : av - bv
     })
   }, [standings, sortKey, sortDir])

@@ -97,7 +97,7 @@ describe("EditGameModal forfeit automation", () => {
 
     // Default: Away Team forfeited -> Home (Red Army) wins 5-0
     expect(document.body.textContent).toContain("Forfeiting Team")
-    const scoreInputs = Array.from(document.body.querySelectorAll('input[placeholder="Score"]')) as HTMLInputElement[]
+    const scoreInputs = Array.from(document.body.querySelectorAll<HTMLInputElement>('input[placeholder="Score"]'))
     expect(scoreInputs[0].value).toBe("0")
     expect(scoreInputs[1].value).toBe("5")
 
@@ -163,7 +163,7 @@ describe("EditGameModal forfeit automation", () => {
       forfeitSwitch.click()
     })
 
-    const scoreInputs = Array.from(document.body.querySelectorAll('input[placeholder="Score"]')) as HTMLInputElement[]
+    const scoreInputs = Array.from(document.body.querySelectorAll<HTMLInputElement>('input[placeholder="Score"]'))
     expect(scoreInputs[0].value).toBe("0")
     expect(scoreInputs[1].value).toBe("5")
 

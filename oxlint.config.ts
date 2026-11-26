@@ -35,6 +35,9 @@ export default defineConfig({
     // -------------------------------------------------------------------------
     // Next.js / shadcn/ui & Radix UI idiomatically use `import * as ...`
     'import/no-namespace': 'off',
+    // Avoid high-churn import-style rewrites across 100+ files; inline `type` specifiers are fine
+    'import/consistent-type-specifier-style': 'off',
+    'typescript/consistent-type-imports': 'off',
     // Server routes & operational diagnostics rely on Vercel console logs
     'no-console': 'off',
     // Opinionated style / formatting rules with high churn and low bug-catching ROI
@@ -66,15 +69,8 @@ export default defineConfig({
     // -------------------------------------------------------------------------
     // Deferred for incremental follow-up PRs
     // -------------------------------------------------------------------------
-    // Correctness & React (next highest priority)
+    // Correctness & React (deferred — requires component state refactoring)
     'react/set-state-in-effect': 'off',
-
-    // Import & type hygiene (mostly auto-fixable)
-    'import/consistent-type-specifier-style': 'off',
-    'typescript/consistent-type-imports': 'off',
-    'typescript/no-import-type-side-effects': 'off',
-    'typescript/no-unnecessary-type-assertion': 'off',
-    'unicorn/prefer-node-protocol': 'off',
 
     // Strict `any` boundary rules (defer until `rawSql()` and API JSON helpers are typed)
     'quality/no-chained-type-assertions': 'off',

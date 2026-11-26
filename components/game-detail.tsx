@@ -14,7 +14,7 @@ import { playerSlug } from "@/lib/player-slug"
 import { formatGoalieTime } from "@/lib/format-goalie-time"
 import type { PlayerBoxScore, GoalieBoxScore } from "@/app/api/bash/game/[id]/route"
 import { sortedStatCellClass, useSort, SortableTh, SectionHeader } from "@/components/stats-table"
-import type { LiveGameState, GoalEvent, RosterPlayer } from "@/lib/scorekeeper-types"
+import type { LiveGameState, RosterPlayer } from "@/lib/scorekeeper-types"
 import { periodLabel, formatClock, computeCurrentClock, parseClockString, clockToElapsedDisplay } from "@/lib/scorekeeper-types"
 import { PeriodSummary } from "@/components/scorekeeper/shared/period-summary"
 import { AdminGameEditor } from "@/components/admin-editor/admin-game-editor"
@@ -530,7 +530,7 @@ function EventLog({ isPlayoff = false, periodLength = 1200, state, homeSlug, awa
             <div className="space-y-0">
               {periodEvents.map((item) => {
                 if (item.type === "goal") {
-                  const g = item.event as GoalEvent
+                  const g = item.event
                   const score = runningScores.get(g.id)
                   return (
                     <div key={g.id} className="flex items-center gap-2.5 py-2.5 border-t border-border/30">
@@ -718,8 +718,8 @@ function SkaterBoxScore({ players }: { players: PlayerBoxScore[] }) {
 
   const sorted = useMemo(() => {
     return [...players].sort((a, b) => {
-      const av = (a[sortKey] ?? 0) as number
-      const bv = (b[sortKey] ?? 0) as number
+      const av = (a[sortKey] ?? 0)
+      const bv = (b[sortKey] ?? 0)
       const cmp = sortDir === "desc" ? bv - av : av - bv
       if (cmp !== 0) return cmp
       return b.points - a.points || b.goals - a.goals

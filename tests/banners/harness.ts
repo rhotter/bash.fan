@@ -10,8 +10,8 @@
  * and dynamic delegation to lib/banner-helpers.ts when available.
  */
 
-import fs from "fs"
-import path from "path"
+import fs from "node:fs"
+import path from "node:path"
 
 export type BannerVariant = "default" | "live" | "warning"
 export type CountdownType = "none" | "deadline" | "event"

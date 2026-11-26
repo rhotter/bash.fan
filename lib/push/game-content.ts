@@ -16,7 +16,7 @@ export function liveScoreContent(row: LiveScoreSource, names: Record<string, str
  const period = state?.period ?? 0
  const base = Math.max(0, state?.clockSeconds ?? 0)
  const running = row.status === "live" && state?.clockRunning === true && !!state.clockStartedAt
- const seconds = Math.max(0, base - (running ? Math.max(0, now - state!.clockStartedAt!) / 1000 : 0))
+ const seconds = Math.max(0, base - (running ? Math.max(0, now - state.clockStartedAt!) / 1000 : 0))
  const goal = state?.goals?.slice().sort((a, b) => b.period - a.period || clockValue(a.clock) - clockValue(b.clock)).at(0)
  const event = goal ? goalText(goal, names, row.is_playoff) : null
  return {

@@ -33,7 +33,7 @@ export async function readVideoDetail(id: string, linkedGameId?: string): Promis
         FROM game_timing_events WHERE game_id = ${gameId} AND kind IN ('goal', 'penalty') AND action = 'add' ORDER BY received_at`)
       entries.unshift(...history.map(e => ({ id: e.entry_id, kind: e.kind, action: e.action,
         capturedAt: Date.parse(e.captured_at), recordedAt: Date.parse(e.recorded_at), source: e.source,
-        period: e.period, clockSeconds: e.clock_seconds, details: e.details } as GameTimingEntry)))
+        period: e.period, clockSeconds: e.clock_seconds, details: e.details })))
     }
     const seen = new Set<string>()
     for (const entry of entries) {

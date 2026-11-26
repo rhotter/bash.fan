@@ -169,7 +169,7 @@ export function resolvePlayoffFormat(opts: {
       configuredPlayoffTeams !== 4 &&
       configuredPlayoffTeams >= 2 &&
       configuredPlayoffTeams < teamCount
-    playoffSpots = explicitNonDefaultRestriction ? configuredPlayoffTeams! : teamCount
+    playoffSpots = explicitNonDefaultRestriction ? configuredPlayoffTeams : teamCount
   } else if (
     teamCount >= 7 &&
     (configuredPlayoffTeams == null || configuredPlayoffTeams === 4)

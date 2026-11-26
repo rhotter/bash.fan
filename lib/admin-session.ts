@@ -1,5 +1,5 @@
 import { cookies } from "next/headers"
-import crypto from "crypto"
+import crypto from "node:crypto"
 import type { OperatorRole } from "@/lib/auth-policy"
 
 const COOKIE_NAME = "admin_session"

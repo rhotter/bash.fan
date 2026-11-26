@@ -1023,7 +1023,7 @@ describe("scripts/backfill-historical-trades.ts", () => {
           ...plan.plannedTrades,
           { seasonId: "2002-2003", teamSlugs: ["landsharks", "red-leafs"], tradeDate: "2003-01-15", tradedAt: "2003-01-15T12:00:00-08:00", notes: "Historical trade: Pat Partner to Red Leafs", moves: [{ playerId: 9999, playerName: "Pat Partner", fromTeamSlug: "landsharks", toTeamSlug: "red-leafs" }] },
         ],
-      } as unknown as BackfillPlan
+      }
       await expect(runApply(makeMockSql(applyHandler({ failOnSecondInsert: true })).sql, URL, twoTradePlan, { backupsDir: dir })).rejects.toThrow(
         /Apply failed partway \(1 trade\(s\) inserted: 321\): mid-batch boom[\s\S]*--rollback/
       )

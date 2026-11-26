@@ -1,7 +1,7 @@
 import "./env"
 import { rawSql } from "../lib/db"
 import { sql } from "drizzle-orm"
-import { execSync } from "child_process"
+import { execSync } from "node:child_process"
 
 async function seed() {
   console.log("Pushing schema via drizzle-kit...")

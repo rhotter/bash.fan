@@ -94,9 +94,9 @@ export async function POST(request: NextRequest) {
     if (
       err &&
       typeof err === "object" &&
-      ("code" in err && (err as { code: unknown }).code === "23505" ||
+      ("code" in err && (err).code === "23505" ||
         ("message" in err &&
-          typeof (err as { message: unknown }).message === "string" &&
+          typeof (err).message === "string" &&
           (err as { message: string }).message.includes("unique")))
     ) {
       return NextResponse.json(

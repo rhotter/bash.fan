@@ -101,7 +101,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
 
     // Insert new games (skip Week 1 games if preserving them)
     const gamesToInsert = (shouldPreserveWeek1 && minDate)
-      ? games.filter((g: Record<string, unknown>) => (g.date as string) > minDate!)
+      ? games.filter((g: Record<string, unknown>) => (g.date as string) > minDate)
       : games
 
     if (gamesToInsert.length > 0) {

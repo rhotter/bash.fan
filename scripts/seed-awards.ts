@@ -1,7 +1,7 @@
 import "./env"
 import { rawSql } from "../lib/db"
 import { sql } from "drizzle-orm"
-import { execSync } from "child_process"
+import { execSync } from "node:child_process"
 
 // ─── Historical award data (1991-2025) from BASH spreadsheet ──────────────────
 
@@ -436,7 +436,7 @@ function matchPlayerByLastName(
   if (initial && lastNameMatches.length > 1) {
     const initialMatches = lastNameMatches.filter((p) => {
       const firstName = normalize(p.name).split(" ")[0]
-      return firstName.startsWith(initial!)
+      return firstName.startsWith(initial)
     })
     // Prefer match in season
     if (seasonPlayerIds) {

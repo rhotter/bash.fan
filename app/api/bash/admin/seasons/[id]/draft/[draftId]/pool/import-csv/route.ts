@@ -167,10 +167,7 @@ async function handleConfirm(request: NextRequest, draftId: string) {
     return NextResponse.json({ error: "Invalid payload format" }, { status: 400 })
   }
 
-  const { players, mode = "append" } = schemaValidation.data as {
-    players: MappedPoolPlayer[]
-    mode?: "append" | "overwrite"
-  }
+  const { players, mode = "append" } = schemaValidation.data
 
   if (!players || players.length === 0) {
     return NextResponse.json({ error: "No players to import" }, { status: 400 })

@@ -2,7 +2,6 @@ import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync 
 import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
-import type { NextConfig } from 'next'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import nextConfig from '../next.config.mjs'
 import { generateDraftOGImage, generateGameOGImage, generateTeamOGImage } from '@/lib/og-image'
@@ -15,7 +14,7 @@ const projectRoot = process.cwd()
 const temporaryDirectories: string[] = []
 
 function configuredAssets(route: string): string[] {
-  const includes = (nextConfig as NextConfig).outputFileTracingIncludes ?? {}
+  const includes = (nextConfig).outputFileTracingIncludes ?? {}
   return Object.entries(includes).flatMap(([pattern, assets]) =>
     picomatch(pattern, { dot: true, contains: true })(route)
       ? assets.flatMap((asset) => glob.sync(asset, { cwd: projectRoot, nodir: true, dot: true }))

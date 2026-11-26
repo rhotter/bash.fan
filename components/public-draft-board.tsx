@@ -281,7 +281,7 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
   const captainSet = useMemo(() => {
     const set = new Set(captainPlayerIds || [])
     pool?.forEach((p) => {
-      const meta = p.registrationMeta as Record<string, unknown> | null
+      const meta = p.registrationMeta
       if (meta?.isCaptain === true || meta?.captain === "Yes") {
         set.add(p.playerId)
       }

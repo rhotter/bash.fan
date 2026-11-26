@@ -163,7 +163,7 @@ export async function syncDraftBanner({
         isActive: true,
         startDate: null,
         endDate: null,
-        countdownType: (draftDate ? "event" : "none") as "event" | "none",
+        countdownType: (draftDate ? "event" : "none"),
         countdownTarget: draftDate,
         priority: 20,
         dismissVersion: 1,

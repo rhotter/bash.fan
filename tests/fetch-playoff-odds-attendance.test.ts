@@ -11,7 +11,7 @@ function extractSqlText(sqlObj: unknown): string {
   if (!Array.isArray(chunks)) return ""
   return chunks
     .map((c) => {
-      if (c && typeof c === "object" && "value" in c && Array.isArray((c as { value: unknown }).value)) {
+      if (c && typeof c === "object" && "value" in c && Array.isArray((c).value)) {
         return (c as { value: string[] }).value.join("")
       }
       return "?"

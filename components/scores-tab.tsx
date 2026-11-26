@@ -2,7 +2,7 @@
 
 import { LoadingState } from "@/components/loading-state"
 import { useMemo } from "react"
-import { type BashGame } from "@/lib/hockey-data"
+import type { BashGame } from "@/lib/hockey-data"
 import { WeekNavigator } from "@/components/week-navigator"
 import { splitRegularAndPlayoff } from "@/lib/split-games"
 import { IntentLink } from "@/components/intent-link"
