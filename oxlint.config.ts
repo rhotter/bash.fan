@@ -27,6 +27,9 @@ export default defineConfig({
       { drizzleObjectName: ['db', 'tx'] },
     ],
 
+    // Enforce strict equality except idiomatic nullish checks (`== null` / `!= null`)
+    eqeqeq: ['error', 'always', { null: 'ignore' }],
+
     // -------------------------------------------------------------------------
     // Permanently disabled preset rules (intentional project conventions)
     // -------------------------------------------------------------------------
@@ -64,7 +67,6 @@ export default defineConfig({
     // Deferred for incremental follow-up PRs
     // -------------------------------------------------------------------------
     // Correctness & React (next highest priority)
-    eqeqeq: 'off',
     'react/set-state-in-effect': 'off',
 
     // Import & type hygiene (mostly auto-fixable)
