@@ -6,11 +6,10 @@ import { MapPin, Calendar, DollarSign, Mail, Info, ExternalLink } from "lucide-r
 import { useEffect, useState } from "react"
 
 export default function RegisterPage() {
-  const [mounted, setMounted] = useState(false)
-  useEffect(() => { setMounted(true) }, [])
+  const [now, setNow] = useState(() => new Date())
+  useEffect(() => { setNow(new Date()) }, [])
 
   const closeDate = new Date("2026-05-18T23:59:59")
-  const now = mounted ? new Date() : new Date()
   const diffMs = closeDate.getTime() - now.getTime()
   const isClosed = diffMs <= 0
   const daysUntil = Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)))

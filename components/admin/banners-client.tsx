@@ -257,16 +257,18 @@ export function BannersClient({ initial }: { initial: BannerRow[] }) {
     setDialogOpen(true)
   }
 
+  const [previewNow] = useState(() => new Date())
+
   // Live countdown calculation for modal preview
   const previewSuffix = useMemo(() => {
     if (form.countdownType === "none" || !form.countdownTarget) return null
     return computeCountdownSuffix(
       form.countdownType,
       new Date(form.countdownTarget),
-      new Date(),
+      previewNow,
       "America/Los_Angeles",
     )
-  }, [form.countdownType, form.countdownTarget])
+  }, [form.countdownType, form.countdownTarget, previewNow])
 
   const previewEffectiveVariant = useMemo(() => {
     return resolveEffectiveVariant(form.variant, form.countdownType, previewSuffix)

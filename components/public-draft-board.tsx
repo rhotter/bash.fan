@@ -500,7 +500,7 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
 
   if (draft.status === "published") {
     const draftDate = draft.draftDate ? new Date(draft.draftDate) : null
-    const currentTime = mounted ? now : (draftDate ?? new Date())
+    const currentTime = mounted ? now : (draftDate ?? now)
     const diffMs = draftDate ? draftDate.getTime() - currentTime.getTime() : 0
     const isUnder24h = diffMs > 0 && diffMs <= 24 * 60 * 60 * 1000
     const isPast = diffMs <= 0

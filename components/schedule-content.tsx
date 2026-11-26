@@ -137,13 +137,14 @@ export function ScheduleContent({ initialData }: { initialData?: BashApiData }) 
       })
   }, [games, teamFilter, typeFilter])
 
+  const [today] = useState(() => new Date().toISOString().slice(0, 10))
+
   const nextGameId = useMemo(() => {
-    const today = new Date().toISOString().slice(0, 10)
     const liveOrUpcoming = sortedFilteredGames.find((g) => g.status === "live" || g.status === "upcoming")
     if (liveOrUpcoming) return liveOrUpcoming.id
     const todayOrLater = sortedFilteredGames.find((g) => g.date >= today)
     return todayOrLater?.id ?? null
-  }, [sortedFilteredGames])
+  }, [sortedFilteredGames, today])
 
   const dateGroups = useMemo(() => {
     const groups: { date: string; games: BashGame[] }[] = []

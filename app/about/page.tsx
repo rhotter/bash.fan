@@ -28,6 +28,7 @@ export default function AboutPage() {
                         BASH is a non-profit, competitive street hockey league founded in 1991. We play on the asphalt of San Francisco, keeping the spirit of outdoor competition alive.
                     </p>
                     {/* TODO: Remove this registration CTA block after Summer 2026 season begins */}
+                    {/* oxlint-disable-next-line react/purity -- Server Component date gate */}
                     {Date.now() < new Date("2026-05-18T23:59:59").getTime() && (
                         <div className="mt-8">
                             <Link

@@ -141,7 +141,7 @@ export function AwardsClient({ seasons, allPlayers }: { seasons: Season[]; allPl
   const [isHofLoading, setIsHofLoading] = useState(false)
   const [selectedHofPlayerId, setSelectedHofPlayerId] = useState<number | null>(null)
   const [customHofPlayerName, setCustomHofPlayerName] = useState("")
-  const [newHofYear, setNewHofYear] = useState<string>(new Date().getFullYear().toString())
+  const [newHofYear, setNewHofYear] = useState<string>(() => new Date().getFullYear().toString())
   const [newHofWing, setNewHofWing] = useState("players")
   const [newHofYearsActive, setNewHofYearsActive] = useState("")
   const [newHofAchievements, setNewHofAchievements] = useState("")
