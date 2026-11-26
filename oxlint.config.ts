@@ -66,7 +66,6 @@ export default defineConfig({
     // Correctness & React (next highest priority)
     eqeqeq: 'off',
     'react/button-has-type': 'off',
-    'react/no-unescaped-entities': 'off',
     'react/purity': 'off',
     'react/set-state-in-effect': 'off',
     'typescript/no-floating-promises': 'off',

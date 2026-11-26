@@ -236,7 +236,7 @@ export function AdhocRosterModal({
                         </div>
                       ) : (
                         <div className="p-3 text-center text-sm text-muted-foreground">
-                          No players found matching "{searchQuery}".
+                          No players found matching &quot;{searchQuery}&quot;.
                         </div>
                       )}
                     </div>

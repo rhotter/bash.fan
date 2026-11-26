@@ -655,7 +655,7 @@ export function SeasonRosterTab({ seasonId, seasonStatus, roster, teams, onRoste
                     <DialogHeader>
                       <DialogTitle>Add Player to Roster</DialogTitle>
                       <DialogDescription>
-                        Assign a player to a team for this season. If the player doesn't exist yet, a new profile will be created.
+                        Assign a player to a team for this season. If the player doesn&apos;t exist yet, a new profile will be created.
                       </DialogDescription>
                     </DialogHeader>
                     <div className="space-y-4 py-4">
@@ -1407,7 +1407,7 @@ export function SeasonRosterTab({ seasonId, seasonStatus, roster, teams, onRoste
                 <DialogHeader>
                   <DialogTitle>Edit Player</DialogTitle>
                   <DialogDescription>
-                    Update the player's name, team assignment, or position. Rookie status is computed from prior fall-season participation.
+                    Update the player&apos;s name, team assignment, or position. Rookie status is computed from prior fall-season participation.
                   </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4 py-4">

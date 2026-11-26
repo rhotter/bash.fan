@@ -338,7 +338,7 @@ export function PlayoffWizard({
                         Resolve Existing Seeds
                       </Label>
                       <p className="text-sm text-muted-foreground mt-1">
-                        Select this if you generated a placeholder bracket at the start of the year and now want to swap the "Seed" placeholders with the actual teams.
+                        Select this if you generated a placeholder bracket at the start of the year and now want to swap the &quot;Seed&quot; placeholders with the actual teams.
                       </p>
                     </div>
                   </div>

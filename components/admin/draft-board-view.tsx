@@ -1256,7 +1256,7 @@ export function DraftBoardView({
               <span className="text-lg font-bold text-muted-foreground">1</span>
               <div>
                 <p className="font-medium text-sm">Review Draft Results</p>
-                <p className="text-xs text-muted-foreground">View the final draft board and verify all picks. You can also export the results as a CSV if you'd like to use them elsewhere.</p>
+                <p className="text-xs text-muted-foreground">View the final draft board and verify all picks. You can also export the results as a CSV if you&apos;d like to use them elsewhere.</p>
               </div>
             </div>
             <div className="flex items-start gap-3 p-3 rounded-md bg-muted/50">

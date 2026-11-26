@@ -1125,7 +1125,7 @@ export function ScorekeeperApp({
             window.location.reload()
           }}>Discard local edits and reload saved game</Button>}
         </div>}
-        {localSaveFailed && <p role="alert" className="my-2 text-xs text-destructive">This device couldn't save a backup. Keep this page open until your changes sync.</p>}
+        {localSaveFailed && <p role="alert" className="my-2 text-xs text-destructive">This device couldn&apos;t save a backup. Keep this page open until your changes sync.</p>}
         {/* ─── Offline Finalize Banner ──────────────────────────────── */}
         {pendingFinalize && (
           <div className="pt-1 pb-2">

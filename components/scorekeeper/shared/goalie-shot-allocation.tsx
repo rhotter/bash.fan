@@ -12,7 +12,7 @@ export function GoalieShotAllocation({ goalies, value, onChange }: {
   if (!goalies.length) return null
   return <div className="space-y-2 text-xs">
     <p className="font-medium">Goalie shots against</p>
-    <p className="text-muted-foreground">Leave blank for a single full-game goalie. After goalie changes or pulls, enter each goalie's recorded shots against. Totals exclude empty-net goals.</p>
+    <p className="text-muted-foreground">Leave blank for a single full-game goalie. After goalie changes or pulls, enter each goalie&apos;s recorded shots against. Totals exclude empty-net goals.</p>
     {goalies.map((goalie) => <label key={`${goalie.team}-${goalie.id}`} className="flex items-center justify-between gap-2">
       <span>{goalie.name} ({goalie.team})</span>
       <Input type="number" min={0} step={1} className="h-8 w-20 text-xs" placeholder="Auto"
