@@ -11,13 +11,14 @@ export const metadata: Metadata = {
 
 const TOC_ITEMS = [
   { id: "lineage", label: "1. Standing on Sports Club Stats's shoulders" },
-  { id: "workflow", label: "2. End-to-end simulation workflow" },
-  { id: "models", label: "3. Team strength models & equations" },
-  { id: "outcomes", label: "4. From ratings to 6 game outcomes" },
-  { id: "rules", label: "5. BASH rules, tiebreakers & max-flow guardrails" },
-  { id: "calibration", label: "6. Empirical calibration & LOSO validation" },
-  { id: "big-games", label: "7. Big Games, What-If & noise hygiene" },
-  { id: "references", label: "8. References, archives & further reading" },
+  { id: "model-comparison", label: "2. Model comparison at a glance" },
+  { id: "workflow", label: "3. End-to-end simulation workflow" },
+  { id: "models", label: "4. Team strength models & equations" },
+  { id: "outcomes", label: "5. From ratings to 6 game outcomes" },
+  { id: "rules", label: "6. BASH rules, tiebreakers & max-flow guardrails" },
+  { id: "calibration", label: "7. Empirical calibration & LOSO validation" },
+  { id: "big-games", label: "8. Big Games, What-If & noise hygiene" },
+  { id: "references", label: "9. References, archives & further reading" },
 ] as const
 
 const CONCEPT_URLS = {
@@ -436,9 +437,131 @@ export default function PlayoffOddCalculationsPage() {
             </p>
           </section>
 
-          {/* Section 2: Workflow */}
+          {/* Section 2: Model Comparison at a Glance */}
+          <section id="model-comparison" className="scroll-mt-20 space-y-5">
+            <ArticleHeading number="02" title="Model comparison at a glance" />
+            <p className="max-w-[68ch] text-pretty">
+              All four models run the exact same 100,000-season Monte Carlo schedule engine, OT/SO rates, and BASH Rule
+              213 tiebreakers — they differ only in how each team&apos;s win strength is estimated before simulating the
+              remaining games.
+            </p>
+            <div className="overflow-x-auto rounded-xl border border-border bg-card">
+              <table className="w-full min-w-[620px] border-collapse text-left text-xs">
+                <thead>
+                  <tr className="border-b border-border bg-muted/40 text-muted-foreground">
+                    <th scope="col" className="px-3.5 py-2.5 font-semibold text-foreground">
+                      Model
+                    </th>
+                    <th scope="col" className="px-3.5 py-2.5 font-semibold text-foreground">
+                      Strength input
+                    </th>
+                    <th scope="col" className="px-3.5 py-2.5 font-semibold text-foreground">
+                      Early-season uncertainty
+                    </th>
+                    <th scope="col" className="px-3.5 py-2.5 font-semibold text-foreground">
+                      Best for
+                    </th>
+                    <th scope="col" className="px-3.5 py-2.5 font-semibold text-foreground">
+                      vs. 50/50 (LOSO Brier)
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border/60">
+                  <tr className="bg-muted/20">
+                    <th scope="row" className="px-3.5 py-3 align-top font-semibold text-foreground whitespace-nowrap">
+                      BASH Weighted
+                      <span className="ml-1.5 rounded border border-border bg-background px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                        Default
+                      </span>
+                    </th>
+                    <td className="px-3.5 py-3 align-top text-muted-foreground">
+                      Open-play GF / GA via PythagenPuck + Empirical Bayes shrinkage
+                    </td>
+                    <td className="px-3.5 py-3 align-top text-muted-foreground tabular-nums">
+                      Beta draws (<code className="rounded bg-muted px-1 py-0.5 text-[11px] text-foreground">k = {BASH_CALIBRATION.fall.strengthConcentration}</code> Fall / <code className="rounded bg-muted px-1 py-0.5 text-[11px] text-foreground">{BASH_CALIBRATION.summer.strengthConcentration}</code> Summer)
+                    </td>
+                    <td className="px-3.5 py-3 align-top text-muted-foreground">
+                      Most accurate forecast of what will happen
+                    </td>
+                    <td className="px-3.5 py-3 align-top font-medium text-foreground tabular-nums">
+                      −4.7% Fall · −5.6% Summer
+                      <div className="mt-0.5 text-[11px] font-normal text-muted-foreground">
+                        Best pre-game baseline
+                      </div>
+                    </td>
+                  </tr>
+                  <tr>
+                    <th scope="row" className="px-3.5 py-3 align-top font-semibold text-foreground whitespace-nowrap">
+                      BASH Full-Strength Adj
+                    </th>
+                    <td className="px-3.5 py-3 align-top text-muted-foreground">
+                      Same as BASH Weighted, after de-attending past GF / GA to even headcounts
+                    </td>
+                    <td className="px-3.5 py-3 align-top text-muted-foreground tabular-nums">
+                      Same Beta draws (<code className="rounded bg-muted px-1 py-0.5 text-[11px] text-foreground">k = {BASH_CALIBRATION.fall.strengthConcentration}</code> / <code className="rounded bg-muted px-1 py-0.5 text-[11px] text-foreground">{BASH_CALIBRATION.summer.strengthConcentration}</code>)
+                    </td>
+                    <td className="px-3.5 py-3 align-top text-muted-foreground">
+                      Separating roster talent from short or deep benches
+                    </td>
+                    <td className="px-3.5 py-3 align-top text-muted-foreground">
+                      Even-bench counterfactual
+                      <div className="mt-0.5 text-[11px] text-muted-foreground/90 tabular-nums">
+                        −8.0% Fall / −7.8% Summer when game-day turnout is known
+                      </div>
+                    </td>
+                  </tr>
+                  <tr>
+                    <th scope="row" className="px-3.5 py-3 align-top font-semibold text-foreground whitespace-nowrap">
+                      50/50
+                    </th>
+                    <td className="px-3.5 py-3 align-top text-muted-foreground">
+                      Fixed <code className="rounded bg-muted px-1 py-0.5 text-[11px] text-foreground">.500</code> for every team
+                    </td>
+                    <td className="px-3.5 py-3 align-top text-muted-foreground">None (coin flip)</td>
+                    <td className="px-3.5 py-3 align-top text-muted-foreground">
+                      Pure schedule &amp; standings math baseline
+                    </td>
+                    <td className="px-3.5 py-3 align-top text-muted-foreground tabular-nums">
+                      Baseline (<code className="rounded bg-muted px-1 py-0.5 text-[11px] text-foreground">0.25000</code> · 50.0% acc.)
+                    </td>
+                  </tr>
+                  <tr>
+                    <th scope="row" className="px-3.5 py-3 align-top font-semibold text-foreground whitespace-nowrap">
+                      SCS Classic
+                    </th>
+                    <td className="px-3.5 py-3 align-top text-muted-foreground">
+                      Points % (<code className="rounded bg-muted px-1 py-0.5 text-[11px] text-foreground">PTS / 3·GP</code>) + Ken&apos;s <code className="rounded bg-muted px-1 py-0.5 text-[11px] text-foreground">p225</code> regression
+                    </td>
+                    <td className="px-3.5 py-3 align-top text-muted-foreground">None (fixed regressed strength)</td>
+                    <td className="px-3.5 py-3 align-top text-muted-foreground">
+                      Historical parity with Sports Club Stats
+                    </td>
+                    <td className="px-3.5 py-3 align-top text-muted-foreground tabular-nums">
+                      −3.0% Fall · +2.1% worse Summer
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <div className="rounded-xl border border-border bg-muted/30 p-4 text-sm leading-relaxed text-muted-foreground">
+              <p className="max-w-[68ch] text-pretty">
+                <strong className="font-semibold text-foreground">
+                  BASH Weighted vs. BASH Full-Strength Adj:
+                </strong>{" "}
+                Because a team&apos;s attendance habit tends to persist from week to week,{" "}
+                <strong className="font-semibold text-foreground">BASH Weighted</strong> stays the default forecast of
+                what is most likely to happen.{" "}
+                <strong className="font-semibold text-foreground">BASH Full-Strength Adj</strong> strips bench-size
+                advantage and disadvantage out of past scores to answer{" "}
+                <em>&ldquo;how strong is each roster at even attendance?&rdquo;</em> — shifting odds upward for
+                chronically short-benched teams and downward for unusually deep-benched teams.
+              </p>
+            </div>
+          </section>
+
+          {/* Section 3: Workflow */}
           <section id="workflow" className="scroll-mt-20 space-y-5">
-            <ArticleHeading number="02" title="End-to-end simulation workflow" />
+            <ArticleHeading number="03" title="End-to-end simulation workflow" />
             <p className="max-w-[68ch] text-pretty">
               Every playoff odds snapshot runs through a pure, deterministic six-stage pipeline with no hidden state or
               manual adjustments. The exact same engine executes on the server (100,000 runs) and inside your browser
@@ -464,9 +587,9 @@ export default function PlayoffOddCalculationsPage() {
             </ol>
           </section>
 
-          {/* Section 3: Models & Equations */}
+          {/* Section 4: Models & Equations */}
           <section id="models" className="scroll-mt-20 space-y-6">
-            <ArticleHeading number="03" title="Team strength models &amp; equations" />
+            <ArticleHeading number="04" title="Team strength models &amp; equations" />
             <p className="max-w-[68ch] text-pretty">
               Each model translates completed regular-season results into a team strength rating{" "}
               <Var>S</Var>
@@ -766,9 +889,9 @@ export default function PlayoffOddCalculationsPage() {
             </div>
           </section>
 
-          {/* Section 4: Matchups & Outcomes */}
+          {/* Section 5: Matchups & Outcomes */}
           <section id="outcomes" className="scroll-mt-20 space-y-5">
-            <ArticleHeading number="04" title="From ratings to 6 game outcomes" />
+            <ArticleHeading number="05" title="From ratings to 6 game outcomes" />
             <p className="max-w-[68ch] text-pretty">
               For each remaining game between Away team <Var>a</Var> and Home team <Var>h</Var>, we convert their
               simulated season strengths (<Var>θ</Var>
@@ -886,9 +1009,9 @@ export default function PlayoffOddCalculationsPage() {
             </p>
           </section>
 
-          {/* Section 5: Rules & Max-Flow */}
+          {/* Section 6: Rules & Max-Flow */}
           <section id="rules" className="scroll-mt-20 space-y-4">
-            <ArticleHeading number="05" title="BASH rules, tiebreakers &amp; max-flow guardrails" />
+            <ArticleHeading number="06" title="BASH rules, tiebreakers &amp; max-flow guardrails" />
             <p className="max-w-[68ch] text-pretty">
               Every simulated season resolves final standings under official{" "}
               <Link href="/rulebook" className="font-medium text-primary underline underline-offset-2 hover:no-underline">
@@ -932,9 +1055,9 @@ export default function PlayoffOddCalculationsPage() {
             </ul>
           </section>
 
-          {/* Section 6: Calibration & LOSO Validation */}
+          {/* Section 7: Calibration & LOSO Validation */}
           <section id="calibration" className="scroll-mt-20 space-y-6">
-            <ArticleHeading number="06" title="Empirical calibration &amp; LOSO validation" />
+            <ArticleHeading number="07" title="Empirical calibration &amp; LOSO validation" />
             <p className="max-w-[68ch] text-pretty">
               Why not simply plug in NHL constants? Across BASH&apos;s historical database (2,126 non-forfeit
               regular-season games, including 2,107 decisive games across 27 Fall and 27 Summer seasons), outdoor
@@ -1180,9 +1303,9 @@ export default function PlayoffOddCalculationsPage() {
             </div>
           </section>
 
-          {/* Section 7: Big Games, What-If & Noise Hygiene */}
+          {/* Section 8: Big Games, What-If & Noise Hygiene */}
           <section id="big-games" className="scroll-mt-20 space-y-4">
-            <ArticleHeading number="07" title="Big Games, What-If &amp; noise hygiene" />
+            <ArticleHeading number="08" title="Big Games, What-If &amp; noise hygiene" />
             <ul className="max-w-[68ch] list-disc space-y-2.5 pl-5 text-pretty">
               <li>
                 <strong className="font-semibold text-foreground">Single-pass conditional tallying:</strong> Rather
@@ -1222,9 +1345,9 @@ export default function PlayoffOddCalculationsPage() {
             </ul>
           </section>
 
-          {/* Section 8: References */}
+          {/* Section 9: References */}
           <section id="references" className="scroll-mt-20 space-y-6">
-            <ArticleHeading number="08" title="References, archives &amp; further reading" />
+            <ArticleHeading number="09" title="References, archives &amp; further reading" />
             <p className="max-w-[68ch] text-pretty">
               All primary sources, Internet Archive captures, and published papers referenced during the design and
               verification of BASH&apos;s simulator:

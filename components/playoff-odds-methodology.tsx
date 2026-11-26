@@ -2,7 +2,6 @@
 
 import Link from "next/link"
 import { ArrowRight, ChevronDown } from "lucide-react"
-import { BASH_CALIBRATION } from "@/lib/playoff-odds"
 import type { PlayoffOddsSnapshot } from "@/lib/playoff-odds-types"
 
 export function PlayoffOddsMethodology({ snapshot }: { snapshot: PlayoffOddsSnapshot }) {
@@ -10,10 +9,6 @@ export function PlayoffOddsMethodology({ snapshot }: { snapshot: PlayoffOddsSnap
   const extraPct = Math.round((calibration.otRate + calibration.soRate) * 1000) / 10
   const otPct = Math.round(calibration.otRate * 1000) / 10
   const soPct = Math.round(calibration.soRate * 1000) / 10
-  const attCal =
-    calibration.attendance ??
-    BASH_CALIBRATION[seasonType === "summer" ? "summer" : "fall"].attendance
-  const activeThresholds = `${attCal.lowP20} / ${attCal.medianP50} / ${attCal.highP80}`
 
   return (
     <details className="group rounded-lg border border-border/60 bg-card/50 text-xs text-muted-foreground">
@@ -156,63 +151,7 @@ export function PlayoffOddsMethodology({ snapshot }: { snapshot: PlayoffOddsSnap
           </div>
         </div>
 
-        <div className="space-y-1.5 border-t border-border/40 pt-3">
-          <h3 className="font-semibold text-foreground">Attendance impact &amp; full-strength rating</h3>
-          <p>
-            Dressed headcount is measured from complete boxscores as the distinct{" "}
-            <code className="rounded bg-muted px-1 py-0.5 text-[11px]">player_id</code> union across skaters and
-            goalies. Across BASH history, the 20th / 50th / 80th percentile headcounts are{" "}
-            <span className="font-medium text-foreground tabular-nums">9 / 11 / 13</span> for Fall (5v5) and{" "}
-            <span className="font-medium text-foreground tabular-nums">7 / 9 / 11</span> for Summer (4v4) — this{" "}
-            {seasonType === "summer" ? "Summer" : "Fall"} season uses{" "}
-            <span className="font-medium text-foreground tabular-nums">{activeThresholds}</span> (
-            <code className="rounded bg-muted px-1 py-0.5 text-[11px]">
-              goalDiffSlope = {attCal.goalDiffSlope}
-            </code>
-            ,{" "}
-            <code className="rounded bg-muted px-1 py-0.5 text-[11px]">
-              logOddsSlope = {attCal.logOddsSlope}
-            </code>
-            ).
-          </p>
-          <p>
-            Bench size follows a diminishing-returns{" "}
-            <code className="rounded bg-muted px-1 py-0.5 text-[11px]">ln(att)</code> curve: dropping from 9 to 6
-            players costs far more than adding a 14th skater.{" "}
-            <span className="font-medium text-foreground">Full Str</span> symmetrically de-attends each played
-            game&apos;s goals for and against (preserving total game goals) before feeding them into PythagenPuck +
-            Empirical Bayes shrinkage. Default BASH Weighted odds stay anchored to Observed{" "}
-            <span className="font-medium text-foreground">Str</span>, while the{" "}
-            <span className="font-medium text-foreground">BASH Full-Strength Adj</span> model simulates the season
-            using <span className="font-medium text-foreground">Full Str</span> and Big Games{" "}
-            <span className="font-medium text-foreground">What-If Attendance</span> controls let you override individual
-            matchup benches in both goal-weighted models.
-          </p>
-          <p className="text-[11px] text-muted-foreground/85">
-            <span className="font-medium text-foreground">Observational caveats:</span> Fitted slopes reflect
-            observational boxscores and can partially capture confounders such as late-season morale or elimination,
-            absent top scorers or starting goalies, and substitute players (
-            <code className="rounded bg-muted px-1 py-0.5 text-[11px]">is_sub</code>). Treat{" "}
-            <span className="font-medium text-foreground">Full Str</span> as a diagnostic estimate at even headcounts
-            rather than a purely causal treatment effect.
-          </p>
-        </div>
-
         <div className="space-y-2 border-t border-border/40 pt-3 text-[11px] text-muted-foreground/80">
-          <p>
-            <span className="font-medium text-foreground">Bayesian strength uncertainty:</span> In BASH Weighted and BASH
-            Full-Strength Adj modes, each simulated season draws team strength from a{" "}
-            <a
-              href="https://en.wikipedia.org/wiki/Beta_distribution"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="underline decoration-border underline-offset-2 hover:text-primary hover:decoration-primary"
-            >
-              Beta posterior
-            </a>{" "}
-            centered on its estimated rating (narrowing as games played grows), preventing overconfident early-season
-            probabilities. Ratings do not adjust for opponent Strength of Schedule prior to a full round-robin cycle.
-          </p>
           <p>
             Big Games impacts are tallied in a single pass during the main simulation using regulation-anchored swings
             with Monte Carlo noise filtering (<span className="font-medium text-foreground">*</span> marks outcomes with

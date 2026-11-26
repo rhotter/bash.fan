@@ -1107,17 +1107,18 @@ describe("PlayoffOddsView & StandingsContent Integration", () => {
     expect(container.textContent).not.toContain(".542")
   })
 
-  it("renders PlayoffOddsMethodology with Fall/Summer attendance thresholds and observational caveats", async () => {
+  it("renders PlayoffOddsMethodology with 4 simulation modes and defers detailed attendance/Bayesian sections to the full methodology page", async () => {
     await act(async () => {
       root.render(<PlayoffOddsMethodology snapshot={sampleSnapshot} />)
     })
 
-    expect(container.textContent).toContain("Attendance impact & full-strength rating")
-    expect(container.textContent).toContain("9 / 11 / 13")
-    expect(container.textContent).toContain("7 / 9 / 11")
-    expect(container.textContent).toContain("ln(")
-    expect(container.textContent?.toLowerCase()).toContain("morale")
-    expect(container.textContent?.toLowerCase()).toContain("substitute")
+    expect(container.textContent).toContain("BASH Weighted (Default):")
+    expect(container.textContent).toContain("BASH Full-Strength Adj:")
+    expect(container.textContent).toContain("50/50:")
+    expect(container.textContent).toContain("SCS Classic:")
+    expect(container.textContent).toContain("See our full methodology here")
+    expect(container.textContent).not.toContain("Attendance impact & full-strength rating")
+    expect(container.textContent).not.toContain("Bayesian strength uncertainty:")
   })
 
   it("switches to BASH Full-Strength Adj mode, preserves Observed Str, applies What-If Attendance overrides, and ignores net-neutral overrides", async () => {
@@ -1573,7 +1574,7 @@ describe("PlayoffOddsView & StandingsContent Integration", () => {
       )
     })
     expect(container.textContent).toContain("No boxscore data")
-    expect(container.textContent).toContain("9 / 11 / 13")
+    expect(container.textContent).toContain("How playoff odds are calculated")
     expect(container.textContent).not.toContain("NaN")
   })
 
