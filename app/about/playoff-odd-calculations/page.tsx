@@ -44,8 +44,8 @@ const CONCEPT_URLS = {
 const WORKFLOW_STEPS: ReadonlyArray<{ step: string; title: string; body: React.ReactNode }> = [
   {
     step: "01",
-    title: "Parse regular-season schedule & clean goal tallies",
-    body: "Load all regular-season games (filtering out playoffs and exhibitions). Apply BASH 3-2-1 scoring, historical non-forfeit ties (1 pt each), and Rule 208 forfeits (5–0 / 0–5). Strip shootout winning goals (SOWG) and forfeit scores from open-play goal rates so administrative forfeits and shootout tiebreakers never distort team strength.",
+    title: "Parse regular-season schedule, boxscore headcounts & clean goal tallies",
+    body: "Load all regular-season games (filtering out playoffs and exhibitions) along with dressed boxscore headcounts (distinct player_id union across skaters and goalies). Apply BASH 3-2-1 scoring, historical non-forfeit ties (1 pt each), and Rule 208 forfeits (5–0 / 0–5). Strip shootout winning goals (SOWG) and forfeit scores from open-play goal rates so administrative forfeits and shootout tiebreakers never distort team strength.",
   },
   {
     step: "02",
@@ -55,8 +55,9 @@ const WORKFLOW_STEPS: ReadonlyArray<{ step: string; title: string; body: React.R
         Calculate each team&apos;s base rating S ∈ [0.05, 0.95] for the selected model: BASH Weighted (pre-ratio{" "}
         <ConceptLink href={CONCEPT_URLS.gammaPoisson}>Gamma-Poisson goal shrinkage</ConceptLink> →{" "}
         <ConceptLink href={CONCEPT_URLS.pythagenPuck}>PythagenPuck</ConceptLink> →{" "}
-        <ConceptLink href={CONCEPT_URLS.empiricalBayes}>Empirical Bayes shrinkage</ConceptLink>), 50/50 (fixed 0.500),
-        or SCS Classic (PTS / (3 × GP) with{" "}
+        <ConceptLink href={CONCEPT_URLS.empiricalBayes}>Empirical Bayes shrinkage</ConceptLink>), BASH Full-Strength
+        Adj (the same pipeline after symmetrically de-attending each game&apos;s goals to even headcounts), 50/50
+        (fixed 0.500), or SCS Classic (PTS / (3 × GP) with{" "}
         <ConceptLink href={CONCEPT_URLS.scsP225}>Ken Roberts&apos;s piecewise regression curve</ConceptLink>).
       </>
     ),
@@ -84,7 +85,7 @@ const WORKFLOW_STEPS: ReadonlyArray<{ step: string; title: string; body: React.R
     body: (
       <>
         In each <ConceptLink href={CONCEPT_URLS.monteCarlo}>Monte Carlo</ConceptLink> season, draw team strength θ from
-        a <ConceptLink href={CONCEPT_URLS.betaDist}>Beta posterior</ConceptLink> (BASH Weighted), pair
+        a <ConceptLink href={CONCEPT_URLS.betaDist}>Beta posterior</ConceptLink> (BASH Weighted and BASH Full-Strength Adj), pair
         remaining matchups via <ConceptLink href={CONCEPT_URLS.log5}>Bill James Log5</ConceptLink>, apply normalized
         extra-time probabilities and 3-2-1 decompression, sample one of 6 outcomes plus an empirical goal margin, and
         rank final standings using official BASH Rule 213 tiebreakers.
@@ -164,6 +165,18 @@ const CALIBRATION_COMPARISON = [
     summer: `${BASH_CALIBRATION.summer.regLoserGoals} reg / ${BASH_CALIBRATION.summer.otLoserGoals} OT`,
     nhl: "~1.8 / ~2.5",
   },
+  {
+    param: "Attendance 20th / 50th / 80th (dressed)",
+    fall: `${BASH_CALIBRATION.fall.attendance.lowP20} / ${BASH_CALIBRATION.fall.attendance.medianP50} / ${BASH_CALIBRATION.fall.attendance.highP80}`,
+    summer: `${BASH_CALIBRATION.summer.attendance.lowP20} / ${BASH_CALIBRATION.summer.attendance.medianP50} / ${BASH_CALIBRATION.summer.attendance.highP80}`,
+    nhl: "Fixed roster",
+  },
+  {
+    param: "Attendance goal-diff / log-odds slope",
+    fall: `${BASH_CALIBRATION.fall.attendance.goalDiffSlope} / ${BASH_CALIBRATION.fall.attendance.logOddsSlope}`,
+    summer: `${BASH_CALIBRATION.summer.attendance.goalDiffSlope} / ${BASH_CALIBRATION.summer.attendance.logOddsSlope}`,
+    nhl: "N/A",
+  },
 ] as const
 
 const LOSO_RESULTS = [
@@ -237,12 +250,20 @@ const COVERAGE_RESULTS = [
     note: "Slightly wide",
   },
   {
-    k: "k = 2 (Fall default)",
-    fall80: "80.3%",
-    fall90: "89.4%",
-    summer80: "84.0%",
-    summer90: "94.2%",
-    note: "Near-exact nominal Fall calibration",
+    k: "k = 1.5 (Fall default)",
+    fall80: "84.9%",
+    fall90: "91.9%",
+    summer80: "85.5%",
+    summer90: "94.0%",
+    note: "Best Fall CRPS & ideal PIT variance (0.0833)",
+  },
+  {
+    k: "k = 2",
+    fall80: "81.6%",
+    fall90: "91.9%",
+    summer80: "83.8%",
+    summer90: "93.2%",
+    note: "Slightly under-dispersed in Fall (PIT 0.090)",
   },
   {
     k: "k = 3 (Summer default)",
@@ -355,7 +376,7 @@ export default function PlayoffOddCalculationsPage() {
                 2,126 historical BASH games
               </span>
               <span className="rounded-full border border-border bg-muted/50 px-2.5 py-0.5">
-                3 simulation models
+                4 simulation models
               </span>
               <span className="rounded-full border border-border bg-muted/50 px-2.5 py-0.5">
                 Deterministic seeded replay
@@ -406,7 +427,9 @@ export default function PlayoffOddCalculationsPage() {
             <p className="max-w-[68ch] text-pretty">
               With the new site and our historic BASH data, we were able to build a new default model (
               <strong className="font-semibold text-foreground">BASH Weighted</strong>) calibrated empirically to our
-              league&apos;s outdoor 5v5 Fall and 4v4 Summer hockey data. We also included{" "}
+              league&apos;s outdoor 5v5 Fall and 4v4 Summer hockey data, plus{" "}
+              <strong className="font-semibold text-foreground">BASH Full-Strength Adj</strong> (adjusting goal rates
+              for game-by-game bench attendance). We also included{" "}
               <strong className="font-semibold text-foreground">50/50</strong> and{" "}
               <strong className="font-semibold text-foreground">SCS Classic</strong> (based on the original Sports Club
               Stats methodology) as switchable modes so folks can compare alternative views of playoff probabilities.
@@ -638,15 +661,52 @@ export default function PlayoffOddCalculationsPage() {
                 <p className="mt-2.5 text-center text-xs text-muted-foreground">
                   Drawn once per simulated season via{" "}
                   <ConceptLink href={CONCEPT_URLS.marsagliaTsang}>Marsaglia–Tsang Gamma sampling</ConceptLink> (
-                  <Var>k</Var> = 2 Fall, <Var>k</Var> = 3 Summer), widening early-season uncertainty and automatically
-                  narrowing as games played grows.
+                  <Var>k</Var> = {BASH_CALIBRATION.fall.strengthConcentration} Fall, <Var>k</Var> ={" "}
+                  {BASH_CALIBRATION.summer.strengthConcentration} Summer), widening early-season uncertainty and
+                  automatically narrowing as games played grows.
                 </p>
               </FormulaCard>
             </div>
 
-            {/* Model B: 50/50 */}
+            {/* Model B: BASH Full-Strength Adj */}
+            <div className="space-y-4 rounded-xl border border-border bg-card p-5 sm:p-6">
+              <div className="space-y-1">
+                <h3 className="text-base font-semibold text-foreground">
+                  B. BASH Full-Strength Adj (Attendance-Adjusted)
+                </h3>
+                <p className="text-pretty text-sm text-muted-foreground">
+                  Uses the exact same Gamma-Poisson + PythagenPuck + Empirical Bayes + Beta posterior pipeline as{" "}
+                  <strong className="font-medium text-foreground">BASH Weighted</strong>, after symmetrically adjusting
+                  each played game&apos;s goals for and against back to even bench attendance (preserving total goals):
+                </p>
+              </div>
+              <FormulaCard label="Symmetric goal-rate de-attending (two-sided boxscores)">
+                <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-[13px]">
+                  <span>
+                    Δ<Var>g</Var> = <Var>β</Var>
+                    <sub>gd</sub> · ln(<Var>att</Var>
+                    <sub>team</sub> / <Var>att</Var>
+                    <sub>opp</sub>)
+                  </span>
+                  <span>
+                    <Var>GF</Var>&prime; = max(0, <Var>GF</Var> − 0.5Δ<Var>g</Var>)
+                  </span>
+                  <span>
+                    <Var>GA</Var>&prime; = max(0, <Var>GA</Var> + 0.5Δ<Var>g</Var>)
+                  </span>
+                </div>
+                <p className="mt-2.5 text-center text-xs text-muted-foreground">
+                  Calibrated across 2,033 historical BASH boxscores (<Var>β</Var>
+                  <sub>gd</sub> = {BASH_CALIBRATION.fall.attendance.goalDiffSlope} Fall,{" "}
+                  {BASH_CALIBRATION.summer.attendance.goalDiffSlope} Summer). Games missing boxscore attendance on
+                  either side remain unadjusted.
+                </p>
+              </FormulaCard>
+            </div>
+
+            {/* Model C: 50/50 */}
             <div className="space-y-2 rounded-xl border border-border bg-card p-5 sm:p-6">
-              <h3 className="text-base font-semibold text-foreground">B. 50/50 (Coin Flip)</h3>
+              <h3 className="text-base font-semibold text-foreground">C. 50/50 (Coin Flip)</h3>
               <p className="text-pretty text-sm text-muted-foreground">
                 Sets <Var>θ</Var>
                 <sub>i</sub> = <code className="rounded bg-muted px-1 py-0.5 text-[13px] text-foreground">0.500</code>{" "}
@@ -657,10 +717,10 @@ export default function PlayoffOddCalculationsPage() {
               </p>
             </div>
 
-            {/* Model C: SCS Classic */}
+            {/* Model D: SCS Classic */}
             <div className="space-y-4 rounded-xl border border-border bg-card p-5 sm:p-6">
               <div className="space-y-1">
-                <h3 className="text-base font-semibold text-foreground">C. SCS Classic (Sports Club Stats Replica)</h3>
+                <h3 className="text-base font-semibold text-foreground">D. SCS Classic (Sports Club Stats Replica)</h3>
                 <p className="text-pretty text-sm text-muted-foreground">
                   Uses raw points percentage <Var>S</Var>
                   <sub>raw, i</sub> = <Var>PTS</Var>
@@ -799,9 +859,10 @@ export default function PlayoffOddCalculationsPage() {
               </div>
               <p className="mt-2.5 text-center text-xs text-muted-foreground">
                 Evenly matched teams reach OT/SO more often than mismatches, while normalizing by the season mean
-                closeness <span className="overline">c</span> preserves the league-wide target rate (12.0% Fall, 9.0%
-                Summer). Decompressing into regulation propensity <Var>q</Var> removes ~9% double compression so
-                expected 3-2-1 points share matches Log5.
+                closeness <span className="overline">c</span> (computed via a 100-draw Beta expectation when strength
+                sampling is active so Jensen&apos;s inequality does not pull realized rates down) preserves the
+                league-wide target rate (12.0% Fall, 9.0% Summer). Decompressing into regulation propensity{" "}
+                <Var>q</Var> removes ~9% double compression so expected 3-2-1 points share matches Log5.
               </p>
             </FormulaCard>
 
@@ -811,15 +872,17 @@ export default function PlayoffOddCalculationsPage() {
               <sub>h, OT</sub> = 0.5 + 0.7(<Var>q</Var> − 0.5)), whereas shootouts compress toward a coin flip (
               <Var>p</Var>
               <sub>h, SO</sub> = 0.5 + 0.3(<Var>q</Var> − 0.5)). For tiebreaker fidelity, OT/SO games add a +1 goal
-              margin and regulation games draw from empirical BASH margin CDFs (1 through 6+ goals: Fall{" "}
+              margin (with {BASH_CALIBRATION.fall.otLoserGoals} loser goals in Fall and{" "}
+              {BASH_CALIBRATION.summer.otLoserGoals} in Summer) and regulation games draw from empirical BASH margin
+              CDFs (1 through 6+ goals: Fall{" "}
               <code className="rounded bg-muted px-1 py-0.5 text-[12px] text-foreground">
                 [21.7%, 19.8%, 18.3%, 14.3%, 9.0%, 17.0%]
               </code>{" "}
-              with 2 loser goals; Summer{" "}
+              with {BASH_CALIBRATION.fall.regLoserGoals} loser goals; Summer{" "}
               <code className="rounded bg-muted px-1 py-0.5 text-[12px] text-foreground">
                 [21.5%, 17.6%, 15.4%, 12.5%, 10.7%, 22.3%]
               </code>{" "}
-              with 4 loser goals).
+              with {BASH_CALIBRATION.summer.regLoserGoals} loser goals).
             </p>
           </section>
 
@@ -1065,20 +1128,55 @@ export default function PlayoffOddCalculationsPage() {
               </table>
             </div>
 
-            <div className="rounded-xl border border-border bg-muted/30 p-4 text-sm">
-              <h3 className="mb-1.5 font-semibold text-foreground">Known limitations (disclosed upfront)</h3>
-              <ul className="list-disc space-y-1 pl-5 text-pretty text-muted-foreground">
-                <li>
-                  <strong className="font-medium text-foreground">Early-season Strength of Schedule:</strong> Prior to
-                  completing a full round-robin cycle, goal differentials are not opponent-adjusted; schedule balance
-                  self-corrects once every club plays every opponent.
-                </li>
-                <li>
-                  <strong className="font-medium text-foreground">Stationary team strength:</strong> Like Sports Club
-                  Stats and Log5 models generally, simulations assume current team quality remains constant through the
-                  remaining schedule and do not model roster attendance, mid-season trades, or goalie availability.
-                </li>
-              </ul>
+            <div className="rounded-xl border border-border bg-muted/30 p-4 text-sm space-y-3">
+              <div>
+                <h3 className="mb-1.5 font-semibold text-foreground">
+                  Attendance impact &amp; BASH Full-Strength Adj
+                </h3>
+                <p className="text-pretty text-muted-foreground">
+                  Across <span className="font-medium text-foreground tabular-nums">1,535</span> Fall and{" "}
+                  <span className="font-medium text-foreground tabular-nums">498</span> Summer regular-season games
+                  with boxscores, dressed headcount (distinct{" "}
+                  <code className="rounded bg-muted px-1 py-0.5 text-[12px]">player_id</code> union across skaters
+                  and goalies) follows a diminishing-returns{" "}
+                  <code className="rounded bg-muted px-1 py-0.5 text-[12px]">ln(att)</code> curve: in LOSO
+                  cross-validation, adding <code className="rounded bg-muted px-1 py-0.5 text-[12px]">ln(homeAtt / awayAtt)</code>{" "}
+                  improved out-of-sample game accuracy from 57.2% to 62.2% in Fall and 55.0% to 59.4% in Summer.
+                  To compute <strong className="font-medium text-foreground">Full Str</strong> without any scale
+                  mismatch, each played game with two-sided boxscores is symmetrically de-attended by{" "}
+                  <code className="rounded bg-muted px-1 py-0.5 text-[12px]">
+                    attGd = goalDiffSlope × ln(teamAtt / oppAtt)
+                  </code>{" "}
+                  (clamped at 0, preserving total game goals) before entering the exact same PythagenPuck + Empirical
+                  Bayes pipeline. Default <strong className="font-medium text-foreground">BASH Weighted</strong>{" "}
+                  remains anchored to Observed Str; selecting{" "}
+                  <strong className="font-medium text-foreground">BASH Full-Strength Adj</strong> simulates the season
+                  and timeline using Full Str, and Big Games{" "}
+                  <strong className="font-medium text-foreground">What-If Attendance</strong> shifts matchup log-odds by{" "}
+                  <code className="rounded bg-muted px-1 py-0.5 text-[12px]">
+                    logOddsSlope × ln(homePreset / awayPreset)
+                  </code>
+                  .
+                </p>
+              </div>
+              <div>
+                <h3 className="mb-1.5 font-semibold text-foreground">Known limitations (disclosed upfront)</h3>
+                <ul className="list-disc space-y-1 pl-5 text-pretty text-muted-foreground">
+                  <li>
+                    <strong className="font-medium text-foreground">Early-season Strength of Schedule:</strong> Prior to
+                    completing a full round-robin cycle, goal differentials are not opponent-adjusted; schedule balance
+                    self-corrects once every club plays every opponent.
+                  </li>
+                  <li>
+                    <strong className="font-medium text-foreground">Stationary team strength &amp; observational attendance:</strong>{" "}
+                    Default BASH Weighted simulations assume current observed team quality remains constant through the
+                    remaining schedule and do not predict future RSVPs, mid-season trades, or individual player/goalie
+                    availability. Fitted attendance slopes in BASH Full-Strength Adj and What-If Attendance are observational
+                    and can partially reflect confounders such as late-season morale/elimination, absent top scorers or
+                    starting goalies, and substitute players (<code className="rounded bg-muted px-1 py-0.5 text-[12px]">is_sub</code>).
+                  </li>
+                </ul>
+              </div>
             </div>
           </section>
 
@@ -1161,7 +1259,7 @@ export default function PlayoffOddCalculationsPage() {
             <div className="space-y-1">
               <h2 className="text-base font-semibold text-foreground">Explore the live simulations</h2>
               <p className="text-sm text-muted-foreground">
-                Compare BASH Weighted, 50/50, and SCS Classic or test your own What-If scenarios.
+                Compare BASH Weighted, BASH Full-Strength Adj, 50/50, and SCS Classic or test your own What-If scenarios.
               </p>
             </div>
             <div className="mt-4 flex flex-wrap gap-2 sm:mt-0 sm:shrink-0">

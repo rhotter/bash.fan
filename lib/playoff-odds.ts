@@ -1,9 +1,12 @@
+import { isGoalWeightedMode } from "@/lib/playoff-odds-types"
 import type {
+  AttendanceTier,
   BigGameAffectedTeam,
   BigGameImpact,
   BigGameOutcomeCell,
   BigGameOutcomeKey,
   CalibrationProfile,
+  GameAttendanceOverride,
   PlayoffFormat,
   PlayoffOddsMode,
   PlayoffOddsSnapshot,
@@ -51,6 +54,14 @@ export const BASH_CALIBRATION: Record<SeasonKind, CalibrationProfile> = {
     // Empirical Fall mean regulation loser goals: 2.04; OT/SO median loser goals: 3 (mean 2.80)
     regLoserGoals: 2,
     otLoserGoals: 3,
+    attendance: {
+      lowP20: 9,
+      medianP50: 11,
+      highP80: 13,
+      presetHeadcounts: { low: 8.3, avg: 11.0, high: 13.8 },
+      logOddsSlope: 1.703,
+      goalDiffSlope: 3.882,
+    },
   },
   summer: {
     pythagenPuckPower: 0.458,
@@ -67,6 +78,14 @@ export const BASH_CALIBRATION: Record<SeasonKind, CalibrationProfile> = {
     // Empirical Summer mean regulation loser goals: 4.24; OT/SO median loser goals: 5 (mean 5.35)
     regLoserGoals: 4,
     otLoserGoals: 5,
+    attendance: {
+      lowP20: 7,
+      medianP50: 9,
+      highP80: 11,
+      presetHeadcounts: { low: 6.0, avg: 9.0, high: 11.8 },
+      logOddsSlope: 1.276,
+      goalDiffSlope: 2.747,
+    },
   },
 }
 
@@ -489,6 +508,13 @@ interface TeamAccumulator {
   gpPlayed: number
   gfPlayed: number
   gaPlayed: number
+  /** Per-game open-play goals and boxscore headcounts (for attendance diagnostics & fullStrength) */
+  playedAttendanceGames: Array<{
+    gf: number
+    ga: number
+    teamAtt: number | null
+    oppAtt: number | null
+  }>
   /** Points earned in non-forfeit games (pairs with gpPlayed for the luck/pace comparison) */
   ptsPlayed: number
   lastGame: TeamLastGame | null
@@ -585,6 +611,7 @@ function parseSeasonState(
       gpPlayed: 0,
       gfPlayed: 0,
       gaPlayed: 0,
+      playedAttendanceGames: [],
       ptsPlayed: 0,
       lastGame: null,
       nextGame: null,
@@ -704,12 +731,38 @@ function parseSeasonState(
         const soAdj = isSO && hScore !== aScore ? 1 : 0
         const homeAdj = soAdj && hScore > aScore ? 1 : 0
         const awayAdj = soAdj && aScore > hScore ? 1 : 0
+        const awayOpenGf = aScore - awayAdj
+        const homeOpenGf = hScore - homeAdj
+        const awayAtt =
+          typeof g.awayAttendance === "number" &&
+          Number.isFinite(g.awayAttendance) &&
+          g.awayAttendance > 0
+            ? g.awayAttendance
+            : null
+        const homeAtt =
+          typeof g.homeAttendance === "number" &&
+          Number.isFinite(g.homeAttendance) &&
+          g.homeAttendance > 0
+            ? g.homeAttendance
+            : null
         away.gpPlayed++
-        away.gfPlayed += aScore - awayAdj
-        away.gaPlayed += hScore - homeAdj
+        away.gfPlayed += awayOpenGf
+        away.gaPlayed += homeOpenGf
+        away.playedAttendanceGames.push({
+          gf: awayOpenGf,
+          ga: homeOpenGf,
+          teamAtt: awayAtt,
+          oppAtt: homeAtt,
+        })
         home.gpPlayed++
-        home.gfPlayed += hScore - homeAdj
-        home.gaPlayed += aScore - awayAdj
+        home.gfPlayed += homeOpenGf
+        home.gaPlayed += awayOpenGf
+        home.playedAttendanceGames.push({
+          gf: homeOpenGf,
+          ga: awayOpenGf,
+          teamAtt: homeAtt,
+          oppAtt: awayAtt,
+        })
       }
 
       // Historical tie (pre-shootout seasons): 1 point each, no ROW
@@ -1265,10 +1318,95 @@ interface CoreSimResult {
   bestSeed: number[]
   worstSeed: number[]
   strengths: number[]
+  fullStrengths: number[]
+  avgAttendances: Array<number | null>
+  attendanceTiers: Array<AttendanceTier | null>
   rawPythPcts: number[]
   bigGames: BigGameImpact[]
   whatIfRows: WhatIfRecordRow[][]
   whatIfRowsNoOt: WhatIfRecordRow[][]
+}
+
+export function deAttendGameGoals(
+  gf: number,
+  ga: number,
+  teamAtt: number | null | undefined,
+  oppAtt: number | null | undefined,
+  goalDiffSlope: number
+): { adjGf: number; adjGa: number } {
+  if (
+    typeof teamAtt === "number" &&
+    typeof oppAtt === "number" &&
+    Number.isFinite(teamAtt) &&
+    Number.isFinite(oppAtt) &&
+    teamAtt > 0 &&
+    oppAtt > 0
+  ) {
+    const attGd = goalDiffSlope * Math.log(teamAtt / oppAtt)
+    return {
+      adjGf: Math.max(0, gf - 0.5 * attGd),
+      adjGa: Math.max(0, ga + 0.5 * attGd),
+    }
+  }
+  return { adjGf: gf, adjGa: ga }
+}
+
+function computeTeamAttendanceMetrics(
+  team: TeamAccumulator,
+  calibration: CalibrationProfile
+): {
+  avgAttendance: number | null
+  attendanceTier: AttendanceTier | null
+  fullStrength: number
+  observedWeightedStrength: number
+  rawPythPct: number
+} {
+  let attSum = 0
+  let attCount = 0
+  let adjGfPlayed = 0
+  let adjGaPlayed = 0
+  const slope = calibration.attendance.goalDiffSlope
+
+  for (const pg of team.playedAttendanceGames) {
+    if (pg.teamAtt !== null) {
+      attSum += pg.teamAtt
+      attCount++
+    }
+    const { adjGf, adjGa } = deAttendGameGoals(pg.gf, pg.ga, pg.teamAtt, pg.oppAtt, slope)
+    adjGfPlayed += adjGf
+    adjGaPlayed += adjGa
+  }
+
+  const avgAttendance = attCount > 0 ? round1(attSum / attCount) : null
+  let attendanceTier: AttendanceTier | null = null
+  if (avgAttendance !== null) {
+    if (avgAttendance <= calibration.attendance.lowP20) {
+      attendanceTier = "low"
+    } else if (avgAttendance >= calibration.attendance.highP80) {
+      attendanceTier = "high"
+    } else {
+      attendanceTier = "avg"
+    }
+  }
+
+  const observedWeighted = computeWeightedStrength(
+    team.gfPlayed,
+    team.gaPlayed,
+    team.gpPlayed,
+    calibration
+  )
+  const fullWeighted =
+    adjGfPlayed === team.gfPlayed && adjGaPlayed === team.gaPlayed
+      ? observedWeighted
+      : computeWeightedStrength(adjGfPlayed, adjGaPlayed, team.gpPlayed, calibration)
+
+  return {
+    avgAttendance,
+    attendanceTier,
+    fullStrength: fullWeighted.strength,
+    observedWeightedStrength: observedWeighted.strength,
+    rawPythPct: observedWeighted.rawPythPct,
+  }
 }
 
 /** Conditional home-win share slopes inside overtime and shootouts (OT favors the stronger team more than SO). */
@@ -1401,6 +1539,7 @@ function runCoreSimulation(opts: {
   trackBigGames: boolean
   trackWhatIf: boolean
   includeTailProbes: boolean
+  gameAttendanceOverrides?: Record<string, GameAttendanceOverride>
 }): CoreSimResult {
   const {
     state,
@@ -1413,6 +1552,7 @@ function runCoreSimulation(opts: {
     trackBigGames,
     trackWhatIf,
     includeTailProbes,
+    gameAttendanceOverrides,
   } = opts
   const iterations = Math.max(1, Math.floor(rawIterations))
 
@@ -1430,24 +1570,34 @@ function runCoreSimulation(opts: {
   // 1. Point-estimate strengths from actual completed games (strengthState) so What-If lockedOutcomes
   // do not cause strength drift across other remaining games
   const strengths = new Array<number>(T).fill(0.5)
+  const fullStrengths = new Array<number>(T).fill(0.5)
+  const avgAttendances = new Array<number | null>(T).fill(null)
+  const attendanceTiers = new Array<AttendanceTier | null>(T).fill(null)
   const rawPythPcts = new Array<number>(T).fill(0.5)
   const kappa = new Float64Array(T)
   for (let i = 0; i < T; i++) {
     const t = strengthState.teams[i] ?? state.teams[i]
-    const weighted = computeWeightedStrength(t.gfPlayed, t.gaPlayed, t.gpPlayed, calibration)
-    rawPythPcts[i] = weighted.rawPythPct
+    const metrics = computeTeamAttendanceMetrics(t, calibration)
+    rawPythPcts[i] = metrics.rawPythPct
+    avgAttendances[i] = metrics.avgAttendance
+    attendanceTiers[i] = metrics.attendanceTier
     if (mode === "50_50") {
       strengths[i] = 0.5
+      fullStrengths[i] = 0.5
     } else if (mode === "classic") {
-      strengths[i] = computeKenClassicStrength(t.pts, t.gp, t.gamesRemaining)
+      const classicStrength = computeKenClassicStrength(t.pts, t.gp, t.gamesRemaining)
+      strengths[i] = classicStrength
+      fullStrengths[i] = classicStrength
     } else {
-      strengths[i] = weighted.strength
+      strengths[i] = metrics.observedWeightedStrength
+      fullStrengths[i] = metrics.fullStrength
     }
     // Posterior concentration ~ effective sample size (games observed + prior games)
     const priorGames = calibration.ebShrinkageGames + (calibration.goalPriorGames ?? 0)
     kappa[i] = calibration.strengthConcentration * (t.gpPlayed + priorGames)
   }
-  const sampleStrengths = mode === "weighted" && calibration.strengthConcentration > 0
+  const simStrengths = mode === "full_strength" ? fullStrengths : strengths
+  const sampleStrengths = isGoalWeightedMode(mode) && calibration.strengthConcentration > 0
   const lockedSim = state.lockedSimGames
 
   // Fast path: 0 remaining games and nothing left to simulate (completed or ended early)
@@ -1497,6 +1647,9 @@ function runCoreSimulation(opts: {
       bestSeed,
       worstSeed,
       strengths,
+      fullStrengths,
+      avgAttendances,
+      attendanceTiers,
       rawPythPcts,
       bigGames: [],
       whatIfRows,
@@ -1538,7 +1691,7 @@ function runCoreSimulation(opts: {
     let closenessSum = 0
     for (let d = 0; d < NORM_DRAWS; d++) {
       for (let i = 0; i < T; i++) {
-        const s = strengths[i]
+        const s = simStrengths[i]
         const k = Math.max(2, kappa[i])
         normTheta[i] = clampStrength(sampleBeta(k * s, k * (1 - s), normRng))
       }
@@ -1550,16 +1703,34 @@ function runCoreSimulation(opts: {
     const meanCloseness = closenessSum / (NORM_DRAWS * seasonPairs.length)
     extraNorm = meanCloseness > 0 ? 1 / meanCloseness : 1
   } else {
-    extraNorm = computeExtraTimeNorm(seasonPairs, strengths)
+    extraNorm = computeExtraTimeNorm(seasonPairs, simStrengths)
   }
 
   const G = state.remainingGames.length
+  const gameAttMult = new Float64Array(G).fill(1)
+  if (isGoalWeightedMode(mode) && gameAttendanceOverrides) {
+    const { logOddsSlope, presetHeadcounts } = calibration.attendance
+    for (let g = 0; g < G; g++) {
+      const ov = gameAttendanceOverrides[state.remainingGames[g].id]
+      if (!ov || (!ov.away && !ov.home)) continue
+      const awayTier = ov.away ?? "avg"
+      const homeTier = ov.home ?? "avg"
+      if (awayTier === homeTier) continue
+      const awayPreset = presetHeadcounts[awayTier]
+      const homePreset = presetHeadcounts[homeTier]
+      gameAttMult[g] = Math.exp(logOddsSlope * Math.log(homePreset / awayPreset))
+    }
+  }
+
   const displayCdf = new Float64Array(5)
-  const preGames: PrecomputedGame[] = state.remainingGames.map((g) => {
+  const preGames: PrecomputedGame[] = state.remainingGames.map((g, idx) => {
     const awayIdx = state.slugToIdx.get(g.awaySlug)!
     const homeIdx = state.slugToIdx.get(g.homeSlug)!
+    let pHome = log5(simStrengths[homeIdx], simStrengths[awayIdx])
+    const m = gameAttMult[idx]
+    if (m !== 1) pHome = (pHome * m) / (pHome * m + (1 - pHome))
     const homeWinProb = fillOutcomeCdf(
-      log5(strengths[homeIdx], strengths[awayIdx]),
+      pHome,
       calibration,
       extraNorm,
       displayCdf,
@@ -1581,8 +1752,11 @@ function runCoreSimulation(opts: {
   const fillAllGameCdfs = (teamStrength: ArrayLike<number>) => {
     for (let g = 0; g < G; g++) {
       const game = preGames[g]
+      let p = log5(teamStrength[game.homeIdx], teamStrength[game.awayIdx])
+      const m = gameAttMult[g]
+      if (m !== 1) p = (p * m) / (p * m + (1 - p))
       fillOutcomeCdf(
-        log5(teamStrength[game.homeIdx], teamStrength[game.awayIdx]),
+        p,
         calibration,
         extraNorm,
         gameCdf,
@@ -1590,12 +1764,12 @@ function runCoreSimulation(opts: {
       )
     }
   }
-  if (!sampleStrengths) fillAllGameCdfs(strengths)
+  if (!sampleStrengths) fillAllGameCdfs(simStrengths)
 
   const drawIterationStrengths = (rng: () => number) => {
     if (!sampleStrengths) return
     for (let i = 0; i < T; i++) {
-      const s = strengths[i]
+      const s = simStrengths[i]
       const k = Math.max(2, kappa[i])
       theta[i] = clampStrength(sampleBeta(k * s, k * (1 - s), rng))
     }
@@ -2136,6 +2310,9 @@ function runCoreSimulation(opts: {
     bestSeed,
     worstSeed,
     strengths,
+    fullStrengths,
+    avgAttendances,
+    attendanceTiers,
     rawPythPcts,
     bigGames,
     whatIfRows,
@@ -2359,7 +2536,9 @@ function buildTimeline(opts: {
           }
     )
     const st = parseSeasonState(replayGames, false)
-    const daySeed = fnv1aHash(`${seasonId}|${mode}|${cutoffDate}|${st.completedGames.length}`)
+    const daySeed = fnv1aHash(
+      `${seasonId}|${mode}|${cutoffDate}|${st.completedGames.length}`
+    )
     // The point right before "now" drives the change badges, so run it at full precision
     // (independent 10k-run noise alone would be ±1 pp at 95%).
     const isPreviousMatchday = dIdx === completedDates.length - 2
@@ -2410,6 +2589,7 @@ export interface ComputePlayoffOddsOptions {
   includeTimeline?: boolean
   includeTailProbes?: boolean
   lockedOutcomes?: Record<string, BigGameOutcomeKey>
+  gameAttendanceOverrides?: Record<string, GameAttendanceOverride>
 }
 
 export function computePlayoffOdds(options: ComputePlayoffOddsOptions): PlayoffOddsSnapshot {
@@ -2429,11 +2609,14 @@ export function computePlayoffOdds(options: ComputePlayoffOddsOptions): PlayoffO
     includeTimeline = true,
     includeTailProbes = true,
     lockedOutcomes,
+    gameAttendanceOverrides,
   } = options
 
   const calibration = BASH_CALIBRATION[seasonType]
   const safeIterations = Math.max(1, Math.floor(iterations))
   const effectiveGames = applyLockedOutcomes(games, lockedOutcomes)
+  const isWeightedFamily = isGoalWeightedMode(mode)
+  const effectiveAttOverrides = isWeightedFamily ? gameAttendanceOverrides : undefined
 
   const rawFinalCount = effectiveGames.filter(
     (g) => g.status === "final" && g.awayScore !== null && g.homeScore !== null
@@ -2457,7 +2640,8 @@ export function computePlayoffOdds(options: ComputePlayoffOddsOptions): PlayoffO
       actualPlayoffTeamCount,
     })
 
-  // Canonical state hash guarantees bit-identical determinism across refreshes & serverless instances
+  // Canonical state hash guarantees bit-identical determinism across refreshes & serverless instances.
+  // Never include raw awayAttendance/homeAttendance so backfilling historical boxscores preserves baseline seeds.
   const sigParts = [
     seasonId,
     seasonType,
@@ -2471,6 +2655,20 @@ export function computePlayoffOdds(options: ComputePlayoffOddsOptions): PlayoffO
       )
       .sort(),
   ]
+  if (effectiveAttOverrides) {
+    const remainingIds = new Set(state.remainingGames.map((g) => g.id))
+    const activeAttParts = Object.entries(effectiveAttOverrides)
+      .filter(([gid]) => remainingIds.has(gid))
+      .map(([gid, ov]) => {
+        const away = ov.away ?? "avg"
+        const home = ov.home ?? "avg"
+        return [gid, away, home] as const
+      })
+      .filter(([, away, home]) => away !== home)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([gid, away, home]) => `att:${gid}:${away}:${home}`)
+    sigParts.push(...activeAttParts)
+  }
   const stateHash = fnv1aHash(sigParts.join("|")).toString(16).padStart(8, "0")
   const seed = parseInt(stateHash, 16) >>> 0
 
@@ -2485,6 +2683,7 @@ export function computePlayoffOdds(options: ComputePlayoffOddsOptions): PlayoffO
     trackBigGames: true,
     trackWhatIf: true,
     includeTailProbes,
+    gameAttendanceOverrides: effectiveAttOverrides,
   })
 
   // Current standings rank by Rule 213 (deterministic alphabetical tiebreak for current-rank display)
@@ -2535,6 +2734,10 @@ export function computePlayoffOdds(options: ComputePlayoffOddsOptions): PlayoffO
     const actualPtsPct = realTeam.gpPlayed > 0 ? realTeam.ptsPlayed / (3 * realTeam.gpPlayed) : 0.5
     const rawPythPct = sim.rawPythPcts[idx]
     const prevTeam = prevTimelinePoint?.teams[t.slug]
+    const strengthRounded = round3(sim.strengths[idx])
+    const fullStrengthRounded = isWeightedFamily ? round3(sim.fullStrengths[idx]) : strengthRounded
+    const rawDelta = isWeightedFamily ? round3(fullStrengthRounded - strengthRounded) : 0
+    const attendanceDelta = rawDelta === 0 ? 0 : rawDelta
 
     return {
       slug: t.slug,
@@ -2569,6 +2772,10 @@ export function computePlayoffOdds(options: ComputePlayoffOddsOptions): PlayoffO
       rawPythPct: round3(rawPythPct),
       actualPtsPct: round3(actualPtsPct),
       luckDelta: round3(actualPtsPct - rawPythPct),
+      avgAttendance: sim.avgAttendances[idx],
+      attendanceTier: sim.attendanceTiers[idx],
+      fullStrength: fullStrengthRounded,
+      attendanceDelta,
       rpi: round3(state.rpiValues[idx]),
       rpiRank: state.rpiRanks[idx],
       lastGame: realTeam.lastGame,

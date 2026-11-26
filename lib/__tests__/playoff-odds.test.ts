@@ -3,6 +3,7 @@ import {
   BASH_CALIBRATION,
   computeKenClassicStrength,
   computeWeightedStrength,
+  deAttendGameGoals,
   log5,
   resolvePlayoffFormat,
   rankTeamsRule213,
@@ -360,7 +361,7 @@ describe("Playoff Odds Engine — Monte Carlo Invariants, Big Games & Tail Probi
   const midSeasonGames = buildSyntheticSeason(teams7, 2, 7) // 21 final, 21 upcoming across 7 teams
 
   it("conserves probabilities (sum of Playoff % = spots*100; every seed col = 100%) and is deterministic", () => {
-    for (const mode of ["weighted", "50_50", "classic"] as const) {
+    for (const mode of ["weighted", "full_strength", "50_50", "classic"] as const) {
       const snap1 = computePlayoffOdds({
         seasonId: "test-7",
         seasonName: "Test 7-Team Fall",
@@ -893,8 +894,862 @@ describe("Playoff Odds Engine — Monte Carlo Invariants, Big Games & Tail Probi
   })
 })
 
+describe("Attendance Impact & Full-Strength Rating", () => {
+  it("computes avgAttendance, attendanceTier, fullStrength, and attendanceDelta for short-benched and full-benched teams in Fall while preserving GF + GA", () => {
+    const games: PlayoffSimGame[] = [
+      // Game 1: team 'a' plays short-benched (8 vs 13) and loses 2-3
+      makeGame({
+        id: "att-1",
+        date: "2026-10-03",
+        awaySlug: "a",
+        homeSlug: "b",
+        awayScore: 2,
+        homeScore: 3,
+        awayAttendance: 8,
+        homeAttendance: 13,
+        status: "final",
+      }),
+      // Game 2: team 'a' plays short-benched (8 vs 13) and ties 3-3
+      makeGame({
+        id: "att-2",
+        date: "2026-10-10",
+        awaySlug: "a",
+        homeSlug: "b",
+        awayScore: 3,
+        homeScore: 3,
+        awayAttendance: 8,
+        homeAttendance: 13,
+        status: "final",
+      }),
+      makeGame({
+        id: "att-u1",
+        date: "2026-10-17",
+        awaySlug: "a",
+        homeSlug: "b",
+        status: "upcoming",
+      }),
+    ]
+
+    const snap = computePlayoffOdds({
+      seasonId: "test-att-fall",
+      seasonName: "Fall Attendance",
+      seasonType: "fall",
+      seasonStatus: "active",
+      configuredPlayoffTeams: 1,
+      games,
+      mode: "weighted",
+      iterations: 2_000,
+      includeTimeline: false,
+    })
+
+    expect(snap.calibration.attendance).toEqual({
+      lowP20: 9,
+      medianP50: 11,
+      highP80: 13,
+      presetHeadcounts: { low: 8.3, avg: 11.0, high: 13.8 },
+      logOddsSlope: 1.703,
+      goalDiffSlope: 3.882,
+    })
+
+    const bySlug = Object.fromEntries(snap.teams.map((t) => [t.slug, t]))
+    expect(bySlug.a.avgAttendance).toBe(8)
+    expect(bySlug.a.attendanceTier).toBe("low")
+    expect(bySlug.a.fullStrength).toBeGreaterThan(bySlug.a.strength)
+    expect(bySlug.a.attendanceDelta).toBeGreaterThan(0)
+
+    expect(bySlug.b.avgAttendance).toBe(13)
+    expect(bySlug.b.attendanceTier).toBe("high")
+    expect(bySlug.b.fullStrength).toBeLessThan(bySlug.b.strength)
+    expect(bySlug.b.attendanceDelta).toBeLessThan(0)
+
+    // Verify exact goal-rate de-attending math & GF + GA conservation
+    const attGdA = BASH_CALIBRATION.fall.attendance.goalDiffSlope * Math.log(8 / 13)
+    const adjGfA = Math.max(0, 2 - 0.5 * attGdA) + Math.max(0, 3 - 0.5 * attGdA)
+    const adjGaA = Math.max(0, 3 + 0.5 * attGdA) + Math.max(0, 3 + 0.5 * attGdA)
+    expect(adjGfA + adjGaA).toBeCloseTo(2 + 3 + 3 + 3, 10)
+    const expectedFullA = computeWeightedStrength(adjGfA, adjGaA, 2, BASH_CALIBRATION.fall).strength
+    expect(bySlug.a.fullStrength).toBeCloseTo(Math.round(expectedFullA * 1000) / 1000, 3)
+  })
+
+  it("handles missing, zero, and one-sided boxscores without NaN and clamps 0-goal shutouts cleanly", () => {
+    const games: PlayoffSimGame[] = [
+      // One-sided boxscore: away has 9, home has null -> avgAttendance=9 for 'a', null for 'b', no de-attending
+      makeGame({
+        id: "one-1",
+        date: "2026-10-03",
+        awaySlug: "a",
+        homeSlug: "b",
+        awayScore: 1,
+        homeScore: 4,
+        awayAttendance: 9,
+        homeAttendance: null,
+        status: "final",
+      }),
+      // Missing boxscores on both sides (c vs d)
+      makeGame({
+        id: "miss-1",
+        date: "2026-10-03",
+        awaySlug: "c",
+        homeSlug: "d",
+        awayScore: 0,
+        homeScore: 5,
+        status: "final",
+      }),
+      // Shutout with extreme attendance imbalance (tests 0-goal floor clamp)
+      makeGame({
+        id: "clamp-1",
+        date: "2026-10-10",
+        awaySlug: "c",
+        homeSlug: "d",
+        awayScore: 0,
+        homeScore: 6,
+        awayAttendance: 15,
+        homeAttendance: 6,
+        status: "final",
+      }),
+      makeGame({ id: "u-ab", date: "2026-10-17", awaySlug: "a", homeSlug: "b", status: "upcoming" }),
+      makeGame({ id: "u-cd", date: "2026-10-17", awaySlug: "c", homeSlug: "d", status: "upcoming" }),
+    ]
+
+    const snap = computePlayoffOdds({
+      seasonId: "test-att-missing",
+      seasonName: "Missing Boxscores",
+      seasonType: "fall",
+      seasonStatus: "active",
+      configuredPlayoffTeams: 2,
+      games,
+      mode: "weighted",
+      iterations: 1_000,
+      includeTimeline: false,
+    })
+
+    const bySlug = Object.fromEntries(snap.teams.map((t) => [t.slug, t]))
+    expect(bySlug.a.avgAttendance).toBe(9)
+    expect(bySlug.a.attendanceTier).toBe("low")
+    expect(bySlug.a.fullStrength).toBe(bySlug.a.strength)
+    expect(bySlug.a.attendanceDelta).toBe(0)
+
+    expect(bySlug.b.avgAttendance).toBeNull()
+    expect(bySlug.b.attendanceTier).toBeNull()
+    expect(bySlug.b.fullStrength).toBe(bySlug.b.strength)
+    expect(bySlug.b.attendanceDelta).toBe(0)
+
+    for (const row of snap.teams) {
+      expect(Number.isFinite(row.fullStrength)).toBe(true)
+      expect(Number.isFinite(row.attendanceDelta)).toBe(true)
+      expect(row.fullStrength).toBeGreaterThanOrEqual(0.05)
+      expect(row.fullStrength).toBeLessThanOrEqual(0.95)
+    }
+  })
+
+  it("keeps baseline stateHash and playoffPct bit-identical with vs without boxscore attendance", () => {
+    const baseGames = buildSyntheticSeason(["a", "b", "c", "d"], 2, 2)
+    const withAttendance = baseGames.map((g, idx) =>
+      g.status === "final"
+        ? {
+            ...g,
+            awayAttendance: idx % 2 === 0 ? 7 : 14,
+            homeAttendance: idx % 2 === 0 ? 14 : 8,
+          }
+        : g
+    )
+
+    const snapWithout = computePlayoffOdds({
+      seasonId: "test-att-invariance",
+      seasonName: "Invariance",
+      seasonType: "fall",
+      seasonStatus: "active",
+      configuredPlayoffTeams: 2,
+      games: baseGames,
+      mode: "weighted",
+      iterations: 2_000,
+      includeTimeline: false,
+    })
+    const snapWith = computePlayoffOdds({
+      seasonId: "test-att-invariance",
+      seasonName: "Invariance",
+      seasonStatus: "active",
+      seasonType: "fall",
+      configuredPlayoffTeams: 2,
+      games: withAttendance,
+      mode: "weighted",
+      iterations: 2_000,
+      includeTimeline: false,
+    })
+
+    expect(snapWith.stateHash).toBe(snapWithout.stateHash)
+    const byWithout = Object.fromEntries(snapWithout.teams.map((t) => [t.slug, t]))
+    const byWith = Object.fromEntries(snapWith.teams.map((t) => [t.slug, t]))
+    for (const slug of ["a", "b", "c", "d"]) {
+      expect(byWith[slug].playoffPct).toBe(byWithout[slug].playoffPct)
+      expect(byWith[slug].avgSeed).toBe(byWithout[slug].avgSeed)
+      expect(byWith[slug].strength).toBe(byWithout[slug].strength)
+    }
+  })
+
+  it("applies Summer thresholds (7 / 9 / 11) and Summer slopes", () => {
+    const games: PlayoffSimGame[] = [
+      makeGame({
+        id: "sum-1",
+        date: "2026-07-05",
+        awaySlug: "a",
+        homeSlug: "b",
+        awayScore: 4,
+        homeScore: 5,
+        awayAttendance: 7,
+        homeAttendance: 11,
+        status: "final",
+      }),
+      makeGame({
+        id: "sum-2",
+        date: "2026-07-12",
+        awaySlug: "c",
+        homeSlug: "d",
+        awayScore: 5,
+        homeScore: 5,
+        awayAttendance: 9,
+        homeAttendance: 9,
+        status: "final",
+      }),
+      makeGame({ id: "sum-u1", date: "2026-07-19", awaySlug: "a", homeSlug: "b", status: "upcoming" }),
+    ]
+
+    const snap = computePlayoffOdds({
+      seasonId: "test-att-summer",
+      seasonName: "Summer Att",
+      seasonType: "summer",
+      seasonStatus: "active",
+      configuredPlayoffTeams: 2,
+      games,
+      mode: "weighted",
+      iterations: 1_000,
+      includeTimeline: false,
+    })
+
+    expect(snap.calibration.attendance).toEqual({
+      lowP20: 7,
+      medianP50: 9,
+      highP80: 11,
+      presetHeadcounts: { low: 6.0, avg: 9.0, high: 11.8 },
+      logOddsSlope: 1.276,
+      goalDiffSlope: 2.747,
+    })
+
+    const bySlug = Object.fromEntries(snap.teams.map((t) => [t.slug, t]))
+    expect(bySlug.a.avgAttendance).toBe(7)
+    expect(bySlug.a.attendanceTier).toBe("low")
+    expect(bySlug.b.avgAttendance).toBe(11)
+    expect(bySlug.b.attendanceTier).toBe("high")
+    expect(bySlug.c.avgAttendance).toBe(9)
+    expect(bySlug.c.attendanceTier).toBe("avg")
+  })
+
+  it("shifts playoffPct in full_strength mode while preserving Observed strength and building a full timeline", () => {
+    // Team 'a' played short-benched (7 vs 14) and lost close games; team 'b' had full benches
+    const games: PlayoffSimGame[] = [
+      makeGame({
+        id: "fs-1",
+        date: "2026-10-03",
+        awaySlug: "a",
+        homeSlug: "b",
+        awayScore: 2,
+        homeScore: 4,
+        awayAttendance: 7,
+        homeAttendance: 14,
+        status: "final",
+      }),
+      makeGame({
+        id: "fs-2",
+        date: "2026-10-10",
+        awaySlug: "a",
+        homeSlug: "b",
+        awayScore: 3,
+        homeScore: 4,
+        awayAttendance: 7,
+        homeAttendance: 14,
+        status: "final",
+      }),
+      makeGame({
+        id: "fs-3",
+        date: "2026-10-17",
+        awaySlug: "c",
+        homeSlug: "d",
+        awayScore: 3,
+        homeScore: 3,
+        awayAttendance: 11,
+        homeAttendance: 11,
+        status: "final",
+      }),
+      // Remaining schedule where 'a' plays 'c' and 'd' multiple times so strength shift moves playoffPct
+      makeGame({ id: "fs-u1", date: "2026-10-24", awaySlug: "a", homeSlug: "c", status: "upcoming" }),
+      makeGame({ id: "fs-u2", date: "2026-10-24", awaySlug: "b", homeSlug: "d", status: "upcoming" }),
+      makeGame({ id: "fs-u3", date: "2026-10-31", awaySlug: "a", homeSlug: "d", status: "upcoming" }),
+      makeGame({ id: "fs-u4", date: "2026-10-31", awaySlug: "b", homeSlug: "c", status: "upcoming" }),
+      makeGame({ id: "fs-u5", date: "2026-11-07", awaySlug: "a", homeSlug: "b", status: "upcoming" }),
+      makeGame({ id: "fs-u6", date: "2026-11-07", awaySlug: "c", homeSlug: "d", status: "upcoming" }),
+    ]
+
+    const baseline = computePlayoffOdds({
+      seasonId: "test-fullstr-wi",
+      seasonName: "FullStr WI",
+      seasonType: "fall",
+      seasonStatus: "active",
+      configuredPlayoffTeams: 2,
+      games,
+      mode: "weighted",
+      iterations: 5_000,
+      includeTimeline: false,
+    })
+    const fullStrSnap = computePlayoffOdds({
+      seasonId: "test-fullstr-wi",
+      seasonName: "FullStr WI",
+      seasonType: "fall",
+      seasonStatus: "active",
+      configuredPlayoffTeams: 2,
+      games,
+      mode: "full_strength",
+      iterations: 5_000,
+      includeTimeline: true,
+    })
+
+    expect(fullStrSnap.stateHash).not.toBe(baseline.stateHash)
+    const baseBySlug = Object.fromEntries(baseline.teams.map((t) => [t.slug, t]))
+    const fullBySlug = Object.fromEntries(fullStrSnap.teams.map((t) => [t.slug, t]))
+
+    // Observed strength MUST remain unchanged in full_strength mode
+    expect(fullBySlug.a.strength).toBe(baseBySlug.a.strength)
+    expect(fullBySlug.b.strength).toBe(baseBySlug.b.strength)
+    expect(fullBySlug.a.fullStrength).toBe(baseBySlug.a.fullStrength)
+    // Short-benched team 'a' improves in simulated playoff odds; full-benched 'b' drops
+    expect(fullBySlug.a.playoffPct).toBeGreaterThan(baseBySlug.a.playoffPct)
+    expect(fullBySlug.b.playoffPct).toBeLessThan(baseBySlug.b.playoffPct)
+    expect(fullStrSnap.timeline.length).toBeGreaterThan(0)
+  })
+
+  it("applies gameAttendanceOverrides additively with full_strength mode, canonicalizes/ignores net-neutral overrides, and ignores overrides in 50_50 and classic modes", () => {
+    const games: PlayoffSimGame[] = [
+      makeGame({
+        id: "ov-f1",
+        date: "2026-10-03",
+        awaySlug: "a",
+        homeSlug: "b",
+        awayScore: 2,
+        homeScore: 4,
+        awayAttendance: 7,
+        homeAttendance: 14,
+        status: "final",
+      }),
+      makeGame({
+        id: "ov-f2",
+        date: "2026-10-03",
+        awaySlug: "c",
+        homeSlug: "d",
+        awayScore: 3,
+        homeScore: 3,
+        awayAttendance: 11,
+        homeAttendance: 11,
+        status: "final",
+      }),
+      makeGame({ id: "ov-u1", date: "2026-10-10", awaySlug: "a", homeSlug: "b", status: "upcoming" }),
+      makeGame({ id: "ov-u2", date: "2026-10-10", awaySlug: "c", homeSlug: "d", status: "upcoming" }),
+      makeGame({ id: "ov-u3", date: "2026-10-17", awaySlug: "a", homeSlug: "c", status: "upcoming" }),
+      makeGame({ id: "ov-u4", date: "2026-10-17", awaySlug: "b", homeSlug: "d", status: "upcoming" }),
+    ]
+
+    const baseWeighted = computePlayoffOdds({
+      seasonId: "test-att-ov",
+      seasonName: "Att Override",
+      seasonType: "fall",
+      seasonStatus: "active",
+      configuredPlayoffTeams: 2,
+      games,
+      mode: "weighted",
+      iterations: 5_000,
+      includeTimeline: false,
+    })
+
+    const ovWeighted = computePlayoffOdds({
+      seasonId: "test-att-ov",
+      seasonName: "Att Override",
+      seasonType: "fall",
+      seasonStatus: "active",
+      configuredPlayoffTeams: 2,
+      games,
+      mode: "weighted",
+      iterations: 5_000,
+      includeTimeline: false,
+      gameAttendanceOverrides: { "ov-u1": { away: "low", home: "high" } },
+    })
+
+    const combinedFullStr = computePlayoffOdds({
+      seasonId: "test-att-ov",
+      seasonName: "Att Override",
+      seasonType: "fall",
+      seasonStatus: "active",
+      configuredPlayoffTeams: 2,
+      games,
+      mode: "full_strength",
+      iterations: 5_000,
+      includeTimeline: false,
+      gameAttendanceOverrides: { "ov-u1": { away: "low", home: "high" } },
+    })
+
+    const baseWBy = Object.fromEntries(baseWeighted.teams.map((t) => [t.slug, t]))
+    const ovWBy = Object.fromEntries(ovWeighted.teams.map((t) => [t.slug, t]))
+    const combBy = Object.fromEntries(combinedFullStr.teams.map((t) => [t.slug, t]))
+
+    expect(ovWeighted.stateHash).not.toBe(baseWeighted.stateHash)
+    expect(combinedFullStr.stateHash).not.toBe(ovWeighted.stateHash)
+    // Home team 'b' boosted by { away: 'low', home: 'high' }
+    expect(ovWBy.b.playoffPct).toBeGreaterThan(baseWBy.b.playoffPct)
+    // Additive composition with full_strength mode changes odds relative to ovWeighted alone
+    expect(combBy.a.playoffPct).toBeGreaterThan(ovWBy.a.playoffPct)
+
+    // Canonical equivalence: { away: "low" } === { away: "low", home: "avg" }
+    const singleSide = computePlayoffOdds({
+      seasonId: "test-att-ov",
+      seasonName: "Att Override",
+      seasonType: "fall",
+      seasonStatus: "active",
+      configuredPlayoffTeams: 2,
+      games,
+      mode: "weighted",
+      iterations: 2_000,
+      includeTimeline: false,
+      gameAttendanceOverrides: { "ov-u1": { away: "low" } },
+    })
+    const explicitAvg = computePlayoffOdds({
+      seasonId: "test-att-ov",
+      seasonName: "Att Override",
+      seasonType: "fall",
+      seasonStatus: "active",
+      configuredPlayoffTeams: 2,
+      games,
+      mode: "weighted",
+      iterations: 2_000,
+      includeTimeline: false,
+      gameAttendanceOverrides: { "ov-u1": { away: "low", home: "avg" } },
+    })
+    expect(singleSide.stateHash).toBe(explicitAvg.stateHash)
+    expect(singleSide.teams.map((t) => t.playoffPct)).toEqual(explicitAvg.teams.map((t) => t.playoffPct))
+
+    // Net-neutral overrides ({ away: "avg" }, { away: "low", home: "low" }, { away: "high", home: "high" }) match baseline
+    const neutralOv = computePlayoffOdds({
+      seasonId: "test-att-ov",
+      seasonName: "Att Override",
+      seasonType: "fall",
+      seasonStatus: "active",
+      configuredPlayoffTeams: 2,
+      games,
+      mode: "weighted",
+      iterations: 5_000,
+      includeTimeline: false,
+      gameAttendanceOverrides: {
+        "ov-u1": { away: "avg" },
+        "ov-u2": { away: "low", home: "low" },
+        "ov-u3": { away: "high", home: "high" },
+      },
+    })
+    expect(neutralOv.stateHash).toBe(baseWeighted.stateHash)
+    expect(neutralOv.teams.map((t) => t.playoffPct)).toEqual(baseWeighted.teams.map((t) => t.playoffPct))
+
+    // Ignored in 50_50 and classic modes
+    for (const nonWeightedMode of ["50_50", "classic"] as const) {
+      const mBase = computePlayoffOdds({
+        seasonId: "test-att-ov",
+        seasonName: "Att Override",
+        seasonType: "fall",
+        seasonStatus: "active",
+        configuredPlayoffTeams: 2,
+        games,
+        mode: nonWeightedMode,
+        iterations: 2_000,
+        includeTimeline: false,
+      })
+      const mWithAtt = computePlayoffOdds({
+        seasonId: "test-att-ov",
+        seasonName: "Att Override",
+        seasonType: "fall",
+        seasonStatus: "active",
+        configuredPlayoffTeams: 2,
+        games,
+        mode: nonWeightedMode,
+        iterations: 2_000,
+        includeTimeline: false,
+        gameAttendanceOverrides: { "ov-u1": { away: "low", home: "high" } },
+      })
+      expect(mWithAtt.stateHash).toBe(mBase.stateHash)
+      expect(mWithAtt.teams.map((t) => t.playoffPct)).toEqual(mBase.teams.map((t) => t.playoffPct))
+      for (const row of mWithAtt.teams) {
+        expect(row.fullStrength).toBe(row.strength)
+        expect(row.attendanceDelta).toBe(0)
+        if (row.slug === "a") {
+          expect(row.avgAttendance).toBe(7)
+          expect(row.attendanceTier).toBe("low")
+        }
+      }
+    }
+  })
+
+  it("preserves GF + GA in non-clamped de-attending, clamps at 0 without NaN, and handles zero/negative/NaN/one-sided attendance", () => {
+    const slope = BASH_CALIBRATION.fall.attendance.goalDiffSlope
+
+    // Non-clamped de-attending preserves exact GF + GA sum
+    const nonClamped = deAttendGameGoals(4, 3, 8, 13, slope)
+    expect(nonClamped.adjGf).toBeGreaterThan(4)
+    expect(nonClamped.adjGa).toBeLessThan(3)
+    expect(nonClamped.adjGf + nonClamped.adjGa).toBeCloseTo(7, 12)
+
+    // 0-goal shutout with huge attendance advantage clamps at 0 and stays finite/non-negative
+    const clamped = deAttendGameGoals(0, 6, 15, 6, slope)
+    expect(clamped.adjGf).toBe(0)
+    expect(clamped.adjGa).toBeGreaterThan(6)
+    expect(Number.isFinite(clamped.adjGf)).toBe(true)
+    expect(Number.isFinite(clamped.adjGa)).toBe(true)
+
+    // Zero, negative, NaN, Infinity, null, and undefined leave goals unadjusted
+    const badInputs: Array<[number | null | undefined, number | null | undefined]> = [
+      [0, 11],
+      [11, 0],
+      [-3, 11],
+      [11, -1],
+      [Number.NaN, 11],
+      [11, Number.NaN],
+      [Number.POSITIVE_INFINITY, 11],
+      [null, 11],
+      [11, undefined],
+    ]
+    for (const [teamAtt, oppAtt] of badInputs) {
+      expect(deAttendGameGoals(3, 2, teamAtt, oppAtt, slope)).toEqual({ adjGf: 3, adjGa: 2 })
+    }
+
+    // Full simulation integration with 0, negative, NaN, and missing opponent attendance
+    const edgeGames: PlayoffSimGame[] = [
+      makeGame({
+        id: "edge-1",
+        date: "2026-10-03",
+        awaySlug: "a",
+        homeSlug: "b",
+        awayScore: 3,
+        homeScore: 2,
+        awayAttendance: 0,
+        homeAttendance: 12,
+        status: "final",
+      }),
+      makeGame({
+        id: "edge-2",
+        date: "2026-10-10",
+        awaySlug: "a",
+        homeSlug: "b",
+        awayScore: 2,
+        homeScore: 4,
+        awayAttendance: Number.NaN,
+        homeAttendance: -5,
+        status: "final",
+      }),
+      makeGame({ id: "edge-u1", date: "2026-10-17", awaySlug: "a", homeSlug: "b", status: "upcoming" }),
+    ]
+    const snap = computePlayoffOdds({
+      seasonId: "test-att-invalid",
+      seasonName: "Invalid Att",
+      seasonType: "fall",
+      seasonStatus: "active",
+      configuredPlayoffTeams: 1,
+      games: edgeGames,
+      mode: "weighted",
+      iterations: 1_000,
+      includeTimeline: false,
+    })
+    const bySlug = Object.fromEntries(snap.teams.map((t) => [t.slug, t]))
+    expect(bySlug.a.avgAttendance).toBeNull()
+    expect(bySlug.a.attendanceTier).toBeNull()
+    expect(bySlug.a.fullStrength).toBe(bySlug.a.strength)
+    expect(bySlug.a.attendanceDelta).toBe(0)
+    expect(bySlug.b.avgAttendance).toBe(12)
+    expect(bySlug.b.fullStrength).toBe(bySlug.b.strength)
+    expect(bySlug.b.attendanceDelta).toBe(0)
+  })
+
+  it("verifies Summer goalDiffSlope (2.747) on fullStrength and logOddsSlope (1.276) + presets (6.0/9.0/11.8) on overrides", () => {
+    const summerGames: PlayoffSimGame[] = [
+      makeGame({
+        id: "s-f1",
+        date: "2026-07-05",
+        awaySlug: "a",
+        homeSlug: "b",
+        awayScore: 4,
+        homeScore: 5,
+        awayAttendance: 7,
+        homeAttendance: 11,
+        status: "final",
+      }),
+      makeGame({
+        id: "s-f2",
+        date: "2026-07-05",
+        awaySlug: "c",
+        homeSlug: "d",
+        awayScore: 5,
+        homeScore: 5,
+        awayAttendance: 9,
+        homeAttendance: 9,
+        status: "final",
+      }),
+      makeGame({ id: "s-u1", date: "2026-07-12", awaySlug: "a", homeSlug: "b", status: "upcoming" }),
+      makeGame({ id: "s-u2", date: "2026-07-12", awaySlug: "c", homeSlug: "d", status: "upcoming" }),
+      makeGame({ id: "s-u3", date: "2026-07-19", awaySlug: "a", homeSlug: "c", status: "upcoming" }),
+      makeGame({ id: "s-u4", date: "2026-07-19", awaySlug: "b", homeSlug: "d", status: "upcoming" }),
+    ]
+
+    const baseSummer = computePlayoffOdds({
+      seasonId: "test-summer-cal",
+      seasonName: "Summer Cal",
+      seasonType: "summer",
+      seasonStatus: "active",
+      configuredPlayoffTeams: 2,
+      games: summerGames,
+      mode: "weighted",
+      iterations: 5_000,
+      includeTimeline: false,
+    })
+
+    // Exact Summer goalDiffSlope = 2.747 check (and distinct from Fall's 3.882)
+    const { adjGf, adjGa } = deAttendGameGoals(4, 5, 7, 11, 2.747)
+    const expectedFullA = Math.round(computeWeightedStrength(adjGf, adjGa, 1, BASH_CALIBRATION.summer).strength * 1000) / 1000
+    const fallSlopeAlt = deAttendGameGoals(4, 5, 7, 11, BASH_CALIBRATION.fall.attendance.goalDiffSlope)
+    const unexpectedFallA = Math.round(computeWeightedStrength(fallSlopeAlt.adjGf, fallSlopeAlt.adjGa, 1, BASH_CALIBRATION.summer).strength * 1000) / 1000
+    const baseBySlug = Object.fromEntries(baseSummer.teams.map((t) => [t.slug, t]))
+    expect(baseBySlug.a.fullStrength).toBe(expectedFullA)
+    expect(baseBySlug.a.fullStrength).not.toBe(unexpectedFallA)
+
+    // Summer logOddsSlope = 1.276 and presetHeadcounts { low: 6.0, avg: 9.0, high: 11.8 } on gameAttendanceOverrides
+    const ovSummer = computePlayoffOdds({
+      seasonId: "test-summer-cal",
+      seasonName: "Summer Cal",
+      seasonType: "summer",
+      seasonStatus: "active",
+      configuredPlayoffTeams: 2,
+      games: summerGames,
+      mode: "weighted",
+      iterations: 5_000,
+      includeTimeline: false,
+      gameAttendanceOverrides: { "s-u1": { away: "low", home: "high" } },
+    })
+
+    const baseU1 = baseSummer.bigGames.find((g) => g.gameId === "s-u1")!
+    const ovU1 = ovSummer.bigGames.find((g) => g.gameId === "s-u1")!
+    expect(ovU1.homeWinProb).toBeGreaterThan(baseU1.homeWinProb)
+    expect(ovU1.awayWinProb).toBeLessThan(baseU1.awayWinProb)
+
+    // Verify win probability multiplier uses Summer slope (1.276) and presets (6.0 vs 11.8)
+    const pBase = log5(baseBySlug.b.strength, baseBySlug.a.strength)
+    const summerM = Math.exp(1.276 * Math.log(11.8 / 6.0))
+    const pSummerAdj = (pBase * summerM) / (pBase * summerM + (1 - pBase))
+    expect(pSummerAdj).toBeGreaterThan(pBase)
+    expect(ovU1.homeWinProb / 100).toBeCloseTo(pSummerAdj, 1)
+  })
+
+  it("ignores isForfeit games with attendance populated and strips SOWG before de-attending hasShootout games", () => {
+    const games: PlayoffSimGame[] = [
+      makeGame({
+        id: "ff-real",
+        date: "2026-10-03",
+        awaySlug: "a",
+        homeSlug: "b",
+        awayScore: 3,
+        homeScore: 3,
+        awayAttendance: 11,
+        homeAttendance: 11,
+        status: "final",
+      }),
+      // Forfeit with extreme attendance must be ignored by avgAttendance and fullStrength
+      makeGame({
+        id: "ff-forfeit",
+        date: "2026-10-10",
+        awaySlug: "a",
+        homeSlug: "b",
+        awayScore: 0,
+        homeScore: 5,
+        awayAttendance: 5,
+        homeAttendance: 16,
+        isForfeit: true,
+        status: "final",
+      }),
+      // Shootout loss for 'c' (2-3 SO) with 8 vs 13 attendance: SOWG must be stripped (to 2-2) BEFORE de-attending
+      makeGame({
+        id: "so-1",
+        date: "2026-10-10",
+        awaySlug: "c",
+        homeSlug: "d",
+        awayScore: 2,
+        homeScore: 3,
+        awayAttendance: 8,
+        homeAttendance: 13,
+        isOvertime: true,
+        hasShootout: true,
+        status: "final",
+      }),
+      makeGame({ id: "u-1", date: "2026-10-17", awaySlug: "a", homeSlug: "c", status: "upcoming" }),
+    ]
+
+    const snap = computePlayoffOdds({
+      seasonId: "test-ff-so",
+      seasonName: "Forfeit & SO",
+      seasonType: "fall",
+      seasonStatus: "active",
+      configuredPlayoffTeams: 2,
+      games,
+      mode: "weighted",
+      iterations: 1_000,
+      includeTimeline: false,
+    })
+
+    const bySlug = Object.fromEntries(snap.teams.map((t) => [t.slug, t]))
+    expect(bySlug.a.avgAttendance).toBe(11)
+    expect(bySlug.b.avgAttendance).toBe(11)
+    expect(bySlug.a.fullStrength).toBe(bySlug.a.strength)
+    expect(bySlug.b.fullStrength).toBe(bySlug.b.strength)
+
+    const { adjGf: soAdjGf, adjGa: soAdjGa } = deAttendGameGoals(
+      2,
+      2,
+      8,
+      13,
+      BASH_CALIBRATION.fall.attendance.goalDiffSlope
+    )
+    const expectedC = Math.round(computeWeightedStrength(soAdjGf, soAdjGa, 1, BASH_CALIBRATION.fall).strength * 1000) / 1000
+    const unstripped = deAttendGameGoals(2, 3, 8, 13, BASH_CALIBRATION.fall.attendance.goalDiffSlope)
+    const wrongUnstrippedC = Math.round(computeWeightedStrength(unstripped.adjGf, unstripped.adjGa, 1, BASH_CALIBRATION.fall).strength * 1000) / 1000
+    expect(bySlug.c.fullStrength).toBe(expectedC)
+    expect(bySlug.c.fullStrength).not.toBe(wrongUnstrippedC)
+  })
+
+  it("supports single-sided overrides, ignores overrides on final/locked games, shifts BigGame win probs, and aligns timeline in full_strength mode", () => {
+    const games: PlayoffSimGame[] = [
+      makeGame({
+        id: "bg-f1",
+        date: "2026-10-03",
+        awaySlug: "a",
+        homeSlug: "b",
+        awayScore: 2,
+        homeScore: 4,
+        awayAttendance: 7,
+        homeAttendance: 14,
+        status: "final",
+      }),
+      makeGame({
+        id: "bg-f2",
+        date: "2026-10-10",
+        awaySlug: "c",
+        homeSlug: "d",
+        awayScore: 3,
+        homeScore: 3,
+        awayAttendance: 11,
+        homeAttendance: 11,
+        status: "final",
+      }),
+      makeGame({ id: "bg-u1", date: "2026-10-17", awaySlug: "a", homeSlug: "b", status: "upcoming" }),
+      makeGame({ id: "bg-u2", date: "2026-10-17", awaySlug: "c", homeSlug: "d", status: "upcoming" }),
+      makeGame({ id: "bg-u3", date: "2026-10-24", awaySlug: "a", homeSlug: "c", status: "upcoming" }),
+      makeGame({ id: "bg-u4", date: "2026-10-24", awaySlug: "b", homeSlug: "d", status: "upcoming" }),
+    ]
+
+    const base = computePlayoffOdds({
+      seasonId: "test-bg-shift",
+      seasonName: "BG Shift",
+      seasonType: "fall",
+      seasonStatus: "active",
+      configuredPlayoffTeams: 2,
+      games,
+      mode: "weighted",
+      iterations: 3_000,
+      includeTimeline: true,
+    })
+
+    // Single-sided override { away: "low" } defaults home to "avg" (11.0) and boosts homeWinProb
+    const singleSide = computePlayoffOdds({
+      seasonId: "test-bg-shift",
+      seasonName: "BG Shift",
+      seasonType: "fall",
+      seasonStatus: "active",
+      configuredPlayoffTeams: 2,
+      games,
+      mode: "weighted",
+      iterations: 3_000,
+      includeTimeline: false,
+      gameAttendanceOverrides: { "bg-u1": { away: "low" } },
+    })
+    const baseU1 = base.bigGames.find((g) => g.gameId === "bg-u1")!
+    const singleU1 = singleSide.bigGames.find((g) => g.gameId === "bg-u1")!
+    expect(singleSide.stateHash).not.toBe(base.stateHash)
+    expect(singleU1.homeWinProb).toBeGreaterThan(baseU1.homeWinProb)
+    expect(singleU1.awayWinProb).toBeLessThan(baseU1.awayWinProb)
+    expect(singleU1.awayWinProb + singleU1.homeWinProb).toBeCloseTo(100, 1)
+
+    // full_strength mode also shifts BigGame awayWinProb/homeWinProb and aligns timeline matchdays
+    const fullStrWithTimeline = computePlayoffOdds({
+      seasonId: "test-bg-shift",
+      seasonName: "BG Shift",
+      seasonType: "fall",
+      seasonStatus: "active",
+      configuredPlayoffTeams: 2,
+      games,
+      mode: "full_strength",
+      iterations: 3_000,
+      includeTimeline: true,
+    })
+    const fullStrU1 = fullStrWithTimeline.bigGames.find((g) => g.gameId === "bg-u1")!
+    expect(fullStrU1.awayWinProb).toBeGreaterThan(baseU1.awayWinProb)
+    expect(fullStrU1.homeWinProb).toBeLessThan(baseU1.homeWinProb)
+    // Timeline final point matches snapshot and intermediate matchdays also reflect useFullStrength
+    const lastTl = fullStrWithTimeline.timeline[fullStrWithTimeline.timeline.length - 1]
+    const prevTlFull = fullStrWithTimeline.timeline[fullStrWithTimeline.timeline.length - 2]
+    const prevTlBase = base.timeline[base.timeline.length - 2]
+    const fullTeamA = fullStrWithTimeline.teams.find((t) => t.slug === "a")!
+    expect(lastTl.teams.a.playoffPct).toBe(fullTeamA.playoffPct)
+    expect(prevTlFull.teams.a.playoffPct).toBeGreaterThan(prevTlBase.teams.a.playoffPct)
+
+    // Overrides targeting a final game or a lockedOutcomes game leave stateHash and playoffPct identical
+    const lockedBase = computePlayoffOdds({
+      seasonId: "test-bg-shift",
+      seasonName: "BG Shift",
+      seasonType: "fall",
+      seasonStatus: "active",
+      configuredPlayoffTeams: 2,
+      games,
+      mode: "weighted",
+      iterations: 3_000,
+      includeTimeline: false,
+      lockedOutcomes: { "bg-u2": "away_reg" },
+    })
+    const overrideOnFinalAndLocked = computePlayoffOdds({
+      seasonId: "test-bg-shift",
+      seasonName: "BG Shift",
+      seasonType: "fall",
+      seasonStatus: "active",
+      configuredPlayoffTeams: 2,
+      games,
+      mode: "weighted",
+      iterations: 3_000,
+      includeTimeline: false,
+      lockedOutcomes: { "bg-u2": "away_reg" },
+      gameAttendanceOverrides: {
+        "bg-f1": { away: "low", home: "high" },
+        "bg-u2": { away: "low", home: "high" },
+      },
+    })
+    expect(overrideOnFinalAndLocked.stateHash).toBe(lockedBase.stateHash)
+    expect(overrideOnFinalAndLocked.teams.map((t) => t.playoffPct)).toEqual(
+      lockedBase.teams.map((t) => t.playoffPct)
+    )
+  })
+})
+
 describe("Playoff Odds Audit Fixes — SCS Classic Fixed Strengths, otLoserGoals & extraNorm", () => {
   it("keeps SCS Classic on fixed regressed strengths (no Beta posterior overdispersion)", () => {
+    // Two teams with 2 GP each (1-1 split, s = 0.500) and 6 remaining games between them.
+    // Under fixed strength (no Beta sampling), P(team A wins all 6 in reg) = (0.5 * (1 - pExtra))^6 ≈ 0.0074.
+    // Under Beta(k*s, k*(1-s)) sampling with k=1.5 (kappa=15), positive correlation across games inflates
+    // the 6-0 tail probability by >3x (~0.025+). Checking 6-win finish count cleanly proves no Beta sampling.
     const games: PlayoffSimGame[] = [
       makeGame({ id: "c-f1", date: "2026-10-03", awaySlug: "a", homeSlug: "b", awayScore: 4, homeScore: 2, status: "final" }),
       makeGame({ id: "c-f2", date: "2026-10-10", awaySlug: "b", homeSlug: "a", awayScore: 4, homeScore: 2, status: "final" }),
@@ -938,9 +1793,11 @@ describe("Playoff Odds Audit Fixes — SCS Classic Fixed Strengths, otLoserGoals
 
     const classicWinOut = classicSnap.teams[0].whatIfRows.find((r) => r.minAddedPts === 18)
     const weightedWinOut = weightedSnap.teams[0].whatIfRows.find((r) => r.minAddedPts === 18)
+    // Under fixed 50% strength with 12% extra time: (0.44)^6 = 0.00725 -> ~145 sims out of 20,000
     expect(classicWinOut).toBeDefined()
     expect(classicWinOut!.simCount).toBeGreaterThan(90)
     expect(classicWinOut!.simCount).toBeLessThan(210)
+    // Weighted mode (with Beta sampling) has much heavier tails (>2x classic's 6-0 sim count)
     expect(weightedWinOut!.simCount).toBeGreaterThan(classicWinOut!.simCount * 2)
   })
 
@@ -949,6 +1806,7 @@ describe("Playoff Odds Audit Fixes — SCS Classic Fixed Strengths, otLoserGoals
     expect(BASH_CALIBRATION.summer.otLoserGoals).toBe(5)
     expect(BASH_CALIBRATION.fall.strengthConcentration).toBe(1.5)
 
+    // Verify realized OT+SO share in weighted mode (with Beta sampling) stays close to 12.0% Fall target
     const teams = ["a", "b", "c", "d"]
     const games = buildSyntheticSeason(teams, 4, 2)
     const snap = computePlayoffOdds({
@@ -975,6 +1833,7 @@ describe("Playoff Odds Audit Fixes — SCS Classic Fixed Strengths, otLoserGoals
         bg.outcomeSampleCounts.home_reg
     }
     const realizedExtraPct = (otSum / totalSum) * 100
+    // Should be close to 12% target (not drifted down to ~9-10%)
     expect(realizedExtraPct).toBeGreaterThan(10.8)
     expect(realizedExtraPct).toBeLessThan(13.5)
   })

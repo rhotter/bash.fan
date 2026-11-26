@@ -42,8 +42,8 @@ export async function fetchPlayoffOdds(
       ? (await getSeasonById(seasonParam)) ?? (await getCurrentSeason())
       : await getCurrentSeason()
 
-  // Schedule + franchise/team colors in one parallel wave (neon-http: no sequential waterfall)
-  const [rawRows, colorRows] = await Promise.all([rawSql(sql`
+  // Schedule + franchise/team colors + dressed boxscore attendance in one parallel wave (neon-http: no sequential waterfall)
+  const [rawRows, colorRows, attendanceRows] = await Promise.all([rawSql(sql`
     SELECT
       g.id,
       g.date,
@@ -88,6 +88,37 @@ export async function fetchPlayoffOdds(
       LEFT JOIN franchises f ON f.slug = st.franchise_slug
       WHERE st.season_id = ${season.id}
     `),
+    rawSql(sql`
+      SELECT
+        u.game_id,
+        u.team_slug,
+        COUNT(DISTINCT CASE WHEN u.is_skater = 1 THEN u.player_id END)::int AS skaters,
+        COUNT(DISTINCT u.player_id)::int AS dressed
+      FROM (
+        SELECT pgs.game_id, pgs.team_slug, pgs.player_id, 1 AS is_skater
+        FROM player_game_stats pgs
+        INNER JOIN games g ON g.id = pgs.game_id
+        WHERE g.season_id = ${season.id}
+          AND g.status = 'final'
+          AND g.id NOT LIKE 'test-%'
+          AND COALESCE(g.game_type, 'regular') = 'regular'
+          AND NOT g.is_playoff
+          AND NOT g.is_forfeit
+          AND pgs.team_slug IS NOT NULL
+        UNION ALL
+        SELECT ggs.game_id, ggs.team_slug, ggs.player_id, 0 AS is_skater
+        FROM goalie_game_stats ggs
+        INNER JOIN games g ON g.id = ggs.game_id
+        WHERE g.season_id = ${season.id}
+          AND g.status = 'final'
+          AND g.id NOT LIKE 'test-%'
+          AND COALESCE(g.game_type, 'regular') = 'regular'
+          AND NOT g.is_playoff
+          AND NOT g.is_forfeit
+          AND ggs.team_slug IS NOT NULL
+      ) u
+      GROUP BY u.game_id, u.team_slug
+    `),
   ])
   const rows = rawRows as unknown as RawScheduleRow[]
 
@@ -96,6 +127,20 @@ export async function fetchPlayoffOdds(
   for (const r of colorRows as unknown as Array<{ team_slug: string; color: string | null }>) {
     if (r.color && /^#?[0-9a-f]{6}$/i.test(r.color)) {
       teamColors[r.team_slug] = r.color.startsWith("#") ? r.color.toLowerCase() : `#${r.color.toLowerCase()}`
+    }
+  }
+
+  const attendanceByGameTeam = new Map<string, number>()
+  for (const r of attendanceRows as unknown as Array<{
+    game_id: string
+    team_slug: string
+    skaters: number | string
+    dressed: number | string
+  }>) {
+    const skaters = Number(r.skaters)
+    const dressed = Number(r.dressed)
+    if (skaters > 0 && dressed > 0) {
+      attendanceByGameTeam.set(`${r.game_id}|${r.team_slug}`, dressed)
     }
   }
 
@@ -113,6 +158,8 @@ export async function fetchPlayoffOdds(
     if ((r.game_type ?? "regular") !== "regular") continue
     if (isLegacyTeamSlug(r.away_slug) || isLegacyTeamSlug(r.home_slug)) continue
 
+    const isRealFinal = r.status === "final" && !r.is_forfeit
+
     regularGames.push({
       id: r.id,
       date: r.date,
@@ -124,6 +171,8 @@ export async function fetchPlayoffOdds(
       homeName: r.home_name,
       awayScore: r.status === "final" ? r.away_score : null,
       homeScore: r.status === "final" ? r.home_score : null,
+      awayAttendance: isRealFinal ? (attendanceByGameTeam.get(`${r.id}|${r.away_slug}`) ?? null) : null,
+      homeAttendance: isRealFinal ? (attendanceByGameTeam.get(`${r.id}|${r.home_slug}`) ?? null) : null,
       status: (r.status === "final" || r.status === "live" ? r.status : "upcoming") as
         | "final"
         | "upcoming"

@@ -12,8 +12,11 @@ import { PlayoffOddsLeagueCharts } from "@/components/playoff-odds-league-charts
 import { PlayoffOddsFilterBar, STATS_MODEL_OPTIONS } from "@/components/playoff-odds-filter-bar"
 import { usePlayoffOdds } from "@/lib/hockey-data"
 import { CLIENT_WHATIF_ITERATIONS, computePlayoffOdds } from "@/lib/playoff-odds"
+import { isGoalWeightedMode } from "@/lib/playoff-odds-types"
 import type {
+  AttendanceTier,
   BigGameOutcomeKey,
+  GameAttendanceOverride,
   PlayoffOddsMode,
   PlayoffOddsSnapshot,
 } from "@/lib/playoff-odds-types"
@@ -34,6 +37,7 @@ export function PlayoffOddsView({
   const [mode, setMode] = useState<PlayoffOddsMode>(initialMode)
   const [selectedTeamSlug, setSelectedTeamSlug] = useState<string | null>(initialTeam ?? null)
   const [lockedOutcomes, setLockedOutcomes] = useState<Record<string, BigGameOutcomeKey>>({})
+  const [attendanceOverrides, setAttendanceOverrides] = useState<Record<string, GameAttendanceOverride>>({})
   const [highlightedSlug, setHighlightedSlug] = useState<string | null>(null)
   const [modeSwitchOrigin, setModeSwitchOrigin] = useState<{
     seasonKey: string
@@ -42,15 +46,19 @@ export function PlayoffOddsView({
 
   useEffect(() => {
     setMode(initialMode)
+    if (!isGoalWeightedMode(initialMode)) {
+      setAttendanceOverrides({})
+    }
   }, [initialMode])
 
   useEffect(() => {
     setSelectedTeamSlug(initialTeam ?? null)
   }, [initialTeam])
 
-  // Clear What-If locks if user switches seasons
+  // Clear What-If state if user switches seasons
   useEffect(() => {
     setLockedOutcomes({})
+    setAttendanceOverrides({})
   }, [season])
 
   const {
@@ -71,6 +79,9 @@ export function PlayoffOddsView({
         })
       }
       setMode(nextMode)
+      if (!isGoalWeightedMode(nextMode)) {
+        setAttendanceOverrides({})
+      }
       onUrlStateChange?.({ mode: nextMode, team: selectedTeamSlug ?? undefined })
     },
     [baselineSnapshot, isStaleData, season, onUrlStateChange, selectedTeamSlug]
@@ -100,6 +111,7 @@ export function PlayoffOddsView({
   )
 
   const handleToggleOutcome = useCallback((gameId: string, outcome: BigGameOutcomeKey) => {
+    const isLocking = lockedOutcomes[gameId] !== outcome
     setLockedOutcomes((prev) => {
       const next = { ...prev }
       if (next[gameId] === outcome) {
@@ -109,10 +121,46 @@ export function PlayoffOddsView({
       }
       return next
     })
-  }, [])
+    if (isLocking) {
+      setAttendanceOverrides((prev) => {
+        if (!(gameId in prev)) return prev
+        const next = { ...prev }
+        delete next[gameId]
+        return next
+      })
+    }
+  }, [lockedOutcomes])
+
+  const handleChangeAttendanceOverride = useCallback(
+    (gameId: string, side: "away" | "home", tier: AttendanceTier | null) => {
+      if (!isGoalWeightedMode(mode)) return
+      setAttendanceOverrides((prev) => {
+        const current = prev[gameId] ?? {}
+        const updated: GameAttendanceOverride = { ...current }
+        if (tier === null) {
+          delete updated[side]
+        } else {
+          updated[side] = tier
+        }
+        const next = { ...prev }
+        if (!updated.away && !updated.home) {
+          delete next[gameId]
+        } else {
+          next[gameId] = updated
+        }
+        return next
+      })
+    },
+    [mode]
+  )
 
   const handleClearLocked = useCallback(() => {
     setLockedOutcomes({})
+  }, [])
+
+  const handleClearWhatIf = useCallback(() => {
+    setLockedOutcomes({})
+    setAttendanceOverrides({})
   }, [])
 
   const allUpcomingGames = useMemo(
@@ -120,17 +168,19 @@ export function PlayoffOddsView({
     [baselineSnapshot]
   )
 
+  const upcomingIds = useMemo(
+    () => new Set(allUpcomingGames.map((g) => g.id)),
+    [allUpcomingGames]
+  )
+
   // Drop any locked outcome whose game finalized during an SWR refresh
   const effectiveLockedOutcomes = useMemo(() => {
-    const upcomingIds = new Set(allUpcomingGames.map((g) => g.id))
     const filtered: Record<string, BigGameOutcomeKey> = {}
     for (const [gid, outcome] of Object.entries(lockedOutcomes)) {
       if (upcomingIds.has(gid)) filtered[gid] = outcome
     }
     return filtered
-  }, [lockedOutcomes, allUpcomingGames])
-
-  const lockedCount = Object.keys(effectiveLockedOutcomes).length
+  }, [lockedOutcomes, upcomingIds])
 
   const baselineMatchesRequest = Boolean(
     baselineSnapshot &&
@@ -139,10 +189,41 @@ export function PlayoffOddsView({
       (!season || baselineSnapshot.seasonId === season)
   )
 
-  // Instant client-side What-If re-simulation when user locks 1+ upcoming game outcomes
+  const lockedCount = Object.keys(effectiveLockedOutcomes).length
+  const effectiveMode = baselineMatchesRequest ? mode : (baselineSnapshot?.mode ?? mode)
+  const isWeightedFamily = isGoalWeightedMode(mode) && isGoalWeightedMode(effectiveMode)
+
+  const uiAttendanceOverrides = useMemo(() => {
+    if (!isWeightedFamily) return {}
+    const filtered: Record<string, GameAttendanceOverride> = {}
+    for (const [gid, ov] of Object.entries(attendanceOverrides)) {
+      if (upcomingIds.has(gid) && !(gid in effectiveLockedOutcomes) && (ov.away || ov.home)) {
+        filtered[gid] = ov
+      }
+    }
+    return filtered
+  }, [isWeightedFamily, attendanceOverrides, upcomingIds, effectiveLockedOutcomes])
+
+  // Only count/simulate net non-neutral overrides where away tier differs from home tier
+  const effectiveAttendanceOverrides = useMemo(() => {
+    const filtered: Record<string, GameAttendanceOverride> = {}
+    for (const [gid, ov] of Object.entries(uiAttendanceOverrides)) {
+      const awayTier = ov.away ?? "avg"
+      const homeTier = ov.home ?? "avg"
+      if (awayTier !== homeTier) {
+        filtered[gid] = { away: awayTier, home: homeTier }
+      }
+    }
+    return filtered
+  }, [uiAttendanceOverrides])
+
+  const attendanceOverrideCount = Object.keys(effectiveAttendanceOverrides).length
+  const hasWhatIf = lockedCount > 0 || attendanceOverrideCount > 0
+
+  // Instant client-side What-If re-simulation when any What-If scenario is active
   const activeSnapshot = useMemo(() => {
     if (!baselineSnapshot) return null
-    if (lockedCount === 0) return baselineSnapshot
+    if (!hasWhatIf) return baselineSnapshot
 
     const whatIfSnap = computePlayoffOdds({
       seasonId: baselineSnapshot.seasonId,
@@ -157,6 +238,7 @@ export function PlayoffOddsView({
       includeTimeline: false,
       includeTailProbes: true,
       lockedOutcomes: effectiveLockedOutcomes,
+      gameAttendanceOverrides: effectiveAttendanceOverrides,
     })
 
     // Keep baseline season timeline available in the team breakdown chart
@@ -165,12 +247,19 @@ export function PlayoffOddsView({
       timeline: baselineSnapshot.timeline,
       teamColors: baselineSnapshot.teamColors,
     }
-  }, [baselineSnapshot, baselineMatchesRequest, lockedCount, effectiveLockedOutcomes, mode])
+  }, [
+    baselineSnapshot,
+    baselineMatchesRequest,
+    hasWhatIf,
+    effectiveLockedOutcomes,
+    effectiveAttendanceOverrides,
+    mode,
+  ])
 
   const baselineTeamsBySlug = useMemo(() => {
-    if (!baselineSnapshot || !baselineMatchesRequest || lockedCount === 0) return undefined
+    if (!baselineSnapshot || !baselineMatchesRequest || !hasWhatIf) return undefined
     return new Map(baselineSnapshot.teams.map((t) => [t.slug, t]))
-  }, [baselineSnapshot, baselineMatchesRequest, lockedCount])
+  }, [baselineSnapshot, baselineMatchesRequest, hasWhatIf])
 
   if (season === "all") {
     return (
@@ -230,9 +319,16 @@ export function PlayoffOddsView({
     .sort((a, b) => a.name.localeCompare(b.name))
     .map((t) => ({ slug: t.slug, name: t.name }))
   const isSeasonComplete =
-    lockedCount === 0 &&
+    !hasWhatIf &&
     (activeSnapshot.seasonStatus === "completed" || activeSnapshot.gamesRemaining === 0)
   const showBigGames = !isSeasonComplete
+  const showAttendanceWhatIf = isWeightedFamily && activeSnapshot.gamesRemaining > 0
+  const bannerParts = [
+    lockedCount > 0 ? `${lockedCount} ${lockedCount === 1 ? "game" : "games"} locked` : null,
+    attendanceOverrideCount > 0
+      ? `${attendanceOverrideCount} bench ${attendanceOverrideCount === 1 ? "override" : "overrides"}`
+      : null,
+  ].filter(Boolean)
 
   return (
     <div className="flex flex-col gap-6">
@@ -301,7 +397,7 @@ export function PlayoffOddsView({
           )}
 
           {/* Active What-If Scenario Banner */}
-          {lockedCount > 0 && (
+          {hasWhatIf && (
             <div
               role="status"
               className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-primary/40 bg-primary/[0.06] px-3.5 py-2.5 text-xs"
@@ -309,17 +405,17 @@ export function PlayoffOddsView({
               <div className="flex items-center gap-2 text-foreground">
                 <Sparkles className="h-4 w-4 shrink-0 text-primary" />
                 <span>
-                  <span className="font-semibold">What-If scenario active</span> ({lockedCount}{" "}
-                  {lockedCount === 1 ? "game" : "games"} locked) — Projected odds updated to reflect these outcomes.
+                  <span className="font-semibold">What-If scenario active</span> ({bannerParts.join(" · ")}) —
+                  Projected odds updated.
                 </span>
               </div>
               <button
                 type="button"
-                onClick={handleClearLocked}
+                onClick={handleClearWhatIf}
                 className="inline-flex items-center gap-1 rounded-md bg-primary px-3 py-1 text-[11px] font-semibold text-primary-foreground hover:bg-primary/90 transition-colors cursor-pointer"
               >
                 <RotateCcw className="h-3 w-3" />
-                Reset picks
+                Reset What-If
               </button>
             </div>
           )}
@@ -330,7 +426,7 @@ export function PlayoffOddsView({
               <TeamOddsPanel
                 team={selectedTeam}
                 snapshot={activeSnapshot}
-                isWhatIfActive={lockedCount > 0}
+                isWhatIfActive={hasWhatIf}
               />
 
               {showBigGames && (
@@ -343,6 +439,10 @@ export function PlayoffOddsView({
                   lockedTeamSlug={selectedTeam.slug}
                   baselineTeam={baselineTeamsBySlug?.get(selectedTeam.slug)}
                   whatIfTeam={selectedTeam}
+                  showAttendanceWhatIf={showAttendanceWhatIf}
+                  attendanceOverrides={uiAttendanceOverrides}
+                  onChangeAttendanceOverride={handleChangeAttendanceOverride}
+                  isWhatIfActive={hasWhatIf}
                 />
               )}
             </>
@@ -353,7 +453,7 @@ export function PlayoffOddsView({
                 snapshot={activeSnapshot}
                 highlightedSlug={highlightedSlug}
                 onHighlight={setHighlightedSlug}
-                isWhatIfActive={lockedCount > 0}
+                isWhatIfActive={hasWhatIf}
               />
 
               {/* Playoff Odds & Seed Distribution Table */}
@@ -374,6 +474,10 @@ export function PlayoffOddsView({
                   onToggleOutcome={handleToggleOutcome}
                   onClearLocked={handleClearLocked}
                   allUpcomingGames={allUpcomingGames}
+                  showAttendanceWhatIf={showAttendanceWhatIf}
+                  attendanceOverrides={uiAttendanceOverrides}
+                  onChangeAttendanceOverride={handleChangeAttendanceOverride}
+                  isWhatIfActive={hasWhatIf}
                 />
               )}
             </>

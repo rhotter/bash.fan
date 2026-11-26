@@ -18,6 +18,11 @@ export const STATS_MODEL_OPTIONS: ReadonlyArray<{
     hint: "Goal-based team strength calibrated on 2,100+ past BASH games — scoring, OT/SO rates, and no home-rink edge (recommended).",
   },
   {
+    value: "full_strength",
+    label: "BASH Full-Strength Adj",
+    hint: "Uses the BASH Weighted goal-based team strength model, with an additional adjustment for game-by-game bench attendance to estimate how teams perform at even attendance.",
+  },
+  {
     value: "50_50",
     label: "50/50",
     hint: "Every remaining game is a coin flip — pure schedule math.",
@@ -70,9 +75,9 @@ export function PlayoffOddsFilterBar({
 
   return (
     <div className="space-y-1.5">
-      <div className="flex items-end gap-2 rounded-lg border border-border/10 bg-card/45 p-3 sm:justify-between sm:gap-3">
+      <div className="flex flex-wrap items-end gap-2 rounded-lg border border-border/10 bg-card/45 p-3 sm:justify-between sm:gap-3">
         {/* Mobile: Teams select */}
-        <div className="flex min-w-0 flex-1 flex-col gap-1.5 sm:hidden">
+        <div className="flex min-w-[140px] flex-1 flex-col gap-1.5 sm:hidden">
           <span className={LABEL_CLASS}>Teams</span>
           {teamSelect(
             "w-full min-h-[36px] cursor-pointer appearance-none rounded-md border border-border/40 bg-card bg-[length:10px] bg-[right_8px_center] bg-no-repeat px-2 py-1.5 pr-6 text-[11px] font-semibold text-foreground"
@@ -112,7 +117,7 @@ export function PlayoffOddsFilterBar({
         </div>
 
         {/* Stats Model */}
-        <div className="flex w-[148px] shrink-0 flex-col gap-1.5">
+        <div className="flex w-[176px] shrink-0 flex-col gap-1.5">
           <label htmlFor="playoff-odds-stats-model" className={LABEL_CLASS}>
             Stats Model
           </label>

@@ -2,7 +2,7 @@
 
 **Date:** 2026-11-23  
 **Branch:** `playoff-odds-update`  
-**Status:** Revised after Adversarial Math & SWE Review (Pending Approval)  
+**Status:** Implemented (Updated to promote Full-Strength to 4th Stats Model: `BASH Full-Strength Adj`)  
 
 ---
 
@@ -22,15 +22,14 @@ In BASH, teams frequently play with short benches or unusually full benches, and
 - Add empirically calibrated Fall and Summer attendance model parameters to `BASH_CALIBRATION` in `lib/playoff-odds.ts`.
 - Fetch per-game dressed headcounts (distinct `player_id` union across `player_game_stats` and `goalie_game_stats`) in `lib/fetch-playoff-odds.ts` within the existing `Promise.all` database wave (zero extra round-trips).
 - Compute and expose per-team `avgAttendance`, `attendanceTier` (`"low" | "avg" | "high"`), `fullStrength`, and `attendanceDelta` (`fullStrength - strength`) on `TeamOddsRow`.
-- Add What-If controls in `weighted` mode for:
-  - **Full-Strength Remaining Games** (simulating remaining games using each team's `fullStrength` rating).
-  - **Per-Game Attendance Overrides** (`Low / Avg / High`) on upcoming/Big Games in the client-side 20,000-run Monte Carlo engine.
+- Add a 4th Stats Model **`BASH Full-Strength Adj`** (`mode = "full_strength"`, placed 2nd right after `BASH Weighted`) that simulates the season and full trajectory timeline using each team's `fullStrength` rating (supporting active and completed seasons + shareable `?mode=full_strength` URLs).
+- Add per-game **`What-If Attendance`** attendance overrides (`Low / Avg / High`) on upcoming/Big Games in both `weighted` and `full_strength` modes inside the client-side 20,000-run Monte Carlo engine.
 - Document the historical findings, percentiles, caveats, and formula in `components/playoff-odds-methodology.tsx`.
 
 ### Non-Goals
 - **No change to baseline Playoff Odds:** Default playoff probabilities remain anchored to Observed Strength (`Str`), because a team's attendance habit tends to persist unless something changes.
 - **No individual RSVP/roster prediction:** Future games do not attempt to predict which specific players will attend.
-- **No attendance adjustments in `50_50` or `classic` modes:** Attendance What-Ifs and `Full Str` projections apply only to `weighted` mode (`avgAttendance` and `attendanceTier` may still be displayed as informational stats).
+- **No attendance adjustments in `50_50` or `classic` modes:** `Full Str` projections and `What-If Attendance` overrides apply only in goal-weighted modes (`weighted` and `full_strength`, via `isGoalWeightedMode(mode)`); `avgAttendance` and `attendanceTier` are still displayed as informational stats.
 
 ### Anti-Goals
 - Never leak attendance assumptions into default baseline odds by assuming short-benched teams automatically revert to league-average attendance.
@@ -106,8 +105,8 @@ The continuous `ln(att)` curve outperforms the 3-bucket model on every metric (+
 
 ## 4. Considered Approaches
 
-### Approach A: Continuous `ln(att)` Model + Full-Strength Diagnostics + Global & Matchup What-Ifs *(Selected)*
-- **Design:** Fit continuous `ln(home_att / away_att)` slopes in `BASH_CALIBRATION`, compute `fullStrength` via goal-rate de-attending fed through `computeWeightedStrength()`, and provide both a global "Simulate at Full Strength" What-If toggle and per-game `Low / Avg / High` attendance overrides (mapped to empirical 20th/50th/80th bucket averages).
+### Approach A: Continuous `ln(att)` Model + Full-Strength Diagnostics, 4th Stats Model & Matchup What-Ifs *(Selected)*
+- **Design:** Fit continuous `ln(home_att / away_att)` slopes in `BASH_CALIBRATION`, compute `fullStrength` via goal-rate de-attending fed through `computeWeightedStrength()`, expose **`BASH Full-Strength Adj`** (`mode = "full_strength"`, 2nd Stats Model option) for full-season simulation & timeline replays, and provide per-game **`What-If Attendance`** (`Low / Avg / High`) overrides on Big Games (mapped to empirical 20th/50th/80th bucket averages).
 - **Tradeoff:** Slightly richer What-If state and UI, but captures diminishing returns accurately (e.g., 6 vs. 9 players) and answers both season-long and single-game questions in the existing client-side simulator.
 
 ### Approach B: 3-Bucket Model + Diagnostic Columns & Global Full-Strength Toggle *(Rejected)*
@@ -124,7 +123,8 @@ The continuous `ln(att)` curve outperforms the 3-bucket model on every metric (+
 
 ### 5.1 Types & Calibration (`lib/playoff-odds-types.ts`, `lib/playoff-odds.ts`)
 
-1. **`AttendanceTier`**: `"low" | "avg" | "high"`
+1. **`PlayoffOddsMode` & Helpers**: `"weighted" | "full_strength" | "50_50" | "classic"` with `isValidPlayoffOddsMode()` and `isGoalWeightedMode(mode)` (`weighted` or `full_strength`).
+2. **`AttendanceTier`**: `"low" | "avg" | "high"`
 2. **`AttendanceCalibration`** on `CalibrationProfile`:
    - `lowP20: number` (Fall: `9`, Summer: `7`)
    - `medianP50: number` (Fall: `11`, Summer: `9`)
@@ -159,47 +159,50 @@ To avoid any link-function or double-shrinkage scale mismatch with `computeWeigh
 ### 5.3 Data Fetching (`lib/fetch-playoff-odds.ts`)
 
 Extend the existing `Promise.all` wave in `fetchPlayoffOdds()` with a 3rd parallel query (zero extra `neon-http` round-trips):
-- Join `games g` on `g.season_id = ${season.id} AND g.status = 'final' AND COALESCE(g.game_type, 'regular') = 'regular' AND NOT g.is_playoff`.
+- Join `games g` on `g.season_id = ${season.id} AND g.status = 'final' AND g.id NOT LIKE 'test-%' AND COALESCE(g.game_type, 'regular') = 'regular' AND NOT g.is_playoff AND NOT g.is_forfeit`.
 - Filter `team_slug IS NOT NULL` on both `player_game_stats` and `goalie_game_stats`.
-- Count `skaters` from `player_game_stats` per `(game_id, team_slug)` and `dressed` from the `UNION` of `(game_id, team_slug, player_id)` across `player_game_stats` and `goalie_game_stats`.
+- Count `skaters` from `player_game_stats` per `(game_id, team_slug)` and `dressed` via `UNION ALL` + `COUNT(DISTINCT player_id)` across `player_game_stats` and `goalie_game_stats`.
 - Populate `awayAttendance` / `homeAttendance` with `dressed` whenever `skaters > 0` for that side; otherwise `null`.
 
-### 5.4 What-If Simulation & Hot-Loop Performance (`lib/playoff-odds.ts`)
+### 5.4 Full-Strength Mode, What-If Simulation & Hot-Loop Performance (`lib/playoff-odds.ts`)
 
-Extend `ComputePlayoffOddsOptions`:
-- `useFullStrength?: boolean` — when `true` in `weighted` mode, `runCoreSimulation` uses `fullStrengths` for `computeExtraTimeNorm`, `preGames`, and `drawIterationStrengths` (note: `TeamOddsRow.strength` still reports real Observed Strength so `Str` vs. `Full Str` remains visible).
-- `gameAttendanceOverrides?: Record<string, { away?: AttendanceTier; home?: AttendanceTier }>` — in `weighted` mode, composes additively with `useFullStrength`.
+- **`mode: "full_strength"` (`BASH Full-Strength Adj`):** `runCoreSimulation` and `buildTimeline` use `fullStrengths` for `extraNorm` (100-draw pre-loop Beta expectation), `preGames`, and `drawIterationStrengths`, while `TeamOddsRow.strength` still reports real Observed Strength so `Str` vs. `Full Str` remains visible.
+- **`gameAttendanceOverrides?: Record<string, GameAttendanceOverride>`** on `ComputePlayoffOddsOptions` — active in both `weighted` and `full_strength` modes (`isGoalWeightedMode(mode)`), composing additively with `full_strength`.
 - **Hot-loop optimization (`fillAllGameCdfs`):** Precompute a flat `Float64Array(G)` of odds multipliers once before the 20,000-iteration loop:
-  - For each remaining game `g`, if overridden: `m = Math.exp(logOddsSlope * Math.log(homePreset / awayPreset))`; else `m = 1`.
+  - For each remaining game `g`, resolve `away = ov.away ?? "avg"` and `home = ov.home ?? "avg"`; if `away !== home`, `m = Math.exp(logOddsSlope * Math.log(homePreset / awayPreset))`; else `m = 1`.
   - Inside `fillAllGameCdfs`, compute `p = log5(teamStrength[homeIdx], teamStrength[awayIdx])`; if `m !== 1`, apply `p = (p * m) / (p * m + (1 - p))`. Zero `Math.log`/`Math.exp` calls inside the hot loop.
-- **`stateHash` determinism:** Never include raw `awayAttendance`/`homeAttendance` in the baseline `stateHash`. Only append `useFullStrength` and sorted active `gameAttendanceOverrides` entries to `sigParts` when active in `weighted` mode.
+- **`stateHash` determinism:** Never include raw `awayAttendance`/`homeAttendance` in the baseline `stateHash`. Canonicalize active remaining-game `gameAttendanceOverrides` (`away = ov.away ?? "avg"`, `home = ov.home ?? "avg"`), drop net-neutral entries (`away === home`), and append sorted `att:${gid}:${away}:${home}` entries to `sigParts` in `weighted`/`full_strength` modes.
 
-### 5.5 UI & State Management (`components/playoff-odds-*.tsx`)
+### 5.5 UI & State Management (`components/playoff-odds-*.tsx`, `components/team-odds-panel.tsx`)
 
 - **`PlayoffOddsView` What-If state invariants:**
-  - Gate attendance What-Ifs strictly on `mode === "weighted"`: `effectiveUseFullStrength = mode === "weighted" && useFullStrength` and `effectiveAttendanceOverrides` filtered to both `mode === "weighted"` and currently upcoming (non-final, non-locked) game IDs.
-  - Locking a game's outcome (`handleToggleOutcome`) clears any attendance override on that game; locked games disable/dim the attendance override control.
-  - Replace `lockedCount > 0` with `hasWhatIf = lockedCount > 0 || effectiveUseFullStrength || attendanceOverrideCount > 0` consistently across `activeSnapshot`, `baselineTeamsBySlug`, the What-If banner, season-switch reset, and the "Reset What-If" button.
-- **`PlayoffOddsTable` (`Record & strength` group):**
-  - Show `Att` (`8.3` or `—` with neutral `Low` / `Avg` / `High` tier indicator) and `Full Str` (`.xxx` with delta vs. `Str` in tooltip/sub-label; keep narrow mobile viewports uncluttered by placing full detail in the row tooltip / team breakdown panel).
+  - Gate `What-If Attendance` overrides on `isGoalWeightedMode(effectiveMode)` (where `effectiveMode = baselineMatchesRequest ? mode : (baselineSnapshot?.mode ?? mode)`), clearing `attendanceOverrides` when switching to `50_50` or `classic`.
+  - Separate visual pill state (`uiAttendanceOverrides`) from net non-neutral simulation overrides (`effectiveAttendanceOverrides`, where `(ov.away ?? "avg") !== (ov.home ?? "avg")`) so equal-tier / `Avg` clicks never trigger spurious 20k re-simulations or a misleading What-If banner.
+  - Locking a game's outcome (`handleToggleOutcome`) clears any attendance override on that game; locked games disable/dim the `What-If Attendance` control.
+  - Use `hasWhatIf = lockedCount > 0 || attendanceOverrideCount > 0` consistently across `activeSnapshot`, `baselineTeamsBySlug`, the What-If banner, season-switch reset, and `"Reset What-If"`.
+- **`PlayoffOddsTable` (`Record & strength` group) & `TeamOddsPanel`:**
+  - Show `Att` (`8.3` or `—`, rendering neutral `Low` / `High` badges only — omitting the redundant `Avg` badge while keeping it in tooltips) and `Full Str` (`.xxx` with delta vs. `Str`; non-sortable `"—"` in `50_50`/`classic`).
+  - In `TeamOddsPanel`, replace the `Schedule` scorecard with an **`Attendance`** scorecard (average bench size, `Low`/`High`-only badge, and `Wins` vs. `Losses` average attendance splits) and display `Full Str` inside `Rating & Pace` so mobile users can inspect it directly.
   - Tooltip copy: `"Full-Strength Rating: projected strength at even headcounts (team = opponent)."`
 - **`PlayoffOddsFilterBar` & `BigGamesSection`:**
-  - In `weighted` mode when games remain, add a **"Full-Strength What-If"** toggle pill in the filter bar.
-  - On each upcoming Big Game card (in `weighted` mode, when unlocked), tuck Away/Home `Low / Avg / High` attendance overrides behind a compact expandable `"Bench What-If"` toggle so mobile cards stay uncluttered.
-- **`PlayoffOddsMethodology`:**
-  - Add an **"Attendance Impact & Full-Strength Rating"** section summarizing Fall (`9 / 11 / 13`) and Summer (`7 / 9 / 11`) percentiles, the diminishing-returns `ln(att)` curve, how `Full Str` de-attends goals into PythagenPuck, and the observational caveats (morale/elimination, player quality, subs).
+  - Add **`BASH Full-Strength Adj`** (`mode = "full_strength"`) as the 2nd Stats Model option right after `BASH Weighted` (`BASH Weighted`, `BASH Full-Strength Adj`, `50/50`, `SCS Classic`).
+  - On each upcoming Big Game card (in `weighted` or `full_strength` mode, when unlocked), place the expandable **`What-If Attendance`** button inline beside `What-If Outcome` on desktop (`sm+`) and right-aligned on the playoff-swing row on mobile (`< sm`); the expanded `[Low | Avg | High]` picker hides team names and descriptive text on mobile so each 3-button group aligns cleanly under the Away/Home `[Reg | OT]` controls above.
+- **`PlayoffOddsMethodology` & `/about/playoff-odd-calculations`:**
+  - Document the 4 simulation modes, Fall (`9 / 11 / 13`) and Summer (`7 / 9 / 11`) percentiles, diminishing-returns `ln(att)` curve, symmetric goal-rate de-attending, and observational caveats (morale/elimination, player quality, subs).
 
 ---
 
 ## 6. Verification Plan
 
-1. **Unit tests (`lib/__tests__/playoff-odds.test.ts`):**
+1. **Unit & Fetch tests (`lib/__tests__/playoff-odds.test.ts`, `tests/fetch-playoff-odds-attendance.test.ts`):**
    - `fullStrength > strength` when a team plays short-benched (`teamAtt < oppAtt`), and `fullStrength < strength` when consistently outnumbering opponents, with total goals (`GF + GA`) preserved.
    - Missing or one-sided boxscores cleanly fall back to `fullStrength === strength` and `avgAttendance === null` (when 0 boxscores).
-   - Baseline `stateHash` and baseline `playoffPct` are bit-identical with or without boxscore attendance populated.
+   - Baseline `stateHash` and baseline `playoffPct` are bit-identical with or without boxscore attendance populated; canonical/no-op overrides (`{ away: "low" }` vs `{ away: "low", home: "avg" }`, equal tiers) never perturb `stateHash`.
    - Fall vs. Summer thresholds (`9/11/13` vs `7/9/11`) and slopes are applied per `seasonType`.
-   - `useFullStrength` and `gameAttendanceOverrides` deterministically shift simulated playoff odds in `weighted` mode, compose additively, preserve displayed Observed `strength`, and are ignored in `50_50` / `classic`.
-2. **UI tests (`tests/playoff-odds-ui.test.tsx`):**
-   - `Att` and `Full Str` render accurately and handle `null` attendance gracefully.
-   - Toggling "Full-Strength What-If" and per-game attendance overrides updates the What-If banner, resets cleanly on season switch / Reset button, disables overrides on locked games, and does not trigger What-If simulation in `50_50` / `classic`.
-3. **Regression checks:** `pnpm test:run`, `pnpm lint`, and `pnpm build`.
+   - `mode: "full_strength"` and `gameAttendanceOverrides` deterministically shift simulated playoff odds, compose additively, preserve displayed Observed `strength`, and overrides are ignored in `50_50` / `classic`.
+   - `fetchPlayoffOdds()` runs 3 parallel `rawSql` queries in one `Promise.all` wave and populates `awayAttendance`/`homeAttendance` cleanly.
+2. **UI & API tests (`tests/playoff-odds-ui.test.tsx`):**
+   - `GET /api/bash/playoff-odds?mode=full_strength` returns 200 and passes `"full_strength"` to `fetchPlayoffOddsPageData`.
+   - `PlayoffOddsTable` renders `Att` (`Low`/`High`-only badges) and `Full Str`, and `TeamOddsPanel` renders the `Attendance` scorecard (Wins/Losses splits + null fallback) and mobile-accessible `Full Str`.
+   - Switching to `BASH Full-Strength Adj` and applying `What-If Attendance` overrides updates odds & banner, resets cleanly, disables overrides on locked games, ignores net-neutral overrides, and clears/hides controls when switching to `50_50` / `classic`.
+3. **Regression checks:** `pnpm test:run --maxWorkers=4`, `pnpm lint`, and `pnpm build`.

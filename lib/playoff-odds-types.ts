@@ -1,8 +1,24 @@
-export type PlayoffOddsMode = "weighted" | "50_50" | "classic"
+export type PlayoffOddsMode = "weighted" | "full_strength" | "50_50" | "classic"
 
 export type BigGameOutcomeKey = "away_reg" | "away_ot" | "home_ot" | "home_reg"
 
 export type SeasonKind = "fall" | "summer"
+
+export type AttendanceTier = "low" | "avg" | "high"
+
+export interface AttendanceCalibration {
+  lowP20: number
+  medianP50: number
+  highP80: number
+  presetHeadcounts: Record<AttendanceTier, number>
+  logOddsSlope: number
+  goalDiffSlope: number
+}
+
+export interface GameAttendanceOverride {
+  away?: AttendanceTier
+  home?: AttendanceTier
+}
 
 /**
  * Compact regular-season game record used by the pure Monte Carlo engine
@@ -19,6 +35,8 @@ export interface PlayoffSimGame {
   homeName: string
   awayScore: number | null
   homeScore: number | null
+  awayAttendance?: number | null
+  homeAttendance?: number | null
   status: "final" | "upcoming" | "live"
   isOvertime: boolean
   hasShootout: boolean
@@ -63,6 +81,8 @@ export interface CalibrationProfile {
   regLoserGoals: number
   /** Typical goals scored by the losing team in an OT/SO game (used for GF tiebreak tallies) */
   otLoserGoals: number
+  /** Empirically calibrated Fall/Summer boxscore attendance impact model */
+  attendance: AttendanceCalibration
 }
 
 export interface TeamLastGame {
@@ -137,6 +157,10 @@ export interface TeamOddsRow {
   rawPythPct: number
   actualPtsPct: number
   luckDelta: number
+  avgAttendance: number | null
+  attendanceTier: AttendanceTier | null
+  fullStrength: number
+  attendanceDelta: number
   rpi: number
   rpiRank: number
   lastGame: TeamLastGame | null
@@ -228,5 +252,14 @@ export interface PlayoffOddsSnapshot {
 }
 
 export function isValidPlayoffOddsMode(value: string | null | undefined): value is PlayoffOddsMode {
-  return value === "weighted" || value === "50_50" || value === "classic"
+  return (
+    value === "weighted" ||
+    value === "full_strength" ||
+    value === "50_50" ||
+    value === "classic"
+  )
+}
+
+export function isGoalWeightedMode(mode: PlayoffOddsMode): boolean {
+  return mode === "weighted" || mode === "full_strength"
 }
