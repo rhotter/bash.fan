@@ -133,7 +133,7 @@ describe("Attendance Disjointness & Validation in Finalize", () => {
     expect((await finalize()).status).toBe(400)
 
     // Float
-    state.homeAttendance = [1.5, 1, 10, 11] as any
+    state.homeAttendance = [1.5, 1, 10, 11]
     expect((await finalize()).status).toBe(400)
 
     // String

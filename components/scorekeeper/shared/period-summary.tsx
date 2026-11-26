@@ -1,4 +1,4 @@
-import { type LiveGameState } from "@/lib/scorekeeper-types"
+import type { LiveGameState } from "@/lib/scorekeeper-types"
 
 export function PeriodSummary({ state, homeSlug, awaySlug, homeTeam, awayTeam, isPlayoff = false }: {
   isPlayoff?: boolean; state: LiveGameState; homeSlug: string; awaySlug: string; homeTeam: string; awayTeam: string

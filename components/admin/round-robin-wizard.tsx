@@ -794,11 +794,11 @@ export function RoundRobinWizard({
                               <Tooltip>
                                 <TooltipTrigger asChild>
                                   <span className="text-xs text-muted-foreground truncate cursor-help max-w-[200px]">
-                                    {scheduledTeams[byeTeamsByWeek[week]!]?.teamName ?? `Team ${byeTeamsByWeek[week]! + 1}`}
+                                    {scheduledTeams[byeTeamsByWeek[week]]?.teamName ?? `Team ${byeTeamsByWeek[week] + 1}`}
                                   </span>
                                 </TooltipTrigger>
                                 <TooltipContent>
-                                  {scheduledTeams[byeTeamsByWeek[week]!]?.teamName ?? `Team ${byeTeamsByWeek[week]! + 1}`}
+                                  {scheduledTeams[byeTeamsByWeek[week]]?.teamName ?? `Team ${byeTeamsByWeek[week] + 1}`}
                                 </TooltipContent>
                               </Tooltip>
                             </TooltipProvider>

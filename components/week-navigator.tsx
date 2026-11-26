@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useMemo, useRef, useEffect, useCallback, Fragment, type ReactNode } from "react"
-import { type BashGame } from "@/lib/hockey-data"
+import type { BashGame } from "@/lib/hockey-data"
 import { compareGamesChronological } from "@/lib/format-time"
 import { cn } from "@/lib/utils"
 import { DateSection } from "@/components/game-card"

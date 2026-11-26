@@ -1,6 +1,6 @@
 import { ImageResponse } from 'next/og'
-import { readFileSync, existsSync } from 'fs'
-import { join } from 'path'
+import { readFileSync, existsSync } from 'node:fs'
+import { join } from 'node:path'
 import { getTeamLogoUrl } from './team-logos'
 import { getTeamChartColor } from './chart-colors'
 import type { BracketRoundColumn, BracketSeries, SeriesSide } from './playoff-bracket-utils'

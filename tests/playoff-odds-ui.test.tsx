@@ -787,7 +787,7 @@ describe("PlayoffOddsView & StandingsContent Integration", () => {
       observe() {}
       unobserve() {}
       disconnect() {}
-    } as unknown as typeof ResizeObserver
+    }
     try {
       const impactBadge = Array.from(cards[0].querySelectorAll("button")).find((el) =>
         el.textContent?.includes("League Playoff impact: 40.6pp")
@@ -847,7 +847,7 @@ describe("PlayoffOddsView & StandingsContent Integration", () => {
       observe() {}
       unobserve() {}
       disconnect() {}
-    } as unknown as typeof ResizeObserver
+    }
     try {
       // Focusing the "Current" column header opens its baseline explainer tooltip
       const currentTrigger = Array.from(cards[0].querySelectorAll("thead th span")).find(
@@ -922,7 +922,7 @@ describe("PlayoffOddsView & StandingsContent Integration", () => {
       observe() {}
       unobserve() {}
       disconnect() {}
-    } as unknown as typeof ResizeObserver
+    }
 
     try {
       await act(async () => {
@@ -1205,13 +1205,13 @@ describe("PlayoffOddsView & StandingsContent Integration", () => {
       const firstCard = benchToggle.closest("article") as HTMLElement
       const avgButtons = Array.from(firstCard.querySelectorAll("button")).filter(
         (b) => b.textContent?.trim() === "Avg"
-      ) as HTMLButtonElement[]
+      )
       const lowButtons = Array.from(firstCard.querySelectorAll("button")).filter(
         (b) => b.textContent?.trim() === "Low"
-      ) as HTMLButtonElement[]
+      )
       const highButtons = Array.from(firstCard.querySelectorAll("button")).filter(
         (b) => b.textContent?.trim() === "High"
-      ) as HTMLButtonElement[]
+      )
 
       await act(async () => {
         avgButtons[0].click()
@@ -1263,10 +1263,10 @@ describe("PlayoffOddsView & StandingsContent Integration", () => {
     const firstCard = benchToggle.closest("article") as HTMLElement
     const lowButtons = Array.from(firstCard.querySelectorAll("button")).filter(
       (b) => b.textContent?.trim() === "Low"
-    ) as HTMLButtonElement[]
+    )
     const highButtons = Array.from(firstCard.querySelectorAll("button")).filter(
       (b) => b.textContent?.trim() === "High"
-    ) as HTMLButtonElement[]
+    )
     expect(lowButtons.length).toBeGreaterThanOrEqual(2)
     expect(highButtons.length).toBeGreaterThanOrEqual(2)
 

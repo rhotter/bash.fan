@@ -231,7 +231,7 @@ describe("SeasonScheduleTab Single Edit Action & Past Season Editing Support (R2
     })
 
     // On completed season, the "Edit Game" buttons must still be rendered and enabled
-    const editButtons = Array.from(container.querySelectorAll('button[title="Edit Game"]')) as HTMLButtonElement[]
+    const editButtons = Array.from(container.querySelectorAll<HTMLButtonElement>('button[title="Edit Game"]'))
     expect(editButtons.length).toBeGreaterThan(0)
     expect(editButtons[0].disabled).toBe(false)
 
@@ -471,7 +471,7 @@ describe("Two-Tab Wide Modal in Season Schedule Tab (R1)", () => {
     expect(document.body.textContent).toContain("Derived from boxscore")
 
     // The score inputs are disabled/readOnly with derived values (home: 4, away: 3 from mockLiveState)
-    const scoreInputs = Array.from(document.body.querySelectorAll('input[placeholder="Score"]')) as HTMLInputElement[]
+    const scoreInputs = Array.from(document.body.querySelectorAll<HTMLInputElement>('input[placeholder="Score"]'))
     expect(scoreInputs).toHaveLength(2)
     for (const input of scoreInputs) {
       expect(input.disabled).toBe(true)
@@ -540,7 +540,7 @@ describe("Two-Tab Wide Modal in Season Schedule Tab (R1)", () => {
     })
 
     // Score inputs are editable
-    const scoreInputs = Array.from(document.body.querySelectorAll('input[placeholder="Score"]')) as HTMLInputElement[]
+    const scoreInputs = Array.from(document.body.querySelectorAll<HTMLInputElement>('input[placeholder="Score"]'))
     expect(scoreInputs).toHaveLength(2)
     for (const input of scoreInputs) {
       expect(input.disabled).toBe(false)
@@ -603,7 +603,7 @@ describe("Two-Tab Wide Modal in Season Schedule Tab (R1)", () => {
     expect(activeTab?.textContent?.trim()).toBe("Game Settings")
 
     // The score inputs should display the derived values (home: 4, away: 3 from mockLiveState) and be disabled
-    const scoreInputs = Array.from(document.body.querySelectorAll('input[placeholder="Score"]')) as HTMLInputElement[]
+    const scoreInputs = Array.from(document.body.querySelectorAll<HTMLInputElement>('input[placeholder="Score"]'))
     expect(scoreInputs).toHaveLength(2)
     expect(scoreInputs[0].disabled).toBe(true)
     expect(scoreInputs[0].value).toBe("3") // Away score
@@ -669,7 +669,7 @@ describe("Two-Tab Wide Modal in Season Schedule Tab (R1)", () => {
 
     // Under forfeit, the scores are NOT disabled "Derived from boxscore"
     // Default away forfeit: Home wins 5-0
-    const scoreInputs = Array.from(document.body.querySelectorAll('input[placeholder="Score"]')) as HTMLInputElement[]
+    const scoreInputs = Array.from(document.body.querySelectorAll<HTMLInputElement>('input[placeholder="Score"]'))
     expect(scoreInputs).toHaveLength(2)
     expect(scoreInputs[0].value).toBe("0") // Away score
     expect(scoreInputs[1].value).toBe("5") // Home score

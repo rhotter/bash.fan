@@ -11,15 +11,15 @@ export const metadata: Metadata = {
 }
 
 async function getRulebookMarkdown(): Promise<string> {
-    const fs = await import("fs/promises")
-    const path = await import("path")
+    const fs = await import("node:fs/promises")
+    const path = await import("node:path")
     const filePath = path.join(process.cwd(), "public", "bash_rulebook_current.md")
     return fs.readFile(filePath, "utf-8")
 }
 
 async function getChangelog(): Promise<ChangelogEntry[]> {
-    const fs = await import("fs/promises")
-    const path = await import("path")
+    const fs = await import("node:fs/promises")
+    const path = await import("node:path")
     try {
         const filePath = path.join(process.cwd(), "public", "rulebooks", "changelog.json")
         const raw = await fs.readFile(filePath, "utf-8")

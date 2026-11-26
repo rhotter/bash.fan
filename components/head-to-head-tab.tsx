@@ -98,7 +98,7 @@ export function HeadToHeadTab({
       } else {
         const av = a[sortKey]
         const bv = b[sortKey]
-        const diff = (bv as number) - (av as number)
+        const diff = (bv) - (av)
         if (diff !== 0) {
           return sortDir === "desc" ? diff : -diff
         }

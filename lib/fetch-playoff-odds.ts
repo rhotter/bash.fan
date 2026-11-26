@@ -173,10 +173,7 @@ export async function fetchPlayoffOdds(
       homeScore: r.status === "final" ? r.home_score : null,
       awayAttendance: isRealFinal ? (attendanceByGameTeam.get(`${r.id}|${r.away_slug}`) ?? null) : null,
       homeAttendance: isRealFinal ? (attendanceByGameTeam.get(`${r.id}|${r.home_slug}`) ?? null) : null,
-      status: (r.status === "final" || r.status === "live" ? r.status : "upcoming") as
-        | "final"
-        | "upcoming"
-        | "live",
+      status: (r.status === "final" || r.status === "live" ? r.status : "upcoming"),
       isOvertime: Boolean(r.is_overtime),
       hasShootout: Boolean(r.has_shootout),
       isForfeit: Boolean(r.is_forfeit),

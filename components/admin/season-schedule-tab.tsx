@@ -245,7 +245,7 @@ export function SeasonScheduleTab({ seasonId, seasonStatus, initialTeams, defaul
   // For each regular-season date, find which season teams are NOT playing.
   const byesByDate = useMemo(() => {
     const isOdd = coreTeams.length % 2 !== 0
-    if (!isOdd || coreTeams.length < 3) return {} as Record<string, string[]>
+    if (!isOdd || coreTeams.length < 3) return {}
 
     const result: Record<string, string[]> = {}
     const allSlugs = new Set(coreTeams.map(t => t.teamSlug))

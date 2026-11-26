@@ -210,8 +210,8 @@ export function StatsTab({ initialData }: { initialData?: PlayerStatsData }) {
         if (a.goalsAgainst == null) return b.goalsAgainst == null ? stableTiebreaker : 1
         if (b.goalsAgainst == null) return -1
       }
-      const av = (a[teamSkaterSortKey] ?? 0) as number
-      const bv = (b[teamSkaterSortKey] ?? 0) as number
+      const av = (a[teamSkaterSortKey] ?? 0)
+      const bv = (b[teamSkaterSortKey] ?? 0)
       const ptsTiebreaker = teamSkaterSortKey === "points" ? 0 : b.points - a.points
       const goalsTiebreaker = teamSkaterSortKey === "goals" ? 0 : b.goals - a.goals
       return teamSkaterSortDir === "desc"
@@ -249,8 +249,8 @@ export function StatsTab({ initialData }: { initialData?: PlayerStatsData }) {
           ? (bv - av || b.savePercentage - a.savePercentage || a.gaa - b.gaa || stableTiebreaker)
           : (av - bv || b.savePercentage - a.savePercentage || a.gaa - b.gaa || stableTiebreaker)
       }
-      const av = (a[teamGoalieSortKey] ?? 0) as number
-      const bv = (b[teamGoalieSortKey] ?? 0) as number
+      const av = (a[teamGoalieSortKey] ?? 0)
+      const bv = (b[teamGoalieSortKey] ?? 0)
       const svTiebreaker = teamGoalieSortKey === "savePercentage" ? 0 : b.savePercentage - a.savePercentage
       const gaaTiebreaker = teamGoalieSortKey === "gaa" ? 0 : a.gaa - b.gaa
       return teamGoalieSortDir === "desc"

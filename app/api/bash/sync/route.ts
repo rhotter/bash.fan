@@ -760,7 +760,7 @@ export async function GET(request: Request) {
     )
     const boxscoresSynced = boxscoreResults.filter(r => r.status === 'fulfilled').length
     boxscoreResults.filter(r => r.status === 'rejected').forEach((r, i) => {
-      console.error(`Failed to sync boxscore for game ${gamesNeedingBoxscore[i].id}:`, (r as PromiseRejectedResult).reason)
+      console.error(`Failed to sync boxscore for game ${gamesNeedingBoxscore[i].id}:`, (r).reason)
     })
 
     // Merge duplicate players (case differences, nicknames, etc.)

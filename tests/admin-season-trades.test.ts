@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
-import fs from "fs"
-import path from "path"
+import fs from "node:fs"
+import path from "node:path"
 import { NextRequest, NextResponse } from "next/server"
 import { PgDialect } from "drizzle-orm/pg-core"
 import type { SQL } from "drizzle-orm"

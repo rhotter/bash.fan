@@ -310,7 +310,7 @@ export function SeasonTeamsTab({ seasonId, seasonStatus, initialTeams, onTeamsCh
 
   // Resolve display color: explicit team color → franchise color → default gray
   const resolveColor = (teamSlug: string): string => {
-    if (localColors[teamSlug]) return localColors[teamSlug]!
+    if (localColors[teamSlug]) return localColors[teamSlug]
     const fSlug = localAssignments[teamSlug]
     if (fSlug) {
       const franchise = franchises.find(f => f.slug === fSlug)

@@ -2,8 +2,8 @@
 import { act } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import fs from "fs"
-import path from "path"
+import fs from "node:fs"
+import path from "node:path"
 import React, { useState, useEffect } from "react"
 import { toast } from "sonner"
 

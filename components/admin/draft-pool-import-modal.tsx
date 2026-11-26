@@ -238,7 +238,7 @@ export function DraftPoolImportModal({
                   </thead>
                   <tbody>
                     {players.slice(0, 50).map((p, i) => {
-                      const meta = p.registrationMeta as Record<string, unknown>
+                      const meta = p.registrationMeta
                       return (
                         <tr key={i} className="border-t">
                           <td className="p-2 truncate">{p.playerName}</td>

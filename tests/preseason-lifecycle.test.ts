@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
-import fs from "fs"
-import path from "path"
+import fs from "node:fs"
+import path from "node:path"
 
 describe("R1: Season Detail Page Header Actions", () => {
   const filePath = path.resolve(__dirname, "../components/admin/season-header-actions.tsx")
