@@ -105,7 +105,7 @@ export function SeasonHeaderActions({
             <AlertDialogAction
               onClick={(e) => {
                 e.preventDefault()
-                handleSetCurrent()
+                void handleSetCurrent()
               }}
               disabled={isSettingCurrent}
               className="cursor-pointer"

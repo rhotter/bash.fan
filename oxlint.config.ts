@@ -27,6 +27,9 @@ export default defineConfig({
       { drizzleObjectName: ['db', 'tx'] },
     ],
 
+    // Enforce strict equality except idiomatic nullish checks (`== null` / `!= null`)
+    eqeqeq: ['error', 'always', { null: 'ignore' }],
+
     // -------------------------------------------------------------------------
     // Permanently disabled preset rules (intentional project conventions)
     // -------------------------------------------------------------------------
@@ -64,12 +67,7 @@ export default defineConfig({
     // Deferred for incremental follow-up PRs
     // -------------------------------------------------------------------------
     // Correctness & React (next highest priority)
-    eqeqeq: 'off',
-    'react/button-has-type': 'off',
-    'react/no-unescaped-entities': 'off',
-    'react/purity': 'off',
     'react/set-state-in-effect': 'off',
-    'typescript/no-floating-promises': 'off',
 
     // Import & type hygiene (mostly auto-fixable)
     'import/consistent-type-specifier-style': 'off',
@@ -130,13 +128,6 @@ export default defineConfig({
         'typescript/require-array-sort-compare': 'off',
         'unicorn/prefer-structured-clone': 'off',
         'unicorn/prefer-top-level-await': 'off',
-      },
-    },
-    // Deferred override for rule re-enabled by @cloudflare/oxlint-config on TS files
-    {
-      files: ['**/*.{ts,tsx,mts,cts}'],
-      rules: {
-        'typescript/no-floating-promises': 'off',
       },
     },
   ],

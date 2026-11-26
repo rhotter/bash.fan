@@ -69,7 +69,7 @@ export function AdhocRosterModal({
 
   useEffect(() => {
     if (open && game) {
-      fetchRoster()
+      void fetchRoster()
       setSearchQuery("")
       setSearchResults([])
     }
@@ -224,7 +224,7 @@ export function AdhocRosterModal({
                       ) : searchResults.length > 0 ? (
                         <div className="py-1">
                           {searchResults.map(player => (
-                            <button
+                            <button type="button"
                               key={player.id}
                               onClick={() => addPlayer(player)}
                               className="w-full text-left px-3 py-2 text-sm hover:bg-muted transition-colors flex items-center justify-between group"
@@ -236,7 +236,7 @@ export function AdhocRosterModal({
                         </div>
                       ) : (
                         <div className="p-3 text-center text-sm text-muted-foreground">
-                          No players found matching "{searchQuery}".
+                          No players found matching &quot;{searchQuery}&quot;.
                         </div>
                       )}
                     </div>

@@ -476,7 +476,7 @@ export function SeasonForm({ season }: SeasonFormProps) {
             <AlertDialogAction
               onClick={(e) => {
                 e.preventDefault()
-                executeStatusTransition()
+                void executeStatusTransition()
               }}
               disabled={saving}
             >
@@ -516,7 +516,7 @@ export function SeasonForm({ season }: SeasonFormProps) {
       <AlertDialog open={deleteDialog} onOpenChange={(open) => { if (!open) { setDeleteDialog(false); setDeleteConfirmText("") } }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle className="text-destructive">Delete "{season.name}"?</AlertDialogTitle>
+            <AlertDialogTitle className="text-destructive">Delete &quot;{season.name}&quot;?</AlertDialogTitle>
             <AlertDialogDescription className="space-y-2">
               <span className="block">This action is <strong>permanent and irreversible</strong>. It will delete:</span>
               <span className="block text-xs text-muted-foreground">• All games and box scores<br/>• All player stats and rosters<br/>• All awards for this season<br/>• The season itself</span>

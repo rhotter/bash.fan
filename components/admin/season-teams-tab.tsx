@@ -101,7 +101,7 @@ export function SeasonTeamsTab({ seasonId, seasonStatus, initialTeams, onTeamsCh
   }
 
   useEffect(() => {
-    fetchData(fallOnly)
+    void fetchData(fallOnly)
   }, [fallOnly])
 
   const addTeam = async (team: Team) => {
@@ -284,7 +284,7 @@ export function SeasonTeamsTab({ seasonId, seasonStatus, initialTeams, onTeamsCh
         setCreateTeamForm({ name: "", slug: "" })
         
         // Auto-assign to season
-        addTeam(newTeam)
+        void addTeam(newTeam)
       } else {
         const err = await readApiJson(res)
         setCreateTeamError(err.error || "Failed to create team")
@@ -372,7 +372,7 @@ export function SeasonTeamsTab({ seasonId, seasonStatus, initialTeams, onTeamsCh
                         <div className="flex items-center gap-3 min-w-0">
                           <Popover>
                             <PopoverTrigger asChild>
-                              <button
+                              <button type="button"
                                 className="w-6 h-6 rounded-full border-2 border-muted hover:border-primary/50 transition-colors cursor-pointer shrink-0 focus:outline-none focus:ring-2 focus:ring-primary/50"
                                 style={{ backgroundColor: resolveColor(team.teamSlug) }}
                                 title="Set team color for season"
@@ -408,7 +408,7 @@ export function SeasonTeamsTab({ seasonId, seasonStatus, initialTeams, onTeamsCh
                           {editingTeamSlug === team.teamSlug ? (
                             <form
                               className="flex items-center gap-1 min-w-0"
-                              onSubmit={(e) => { e.preventDefault(); renameTeam(team.teamSlug) }}
+                              onSubmit={(e) => { e.preventDefault(); void renameTeam(team.teamSlug) }}
                             >
                               <Input
                                 autoFocus

@@ -67,7 +67,7 @@ export function TryoutAttendanceTab({ seasonId }: TryoutAttendanceTabProps) {
   }, [seasonId])
 
   useEffect(() => {
-    fetchAttendance()
+    void fetchAttendance()
   }, [fetchAttendance])
 
   const filtered = players.filter((p) => {

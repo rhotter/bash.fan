@@ -141,7 +141,7 @@ export function AwardsClient({ seasons, allPlayers }: { seasons: Season[]; allPl
   const [isHofLoading, setIsHofLoading] = useState(false)
   const [selectedHofPlayerId, setSelectedHofPlayerId] = useState<number | null>(null)
   const [customHofPlayerName, setCustomHofPlayerName] = useState("")
-  const [newHofYear, setNewHofYear] = useState<string>(new Date().getFullYear().toString())
+  const [newHofYear, setNewHofYear] = useState<string>(() => new Date().getFullYear().toString())
   const [newHofWing, setNewHofWing] = useState("players")
   const [newHofYearsActive, setNewHofYearsActive] = useState("")
   const [newHofAchievements, setNewHofAchievements] = useState("")
@@ -179,9 +179,9 @@ export function AwardsClient({ seasons, allPlayers }: { seasons: Season[]; allPl
 
   useEffect(() => {
     if (activeTab === "awards" && selectedSeason) {
-      fetchAwards()
+      void fetchAwards()
     } else if (activeTab === "hof" && hof.length === 0) {
-      fetchHof()
+      void fetchHof()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, selectedSeason])
@@ -207,7 +207,7 @@ export function AwardsClient({ seasons, allPlayers }: { seasons: Season[]; allPl
       if (res.ok) {
         toast.success("Award added successfully")
         setSelectedAwardPlayerId(null)
-        fetchAwards()
+        void fetchAwards()
       } else {
         const err = await res.json()
         toast.error(err.error || "Failed to add award")
@@ -260,7 +260,7 @@ export function AwardsClient({ seasons, allPlayers }: { seasons: Season[]; allPl
         setCustomHofPlayerName("")
         setNewHofYearsActive("")
         setNewHofAchievements("")
-        fetchHof()
+        void fetchHof()
       } else {
         const err = await res.json()
         toast.error(err.error || "Failed to add inductee")

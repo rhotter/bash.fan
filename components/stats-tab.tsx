@@ -329,7 +329,7 @@ export function StatsTab({ initialData }: { initialData?: PlayerStatsData }) {
       {isError && <ErrorNotice message={`Stats could not refresh; showing the last loaded results. ${errorMessage ?? ""}`} />}
       {/* Skaters / Goalies / Teams toggle */}
       <div className="flex items-center gap-1">
-        <button
+        <button type="button"
           onClick={() => setTab("skaters")}
           className={cn(
             "rounded-md px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.1em] transition-colors min-h-[44px] sm:min-h-0",
@@ -338,7 +338,7 @@ export function StatsTab({ initialData }: { initialData?: PlayerStatsData }) {
         >
           Skaters
         </button>
-        <button
+        <button type="button"
           onClick={() => setTab("goalies")}
           className={cn(
             "rounded-md px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.1em] transition-colors min-h-[44px] sm:min-h-0",
@@ -347,7 +347,7 @@ export function StatsTab({ initialData }: { initialData?: PlayerStatsData }) {
         >
           Goalies
         </button>
-        <button
+        <button type="button"
           onClick={() => setTab("teams")}
           className={cn(
             "rounded-md px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.1em] transition-colors min-h-[44px] sm:min-h-0",
@@ -403,7 +403,7 @@ export function StatsTab({ initialData }: { initialData?: PlayerStatsData }) {
                     <>
                       <span className="text-[9px] uppercase tracking-wider text-muted-foreground/50 font-bold pl-0.5">Team</span>
                       <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-4 px-4 sm:mx-0 sm:px-0">
-                        <button
+                        <button type="button"
                           onClick={() => { setTeamFilter("all"); setSkaterPage(1); setGoaliePage(1) }}
                           className={cn(
                             "shrink-0 rounded-md px-2.5 py-1 text-[10px] font-medium transition-colors min-h-[40px] sm:min-h-0 flex items-center gap-1",
@@ -415,7 +415,7 @@ export function StatsTab({ initialData }: { initialData?: PlayerStatsData }) {
                           All Teams
                         </button>
                         {teams.map((t) => (
-                          <button
+                          <button type="button"
                             key={t.slug}
                             onClick={() => { setTeamFilter(t.slug); setSkaterPage(1); setGoaliePage(1) }}
                             className={cn(
@@ -963,14 +963,14 @@ function Pagination({ page, totalPages, onPrev, onNext }: {
 }) {
   return (
     <div className="flex items-center justify-between py-3 mt-1 border-t border-border/30">
-      <button
+      <button type="button"
         onClick={onPrev}
         disabled={page === 1}
         className="text-[10px] font-medium text-muted-foreground hover:text-foreground disabled:opacity-30 disabled:cursor-not-allowed min-h-[44px] px-2 sm:min-h-0 transition-colors"
       >
         Previous
       </button>
-      <button
+      <button type="button"
         onClick={onNext}
         disabled={page === totalPages}
         className="text-[10px] font-medium text-muted-foreground hover:text-foreground disabled:opacity-30 disabled:cursor-not-allowed min-h-[44px] px-2 sm:min-h-0 transition-colors"

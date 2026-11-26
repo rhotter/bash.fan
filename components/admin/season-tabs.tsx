@@ -88,7 +88,7 @@ export function SeasonTabs({ season }: SeasonTabsProps) {
       {/* Tab Buttons */}
       <div className="flex gap-1 border-b">
         {tabs.map((tab) => (
-          <button
+          <button type="button"
             key={tab}
             onClick={() => setActiveTab(tab)}
             className={`px-3 py-2 text-sm font-medium transition-colors cursor-pointer border-b-2 -mb-px ${

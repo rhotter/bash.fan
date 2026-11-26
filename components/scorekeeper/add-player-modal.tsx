@@ -221,7 +221,7 @@ export function AddPlayerModal({
               ) : searchResults.length > 0 ? (
                 <div className="divide-y max-h-[200px] overflow-y-auto">
                   {searchResults.map((player) => (
-                    <button
+                    <button type="button"
                       key={player.id}
                       onClick={() => handleAddExisting(player)}
                       disabled={isAdding}
@@ -240,7 +240,7 @@ export function AddPlayerModal({
 
               {/* Create new player option — always pinned at bottom */}
               <div className="border-t bg-muted/30">
-                <button
+                <button type="button"
                   onClick={() => {
                     setShowCreateForm(true)
                     setNewPlayerName(searchQuery)
@@ -274,7 +274,7 @@ export function AddPlayerModal({
                 autoFocus
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && newPlayerName.trim()) {
-                    handleCreateNew()
+                    void handleCreateNew()
                   }
                 }}
               />

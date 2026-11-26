@@ -500,7 +500,7 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
 
   if (draft.status === "published") {
     const draftDate = draft.draftDate ? new Date(draft.draftDate) : null
-    const currentTime = mounted ? now : (draftDate ?? new Date())
+    const currentTime = mounted ? now : (draftDate ?? now)
     const diffMs = draftDate ? draftDate.getTime() - currentTime.getTime() : 0
     const isUnder24h = diffMs > 0 && diffMs <= 24 * 60 * 60 * 1000
     const isPast = diffMs <= 0
@@ -824,7 +824,7 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
                   style={{ backgroundColor: announcement.teamColor }}
                 >
                   {/* Close button */}
-                  <button
+                  <button type="button"
                     onClick={() => setAnnouncementVisible(false)}
                     className="absolute top-4 left-4 w-8 h-8 flex items-center justify-center rounded-full bg-white/20 text-white/80 hover:bg-white/30 transition-colors"
                     aria-label="Close"
@@ -997,7 +997,7 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
               aria-label="Draft view"
               className="inline-flex items-center p-1 rounded-lg bg-muted/60 border border-border/40 mb-4"
             >
-              <button
+              <button type="button"
                 role="tab"
                 aria-selected={mobileTab === "byteam"}
                 onClick={() => setMobileTab("byteam")}
@@ -1011,7 +1011,7 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
                 <LayoutList className="h-3.5 w-3.5" />
                 By Team
               </button>
-              <button
+              <button type="button"
                 role="tab"
                 aria-selected={mobileTab === "board"}
                 onClick={() => setMobileTab("board")}
@@ -1069,13 +1069,13 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
                         <div className="hidden md:flex items-center gap-2 sm:gap-3 px-2 py-1 text-[10px] border-b border-border/30 mb-0.5">
                           <span className="w-7 shrink-0" />
                           <span className="flex-1 font-semibold text-muted-foreground">Player</span>
-                          <button onClick={() => toggleTeamSort("pos")} className="flex items-center gap-0.5 font-semibold text-muted-foreground hover:text-foreground transition-colors w-12 sm:w-16 justify-end">
+                          <button type="button" onClick={() => toggleTeamSort("pos")} className="flex items-center gap-0.5 font-semibold text-muted-foreground hover:text-foreground transition-colors w-12 sm:w-16 justify-end">
                             Pos {teamSortKey === "pos" ? (teamSortDir === "asc" ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />) : <ArrowUpDown className="w-3 h-3 opacity-40" />}
                           </button>
-                          <button onClick={() => toggleTeamSort("skill")} className="flex items-center gap-0.5 font-semibold text-muted-foreground hover:text-foreground transition-colors w-16 justify-end">
+                          <button type="button" onClick={() => toggleTeamSort("skill")} className="flex items-center gap-0.5 font-semibold text-muted-foreground hover:text-foreground transition-colors w-16 justify-end">
                             Skill {teamSortKey === "skill" ? (teamSortDir === "asc" ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />) : <ArrowUpDown className="w-3 h-3 opacity-40" />}
                           </button>
-                          <button onClick={() => toggleTeamSort("playoffs")} className="flex items-center gap-0.5 font-semibold text-muted-foreground hover:text-foreground transition-colors w-8 justify-center">
+                          <button type="button" onClick={() => toggleTeamSort("playoffs")} className="flex items-center gap-0.5 font-semibold text-muted-foreground hover:text-foreground transition-colors w-8 justify-center">
                             PO {teamSortKey === "playoffs" ? (teamSortDir === "asc" ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />) : <ArrowUpDown className="w-3 h-3 opacity-40" />}
                           </button>
                         </div>
@@ -1219,7 +1219,7 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
                               <td key={team.teamSlug} className="px-3 py-2 align-middle border-b border-border/20 border-l border-border/20">
                                 {pick.playerId ? (
                                   <div className="flex items-center gap-1.5 min-w-0">
-                                    <button
+                                    <button type="button"
                                       className="truncate text-left text-xs text-foreground hover:text-primary transition-colors min-w-0 cursor-pointer"
                                       onClick={() => pick.playerId && openPlayerCard(pick.playerId)}
                                       onMouseEnter={() => pick.playerId && prefetchPlayerStats(pick.playerId)}
@@ -1314,7 +1314,7 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
                                 >
                                   {pick.playerId ? (
                                     <div className="flex flex-nowrap items-center gap-1 min-w-0">
-                                      <button
+                                      <button type="button"
                                         className="truncate min-w-0 sm:flex-1 text-left text-xs hover:underline hover:text-primary transition-colors cursor-pointer"
                                         onClick={() => pick.playerId && openPlayerCard(pick.playerId)}
                                         onMouseEnter={() => pick.playerId && prefetchPlayerStats(pick.playerId)}
@@ -1398,7 +1398,7 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
                       {["G", "D", "C", "F"].map((pos) => {
                         const isActive = positionFilter.includes(pos)
                         return (
-                          <button
+                          <button type="button"
                             key={pos}
                             onClick={() => setPositionFilter((prev) =>
                               isActive ? prev.filter((p) => p !== pos) : [...prev, pos]
@@ -1417,7 +1417,7 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
                         )
                       })}
                       {positionFilter.length > 0 && (
-                        <button
+                        <button type="button"
                           onClick={() => setPositionFilter([])}
                           className="text-[10px] px-2 py-0.5 text-muted-foreground hover:text-foreground transition-colors"
                         >
@@ -1619,7 +1619,7 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
             <Card className="h-fit">
               <CardHeader className="pb-2 space-y-2">
                 <div className="flex rounded-lg bg-muted p-0.5">
-                  <button
+                  <button type="button"
                     onClick={() => setSidebarTab("recent")}
                     className={`flex-1 text-xs font-medium py-1.5 px-2 rounded-md transition-colors ${
                       sidebarTab === "recent"
@@ -1629,7 +1629,7 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
                   >
                     Recent <span className="inline-block whitespace-nowrap">({recentPicks.length})</span>
                   </button>
-                  <button
+                  <button type="button"
                     onClick={() => setSidebarTab("available")}
                     className={`flex-1 text-xs font-medium py-1.5 px-2 rounded-md transition-colors ${
                       sidebarTab === "available"
@@ -1754,7 +1754,7 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
                       {["G", "D", "C", "F"].map((pos) => {
                         const isActive = positionFilter.includes(pos)
                         return (
-                          <button
+                          <button type="button"
                             key={pos}
                             onClick={() => setPositionFilter((prev) =>
                               isActive ? prev.filter((p) => p !== pos) : [...prev, pos]
@@ -1773,7 +1773,7 @@ export function PublicDraftBoard({ seasonSlug, initialData }: PublicDraftBoardPr
                         )
                       })}
                       {positionFilter.length > 0 && (
-                        <button
+                        <button type="button"
                           onClick={() => setPositionFilter([])}
                           className="text-[10px] px-2 py-0.5 text-muted-foreground hover:text-foreground transition-colors"
                         >

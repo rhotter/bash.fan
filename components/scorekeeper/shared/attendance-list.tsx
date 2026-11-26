@@ -19,7 +19,7 @@ export function AttendanceList({
     <div className="rounded-lg border bg-card p-3">
       <div className="flex items-center justify-between mb-2">
         <h4 className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{label} <span className="text-muted-foreground/40 font-normal">{count}</span></h4>
-        <button
+        <button type="button"
           onClick={() => allSelected ? onUnselectAll(team) : onSelectAll(team)}
           className="text-[9px] text-foreground hover:underline"
         >
@@ -47,7 +47,7 @@ export function AttendanceList({
         ))}
       </div>
       {onAddPlayer && (
-        <button
+        <button type="button"
           onClick={onAddPlayer}
           className="w-full flex items-center justify-center gap-1.5 pt-2 mt-2 border-t border-dashed border-primary/30 text-[11px] font-medium text-primary hover:text-primary/80 transition-colors"
         >

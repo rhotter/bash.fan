@@ -93,7 +93,7 @@ export function GameVideo() {
             {busy ? "Loading video…" : "Camera unavailable"}
           </div>}
           {error && <div role="alert" className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 px-2 text-center text-[11px] text-white sm:text-sm">
-            Video unavailable.<button className="min-h-11 px-3 underline" onClick={retry}>Retry</button>
+            Video unavailable.<button type="button" className="min-h-11 px-3 underline" onClick={retry}>Retry</button>
           </div>}
         </div>
       </div>

@@ -104,8 +104,9 @@ export function WeekNavigator({
   const playoffStartIndex = regularStartIndex + regularWeeks.length
   const exhibitionStartIndex = playoffStartIndex + pWeeks.length
 
+  const [todayWeek] = useState(() => getWeekKey(new Date().toISOString().slice(0, 10)))
+
   const defaultIndex = useMemo(() => {
-    const todayWeek = getWeekKey(new Date().toISOString().slice(0, 10))
 
     // 1. Today falls within a game week — use it
     const currentIdx = allWeeks.findIndex((w) => w.isCurrent)
@@ -120,7 +121,7 @@ export function WeekNavigator({
     if (allWeeks.length > 0) return 0
 
     return Math.max(0, allWeeks.length - 1)
-  }, [allWeeks])
+  }, [allWeeks, todayWeek])
 
   const [selectedIndex, setSelectedIndex] = useState(defaultIndex)
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -194,7 +195,7 @@ export function WeekNavigator({
                   <span className={cn("text-[10px] font-semibold uppercase tracking-wider", divider.colorClass)}>{divider.label}</span>
                 </div>
               )}
-              <button
+              <button type="button"
                 ref={(el) => {
                   if (el) pillRefs.current.set(i, el)
                   else pillRefs.current.delete(i)

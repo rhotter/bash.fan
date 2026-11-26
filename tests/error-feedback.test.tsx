@@ -42,8 +42,8 @@ describe("Error messages in real forms and loaders", () => {
     function AdminControls() {
       const admin = useAdmin()
       return <><span>{admin.isAdmin ? "Editing enabled" : "Editing disabled"}</span>
-        <button onClick={() => admin.login("test-pin")}>Enable admin</button>
-        <button onClick={admin.logout}>Sign out</button></>
+        <button type="button" onClick={() => admin.login("test-pin")}>Enable admin</button>
+        <button type="button" onClick={admin.logout}>Sign out</button></>
     }
     await withUI(<AdminProvider><AdminControls /></AdminProvider>, async (container) => {
       await act(async () => container.querySelectorAll("button")[0].click())

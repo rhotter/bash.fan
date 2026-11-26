@@ -187,8 +187,8 @@ function ReferenceSeasonRosterTab({
 
         {isEditable && (
           <div className="actions">
-            <button aria-label="Add Player">Add Player</button>
-            <button aria-label="Record Trade" onClick={() => setIsTradeOpen(true)}>
+            <button type="button" aria-label="Add Player">Add Player</button>
+            <button type="button" aria-label="Record Trade" onClick={() => setIsTradeOpen(true)}>
               Record Trade
             </button>
           </div>
@@ -295,8 +295,8 @@ function ReferenceSeasonRosterTab({
             placeholder="Trade context..."
           />
 
-          <button onClick={handleRecordTrade}>Execute Trade</button>
-          <button onClick={() => setIsTradeOpen(false)}>Cancel</button>
+          <button type="button" onClick={handleRecordTrade}>Execute Trade</button>
+          <button type="button" onClick={() => setIsTradeOpen(false)}>Cancel</button>
         </div>
       )}
 

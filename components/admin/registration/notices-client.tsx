@@ -199,8 +199,8 @@ export function NoticesClient({ initial }: { initial: NoticeRow[] }) {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="basic">Basic ("I have read")</SelectItem>
-                      <SelectItem value="legal">Legal ("I am bound")</SelectItem>
+                      <SelectItem value="basic">Basic (&quot;I have read&quot;)</SelectItem>
+                      <SelectItem value="legal">Legal (&quot;I am bound&quot;)</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -304,7 +304,7 @@ export function NoticesClient({ initial }: { initial: NoticeRow[] }) {
             <AlertDialogAction
               onClick={(e) => {
                 e.preventDefault()
-                handleDelete()
+                void handleDelete()
               }}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               disabled={busy}

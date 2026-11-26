@@ -208,12 +208,14 @@ export function BannersClient({ initial }: { initial: BannerRow[] }) {
   const [togglingId, setTogglingId] = useState<string | null>(null)
   const [pendingDelete, setPendingDelete] = useState<BannerRow | null>(null)
   const [previewMode, setPreviewMode] = useState<"desktop" | "mobile">("desktop")
+  const [previewNow, setPreviewNow] = useState(() => new Date())
 
   // Modal open handlers
   const openCreate = () => {
     setEditing(null)
     setForm(EMPTY_FORM)
     setPreviewMode("desktop")
+    setPreviewNow(new Date())
     setDialogOpen(true)
   }
 
@@ -254,6 +256,7 @@ export function BannersClient({ initial }: { initial: BannerRow[] }) {
       resetDismissals: false,
     })
     setPreviewMode("desktop")
+    setPreviewNow(new Date())
     setDialogOpen(true)
   }
 
@@ -263,10 +266,10 @@ export function BannersClient({ initial }: { initial: BannerRow[] }) {
     return computeCountdownSuffix(
       form.countdownType,
       new Date(form.countdownTarget),
-      new Date(),
+      previewNow,
       "America/Los_Angeles",
     )
-  }, [form.countdownType, form.countdownTarget])
+  }, [form.countdownType, form.countdownTarget, previewNow])
 
   const previewEffectiveVariant = useMemo(() => {
     return resolveEffectiveVariant(form.variant, form.countdownType, previewSuffix)

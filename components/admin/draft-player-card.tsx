@@ -130,7 +130,7 @@ export function DraftPlayerCard({ player, open, onOpenChange }: DraftPlayerCardP
 
         {/* Secondary Section — Collapsible */}
         <div className="py-4">
-          <button
+          <button type="button"
             onClick={() => setShowSecondary(!showSecondary)}
             className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors w-full"
           >

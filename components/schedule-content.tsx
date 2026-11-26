@@ -137,13 +137,32 @@ export function ScheduleContent({ initialData }: { initialData?: BashApiData }) 
       })
   }, [games, teamFilter, typeFilter])
 
+  const [today, setToday] = useState(() => new Date().toISOString().slice(0, 10))
+
+  useEffect(() => {
+    const syncToday = () => {
+      const next = new Date().toISOString().slice(0, 10)
+      setToday((prev) => (prev === next ? prev : next))
+    }
+    const now = new Date()
+    const nextUtcMidnight = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1)
+    const timeoutId = setTimeout(syncToday, Math.max(1000, nextUtcMidnight - now.getTime() + 1000))
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") syncToday()
+    }
+    document.addEventListener("visibilitychange", handleVisibility)
+    return () => {
+      clearTimeout(timeoutId)
+      document.removeEventListener("visibilitychange", handleVisibility)
+    }
+  }, [today])
+
   const nextGameId = useMemo(() => {
-    const today = new Date().toISOString().slice(0, 10)
     const liveOrUpcoming = sortedFilteredGames.find((g) => g.status === "live" || g.status === "upcoming")
     if (liveOrUpcoming) return liveOrUpcoming.id
     const todayOrLater = sortedFilteredGames.find((g) => g.date >= today)
     return todayOrLater?.id ?? null
-  }, [sortedFilteredGames])
+  }, [sortedFilteredGames, today])
 
   const dateGroups = useMemo(() => {
     const groups: { date: string; games: BashGame[] }[] = []

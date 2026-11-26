@@ -10,7 +10,7 @@ import { type BashGame, getSeriesText } from "@/lib/hockey-data"
 
 export function useLiveClock(game: BashGame) {
   const isLive = game.status === "live"
-  const [now, setNow] = useState(Date.now())
+  const [now, setNow] = useState(() => Date.now())
 
   useEffect(() => {
     if (!isLive || !game.liveClockRunning) return

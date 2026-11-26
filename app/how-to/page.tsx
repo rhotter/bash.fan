@@ -32,7 +32,7 @@ export default function HowToPage() {
                     {TABS.map((tab) => {
                         const isActive = activeTab === tab.id
                         return (
-                            <button
+                            <button type="button"
                                 key={tab.id}
                                 onClick={() => setActiveTab(tab.id)}
                                 className={

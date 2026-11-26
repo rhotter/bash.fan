@@ -8,4 +8,8 @@ async function main() {
   await rawSql(sql`DELETE FROM game_live WHERE game_id = ${gameId}`)
   console.log(`Cleared game_live for game ${gameId}`)
 }
-main()
+
+main().catch((err) => {
+  console.error(err)
+  process.exit(1)
+})

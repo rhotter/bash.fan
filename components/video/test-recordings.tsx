@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, type FormEvent } from "react"
+import { useEffect, useState, type FormEvent } from "react"
 import useSWR from "swr"
 import { LiveVideoPlayer } from "@/components/video/live-video-player"
 import { Button } from "@/components/ui/button"
@@ -68,8 +68,13 @@ function Recording({ id }: { id: string }) {
 }
 
 function Camera({ side, detail }: { side: CameraSide; detail: VideoDetail }) {
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 5000)
+    return () => clearInterval(id)
+  }, [])
   const camera = detail.cameras.find(c => c.side === side)
-  const live = !detail.session.ended_at && !!camera?.stream_input_id && camera.streaming && !!camera.last_seen_at && Date.now() - Date.parse(camera.last_seen_at) < 25000
+  const live = !detail.session.ended_at && !!camera?.stream_input_id && camera.streaming && !!camera.last_seen_at && now - Date.parse(camera.last_seen_at) < 25000
   const clips = detail.segments.filter(s => s.side === side && s.uploaded_at)
   const pending = detail.segments.filter(s => s.side === side && !s.uploaded_at).length
   const [selected, setSelected] = useState<string | null>(null)

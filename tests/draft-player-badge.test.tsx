@@ -118,7 +118,7 @@ describe("Draft player badge explanations", () => {
   })
 
   it("dismisses on an outside tap and allows reopening", async () => {
-    await render(<><DraftPlayerBadge kind="rookie" /><button>Outside</button></>)
+    await render(<><DraftPlayerBadge kind="rookie" /><button type="button">Outside</button></>)
     await tap(badge("Rookie"))
     await tap(container.querySelectorAll("button")[1])
     expect(tooltip()).toBeNull()
@@ -143,7 +143,7 @@ describe("Draft player badge explanations", () => {
   })
 
   it("preserves mouse hover and keyboard focus explanations", async () => {
-    await render(<><DraftPlayerBadge kind="rookie" /><button>Outside</button></>)
+    await render(<><DraftPlayerBadge kind="rookie" /><button type="button">Outside</button></>)
     const trigger = badge("Rookie")
     await flush(() => trigger.dispatchEvent(new PointerEvent("pointermove", { bubbles: true, pointerType: "mouse" })))
     expect(document.querySelector('[role="tooltip"]')?.textContent).toContain("Rookie")

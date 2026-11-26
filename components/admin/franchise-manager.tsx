@@ -74,7 +74,7 @@ export function FranchiseManager() {
     }
   }, [])
 
-  useEffect(() => { fetchFranchises() }, [fetchFranchises])
+  useEffect(() => { void fetchFranchises() }, [fetchFranchises])
 
   const fetchFranchiseDetail = useCallback(async (slug: string) => {
     setIsLoadingDetail(true)
@@ -103,7 +103,7 @@ export function FranchiseManager() {
     setPendingAssign(new Set())
     setPendingUnassign(new Set())
     setUnlinkedSearch("")
-    fetchFranchiseDetail(slug)
+    void fetchFranchiseDetail(slug)
   }
 
   const makeKey = (e: SeasonTeamEntry) => `${e.seasonId}::${e.teamSlug}`
@@ -154,8 +154,8 @@ export function FranchiseManager() {
         setPendingAssign(new Set())
         setPendingUnassign(new Set())
         // Refresh detail + franchise list (logo may have changed)
-        fetchFranchiseDetail(selectedSlug)
-        fetchFranchises()
+        void fetchFranchiseDetail(selectedSlug)
+        void fetchFranchises()
       } else {
         const err = await readApiJson(res)
         toast.error(err.error || "Failed to save")

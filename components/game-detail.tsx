@@ -101,7 +101,7 @@ export function GameDetail({ game, initialDetail, initialLiveData, homeRoster, a
         <span className="normal-case tracking-normal">{game.location}</span>
         <GameTypeBadge gameType={game.gameType} />
         <span className="text-border">|</span>
-        <button
+        <button type="button"
           onClick={() => downloadICS([{
             id: game.id,
             date: game.date,
@@ -224,8 +224,8 @@ export function GameDetail({ game, initialDetail, initialLiveData, homeRoster, a
               if (searchParams.get("edit")) router.replace(`/game/${game.id}`)
               window.scrollTo(0, 0)
               // Revalidate SWR caches so boxscore/live data refreshes
-              mutate(`/api/bash/game/${game.id}`)
-              mutate(`/api/bash/game/${game.id}/live`)
+              void mutate(`/api/bash/game/${game.id}`)
+              void mutate(`/api/bash/game/${game.id}/live`)
             }}
           />
         </div>
