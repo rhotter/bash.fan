@@ -137,7 +137,25 @@ export function ScheduleContent({ initialData }: { initialData?: BashApiData }) 
       })
   }, [games, teamFilter, typeFilter])
 
-  const [today] = useState(() => new Date().toISOString().slice(0, 10))
+  const [today, setToday] = useState(() => new Date().toISOString().slice(0, 10))
+
+  useEffect(() => {
+    const syncToday = () => {
+      const next = new Date().toISOString().slice(0, 10)
+      setToday((prev) => (prev === next ? prev : next))
+    }
+    const now = new Date()
+    const nextUtcMidnight = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1)
+    const timeoutId = setTimeout(syncToday, Math.max(1000, nextUtcMidnight - now.getTime() + 1000))
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") syncToday()
+    }
+    document.addEventListener("visibilitychange", handleVisibility)
+    return () => {
+      clearTimeout(timeoutId)
+      document.removeEventListener("visibilitychange", handleVisibility)
+    }
+  }, [today])
 
   const nextGameId = useMemo(() => {
     const liveOrUpcoming = sortedFilteredGames.find((g) => g.status === "live" || g.status === "upcoming")
