@@ -129,9 +129,10 @@ export const BASH_CALIBRATION = {
     otRate: 0.075,               // Calibrated OT win rate (counts toward ROW)
     soRate: 0.045,               // Calibrated Shootout win rate (excluded from ROW)
     homeFieldAdvantage: 0.50,    // Single outdoor venue (zero HFA)
-    strengthConcentration: 2,    // Beta posterior concentration (80.3% / 89.4% interval coverage)
+    strengthConcentration: 1.5,  // Beta posterior concentration (84.9% / 91.9% coverage, PIT var 0.0833)
     regMarginCdf: [0.2174, 0.4149, 0.5976, 0.7406, 0.8305, 1.0],
     regLoserGoals: 2,
+    otLoserGoals: 3,
   },
   summer: {
     pythagenPuckPower: 0.458,
@@ -144,6 +145,7 @@ export const BASH_CALIBRATION = {
     strengthConcentration: 3,    // Beta posterior concentration (82.7% / 92.0% interval coverage)
     regMarginCdf: [0.2152, 0.3914, 0.5451, 0.6701, 0.7766, 1.0],
     regLoserGoals: 4,
+    otLoserGoals: 5,
   },
 } as const
 ```
@@ -165,7 +167,7 @@ For each team $i$ from completed regular-season games (double forfeits give `0-5
   - Ken's exact `p225` regression:
     $$r(f) = \begin{cases} (-1.5 f + 1.0) + 0.1 f & f < 0.5 \\ (-0.5 f + 0.5) + 0.1 f & f \ge 0.5 \end{cases}$$
   - $S_i = S_{\text{raw}, i} - (S_{\text{raw}, i} - 0.5) \cdot r(f_i)$, clamped to `[0.05, 0.95]`.
-- **Bayesian Strength Sampling (`weighted` & `classic`)**: At the start of each MC iteration, draw $\theta_i \sim \text{Beta}(\kappa_i S_i, \kappa_i (1 - S_i))$ via Marsaglia–Tsang Gamma sampling, where $\kappa_i = k \cdot (\text{GP}_{\text{played}} + C + m)$ (`k = 2` Fall, `k = 3` Summer), calibrated to nominal 80%/90% remaining-season points% coverage.
+- **Bayesian Strength Sampling (`weighted` only)**: At the start of each MC iteration, draw $\theta_i \sim \text{Beta}(\kappa_i S_i, \kappa_i (1 - S_i))$ via Marsaglia–Tsang Gamma sampling, where $\kappa_i = k \cdot (\text{GP}_{\text{played}} + C + m)$ (`k = 1.5` Fall, `k = 3` Summer), calibrated to remaining-season CRPS and PIT variance. `classic` mode uses fixed regressed strengths (no Beta sampling) for faithful Sports Club Stats parity.
 
 ### A.2.4 Matchup Outcome Probabilities (Normalized Extra-Time + 3-2-1 Decompression)
 

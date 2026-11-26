@@ -61,6 +61,8 @@ export interface CalibrationProfile {
   regMarginCdf: readonly number[]
   /** Typical goals scored by the losing team in a regulation game (used for GF tiebreak tallies) */
   regLoserGoals: number
+  /** Typical goals scored by the losing team in an OT/SO game (used for GF tiebreak tallies) */
+  otLoserGoals: number
 }
 
 export interface TeamLastGame {

@@ -44,12 +44,13 @@ export const BASH_CALIBRATION: Record<SeasonKind, CalibrationProfile> = {
     otRate: 0.075,
     soRate: 0.045,
     homeFieldAdvantage: 0.5,
-    // Calibrated on remaining-season pts% coverage: 80.3% / 89.4% nominal 80%/90% intervals
-    strengthConcentration: 2,
+    // Calibrated on remaining-season points CRPS & PIT variance (0.0833 at 25%, 0.0836 at 50%; 84.9% / 91.9% cov.)
+    strengthConcentration: 1.5,
     // Empirical Fall regulation goal-margin CDF (1..6+ goals, n=1,357)
     regMarginCdf: [0.2174, 0.4149, 0.5976, 0.7406, 0.8305, 1.0],
-    // Empirical Fall mean regulation loser goals: 2.04
+    // Empirical Fall mean regulation loser goals: 2.04; OT/SO median loser goals: 3 (mean 2.80)
     regLoserGoals: 2,
+    otLoserGoals: 3,
   },
   summer: {
     pythagenPuckPower: 0.458,
@@ -63,8 +64,9 @@ export const BASH_CALIBRATION: Record<SeasonKind, CalibrationProfile> = {
     strengthConcentration: 3,
     // Empirical Summer regulation goal-margin CDF (1..6+ goals, n=488)
     regMarginCdf: [0.2152, 0.3914, 0.5451, 0.6701, 0.7766, 1.0],
-    // Empirical Summer mean regulation loser goals: 4.24
+    // Empirical Summer mean regulation loser goals: 4.24; OT/SO median loser goals: 5 (mean 5.35)
     regLoserGoals: 4,
+    otLoserGoals: 5,
   },
 }
 
@@ -1419,6 +1421,7 @@ function runCoreSimulation(opts: {
   const byeSpots = format.directByeSpots
   const marginCdf = calibration.regMarginCdf
   const loserGoals = calibration.regLoserGoals
+  const otLoserGoals = calibration.otLoserGoals
   const otShare =
     calibration.otRate + calibration.soRate > 0
       ? calibration.otRate / (calibration.otRate + calibration.soRate)
@@ -1444,7 +1447,7 @@ function runCoreSimulation(opts: {
     const priorGames = calibration.ebShrinkageGames + (calibration.goalPriorGames ?? 0)
     kappa[i] = calibration.strengthConcentration * (t.gpPlayed + priorGames)
   }
-  const sampleStrengths = mode !== "50_50" && calibration.strengthConcentration > 0
+  const sampleStrengths = mode === "weighted" && calibration.strengthConcentration > 0
   const lockedSim = state.lockedSimGames
 
   // Fast path: 0 remaining games and nothing left to simulate (completed or ended early)
@@ -1517,14 +1520,38 @@ function runCoreSimulation(opts: {
     }
   }
 
-  // League-average OT/SO normalization over the season's matchups (completed + remaining)
+  // League-average OT/SO normalization over the season's matchups (completed + remaining).
+  // When Beta strength sampling is active, Jensen's inequality on concave extraTimeCloseness(p)
+  // pulls realized OT+SO rates ~1–2 pp below target if normalized at point estimates; a fast
+  // 100-draw pre-loop expectation restores exact target OT+SO rates with zero hot-loop overhead.
   const seasonPairs: Array<readonly [number, number]> = []
   for (const g of [...state.completedGames, ...state.remainingGames]) {
     const a = state.slugToIdx.get(g.awaySlug)
     const h = state.slugToIdx.get(g.homeSlug)
     if (a !== undefined && h !== undefined) seasonPairs.push([a, h])
   }
-  const extraNorm = computeExtraTimeNorm(seasonPairs, strengths)
+  let extraNorm: number
+  if (sampleStrengths && seasonPairs.length > 0) {
+    const normRng = createPrng((seed ^ 0x517cc1b7) >>> 0)
+    const normTheta = new Float64Array(T)
+    const NORM_DRAWS = 100
+    let closenessSum = 0
+    for (let d = 0; d < NORM_DRAWS; d++) {
+      for (let i = 0; i < T; i++) {
+        const s = strengths[i]
+        const k = Math.max(2, kappa[i])
+        normTheta[i] = clampStrength(sampleBeta(k * s, k * (1 - s), normRng))
+      }
+      for (let p = 0; p < seasonPairs.length; p++) {
+        const [a, h] = seasonPairs[p]
+        closenessSum += extraTimeCloseness(log5(normTheta[h], normTheta[a]))
+      }
+    }
+    const meanCloseness = closenessSum / (NORM_DRAWS * seasonPairs.length)
+    extraNorm = meanCloseness > 0 ? 1 / meanCloseness : 1
+  } else {
+    extraNorm = computeExtraTimeNorm(seasonPairs, strengths)
+  }
 
   const G = state.remainingGames.length
   const displayCdf = new Float64Array(5)
@@ -1655,8 +1682,8 @@ function runCoreSimulation(opts: {
     if (countsRow) row[w] += 1
     gd[w] += 1
     gd[l] -= 1
-    gf[w] += loserGoals + 1
-    gf[l] += loserGoals
+    gf[w] += otLoserGoals + 1
+    gf[l] += otLoserGoals
     h2hPts[w * T + l] += 2
     h2hPts[l * T + w] += 1
   }
@@ -1674,8 +1701,8 @@ function runCoreSimulation(opts: {
         if (rng() < otShare) row[lk.winner] += 1
         gd[lk.winner] += 1
         gd[lk.loser] -= 1
-        gf[lk.winner] += loserGoals + 1
-        gf[lk.loser] += loserGoals
+        gf[lk.winner] += otLoserGoals + 1
+        gf[lk.loser] += otLoserGoals
       }
     }
   }

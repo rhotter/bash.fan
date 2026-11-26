@@ -148,8 +148,8 @@ export function PlayoffOddsMethodology({ snapshot }: { snapshot: PlayoffOddsSnap
 
         <div className="space-y-2 border-t border-border/40 pt-3 text-[11px] text-muted-foreground/80">
           <p>
-            <span className="font-medium text-foreground">Bayesian strength uncertainty:</span> In BASH Weighted and SCS
-            Classic modes, each simulated season draws team strength from a{" "}
+            <span className="font-medium text-foreground">Bayesian strength uncertainty:</span> In BASH Weighted
+            mode, each simulated season draws team strength from a{" "}
             <a
               href="https://en.wikipedia.org/wiki/Beta_distribution"
               target="_blank"

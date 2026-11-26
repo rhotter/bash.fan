@@ -84,7 +84,7 @@ const WORKFLOW_STEPS: ReadonlyArray<{ step: string; title: string; body: React.R
     body: (
       <>
         In each <ConceptLink href={CONCEPT_URLS.monteCarlo}>Monte Carlo</ConceptLink> season, draw team strength θ from
-        a <ConceptLink href={CONCEPT_URLS.betaDist}>Beta posterior</ConceptLink> (BASH Weighted and SCS Classic), pair
+        a <ConceptLink href={CONCEPT_URLS.betaDist}>Beta posterior</ConceptLink> (BASH Weighted), pair
         remaining matchups via <ConceptLink href={CONCEPT_URLS.log5}>Bill James Log5</ConceptLink>, apply normalized
         extra-time probabilities and 3-2-1 decompression, sample one of 6 outcomes plus an empirical goal margin, and
         rank final standings using official BASH Rule 213 tiebreakers.
@@ -154,15 +154,15 @@ const CALIBRATION_COMPARISON = [
   },
   {
     param: "Bayesian Beta concentration (k)",
-    fall: `${BASH_CALIBRATION.fall.strengthConcentration} (80.3% / 89.4% cov.)`,
+    fall: `${BASH_CALIBRATION.fall.strengthConcentration} (84.9% / 91.9% cov., PIT 0.0833)`,
     summer: `${BASH_CALIBRATION.summer.strengthConcentration} (82.7% / 92.0% cov.)`,
     nhl: "Plug-in (k = 0)",
   },
   {
-    param: "Regulation loser goals (mean)",
-    fall: `${BASH_CALIBRATION.fall.regLoserGoals} (2.04 empirical)`,
-    summer: `${BASH_CALIBRATION.summer.regLoserGoals} (4.24 empirical)`,
-    nhl: "~1.8",
+    param: "Regulation / OT loser goals",
+    fall: `${BASH_CALIBRATION.fall.regLoserGoals} reg / ${BASH_CALIBRATION.fall.otLoserGoals} OT`,
+    summer: `${BASH_CALIBRATION.summer.regLoserGoals} reg / ${BASH_CALIBRATION.summer.otLoserGoals} OT`,
+    nhl: "~1.8 / ~2.5",
   },
 ] as const
 
@@ -699,7 +699,8 @@ export default function PlayoffOddCalculationsPage() {
                 </div>
                 <p className="mt-2.5 text-center text-xs text-muted-foreground">
                   Starts at 100% regression (0 GP → .500), hits 30% regression at mid-season, and retains a 10% floor at
-                  season&apos;s end. Also draws per-iteration Beta uncertainty in simulations.
+                  season&apos;s end. Uses fixed regressed strengths (no Beta posterior sampling) for faithful Sports Club
+                  Stats parity.
                 </p>
               </FormulaCard>
             </div>

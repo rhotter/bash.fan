@@ -892,3 +892,90 @@ describe("Playoff Odds Engine — Monte Carlo Invariants, Big Games & Tail Probi
     expect(snap.teams.every((t) => t.rpiRank === 1)).toBe(true)
   })
 })
+
+describe("Playoff Odds Audit Fixes — SCS Classic Fixed Strengths, otLoserGoals & extraNorm", () => {
+  it("keeps SCS Classic on fixed regressed strengths (no Beta posterior overdispersion)", () => {
+    const games: PlayoffSimGame[] = [
+      makeGame({ id: "c-f1", date: "2026-10-03", awaySlug: "a", homeSlug: "b", awayScore: 4, homeScore: 2, status: "final" }),
+      makeGame({ id: "c-f2", date: "2026-10-10", awaySlug: "b", homeSlug: "a", awayScore: 4, homeScore: 2, status: "final" }),
+      ...Array.from({ length: 6 }, (_, i) =>
+        makeGame({
+          id: `c-u${i + 1}`,
+          date: `2026-10-${String(17 + i).padStart(2, "0")}`,
+          awaySlug: "a",
+          homeSlug: "b",
+          awayScore: null,
+          homeScore: null,
+          status: "upcoming",
+        })
+      ),
+    ]
+
+    const classicSnap = computePlayoffOdds({
+      seasonId: "test-classic-fixed",
+      seasonName: "Classic Fixed",
+      seasonType: "fall",
+      seasonStatus: "active",
+      configuredPlayoffTeams: 1,
+      games,
+      mode: "classic",
+      iterations: 20_000,
+      includeTimeline: false,
+      includeTailProbes: false,
+    })
+    const weightedSnap = computePlayoffOdds({
+      seasonId: "test-classic-fixed",
+      seasonName: "Classic Fixed",
+      seasonType: "fall",
+      seasonStatus: "active",
+      configuredPlayoffTeams: 1,
+      games,
+      mode: "weighted",
+      iterations: 20_000,
+      includeTimeline: false,
+      includeTailProbes: false,
+    })
+
+    const classicWinOut = classicSnap.teams[0].whatIfRows.find((r) => r.minAddedPts === 18)
+    const weightedWinOut = weightedSnap.teams[0].whatIfRows.find((r) => r.minAddedPts === 18)
+    expect(classicWinOut).toBeDefined()
+    expect(classicWinOut!.simCount).toBeGreaterThan(90)
+    expect(classicWinOut!.simCount).toBeLessThan(210)
+    expect(weightedWinOut!.simCount).toBeGreaterThan(classicWinOut!.simCount * 2)
+  })
+
+  it("configures empirical otLoserGoals (3 Fall / 5 Summer) and preserves target OT+SO rate under Beta sampling", () => {
+    expect(BASH_CALIBRATION.fall.otLoserGoals).toBe(3)
+    expect(BASH_CALIBRATION.summer.otLoserGoals).toBe(5)
+    expect(BASH_CALIBRATION.fall.strengthConcentration).toBe(1.5)
+
+    const teams = ["a", "b", "c", "d"]
+    const games = buildSyntheticSeason(teams, 4, 2)
+    const snap = computePlayoffOdds({
+      seasonId: "test-extranorm",
+      seasonName: "ExtraNorm Check",
+      seasonType: "fall",
+      seasonStatus: "active",
+      configuredPlayoffTeams: 2,
+      games,
+      mode: "weighted",
+      iterations: 20_000,
+      includeTimeline: false,
+      includeTailProbes: false,
+    })
+    expect(snap.bigGames.length).toBeGreaterThan(0)
+    let otSum = 0
+    let totalSum = 0
+    for (const bg of snap.bigGames) {
+      otSum += bg.outcomeSampleCounts.away_ot + bg.outcomeSampleCounts.home_ot
+      totalSum +=
+        bg.outcomeSampleCounts.away_reg +
+        bg.outcomeSampleCounts.away_ot +
+        bg.outcomeSampleCounts.home_ot +
+        bg.outcomeSampleCounts.home_reg
+    }
+    const realizedExtraPct = (otSum / totalSum) * 100
+    expect(realizedExtraPct).toBeGreaterThan(10.8)
+    expect(realizedExtraPct).toBeLessThan(13.5)
+  })
+})
