@@ -1187,7 +1187,7 @@ describe("PlayoffOddsView & StandingsContent Integration", () => {
         modelSelect.dispatchEvent(new Event("change", { bubbles: true }))
       })
       await act(async () => {
-        await new Promise((r) => setTimeout(r, 20))
+        await new Promise<void>((r) => { setTimeout(r, 20) })
       })
 
       // Observed Str stays rendered on the table row in BASH Full-Strength Adj mode, and What-If Attendance stays available
@@ -1375,7 +1375,7 @@ describe("PlayoffOddsView & StandingsContent Integration", () => {
         modelSelect.dispatchEvent(new Event("change", { bubbles: true }))
       })
       await act(async () => {
-        await new Promise((r) => setTimeout(r, 20))
+        await new Promise<void>((r) => { setTimeout(r, 20) })
       })
 
       expect(
@@ -1390,7 +1390,7 @@ describe("PlayoffOddsView & StandingsContent Integration", () => {
         modelSelect.dispatchEvent(new Event("change", { bubbles: true }))
       })
       await act(async () => {
-        await new Promise((r) => setTimeout(r, 20))
+        await new Promise<void>((r) => { setTimeout(r, 20) })
       })
 
       expect(
@@ -1406,7 +1406,7 @@ describe("PlayoffOddsView & StandingsContent Integration", () => {
         modelSelect.dispatchEvent(new Event("change", { bubbles: true }))
       })
       await act(async () => {
-        await new Promise((r) => setTimeout(r, 20))
+        await new Promise<void>((r) => { setTimeout(r, 20) })
       })
 
       expect(
@@ -1628,7 +1628,7 @@ describe("PlayoffOddsView & StandingsContent Integration", () => {
             headers: { "Content-Type": "application/json" },
           })
         )
-        await new Promise((r) => setTimeout(r, 10))
+        await new Promise<void>((r) => { setTimeout(r, 10) })
       })
     } finally {
       fetchSpy.mockRestore()
