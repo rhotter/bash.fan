@@ -101,7 +101,7 @@ export function SeasonTeamsTab({ seasonId, seasonStatus, initialTeams, onTeamsCh
   }
 
   useEffect(() => {
-    fetchData(fallOnly)
+    void fetchData(fallOnly)
   }, [fallOnly])
 
   const addTeam = async (team: Team) => {
@@ -284,7 +284,7 @@ export function SeasonTeamsTab({ seasonId, seasonStatus, initialTeams, onTeamsCh
         setCreateTeamForm({ name: "", slug: "" })
         
         // Auto-assign to season
-        addTeam(newTeam)
+        void addTeam(newTeam)
       } else {
         const err = await readApiJson(res)
         setCreateTeamError(err.error || "Failed to create team")
@@ -408,7 +408,7 @@ export function SeasonTeamsTab({ seasonId, seasonStatus, initialTeams, onTeamsCh
                           {editingTeamSlug === team.teamSlug ? (
                             <form
                               className="flex items-center gap-1 min-w-0"
-                              onSubmit={(e) => { e.preventDefault(); renameTeam(team.teamSlug) }}
+                              onSubmit={(e) => { e.preventDefault(); void renameTeam(team.teamSlug) }}
                             >
                               <Input
                                 autoFocus

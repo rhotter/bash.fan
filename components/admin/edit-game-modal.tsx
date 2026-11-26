@@ -321,12 +321,12 @@ export function EditGameModal({
           setHasLiveScorekeeperData(game.hasLiveScorekeeperData)
           setEditorData(null)
           if (game.hasLiveScorekeeperData && game.id) {
-            loadEditorData(game.id)
+            void loadEditorData(game.id)
           } else {
             setIsLoadingEditor(false)
           }
         } else if (game.id && game.status === "final") {
-          loadEditorData(game.id)
+          void loadEditorData(game.id)
         } else {
           setHasLiveScorekeeperData(false)
           setEditorData(null)
@@ -374,7 +374,7 @@ export function EditGameModal({
   const handleTabChange = (newTab: "boxscore" | "settings") => {
     setModalTab(newTab)
     if (newTab === "boxscore" && game?.id && !editorData && !isLoadingEditor && game.hasLiveScorekeeperData !== false) {
-      loadEditorData(game.id)
+      void loadEditorData(game.id)
     }
   }
 
@@ -739,7 +739,7 @@ export function EditGameModal({
             onValueChange={(val) => {
               if (val === "__SEARCH__") {
                 setPickerState({ side, mode: "search" })
-                fetchGlobalTeams()
+                void fetchGlobalTeams()
               } else if (val === "__CREATE__") {
                 setPickerState({ side, mode: "create" })
                 setNewTeamName("")

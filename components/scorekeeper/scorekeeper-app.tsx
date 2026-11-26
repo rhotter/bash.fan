@@ -362,7 +362,7 @@ export function ScorekeeperApp({
       await finalizeLatest.current()
     }
 
-    tryFinalize()
+    void tryFinalize()
 
     const handler = () => { void tryFinalize() }
     window.addEventListener("online", handler)

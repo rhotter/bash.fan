@@ -374,7 +374,7 @@ export function ExtrasClient({ initial }: { initial: ExtraRow[] }) {
             <AlertDialogAction
               onClick={(e) => {
                 e.preventDefault()
-                handleDelete()
+                void handleDelete()
               }}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               disabled={busy}

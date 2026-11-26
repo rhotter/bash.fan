@@ -391,6 +391,8 @@ export function DraftBoardView({
         const names = addedCaptains.map((c) => `${c.playerName} (R${c.round})`).join(", ")
         toast.success(`Auto-assigned ${addedCaptains.length} missing captain(s) as keepers: ${names}`)
       }
+    }).catch((err: unknown) => {
+      console.error("Failed to auto-assign captain keepers:", err)
     })
 
     setAutoPopulated(true)

@@ -224,8 +224,8 @@ export function GameDetail({ game, initialDetail, initialLiveData, homeRoster, a
               if (searchParams.get("edit")) router.replace(`/game/${game.id}`)
               window.scrollTo(0, 0)
               // Revalidate SWR caches so boxscore/live data refreshes
-              mutate(`/api/bash/game/${game.id}`)
-              mutate(`/api/bash/game/${game.id}/live`)
+              void mutate(`/api/bash/game/${game.id}`)
+              void mutate(`/api/bash/game/${game.id}/live`)
             }}
           />
         </div>

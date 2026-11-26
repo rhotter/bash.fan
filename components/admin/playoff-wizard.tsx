@@ -761,7 +761,7 @@ export function PlayoffWizard({
             <AlertDialogAction
               onClick={() => {
                 setShowConfirm(false)
-                handleSave()
+                void handleSave()
               }}
             >
               Generate Playoffs

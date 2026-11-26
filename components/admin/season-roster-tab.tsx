@@ -144,7 +144,7 @@ export function SeasonRosterTab({ seasonId, seasonStatus, roster, teams, onRoste
   }, [seasonId])
 
   useEffect(() => {
-    fetchTrades()
+    void fetchTrades()
   }, [fetchTrades])
 
   // Add Player State
@@ -1488,7 +1488,7 @@ export function SeasonRosterTab({ seasonId, seasonStatus, roster, teams, onRoste
                   <AlertDialogAction
                     onClick={(e) => {
                       e.preventDefault()
-                      handleDeletePlayer()
+                      void handleDeletePlayer()
                     }}
                     disabled={isEditing}
                     className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
@@ -1683,7 +1683,7 @@ export function SeasonRosterTab({ seasonId, seasonStatus, roster, teams, onRoste
                 variant="outline"
                 size="sm"
                 onClick={() => {
-                  fetchTrades()
+                  void fetchTrades()
                   setIsTradeOpen(true)
                 }}
                 aria-label="Record Trade"
@@ -1945,7 +1945,7 @@ export function SeasonRosterTab({ seasonId, seasonStatus, roster, teams, onRoste
                 <AlertDialogAction
                   onClick={(e) => {
                     e.preventDefault()
-                    handleUndoTrade()
+                    void handleUndoTrade()
                   }}
                   disabled={isUndoingTrade}
                   className="bg-destructive text-destructive-foreground hover:bg-destructive/90"

@@ -274,7 +274,7 @@ export function AddPlayerModal({
                 autoFocus
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && newPlayerName.trim()) {
-                    handleCreateNew()
+                    void handleCreateNew()
                   }
                 }}
               />

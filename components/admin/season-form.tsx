@@ -476,7 +476,7 @@ export function SeasonForm({ season }: SeasonFormProps) {
             <AlertDialogAction
               onClick={(e) => {
                 e.preventDefault()
-                executeStatusTransition()
+                void executeStatusTransition()
               }}
               disabled={saving}
             >

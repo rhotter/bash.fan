@@ -159,7 +159,7 @@ export function DraftTab({ seasonId, seasonStatus, seasonType, teams, rosterCoun
       }
       toast.success("Draft reverted to live")
       setRevertTarget(null)
-      fetchDrafts()
+      void fetchDrafts()
     } catch (e: unknown) {
       const msg = errorMessage(e, "An error occurred")
       toast.error(msg)
@@ -182,7 +182,7 @@ export function DraftTab({ seasonId, seasonStatus, seasonType, teams, rosterCoun
     }
   }, [seasonId])
 
-  useEffect(() => { fetchDrafts() }, [fetchDrafts])
+  useEffect(() => { void fetchDrafts() }, [fetchDrafts])
 
   const handleDelete = async () => {
     if (!deleteTarget) return
@@ -217,7 +217,7 @@ export function DraftTab({ seasonId, seasonStatus, seasonType, teams, rosterCoun
       )
       if (res.ok) {
         toast.success("Draft published!")
-        fetchDrafts()
+        void fetchDrafts()
       } else {
         const err = await readApiJson(res)
         toast.error(err.error || "Failed to publish")
@@ -232,7 +232,7 @@ export function DraftTab({ seasonId, seasonStatus, seasonType, teams, rosterCoun
 
   const handleWizardComplete = () => {
     setWizardOpen(false)
-    fetchDrafts()
+    void fetchDrafts()
   }
 
 
@@ -246,7 +246,7 @@ export function DraftTab({ seasonId, seasonStatus, seasonType, teams, rosterCoun
       )
       if (res.ok) {
         toast.success("Draft unpublished — moved back to draft status")
-        fetchDrafts()
+        void fetchDrafts()
       } else {
         const err = await readApiJson(res)
         toast.error(err.error || "Failed to unpublish")
@@ -276,7 +276,7 @@ export function DraftTab({ seasonId, seasonStatus, seasonType, teams, rosterCoun
       setExpandedPool(null)
     } else {
       setExpandedPool(draftId)
-      if (!poolData[draftId]) fetchPool(draftId)
+      if (!poolData[draftId]) void fetchPool(draftId)
     }
   }
 
@@ -293,7 +293,7 @@ export function DraftTab({ seasonId, seasonStatus, seasonType, teams, rosterCoun
       )
       if (res.ok) {
         toast.success("Trade deleted")
-        fetchDrafts()
+        void fetchDrafts()
       } else {
         const err = await readApiJson(res)
         toast.error(err.error || "Failed to delete trade")
@@ -328,7 +328,7 @@ export function DraftTab({ seasonId, seasonStatus, seasonType, teams, rosterCoun
         toast.success("Trade added")
         setNewTrade({ teamASlug: "", teamARound: "1", teamBSlug: "", teamBRound: "1" })
         setAddingTrade(null)
-        fetchDrafts()
+        void fetchDrafts()
       } else {
         const err = await readApiJson(res)
         toast.error(err.error || "Failed to add trade")
@@ -470,7 +470,7 @@ export function DraftTab({ seasonId, seasonStatus, seasonType, teams, rosterCoun
                             )
                             if (res.ok) {
                               toast.success(`Draft results ${draft.status === "completed" ? "hidden from" : "restored to"} public navigation`)
-                              fetchDrafts()
+                              void fetchDrafts()
                             } else {
                               const err = await readApiJson(res)
                               toast.error(err.error || `Failed to ${action}`)
@@ -1013,7 +1013,7 @@ export function DraftTab({ seasonId, seasonStatus, seasonType, teams, rosterCoun
         rosterCount={rosterCount}
         onComplete={() => {
           setConfigureTarget(null)
-          fetchDrafts()
+          void fetchDrafts()
         }}
         existingDraft={configureTarget}
       />

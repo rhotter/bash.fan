@@ -67,7 +67,6 @@ export default defineConfig({
     eqeqeq: 'off',
     'react/button-has-type': 'off',
     'react/set-state-in-effect': 'off',
-    'typescript/no-floating-promises': 'off',
 
     // Import & type hygiene (mostly auto-fixable)
     'import/consistent-type-specifier-style': 'off',
@@ -128,13 +127,6 @@ export default defineConfig({
         'typescript/require-array-sort-compare': 'off',
         'unicorn/prefer-structured-clone': 'off',
         'unicorn/prefer-top-level-await': 'off',
-      },
-    },
-    // Deferred override for rule re-enabled by @cloudflare/oxlint-config on TS files
-    {
-      files: ['**/*.{ts,tsx,mts,cts}'],
-      rules: {
-        'typescript/no-floating-promises': 'off',
       },
     },
   ],

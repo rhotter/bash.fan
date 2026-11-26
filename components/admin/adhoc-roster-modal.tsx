@@ -69,7 +69,7 @@ export function AdhocRosterModal({
 
   useEffect(() => {
     if (open && game) {
-      fetchRoster()
+      void fetchRoster()
       setSearchQuery("")
       setSearchResults([])
     }

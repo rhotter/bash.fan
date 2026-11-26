@@ -131,12 +131,12 @@ export function SeasonScheduleTab({ seasonId, seasonStatus, initialTeams, defaul
   }, [seasonId])
 
   const handleGamesChanged = useCallback(() => {
-    fetchGames()
+    void fetchGames()
     router.refresh()
   }, [fetchGames, router])
 
   useEffect(() => {
-    fetchGames()
+    void fetchGames()
   }, [fetchGames])
 
   const handleDelete = async (force: boolean = false) => {
@@ -804,7 +804,7 @@ export function SeasonScheduleTab({ seasonId, seasonStatus, initialTeams, defaul
           <AlertDialogFooter>
             <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
             <AlertDialogAction 
-              onClick={(e) => { e.preventDefault(); handleDelete(false); }}
+              onClick={(e) => { e.preventDefault(); void handleDelete(false); }}
               disabled={isDeleting}
               className="bg-destructive hover:bg-destructive/90"
             >
