@@ -146,10 +146,10 @@ export function GoalieChangesEditor({ isPlayoff = false, state, onChange, homeSl
                   <td className="py-1.5 px-2">{nameById(c.inGoalieId) ?? `#${c.inGoalieId}`}</td>
                   <td className="py-1.5 pl-2 text-right hidden sm:table-cell" onClick={(e) => e.stopPropagation()}>
                     <div className="flex items-center justify-end gap-1">
-                      <button onClick={() => openEdit(c)} className="p-1 hover:text-primary transition-colors">
+                      <button type="button" onClick={() => openEdit(c)} className="p-1 hover:text-primary transition-colors">
                         <Pencil className="h-3 w-3" />
                       </button>
-                      <button onClick={() => handleDelete(c.id)} className="p-1 hover:text-destructive transition-colors">
+                      <button type="button" onClick={() => handleDelete(c.id)} className="p-1 hover:text-destructive transition-colors">
                         <Trash2 className="h-3 w-3" />
                       </button>
                     </div>

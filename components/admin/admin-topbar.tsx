@@ -24,7 +24,7 @@ export function AdminTopbar() {
           <SidebarTrigger className="-ml-1 text-muted-foreground hover:bg-muted hover:text-foreground" />
         </div>
         <div className="flex items-center gap-3">
-          <button
+          <button type="button"
             onClick={handleLogout}
             className="text-xs font-medium text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1 cursor-pointer"
           >

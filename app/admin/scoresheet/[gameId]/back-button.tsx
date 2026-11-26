@@ -3,7 +3,7 @@
 export function BackButton() {
   return (
     <div className="no-print" style={{ marginBottom: "8px" }}>
-      <button
+      <button type="button"
         onClick={() => {
           window.close()
           // Fallback if window.close() is blocked (not opened by script)

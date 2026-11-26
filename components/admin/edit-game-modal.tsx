@@ -719,7 +719,7 @@ export function EditGameModal({
                 </div>
               ) : (
                 filteredGlobalTeams.slice(0, 50).map((t) => (
-                  <button
+                  <button type="button"
                     key={t.slug}
                     className="w-full text-left px-2 py-1.5 rounded text-sm hover:bg-primary/10 transition-colors flex items-center justify-between disabled:opacity-50"
                     disabled={isAssigningTeam}

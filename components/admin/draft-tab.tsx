@@ -662,7 +662,7 @@ export function DraftTab({ seasonId, seasonStatus, seasonType, teams, rosterCoun
               {/* Player Pool Section */}
               {draft.poolCount > 0 && (
                 <div className="mt-4 pt-4 border-t">
-                  <button
+                  <button type="button"
                     onClick={() => togglePool(draft.id)}
                     className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors w-full"
                   >
@@ -725,7 +725,7 @@ export function DraftTab({ seasonId, seasonStatus, seasonType, teams, rosterCoun
               )}
               {/* Pre-Draft Trades Section */}
               <div className="mt-4 pt-4 border-t">
-                <button
+                <button type="button"
                   onClick={() => setExpandedTrades(expandedTrades === draft.id ? null : draft.id)}
                   className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors w-full"
                 >

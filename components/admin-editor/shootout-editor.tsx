@@ -120,7 +120,7 @@ export function ShootoutEditor({ state, onChange, homeSlug, awaySlug, homeTeam, 
                   <td className="py-1.5 px-2 font-medium">{nameById(a.playerId)}</td>
                   <td className="py-1.5 px-2">{a.scored ? "Goal" : "Miss"}</td>
                   <td className="py-1.5 pl-2 text-right">
-                    <button onClick={() => handleDeleteAttempt(a.team, a.index)} className="p-1 hover:text-destructive transition-colors">
+                    <button type="button" onClick={() => handleDeleteAttempt(a.team, a.index)} className="p-1 hover:text-destructive transition-colors">
                       <Trash2 className="h-3 w-3" />
                     </button>
                   </td>

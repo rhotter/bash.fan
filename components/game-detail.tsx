@@ -101,7 +101,7 @@ export function GameDetail({ game, initialDetail, initialLiveData, homeRoster, a
         <span className="normal-case tracking-normal">{game.location}</span>
         <GameTypeBadge gameType={game.gameType} />
         <span className="text-border">|</span>
-        <button
+        <button type="button"
           onClick={() => downloadICS([{
             id: game.id,
             date: game.date,

@@ -178,7 +178,7 @@ export function TeamPageContent({ team }: { team: TeamDetail }) {
             </h4>
             <div className="h-px flex-1 bg-border/60" />
           </div>
-          <button
+          <button type="button"
             onClick={() => downloadICS(calendarEvents, `${team.slug}-schedule`)}
             className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground/60 hover:text-foreground border border-border/30 hover:bg-muted/40 px-2.5 py-1.5 rounded transition-all cursor-pointer shrink-0"
           >

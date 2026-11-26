@@ -65,7 +65,6 @@ export default defineConfig({
     // -------------------------------------------------------------------------
     // Correctness & React (next highest priority)
     eqeqeq: 'off',
-    'react/button-has-type': 'off',
     'react/set-state-in-effect': 'off',
 
     // Import & type hygiene (mostly auto-fixable)

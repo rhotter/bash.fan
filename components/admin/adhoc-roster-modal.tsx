@@ -224,7 +224,7 @@ export function AdhocRosterModal({
                       ) : searchResults.length > 0 ? (
                         <div className="py-1">
                           {searchResults.map(player => (
-                            <button
+                            <button type="button"
                               key={player.id}
                               onClick={() => addPlayer(player)}
                               className="w-full text-left px-3 py-2 text-sm hover:bg-muted transition-colors flex items-center justify-between group"

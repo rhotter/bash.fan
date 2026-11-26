@@ -155,10 +155,10 @@ export function GoalsEditor({ isPlayoff = false, state, onChange, homeSlug, away
                   <td className="py-1.5 px-2 text-muted-foreground/60">{g.flags.join(", ") || "-"}</td>
                   <td className="py-1.5 pl-2 text-right hidden sm:table-cell" onClick={(e) => e.stopPropagation()}>
                     <div className="flex items-center justify-end gap-1">
-                      <button onClick={() => openEdit(g)} className="p-1 hover:text-primary transition-colors">
+                      <button type="button" onClick={() => openEdit(g)} className="p-1 hover:text-primary transition-colors">
                         <Pencil className="h-3 w-3" />
                       </button>
-                      <button onClick={() => handleDelete(g.id)} className="p-1 hover:text-destructive transition-colors">
+                      <button type="button" onClick={() => handleDelete(g.id)} className="p-1 hover:text-destructive transition-colors">
                         <Trash2 className="h-3 w-3" />
                       </button>
                     </div>

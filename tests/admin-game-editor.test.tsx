@@ -11,7 +11,7 @@ vi.mock("@/components/admin-editor/shots-editor", () => ({
   ShotsEditor: ({ state, onChange }: { state: LiveGameState; onChange: (patch: Partial<LiveGameState>) => void }) => (
     <section>
       <output aria-label="Home shots">{state.homeShots.join(",")}</output>
-      <button onClick={() => onChange({ homeShots: state.homeShots.map((shots, index) => shots + Number(index === 0)) })}>
+      <button type="button" onClick={() => onChange({ homeShots: state.homeShots.map((shots, index) => shots + Number(index === 0)) })}>
         Increase home shots
       </button>
     </section>
@@ -21,7 +21,7 @@ vi.mock("@/components/admin-editor/goals-editor", () => ({
   GoalsEditor: ({ state, onChange }: { state: LiveGameState; onChange: (goals: GoalEvent[]) => void }) => (
     <section>
       <output aria-label="Goal count">{state.goals.length}</output>
-      <button onClick={() => onChange([...state.goals, {
+      <button type="button" onClick={() => onChange([...state.goals, {
         id: "corrected-goal", team: "home", period: 3, clock: "2:00", scorerId: 10,
         assist1Id: null, assist2Id: null, flags: [],
       }])}>Add home goal</button>
@@ -32,21 +32,21 @@ vi.mock("@/components/scorekeeper/shared/goalie-shot-allocation", () => ({
   GoalieShotAllocation: ({ goalies, onChange }: { goalies: ShotAllocationGoalie[]; onChange: (allocation: Record<string, number>) => void }) => (
     <section>
       <output aria-label="Allocation goalies">{goalies.map((goalie) => `${goalie.id}:${goalie.name}`).join(",")}</output>
-      <button onClick={() => onChange({ "2": 15 })}>Set goalie allocation</button>
-      <button onClick={() => onChange({ "1": 6, "3": 6, "2": 15 })}>Allocate relief goalie shots</button>
+      <button type="button" onClick={() => onChange({ "2": 15 })}>Set goalie allocation</button>
+      <button type="button" onClick={() => onChange({ "1": 6, "3": 6, "2": 15 })}>Allocate relief goalie shots</button>
     </section>
   ),
 }))
 vi.mock("@/components/admin-editor/penalties-editor", () => ({ PenaltiesEditor: () => null }))
 vi.mock("@/components/admin-editor/attendance-editor", () => ({
   AttendanceEditor: ({ state, onChange }: { state: LiveGameState; onChange: (patch: Partial<LiveGameState>) => void }) => (
-    <button onClick={() => onChange({ homeGoalieId: 3, homeAttendance: [...new Set([...state.homeAttendance, 3])] })}>Assign relief goalie</button>
+    <button type="button" onClick={() => onChange({ homeGoalieId: 3, homeAttendance: [...new Set([...state.homeAttendance, 3])] })}>Assign relief goalie</button>
   ),
 }))
 vi.mock("@/components/admin-editor/goalie-pulls-editor", () => ({ GoaliePullsEditor: () => null }))
 vi.mock("@/components/admin-editor/goalie-changes-editor", () => ({
   GoalieChangesEditor: ({ state, onChange }: { state: LiveGameState; onChange: (changes: GoalieChangeEvent[]) => void }) => (
-    <button onClick={() => onChange([...(state.goalieChanges ?? []), {
+    <button type="button" onClick={() => onChange([...(state.goalieChanges ?? []), {
       id: "relief", team: "home", period: 2, clock: "10:00", outGoalieId: 1, inGoalieId: 3,
     }])}>Add goalie change</button>
   ),

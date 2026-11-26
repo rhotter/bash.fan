@@ -19,7 +19,7 @@ vi.mock("@/components/ui/drawer", () => {
 
 vi.mock("@/components/scorekeeper/shared/goalie-select", () => ({
   GoalieSelect: ({ label, onChange }: { label: string; onChange: (value: string) => void }) =>
-    <button onClick={() => onChange("3")}>Replace {label} goalie</button>,
+    <button type="button" onClick={() => onChange("3")}>Replace {label} goalie</button>,
 }))
 
 import { ScorekeeperApp } from "@/components/scorekeeper/scorekeeper-app"

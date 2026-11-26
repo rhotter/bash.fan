@@ -1168,18 +1168,18 @@ export function ScorekeeperApp({
               {/* Clock + Period + Play/Pause */}
               {!isPreGame && !isShootout && (
                 <div className="flex items-center justify-center gap-3">
-                  <button onClick={() => setPeriodEditOpen(true)}>
+                  <button type="button" onClick={() => setPeriodEditOpen(true)}>
                     <span className="text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded-full bg-background/15 text-background">
                       {periodLabel(state.period, isPlayoff)}
                     </span>
                   </button>
-                  <button
+                  <button type="button"
                     onClick={openClockEdit}
                     className="text-3xl font-black font-mono tabular-nums tracking-tighter text-background/60"
                   >
                     {formatClock(displayClock)}
                   </button>
-                  <button
+                  <button type="button"
                     onClick={toggleClock}
                     className={cn(
                       "size-12 rounded-full flex items-center justify-center transition-all active:scale-95",
@@ -1194,7 +1194,7 @@ export function ScorekeeperApp({
               )}
               {(isPreGame || isShootout) && (
                 <div className="flex justify-center">
-                  <button onClick={() => setPeriodEditOpen(true)}>
+                  <button type="button" onClick={() => setPeriodEditOpen(true)}>
                     <span className="text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded-full bg-background/15 text-background">
                       {periodLabel(state.period, isPlayoff)}
                     </span>
@@ -1488,7 +1488,7 @@ export function ScorekeeperApp({
                         </div>
                         <span className="text-[10px] text-muted-foreground/50 shrink-0">{teamName}</span>
                         <span className="text-[10px] text-muted-foreground/40 tabular-nums font-mono shrink-0">{periodLabel(g.period, isPlayoff)} {clockToElapsedDisplay(g.clock, g.period, defaultPeriodLength, isPlayoff ? defaultPeriodLength : 300)}</span>
-                        <button
+                        <button type="button"
                           onClick={(e) => { e.stopPropagation(); setConfirmUndo({ id: g.id, type: "goal" }) }}
                           className="shrink-0 p-1 rounded text-muted-foreground/30 hover:text-foreground transition-colors"
                         >
@@ -1508,7 +1508,7 @@ export function ScorekeeperApp({
                         </div>
                         <span className="text-[10px] text-muted-foreground/50 shrink-0">{teamName}</span>
                         <span className="text-[10px] text-muted-foreground/40 tabular-nums font-mono shrink-0">{periodLabel(p.period, isPlayoff)} {clockToElapsedDisplay(p.clock, p.period, defaultPeriodLength, isPlayoff ? defaultPeriodLength : 300)}</span>
-                        <button
+                        <button type="button"
                           onClick={(e) => { e.stopPropagation(); setConfirmUndo({ id: p.id, type: "penalty" }) }}
                           className="shrink-0 p-1 rounded text-muted-foreground/30 hover:text-foreground transition-colors"
                         >
@@ -1526,7 +1526,7 @@ export function ScorekeeperApp({
                           <span className="text-[11px] font-medium text-muted-foreground">{teamName}</span>
                         </div>
                         <span className="text-[10px] text-muted-foreground/40 tabular-nums font-mono shrink-0">{periodLabel(t.period, isPlayoff)} {clockToElapsedDisplay(t.clock, t.period, defaultPeriodLength, isPlayoff ? defaultPeriodLength : 300)}</span>
-                        <button
+                        <button type="button"
                           onClick={(e) => { e.stopPropagation(); setConfirmUndo({ id: t.id, type: "timeout" }) }}
                           className="shrink-0 p-1 rounded text-muted-foreground/30 hover:text-foreground transition-colors"
                         >
@@ -1544,7 +1544,7 @@ export function ScorekeeperApp({
                         </div>
                         <span className="text-[10px] text-muted-foreground shrink-0">{teamName}</span>
                         <span className="text-[10px] text-muted-foreground tabular-nums font-mono shrink-0">{periodLabel(pull.period, isPlayoff)} {clockToElapsedDisplay(item.clock, pull.period, defaultPeriodLength, isPlayoff ? defaultPeriodLength : 300)}</span>
-                        <button
+                        <button type="button"
                           aria-label={`Remove ${teamName} goalie ${item.type === "goaliePull" ? "pull" : "return"}`}
                           onClick={() => setConfirmUndo({ id: pull.id, type: item.type })}
                           className="shrink-0 p-1 rounded text-muted-foreground hover:text-foreground transition-colors"
@@ -1566,7 +1566,7 @@ export function ScorekeeperApp({
                         </div>
                         <span className="text-[10px] text-muted-foreground/50 shrink-0">{teamName}</span>
                         <span className="text-[10px] text-muted-foreground/40 tabular-nums font-mono shrink-0">{periodLabel(c.period, isPlayoff)} {clockToElapsedDisplay(c.clock, c.period, defaultPeriodLength, isPlayoff ? defaultPeriodLength : 300)}</span>
-                        <button
+                        <button type="button"
                           aria-label={`Remove ${teamName} goalie substitution`}
                           onClick={(e) => { e.stopPropagation(); setConfirmUndo({ id: c.id, type: "goalieChange" }) }}
                           className="shrink-0 p-1 rounded text-muted-foreground/30 hover:text-foreground transition-colors"

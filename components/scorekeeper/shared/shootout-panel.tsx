@@ -107,12 +107,12 @@ export function ShootoutPanel({
       {/* Undo buttons */}
       <div className="flex gap-2">
         {shootout.awayAttempts.length > 0 && (
-          <button className="text-[10px] text-muted-foreground/40 hover:text-muted-foreground transition-colors" onClick={() => onUndo(awaySlug)}>
+          <button type="button" className="text-[10px] text-muted-foreground/40 hover:text-muted-foreground transition-colors" onClick={() => onUndo(awaySlug)}>
             Undo {awayTeam}
           </button>
         )}
         {shootout.homeAttempts.length > 0 && (
-          <button className="text-[10px] text-muted-foreground/40 hover:text-muted-foreground transition-colors" onClick={() => onUndo(homeSlug)}>
+          <button type="button" className="text-[10px] text-muted-foreground/40 hover:text-muted-foreground transition-colors" onClick={() => onUndo(homeSlug)}>
             Undo {homeTeam}
           </button>
         )}

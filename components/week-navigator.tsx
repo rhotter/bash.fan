@@ -195,7 +195,7 @@ export function WeekNavigator({
                   <span className={cn("text-[10px] font-semibold uppercase tracking-wider", divider.colorClass)}>{divider.label}</span>
                 </div>
               )}
-              <button
+              <button type="button"
                 ref={(el) => {
                   if (el) pillRefs.current.set(i, el)
                   else pillRefs.current.delete(i)

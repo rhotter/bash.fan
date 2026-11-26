@@ -372,7 +372,7 @@ export function SeasonTeamsTab({ seasonId, seasonStatus, initialTeams, onTeamsCh
                         <div className="flex items-center gap-3 min-w-0">
                           <Popover>
                             <PopoverTrigger asChild>
-                              <button
+                              <button type="button"
                                 className="w-6 h-6 rounded-full border-2 border-muted hover:border-primary/50 transition-colors cursor-pointer shrink-0 focus:outline-none focus:ring-2 focus:ring-primary/50"
                                 style={{ backgroundColor: resolveColor(team.teamSlug) }}
                                 title="Set team color for season"

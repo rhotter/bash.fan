@@ -1439,7 +1439,7 @@ export function DraftBoardView({
                   const isFull = t.count >= draft.maxKeepers
                   const teamColor = teams.find(tm => tm.teamSlug === t.teamSlug)?.color
                   return (
-                    <button
+                    <button type="button"
                       key={t.teamSlug}
                       className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border text-xs font-medium transition-all cursor-pointer ${
                         isSelected
@@ -1548,7 +1548,7 @@ export function DraftBoardView({
                         (c) => c.playerId === p.playerId && c.teamSlug === selectedTeam
                       )
                       return (
-                        <button
+                        <button type="button"
                           key={p.playerId}
                           className="w-full flex items-center justify-between rounded px-3 py-1.5 text-sm hover:bg-muted/50 transition-colors text-left"
                           onClick={() => addKeeper(p.playerId, selectedTeam)}
@@ -1647,7 +1647,7 @@ export function DraftBoardView({
                         >
                           {pick?.playerId ? (
                             <div className="flex flex-col items-start gap-0.5 pl-1">
-                              <button
+                              <button type="button"
                                 className="font-medium truncate max-w-[120px] text-left hover:underline hover:text-primary transition-colors"
                                 title={pick.playerName || ""}
                                 onClick={(e) => { e.stopPropagation(); if (pick.playerId) openPlayerCard(pick.playerId) }}
@@ -2018,7 +2018,7 @@ export function DraftBoardView({
                               >
                                 {pick?.playerId && pick.playerName ? (
                                   <div className="flex flex-col gap-0.5">
-                                    <button
+                                    <button type="button"
                                       onClick={() => openPlayerCard(pick.playerId!)}
                                       className="font-medium text-left hover:text-orange-600 transition-colors cursor-pointer"
                                     >
