@@ -453,7 +453,7 @@ export function EditGameModal({
         playerNames: _pn,
         savedGoalies: _sg,
         ...payload
-      } = formData as Record<string, unknown>
+      } = formData
 
       if (hasLiveScorekeeperData && !formData.isForfeit) {
         payload.homeScore = derivedStats.homeScore

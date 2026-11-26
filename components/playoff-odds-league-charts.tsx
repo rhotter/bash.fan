@@ -272,7 +272,7 @@ function LeagueChart({
                   if (
                     item.value === undefined ||
                     item.value === null ||
-                    item.tooltipType === "none" ||
+                    ("tooltipType" in item && item.tooltipType === "none") ||
                     !item.name ||
                     String(item.name) === String(item.dataKey)
                   ) {

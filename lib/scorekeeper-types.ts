@@ -86,6 +86,9 @@ export interface LiveGameState {
   goaliePulls: GoaliePullEvent[]
   goalieChanges: GoalieChangeEvent[]
   shootout: ShootoutState | null
+  /** Optional legacy flags that may be present on older stored live states. */
+  isOvertime?: boolean
+  hasShootout?: boolean
   threeStars: number[] | null // [1st, 2nd, 3rd] player IDs
   homeGoalieId: number | null
   awayGoalieId: number | null
