@@ -492,7 +492,7 @@ describe("Two-Tab Wide Modal in Season Schedule Tab (R1)", () => {
       saveBtn.click()
     })
 
-    const patchCall = fetchMock.mock.calls.find(([url]: [string]) => url.includes(`/schedule/${finalLiveGame.id}`))
+    const patchCall = fetchMock.mock.calls.find(([url]) => typeof url === "string" && url.includes(`/schedule/${finalLiveGame.id}`))
     expect(patchCall).toBeDefined()
     const [, init] = patchCall!
     const payload = JSON.parse(init.body)
@@ -687,7 +687,7 @@ describe("Two-Tab Wide Modal in Season Schedule Tab (R1)", () => {
       saveBtn.click()
     })
 
-    const patchCall = fetchMock.mock.calls.find(([url]: [string]) => url.includes(`/schedule/${liveGameData.id}`))
+    const patchCall = fetchMock.mock.calls.find(([url]) => typeof url === "string" && url.includes(`/schedule/${liveGameData.id}`))
     expect(patchCall).toBeDefined()
     const [, init] = patchCall!
     const payload = JSON.parse(init.body)
@@ -736,7 +736,7 @@ describe("Two-Tab Wide Modal in Season Schedule Tab (R1)", () => {
     })
 
     // Eager fetch was invoked for g103 because initialTab is boxscore
-    const scheduleFetch = fetchMock.mock.calls.find(([url]: [string]) => url.includes(`/schedule/g103`))
+    const scheduleFetch = fetchMock.mock.calls.find(([url]) => typeof url === "string" && url.includes(`/schedule/g103`))
     expect(scheduleFetch).toBeDefined()
   })
 
@@ -778,7 +778,7 @@ describe("Two-Tab Wide Modal in Season Schedule Tab (R1)", () => {
     })
 
     // On open with Game Settings active, editor data is not eagerly fetched
-    const initialFetch = fetchMock.mock.calls.find(([url]: [string]) => url.includes(`/schedule/g103`))
+    const initialFetch = fetchMock.mock.calls.find(([url]) => typeof url === "string" && url.includes(`/schedule/g103`))
     expect(initialFetch).toBeUndefined()
 
     // Switch to Boxscore & Stats tab
@@ -792,7 +792,7 @@ describe("Two-Tab Wide Modal in Season Schedule Tab (R1)", () => {
     })
 
     // Now editor data is fetched
-    const afterTabSwitchFetch = fetchMock.mock.calls.find(([url]: [string]) => url.includes(`/schedule/g103`))
+    const afterTabSwitchFetch = fetchMock.mock.calls.find(([url]) => typeof url === "string" && url.includes(`/schedule/g103`))
     expect(afterTabSwitchFetch).toBeDefined()
   })
 

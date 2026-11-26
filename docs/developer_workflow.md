@@ -103,7 +103,6 @@ Navigate to `http://localhost:3000` in your browser. The app should now be runni
   ```bash
   pnpm typecheck
   ```
-  > **Note:** There are a small number of pre-existing type errors in legacy files. When adding new code, ensure your changes introduce zero new errors.
 
 - **Building for Production**: To verify that the build succeeds before pushing to main:
   ```bash
