@@ -42,6 +42,8 @@ export interface HistoricalTradeEntry {
   seasonId: string
   leagueId: number
   playerName: string
+  /** Optional alternate `players.name` values when a player was renamed/merged in one environment (e.g. Prod). */
+  playerNameAliases?: string[]
   sportabilityPlayerId: number | null
   fromTeamSlug: string
   toTeamSlug: string
@@ -745,7 +747,11 @@ export async function resolveEntriesForDatabase(
 ): Promise<ResolvedHistoricalTradeEntry[]> {
   if (rawEntries.length === 0) return []
   const seasonIds = [...new Set(rawEntries.map((e) => e.seasonId))].sort()
-  const normNames = [...new Set(rawEntries.map((e) => normalizePlayerNameKey(e.playerName)))].sort()
+  const normNames = [
+    ...new Set(
+      rawEntries.flatMap((e) => [e.playerName, ...(e.playerNameAliases ?? [])].map(normalizePlayerNameKey))
+    ),
+  ].sort()
 
   const [playersRows, seasonTeamsRows, playerSeasonsRows] = await Promise.all([
     sql`
@@ -793,22 +799,46 @@ export async function resolveEntriesForDatabase(
       errors.push(`${e.seasonId} ${e.playerName}: toTeamSlug "${e.toTeamSlug}" missing from season_teams`)
     }
 
-    const matches = playersByNorm.get(normalizePlayerNameKey(e.playerName)) ?? []
-    if (matches.length !== 1) {
+    const candidateNames = [e.playerName, ...(e.playerNameAliases ?? [])]
+    const perNameMatches = candidateNames.map((n) => ({
+      name: n,
+      matches: playersByNorm.get(normalizePlayerNameKey(n)) ?? [],
+    }))
+    const ambiguousName = perNameMatches.find((x) => x.matches.length > 1)
+    if (ambiguousName) {
       errors.push(
-        `${e.seasonId} "${e.playerName}": expected exactly 1 player match in target DB, found ${matches.length}` +
-          (matches.length > 1 ? ` (${matches.map((m) => `#${m.id} ${m.name}`).join(", ")})` : "")
+        `${e.seasonId} "${ambiguousName.name}": expected exactly 1 player match in target DB, found ${ambiguousName.matches.length}` +
+          ` (${ambiguousName.matches.map((m) => `#${m.id} ${m.name}`).join(", ")})`
       )
       continue
     }
 
-    const playerId = matches[0].id
-    if (!playerSeasonSet.has(`${e.seasonId}:${playerId}:${e.toTeamSlug}`)) {
-      errors.push(
-        `${e.seasonId} "${e.playerName}" (#${playerId}): missing player_seasons row for toTeamSlug "${e.toTeamSlug}"`
-      )
+    const uniqueCandidates = [
+      ...new Map(perNameMatches.flatMap((x) => x.matches).map((m) => [m.id, m])).values(),
+    ]
+    if (uniqueCandidates.length === 0) {
+      errors.push(`${e.seasonId} "${e.playerName}": expected exactly 1 player match in target DB, found 0`)
       continue
     }
+
+    const rosterMatched = uniqueCandidates.filter((m) =>
+      playerSeasonSet.has(`${e.seasonId}:${m.id}:${e.toTeamSlug}`)
+    )
+    if (rosterMatched.length !== 1) {
+      if (uniqueCandidates.length === 1 && rosterMatched.length === 0) {
+        errors.push(
+          `${e.seasonId} "${e.playerName}" (#${uniqueCandidates[0].id}): missing player_seasons row for toTeamSlug "${e.toTeamSlug}"`
+        )
+      } else {
+        errors.push(
+          `${e.seasonId} "${e.playerName}": expected exactly 1 candidate on "${e.toTeamSlug}" in player_seasons, found ${rosterMatched.length}` +
+            ` (candidates: ${uniqueCandidates.map((m) => `#${m.id} ${m.name}`).join(", ")})`
+        )
+      }
+      continue
+    }
+
+    const playerId = rosterMatched[0].id
 
     const pairKey = `${e.seasonId}:${playerId}`
     if (seenKeys.has(pairKey)) {

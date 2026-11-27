@@ -1949,6 +1949,9 @@
     "seasonId": "2021-2022",
     "leagueId": 48607,
     "playerName": "David Ruiz",
+    "playerNameAliases": [
+      "David Andrew Ruiz"
+    ],
     "sportabilityPlayerId": 2512796,
     "fromTeamSlug": "seals",
     "toTeamSlug": "reign",
