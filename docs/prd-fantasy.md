@@ -1,6 +1,6 @@
 # PRD: Fantasy and Pick'em
 
-> **Status**: Implemented, in beta testing (nav link hidden until an admin turns it on)
+> **Status**: Implemented, in beta testing (no nav link yet; reached by direct URL)
 > **Author**: BASH Development Team
 > **Created**: 2026-11-01
 > **Updated**: 2026-11-02
@@ -107,16 +107,19 @@ Skater and goalie slots are data, so the parked 8-slot format can be added later
 
 ### Public
 
-- `/fantasy`: a shared Week overview (games, Bye team, results), then Fantasy and Pick'em tabs with Weekly and season standings, plus public Lineups and Predictions after the Lock. The tab and Week are in the URL.
+- `/fantasy`: a shared Week overview (games, Bye team, results), then Fantasy and Pick'em tabs with Weekly and season standings (opening on the season standings unless the URL names a Week, and switching to Weekly when a Week is picked), plus public Lineups and Predictions after the Lock. The tab and Week are in the URL.
 - `/fantasy/manager/[id]`: one Manager's season totals and locked Weeks for both games. Never the open Week or a real name.
-- Registration form.
-- Manager Link page: the Week overview plus Lineup, Predictions and History tabs. Lineups and Predictions save separately.
+- Registration form. With no Contest named it picks one still taking people, by the same rule as the registration API. It says when picks open for a Contest that hasn't started, says when registration is closed, and links to any other Contest that's open to join.
+- `/fantasy` also lists any other Contest that's open to join, with a Join link.
+- With more than one Contest enabled, `/fantasy` and the registration form always name the Contest in the URL (`?contest=<key>`).
+- Manager Link page: the close time and a countdown beside the Team Name, the Week overview plus Lineup, Predictions and History tabs. Lineups and Predictions save separately.
 - Player picker: searchable, grouped by Week game then team, showing uses left and Fantasy points per game this season. Players with no uses left are visible but disabled.
 
 ### Admin
 
-- Toggle for the nav link. It only shows or hides the link; `/fantasy` stays reachable by direct URL so it can be tested.
-- While hidden, `/fantasy` is marked not to be indexed.
+`/admin/fantasy` puts admin workflows first: verifying accounts by real name, spotting duplicates, managing Manager Links and entries, and configuring Contests. It's designed around those tasks rather than reusing a leaderboard view.
+
+- There's no nav link or admin toggle for now: `/fantasy` is reached by direct URL, and every public Fantasy page is marked not to be indexed (`app/fantasy/layout.tsx`). Remove that when it launches.
 - Manager list with real names, duplicate flags, rename, remove and reissue link.
 - Removing a Manager deletes their Lineups and Predictions, which also clears test data before launch.
 
@@ -311,6 +314,8 @@ Still open: the admin page has an editable JSON config, kept so live tests can t
 Known gap: a Lineup saved in the instant an admin saves the first config could race past the freeze.
 
 ### 04: Fantasy standings and launch toggle
+
+> **Update, 2026-11-27:** the nav link and its toggle aren't in the current code. For now `/fantasy` is reached by direct URL and is never indexed. The nav items and comments below are kept as history.
 
 **What to build:** Anyone can visit `/fantasy` to see Weekly and season Fantasy standings and public Lineups after the Lock. An admin decides when the nav link appears. See "Surfaces" in this PRD.
 

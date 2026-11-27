@@ -2,6 +2,7 @@
 import { act, type ReactNode } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { CloseTime } from "@/components/fantasy/close-time"
 import { RegistrationForm } from "@/components/fantasy/registration-form"
 import { CopyLink } from "@/components/fantasy/copy-link"
 import { ManagerHistory } from "@/components/fantasy/manager-history"
@@ -89,6 +90,7 @@ const pageData: FantasyPageData = {
   picksOpenAt: null,
   contest: "regular",
   contests: ["regular"],
+  otherOpenContests: [],
   nextLockAt: "2026-11-21T16:00:00.000Z",
   timeZone: "America/Los_Angeles",
   openWeekId: "2026-11-14",
@@ -166,21 +168,29 @@ const pageData: FantasyPageData = {
   },
 }
 
-async function showSeason() {
-  await act(async () => [...container.querySelectorAll('[role="tab"]')].find((t) => t.textContent === "Season")!.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, button: 0, ctrlKey: false })))
+async function showRange(name: "Season" | "Weekly") {
+  await act(async () => [...container.querySelectorAll('[role="tab"]')].find((t) => t.textContent === name)!.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, button: 0, ctrlKey: false })))
 }
 
 describe("FantasyStandingsView", () => {
-  it("shows the chosen Week's overview with Weekly standings, and Season standings behind a toggle", async () => {
+  it("opens on the Season standings, with the Week's overview and Weekly standings behind a toggle", async () => {
     await render(<FantasyStandingsView data={pageData} view={{ tab: "fantasy", weekId: "2026-11-07" }} />)
 
     expect(container.querySelector('[aria-label="Week overview"]')?.textContent).toContain("Seals")
-    expect(container.querySelector('[aria-label="Weekly standings"]')?.textContent).toContain("Puck Norris")
-    expect(container.querySelector('[aria-label="Season standings"]')).toBeNull()
-
-    await showSeason()
     expect(container.querySelector('[aria-label="Season standings"]')?.textContent).toContain("Puck Norris")
     expect(container.querySelector('[aria-label="Weekly standings"]')).toBeNull()
+
+    await showRange("Weekly")
+    expect(container.querySelector('[aria-label="Weekly standings"]')?.textContent).toContain("Puck Norris")
+    expect(container.querySelector('[aria-label="Season standings"]')).toBeNull()
+  })
+
+  it("switches to the Weekly standings when a Week is picked", async () => {
+    await render(<FantasyStandingsView data={pageData} view={{ tab: "fantasy", weekId: "2026-11-14" }} />)
+
+    await act(async () => [...container.querySelectorAll("a")].find((a) => a.textContent === "Nov 7")!.click())
+
+    expect(container.querySelector('[aria-label="Weekly standings"]')?.textContent).toContain("Puck Norris")
   })
 
   it("only shows the contest switcher when there is more than one, naming each contest in its link", async () => {
@@ -200,6 +210,23 @@ describe("FantasyStandingsView", () => {
     expect([...container.querySelectorAll("a")].find((a) => a.textContent === "Join Fantasy")?.getAttribute("href")).toBe(
       "/fantasy/register?contest=playoffs"
     )
+  })
+
+  it("offers another contest that's open to join, even when this one takes nobody", async () => {
+    await render(
+      <FantasyStandingsView
+        data={{
+          ...pageData,
+          status: "final-week",
+          otherOpenContests: [{ contest: "main", picksOpenAt: "2027-01-02T16:00:00.000Z", timeZone: "America/Los_Angeles" }],
+        }}
+        view={{ tab: "fantasy", weekId: "2026-11-07" }}
+      />
+    )
+
+    const list = container.querySelector('[aria-label="Other contests open to join"]')!
+    expect(list.textContent).toContain("Main is open to join. Picks open Saturday, Jan 2, 8:00 AM PST.")
+    expect(list.querySelector("a")?.getAttribute("href")).toBe("/fantasy/register?contest=main")
   })
 
   it("keeps the contest in tab and Week links and the rewritten URL when there is more than one", async () => {
@@ -233,21 +260,21 @@ describe("FantasyStandingsView", () => {
   })
 
   it("links each Team Name to its Manager page by id", async () => {
-    await render(<FantasyStandingsView data={pageData} view={{ tab: "fantasy", weekId: "2026-11-07" }} />)
+    await render(<FantasyStandingsView initialRange="weekly" data={pageData} view={{ tab: "fantasy", weekId: "2026-11-07" }} />)
     const hrefs = (label: string) =>
       [...container.querySelectorAll(`[aria-label="${label}"] a[href^="/fantasy/manager/"]`)].map((a) => a.getAttribute("href"))
     expect(hrefs("Weekly standings")).toEqual(["/fantasy/manager/7"])
-    await showSeason()
+    await showRange("Season")
     expect(hrefs("Season standings")).toEqual(["/fantasy/manager/7"])
 
     await act(async () => [...container.querySelectorAll("a")].find((a) => a.textContent === "Pick'em")!.click())
     expect(hrefs("Weekly standings")).toEqual(["/fantasy/manager/9"])
-    await showSeason()
+    await showRange("Season")
     expect(hrefs("Season standings")).toEqual(["/fantasy/manager/9"])
   })
 
   it("links each Selection to the Player's page, with their game stats inline", async () => {
-    await render(<FantasyStandingsView data={pageData} view={{ tab: "fantasy", weekId: "2026-11-07" }} />)
+    await render(<FantasyStandingsView initialRange="weekly" data={pageData} view={{ tab: "fantasy", weekId: "2026-11-07" }} />)
 
     const link = container.querySelector('a[href="/player/ada-lovelace"]')
     expect(link?.textContent).toBe("Ada Lovelace")
@@ -257,7 +284,7 @@ describe("FantasyStandingsView", () => {
   })
 
   it("says why a Selection has no game stats", async () => {
-    await render(<FantasyStandingsView data={pageData} view={{ tab: "fantasy", weekId: "2026-11-07" }} />)
+    await render(<FantasyStandingsView initialRange="weekly" data={pageData} view={{ tab: "fantasy", weekId: "2026-11-07" }} />)
 
     expect(container.textContent).toContain("Absent")
   })
@@ -275,7 +302,7 @@ describe("FantasyStandingsView", () => {
       openWeekId: "2026-11-14",
       weeks: [pageData.weeks[0]],
     }
-    await render(<FantasyStandingsView data={data} view={{ tab: "fantasy", weekId: "2026-11-14" }} />)
+    await render(<FantasyStandingsView initialRange="weekly" data={data} view={{ tab: "fantasy", weekId: "2026-11-14" }} />)
 
     const link = [...container.querySelectorAll("a")].find((a) => a.textContent === "Nov 14")
     expect(link?.getAttribute("aria-current")).toBe("page")
@@ -285,7 +312,7 @@ describe("FantasyStandingsView", () => {
 
   it("switches tab and Week in place, rewriting the URL without navigating", async () => {
     const replaceState = vi.spyOn(window.history, "replaceState")
-    await render(<FantasyStandingsView data={pageData} view={{ tab: "fantasy", weekId: "2026-11-07" }} />)
+    await render(<FantasyStandingsView initialRange="weekly" data={pageData} view={{ tab: "fantasy", weekId: "2026-11-07" }} />)
     const link = (name: string) => [...container.querySelectorAll("a")].find((a) => a.textContent === name)!
 
     await act(async () => link("Pick'em").click())
@@ -300,20 +327,20 @@ describe("FantasyStandingsView", () => {
   })
 
   it("shows Pick'em standings apart from Fantasy, with each Manager's Predictions", async () => {
-    await render(<FantasyStandingsView data={pageData} view={{ tab: "pickem", weekId: "2026-11-07" }} />)
+    await render(<FantasyStandingsView initialRange="weekly" data={pageData} view={{ tab: "pickem", weekId: "2026-11-07" }} />)
 
     const weekly = container.querySelector('[aria-label="Weekly standings"]')!.textContent ?? ""
     expect(weekly).toContain("Oracle")
     expect(weekly).toContain("Seals vs Yetis")
     expect(weekly).toContain("5 – 1")
     expect(weekly).toContain("Correct winner")
-    await showSeason()
+    await showRange("Season")
     expect(container.querySelector('[aria-label="Season standings"]')?.textContent).toContain("Oracle")
     expect(container.textContent).not.toContain("Puck Norris")
   })
 
   it("says so when nobody predicted a Week or the Week hasn't closed", async () => {
-    await render(<FantasyStandingsView data={pageData} view={{ tab: "pickem", weekId: "2026-11-14" }} />)
+    await render(<FantasyStandingsView initialRange="weekly" data={pageData} view={{ tab: "pickem", weekId: "2026-11-14" }} />)
 
     expect(container.querySelector('[aria-label="Weekly standings"]')?.textContent).toContain("after this Week closes")
   })
@@ -488,13 +515,23 @@ describe("LineupFormPanel", () => {
       (b) => b.textContent?.includes(name) || b.getAttribute("aria-label")?.includes(name)
     )!
 
-  it("shows the saved Lineup in its slots and the closing day and time, not the word Lock", async () => {
+  it("shows the saved Lineup in its slots, without the word Lock", async () => {
     await render(<LineupFormPanel form={form} token="t" />)
 
     expect(button("Ada Lovelace")).toBeDefined()
     expect(button("Gus Goalie")).toBeDefined()
-    expect(container.textContent).toContain("Saturday, Nov 7, 8:00 AM")
     expect(container.textContent).not.toMatch(/lock/i)
+  })
+
+  it("flags unsaved changes beside the Save button once a slot changes", async () => {
+    await render(<LineupFormPanel form={form} token="t" />)
+    expect(container.textContent).not.toContain("Unsaved changes")
+
+    await act(async () => button("Skater 2").click())
+    await act(async () => button("Cy Clark").click())
+
+    expect(button("Save Lineup").parentElement?.textContent).toContain("Unsaved changes")
+    expect(container.textContent).not.toContain("Your saved Lineup is shown")
   })
 
   it("fills a slot from the sheet, listing a Player with no uses left as disabled", async () => {
@@ -709,8 +746,23 @@ describe("PredictionsFormPanel", () => {
     expect(box("Seals score").value).toBe("4")
     expect(box("Yetis score").value).toBe("1")
     expect(box("Owls score").value).toBe("")
-    expect(container.textContent).toContain("Saturday, Nov 7, 8:00 AM")
     expect(container.textContent).not.toMatch(/lock/i)
+  })
+
+  it("clears a game in one click, so the save leaves it out", async () => {
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({ saved: true }), { status: 200 }))
+    await render(
+      <PredictionsFormPanel overview={overview} saved={[{ gameId: "g1", homeScore: 4, awayScore: 1 }]} week={week} token="t" />
+    )
+
+    await act(async () => container.querySelector<HTMLButtonElement>('button[aria-label="Clear Seals vs Yetis"]')!.click())
+
+    expect(box("Seals score").value).toBe("")
+    expect(box("Yetis score").value).toBe("")
+    expect(container.textContent).toContain("Unsaved changes")
+    await submit()
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body).predictions).toEqual([])
+    expect(container.textContent).not.toContain("Unsaved changes")
   })
 
   it("leads with picking the winner, shows who the scores pick, and calls scores a tiebreaker", async () => {
@@ -757,6 +809,26 @@ describe("PredictionsFormPanel", () => {
     expect(JSON.parse(init.body)).toEqual({ weekId: "2026-11-07", predictions: [{ gameId: "g1", homeScore: 4, awayScore: 2 }] })
     expect(init.headers.Authorization).toBe("Bearer secret")
     expect(container.textContent).toContain("Saved")
+  })
+})
+
+describe("CloseTime", () => {
+  afterEach(() => vi.useRealTimers())
+  const lockAt = "2026-11-07T16:00:00.000Z"
+
+  it.each([
+    ["2026-11-05T13:00:00.000Z", "2d 3h left"],
+    ["2026-11-07T12:48:00.000Z", "3h 12m left"],
+    ["2026-11-07T15:48:00.000Z", "12m left"],
+    ["2026-11-07T15:59:30.000Z", "Less than a minute left"],
+    ["2026-11-07T16:00:00.000Z", "Closed"],
+  ])("counts down from %s", async (now, left) => {
+    vi.useFakeTimers({ now: new Date(now) })
+    await render(<CloseTime lockAt={lockAt} timeZone="America/Los_Angeles" />)
+
+    expect(container.textContent).toContain("Saturday, Nov 7, 8:00 AM PST")
+    expect(container.textContent).toContain(left)
+    expect(container.textContent).not.toMatch(/lock/i)
   })
 })
 

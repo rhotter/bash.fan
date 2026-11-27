@@ -14,7 +14,14 @@ function tooManyMessage(seconds: number) {
   return `Too many registrations right now. Try again ${wait}.`
 }
 
-export function RegistrationForm({ contest }: { contest: string }) {
+export function RegistrationForm({
+  contest,
+  picksOpen = null,
+}: {
+  contest: string
+  /** When picks open, as people read it, for a contest that hasn't started. */
+  picksOpen?: string | null
+}) {
   const [fields, setFields] = useState({ teamName: "", firstName: "", lastName: "" })
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
@@ -47,10 +54,11 @@ export function RegistrationForm({ contest }: { contest: string }) {
       <div className="mt-6 space-y-4">
         <p className="text-sm font-medium">
           You&apos;re in. Save your Manager Link now: it&apos;s shown only once, and it&apos;s how you set your Lineup.
+          {picksOpen && ` Picks open ${picksOpen}, so come back with it then.`}
         </p>
         <CopyLink path={managerPath} />
         <Button asChild>
-          <Link href={managerPath} prefetch={false}>Set your Lineup</Link>
+          <Link href={managerPath} prefetch={false}>{picksOpen ? "Open your Manager Link" : "Set your Lineup"}</Link>
         </Button>
       </div>
     )

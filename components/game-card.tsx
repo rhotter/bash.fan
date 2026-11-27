@@ -28,6 +28,35 @@ export function useLiveClock(game: BashGame) {
   return { period: game.livePeriod, clock: formatClock(seconds) }
 }
 
+export const GAME_CARD_CLASS = "rounded-lg border border-border/40 bg-card overflow-hidden"
+export const GAME_CARD_LABEL_CLASS = "text-[9px] text-muted-foreground/50 font-medium uppercase"
+
+/** The strip across the top of a score card: the time on the left, the game's state on the right. */
+export function GameCardStatusBar({ children }: { children: ReactNode }) {
+  return <div className="px-3 pt-2 pb-1 border-b border-border/20 flex items-center justify-between gap-2">{children}</div>
+}
+
+/** One team's line on a score card. `children` sits on the right, such as the score. */
+export function GameCardTeam({ slug, name, won, children }: { slug: string; name: string; won?: boolean; children?: ReactNode }) {
+  return (
+    <div className="flex items-center justify-between gap-2">
+      <div className="flex items-center gap-1.5 min-w-0">
+        <TeamLogo slug={slug} name={name} size={24} className="shrink-0" />
+        <span className={cn("text-xs truncate", won ? "font-semibold" : "text-muted-foreground")}>{name}</span>
+      </div>
+      {children}
+    </div>
+  )
+}
+
+export function GameCardScore({ score, bold }: { score: number | null | undefined; bold?: boolean }) {
+  return (
+    <span className={cn("text-sm tabular-nums font-mono w-6 text-right shrink-0", bold ? "font-bold" : "text-muted-foreground")}>
+      {score ?? "-"}
+    </span>
+  )
+}
+
 export function GameCard({ game, href, seriesText }: { game: BashGame; href?: string; seriesText?: string | null }) {
   const isFinal = game.status === "final"
   const isLive = game.status === "live"
@@ -38,14 +67,14 @@ export function GameCard({ game, href, seriesText }: { game: BashGame; href?: st
   const target = href ?? `/game/${game.id}`
 
   return (
-    <div className="rounded-lg border border-border/40 bg-card select-none overflow-hidden">
+    <div className={cn(GAME_CARD_CLASS, "select-none")}>
       {/* Card body — clickable */}
       <IntentLink
         href={target}
         className="block hover:bg-muted/50 transition-colors"
       >
         {/* Status bar */}
-        <div className="px-3 pt-2 pb-1 border-b border-border/20 flex items-center justify-between">
+        <GameCardStatusBar>
           <div className="flex items-center gap-1.5">
             {isLive && liveClock ? (
               <span className="text-[10px] tabular-nums font-mono text-muted-foreground/70">
@@ -64,9 +93,9 @@ export function GameCard({ game, href, seriesText }: { game: BashGame; href?: st
               <span className="text-[9px] text-red-500 font-bold uppercase">Live</span>
             </span>
           ) : isFinal ? (
-            <span className="text-[9px] text-muted-foreground/50 font-medium uppercase">Final{game.isOvertime ? "/OT" : game.isForfeit ? "/Forfeit" : ""}</span>
+            <span className={GAME_CARD_LABEL_CLASS}>Final{game.isOvertime ? "/OT" : game.isForfeit ? "/Forfeit" : ""}</span>
           ) : null}
-        </div>
+        </GameCardStatusBar>
 
         {/* Optional Game Title */}
         {game.title && (
@@ -77,40 +106,20 @@ export function GameCard({ game, href, seriesText }: { game: BashGame; href?: st
 
         {/* Teams and scores */}
         <div className="px-3 py-2 flex flex-col gap-1">
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-1.5 min-w-0">
-              <TeamLogo slug={game.awaySlug} name={game.awayTeam} size={24} className="shrink-0" />
-              <span className={cn(
-                "text-xs truncate",
-                awayWon ? "font-semibold" : "text-muted-foreground",
-              )}>
-                {game.awaySlug === "tbd" && game.awayPlaceholder ? game.awayPlaceholder : game.awayTeam}
-              </span>
-            </div>
-            <span className={cn(
-              "text-sm tabular-nums font-mono w-6 text-right shrink-0",
-              awayWon ? "font-bold" : isLive ? "font-bold" : "text-muted-foreground"
-            )}>
-              {game.awayScore ?? "-"}
-            </span>
-          </div>
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-1.5 min-w-0">
-              <TeamLogo slug={game.homeSlug} name={game.homeTeam} size={24} className="shrink-0" />
-              <span className={cn(
-                "text-xs truncate",
-                homeWon ? "font-semibold" : "text-muted-foreground",
-              )}>
-                {game.homeSlug === "tbd" && game.homePlaceholder ? game.homePlaceholder : game.homeTeam}
-              </span>
-            </div>
-            <span className={cn(
-              "text-sm tabular-nums font-mono w-6 text-right shrink-0",
-              homeWon ? "font-bold" : isLive ? "font-bold" : "text-muted-foreground"
-            )}>
-              {game.homeScore ?? "-"}
-            </span>
-          </div>
+          <GameCardTeam
+            slug={game.awaySlug}
+            name={game.awaySlug === "tbd" && game.awayPlaceholder ? game.awayPlaceholder : game.awayTeam}
+            won={awayWon}
+          >
+            <GameCardScore score={game.awayScore} bold={awayWon || isLive} />
+          </GameCardTeam>
+          <GameCardTeam
+            slug={game.homeSlug}
+            name={game.homeSlug === "tbd" && game.homePlaceholder ? game.homePlaceholder : game.homeTeam}
+            won={homeWon}
+          >
+            <GameCardScore score={game.homeScore} bold={homeWon || isLive} />
+          </GameCardTeam>
         </div>
 
         {seriesText && (

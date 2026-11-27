@@ -5,6 +5,7 @@ import { useState } from "react"
 import { IntentLink } from "@/components/intent-link"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { OpenContestList } from "@/components/fantasy/open-contests"
 import { Chevron, ProvisionalBadge } from "@/components/fantasy/week-row"
 import { WeekOverviewPanel } from "@/components/fantasy/week-overview"
 import { playerSlug } from "@/lib/player-slug"
@@ -267,22 +268,27 @@ function SeasonTable({ season }: { season: FantasyPageData["season"] }) {
   )
 }
 
+export type StandingsRange = "season" | "weekly"
+
 /** One column at a time, so each list gets the full width. */
 function StandingsToggle({
+  which,
+  onChange,
   weekly,
   season,
 }: {
+  which: StandingsRange
+  onChange: (which: StandingsRange) => void
   weekly: { provisional?: boolean; children: React.ReactNode }
   season: { provisional?: boolean; children: React.ReactNode }
 }) {
-  const [which, setWhich] = useState<"weekly" | "season">("weekly")
   const pages = { weekly, season }
   return (
-    <Tabs value={which} onValueChange={(value) => setWhich(value as typeof which)} className="mx-auto max-w-xl gap-3">
+    <Tabs value={which} onValueChange={(value) => onChange(value as StandingsRange)} className="mx-auto max-w-xl gap-3">
       <div className="flex items-center justify-between gap-2">
         <TabsList aria-label="Standings">
-          <TabsTrigger value="weekly">Weekly</TabsTrigger>
           <TabsTrigger value="season">Season</TabsTrigger>
+          <TabsTrigger value="weekly">Weekly</TabsTrigger>
         </TabsList>
         {pages[which].provisional && <ProvisionalBadge />}
       </div>
@@ -293,9 +299,19 @@ function StandingsToggle({
   )
 }
 
-function FantasyStandings({ week, season }: { week: StandingsWeek | undefined; season: FantasyPageData["season"] }) {
+function FantasyStandings({
+  week,
+  season,
+  ...toggle
+}: {
+  week: StandingsWeek | undefined
+  season: FantasyPageData["season"]
+  which: StandingsRange
+  onChange: (which: StandingsRange) => void
+}) {
   return (
     <StandingsToggle
+      {...toggle}
       weekly={{
         provisional: week?.provisional,
         children: week ? (
@@ -407,7 +423,18 @@ function ContestNav({ data }: { data: FantasyPageData }) {
 }
 
 /** Everything it needs is already here, so the tab and Week switch in place and only rewrite the URL. */
-export function FantasyStandingsView({ data, view: initialView }: { data: FantasyPageData; view: FantasyView }) {
+export function FantasyStandingsView({
+  data,
+  view: initialView,
+  initialRange = "season",
+}: {
+  data: FantasyPageData
+  view: FantasyView
+  /** The page opens on the overall standings. A link that names a Week opens on that Week's. */
+  initialRange?: StandingsRange
+}) {
+  // Each game remembers its own choice.
+  const [ranges, setRanges] = useState<Record<FantasyTab, StandingsRange>>({ fantasy: initialRange, pickem: initialRange })
   // With more than one contest, every link and rewritten URL names this one, so a reload or a shared link stays on it.
   const [view, setView] = useState(() =>
     data.contests.length > 1 ? { ...initialView, contest: data.contest } : initialView
@@ -417,6 +444,13 @@ export function FantasyStandingsView({ data, view: initialView }: { data: Fantas
   function changeView(next: FantasyView) {
     setView(next)
     window.history.replaceState(null, "", fantasyHref(next))
+  }
+  const setRange = (range: StandingsRange) => setRanges({ ...ranges, [view.tab]: range })
+
+  /** Picking a Week is asking for its results. */
+  function changeWeek(next: FantasyView) {
+    setRanges({ fantasy: "weekly", pickem: "weekly" })
+    changeView(next)
   }
   const weekIds = Object.keys(overviews).sort()
   const week = weeks.find((w) => w.id === view.weekId)
@@ -447,12 +481,14 @@ export function FantasyStandingsView({ data, view: initialView }: { data: Fantas
 
       {data.contests.length > 1 && <ContestNav data={data} />}
 
+      <OpenContestList contests={data.otherOpenContests} />
+
       {/* An upcoming run has no Week to show yet. */}
       {data.status !== "upcoming" && (
         <div className="space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h2 className="text-lg font-semibold">{view.weekId ? `Week of ${weekLabel(view.weekId)}` : "This Week"}</h2>
-            {weekIds.length > 1 && view.weekId && <WeekPicker weekIds={weekIds} view={view} switchTo={changeView} />}
+            {weekIds.length > 1 && view.weekId && <WeekPicker weekIds={weekIds} view={view} switchTo={changeWeek} />}
           </div>
           {overview ? (
             <WeekOverviewPanel overview={overview} />
@@ -465,13 +501,15 @@ export function FantasyStandingsView({ data, view: initialView }: { data: Fantas
       <TabNav view={view} switchTo={changeView} />
 
       {view.tab === "fantasy" ? (
-        <FantasyStandings week={week} season={season} />
+        <FantasyStandings week={week} season={season} which={ranges.fantasy} onChange={setRange} />
       ) : (
         <div className="mx-auto max-w-xl space-y-3">
           <p className="text-sm text-muted-foreground">
             Ranked by winners picked correctly. Predicted scores only break ties: fewer total goals off ranks higher.
           </p>
           <StandingsToggle
+            which={ranges.pickem}
+            onChange={setRange}
             weekly={{
               provisional: pickemWeek?.provisional,
               children: pickemWeek ? (

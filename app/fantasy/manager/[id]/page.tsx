@@ -3,7 +3,6 @@ import { notFound } from "next/navigation"
 import { IntentLink } from "@/components/intent-link"
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb"
 import { ManagerHistory } from "@/components/fantasy/manager-history"
-import { DEFAULT_CONTEST } from "@/lib/fantasy/view-state"
 import { fantasyHref } from "@/lib/fantasy/view-state"
 import { parseManagerId } from "@/lib/fantasy/managers"
 import { fetchFantasyManagerPageData } from "@/lib/cached-page-data"
@@ -36,7 +35,7 @@ export default async function FantasyManagerPage(props: Params) {
           <BreadcrumbList>
             <BreadcrumbItem>
               <BreadcrumbLink asChild>
-                <IntentLink href={fantasyHref({ tab: "fantasy", weekId: null, contest: data.contest === DEFAULT_CONTEST ? undefined : data.contest })}>
+                <IntentLink href={fantasyHref({ tab: "fantasy", weekId: null, contest: data.multipleContests ? data.contest : undefined })}>
                   Fantasy
                 </IntentLink>
               </BreadcrumbLink>

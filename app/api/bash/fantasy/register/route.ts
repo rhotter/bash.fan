@@ -3,7 +3,7 @@ import { and, eq, lte, sql } from "drizzle-orm"
 import { db, schema } from "@/lib/db"
 import { createManager, registrationSchema } from "@/lib/fantasy/managers"
 import { reply } from "@/lib/fantasy/reply"
-import { listCurrentFantasyContests, parseContest, pickContest } from "@/lib/fantasy/season"
+import { listCurrentFantasyContests, parseContest, pickRegistrationContest } from "@/lib/fantasy/season"
 import { runStatus, takesRegistrations } from "@/lib/fantasy/week"
 
 const { operatorAuthAttempts: attempts } = schema
@@ -57,9 +57,7 @@ export async function POST(request: Request) {
     const contest = requested === null ? undefined : parseContest(requested)
     const contests = contest === null ? [] : await listCurrentFantasyContests()
     const now = new Date()
-    const joinable = contests.filter((c) => takesRegistrations(runStatus(c.config, now)))
-    // With no run named, join the default among those still taking people, not one playing its last Week.
-    const season = contest ? pickContest(contests, contest) : (pickContest(joinable, undefined, now) ?? contests[0])
+    const season = pickRegistrationContest(contests, contest ?? undefined, now)
     if (!season) return reply({ error: "Fantasy isn't open for registration." }, 404)
     if (!takesRegistrations(runStatus(season.config, now))) {
       return reply({ error: "This run has closed, so registration is closed too." }, 409)

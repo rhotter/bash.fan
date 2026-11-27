@@ -52,12 +52,12 @@ const completedPlayoffOddsBySeasonId = unstable_cache(
 
 // Fantasy pages are built from locked Weeks only, so a stale snapshot can lag the Lock but can't get
 // ahead of it. Admin routes call revalidateTag("fantasy") when their changes should show right away.
-const fantasyPageData = unstable_cache(fetchFantasyStandings, ["fantasy-page-data-v1"], {
+const fantasyPageData = unstable_cache(fetchFantasyStandings, ["fantasy-page-data-v2"], {
   revalidate: 30,
   tags: ["fantasy", "public-page-data"],
 })
 
-const fantasyManagerPageData = unstable_cache(fetchFantasyManager, ["fantasy-manager-page-data-v1"], {
+const fantasyManagerPageData = unstable_cache(fetchFantasyManager, ["fantasy-manager-page-data-v2"], {
   revalidate: 30,
   tags: ["fantasy", "public-page-data"],
 })

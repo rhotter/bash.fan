@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState, type FormEvent } from "react"
+import { UnsavedBadge } from "@/components/fantasy/unsaved-badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
@@ -153,15 +154,6 @@ export function LineupFormPanel({
 
   const defaultGoalies = new Set(form.defaultGoalieIds)
   const chosen = new Set(Object.values(selections).flat().filter(Boolean))
-  const lock = new Intl.DateTimeFormat("en-US", {
-    weekday: "long",
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-    timeZone: form.week.timeZone,
-  }).format(new Date(form.week.lockAt))
-
   function select(group: SlotGroup, index: number, value: string) {
     setSelections({ ...selections, [group]: selections[group].map((old, i) => (i === index ? value : old)) })
     setMessage(null)
@@ -209,14 +201,11 @@ export function LineupFormPanel({
 
   return (
     <form onSubmit={submit} className="mt-6 space-y-6">
-      {!isAdmin && (
-        <p className="text-sm">
-          Lineup closes <span className="font-medium">{lock}</span>
+      {!dirty && (
+        <p className="text-sm text-muted-foreground">
+          {form.lineup ? "Your saved Lineup is shown." : "No Lineup saved for this Week yet."}
         </p>
       )}
-      <p className="text-sm text-muted-foreground">
-        {dirty ? "Unsaved changes." : form.lineup ? "Your saved Lineup is shown." : "No Lineup saved for this Week yet."}
-      </p>
 
       {GROUPS.map(({ group, label }) =>
         selections[group].map((value, index) => {
@@ -284,13 +273,14 @@ export function LineupFormPanel({
           {message.text}
         </p>
       )}
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <Button type="submit" disabled={saving}>{saving ? "Saving…" : "Save Lineup"}</Button>
         {canOverride && (
           <Button type="button" variant="outline" disabled={saving} onClick={() => void save(true)}>
             Save over the cap
           </Button>
         )}
+        {dirty && <UnsavedBadge />}
       </div>
     </form>
   )

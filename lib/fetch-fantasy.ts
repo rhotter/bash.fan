@@ -3,7 +3,7 @@ import { db, schema } from "@/lib/db"
 import { loadPublicManager, readSeasonGames, readSelectedStats, selectedPlayerIds, usesHeldForCap } from "@/lib/fantasy/lineups"
 import { findManagerById, listPublicManagers } from "@/lib/fantasy/managers"
 import { buildPickemStandings } from "@/lib/fantasy/pickem"
-import { getCurrentFantasySeason, listCurrentFantasyContests, pickContest, type FantasySeason } from "@/lib/fantasy/season"
+import { listCurrentFantasyContests, otherOpenContests, pickContest, type FantasySeason } from "@/lib/fantasy/season"
 import { buildStandings } from "@/lib/fantasy/standings"
 import { buildWeekOverview, openWeek, picksOpenAt, runStatus } from "@/lib/fantasy/week"
 
@@ -95,6 +95,7 @@ export async function fetchFantasyStandings(contest?: string) {
     picksOpenAt: picksOpenAt(config)?.toISOString() ?? null,
     contest: season.contest,
     contests: allContests.map((c) => c.contest),
+    otherOpenContests: otherOpenContests(allContests, season.contest, now),
     nextLockAt: openWeek(now, config.lock).lockAt.toISOString(),
     timeZone: config.lock.timeZone,
     openWeekId,
@@ -153,10 +154,11 @@ export type FantasyPageData = NonNullable<Awaited<ReturnType<typeof fetchFantasy
 export async function fetchFantasyManager(managerId: number) {
   const manager = await findManagerById(managerId)
   if (!manager) return null
-  const season = await getCurrentFantasySeason(manager.contest)
+  const contests = await listCurrentFantasyContests()
+  const season = pickContest(contests, manager.contest)
   if (!season || season.seasonId !== manager.seasonId) return null
   const profile = await loadPublicManager(manager)
-  return profile ? { ...profile, contest: season.contest } : null
+  return profile ? { ...profile, contest: season.contest, multipleContests: contests.length > 1 } : null
 }
 
 export type FantasyManagerPageData = NonNullable<Awaited<ReturnType<typeof fetchFantasyManager>>>
