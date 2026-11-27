@@ -1,3 +1,5 @@
+import fs from "node:fs"
+import path from "node:path"
 import { describe, expect, it } from "vitest"
 import {
   getBannerStatus,
@@ -185,6 +187,38 @@ describe("Milestone 3: Admin UI Logic & Contracts", () => {
       })
       expect(result.valid).toBe(false)
       expect(result.errors).toContain("startDate must be before or equal to endDate")
+    })
+  })
+
+  describe("6. Modal & Table Overflow Guards for Long Banner Headlines", () => {
+    const bannersClientSrc = fs.readFileSync(
+      path.resolve(process.cwd(), "components/admin/banners-client.tsx"),
+      "utf-8",
+    )
+
+    it("locks the modal grid column and width without stripping mobile gutters", () => {
+      expect(bannersClientSrc).toContain(
+        'DialogContent className="grid-cols-1 sm:max-w-[min(42rem,calc(100%-2rem))] max-h-[90dvh] overflow-y-auto overscroll-contain"',
+      )
+      expect(bannersClientSrc).not.toContain('DialogContent className="max-w-2xl ')
+    })
+
+    it("applies min-w-0 and truncation through the desktop and mobile preview hierarchy", () => {
+      expect(bannersClientSrc).toContain('className="min-w-0 space-y-5 py-2"')
+      expect(bannersClientSrc).toContain('className="min-w-0 space-y-2 rounded-lg border bg-card p-3 shadow-xs"')
+      expect(bannersClientSrc).toContain(
+        'className="w-full min-w-0 relative rounded border border-border/60 bg-muted/40 transition-all overflow-hidden"',
+      )
+      expect(bannersClientSrc).toContain(
+        'className="w-[375px] max-w-full min-w-0 relative rounded-md border-2 border-border/80 bg-muted/40 shadow-xs transition-all overflow-hidden"',
+      )
+      expect(bannersClientSrc).toContain('"min-w-0 truncate font-medium underline underline-offset-4 "')
+    })
+
+    it("wraps long headlines cleanly in the admin table and delete confirmation dialog", () => {
+      expect(bannersClientSrc).toContain('TableCell className="max-w-md whitespace-normal"')
+      expect(bannersClientSrc).toContain('AlertDialogContent className="grid-cols-1"')
+      expect(bannersClientSrc).toContain('AlertDialogDescription className="break-words"')
     })
   })
 })

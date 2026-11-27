@@ -125,7 +125,7 @@ export function SiteBanner() {
     <div
       role="region"
       aria-label="Site announcement"
-      className="relative border-b border-border/60 bg-muted/40 h-8"
+      className="relative w-full min-w-0 border-b border-border/60 bg-muted/40 h-8"
     >
       <Link
         href={resolvedHref}
@@ -146,7 +146,7 @@ export function SiteBanner() {
         {/* Truncated Copy with Pure CSS Responsive Switching */}
         <span
           className={
-            "truncate font-medium underline underline-offset-4 group-hover:decoration-foreground " +
+            "min-w-0 truncate font-medium underline underline-offset-4 group-hover:decoration-foreground " +
             (effectiveVariant === "live"
               ? "text-emerald-600 dark:text-emerald-400 decoration-emerald-600/30 dark:decoration-emerald-400/30"
               : effectiveVariant === "warning"

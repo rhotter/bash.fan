@@ -430,17 +430,17 @@ export function BannersClient({ initial }: { initial: BannerRow[] }) {
     <div className="space-y-6">
       {/* ─── Card Header & Action ────────────────────────────────────────── */}
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
-          <div className="space-y-1">
+        <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-4 space-y-0 pb-4">
+          <div className="min-w-0 space-y-1">
             <CardTitle className="text-xl flex items-center gap-2">
-              <Megaphone className="h-5 w-5 text-primary" />
+              <Megaphone className="h-5 w-5 text-primary shrink-0" />
               Site Banners
             </CardTitle>
             <CardDescription>
               Manage public alert banners, schedule windows, and dynamic countdown broadcasts.
             </CardDescription>
           </div>
-          <Button onClick={openCreate} className="gap-1.5">
+          <Button onClick={openCreate} className="gap-1.5 shrink-0">
             <Plus className="h-4 w-4" />
             New banner
           </Button>
@@ -492,25 +492,25 @@ export function BannersClient({ initial }: { initial: BannerRow[] }) {
                         </TableCell>
 
                         {/* 3. Headline & Mobile Preview */}
-                        <TableCell className="max-w-md">
-                          <div className="space-y-1">
-                            <div className="font-medium text-foreground text-sm flex items-center gap-1.5">
-                              <span>{b.label}</span>
+                        <TableCell className="max-w-md whitespace-normal">
+                          <div className="min-w-0 space-y-1">
+                            <div className="font-medium text-foreground text-sm flex flex-wrap items-center gap-1.5">
+                              <span className="min-w-0 break-words">{b.label}</span>
                               {b.mobileLabel && (
-                                <Badge variant="outline" className="text-[10px] py-0 px-1 font-mono text-muted-foreground">
+                                <Badge variant="outline" className="shrink-0 text-[10px] py-0 px-1 font-mono text-muted-foreground">
                                   Mobile Copy Set
                                 </Badge>
                               )}
                             </div>
                             {b.mobileLabel && (
-                              <p className="text-xs text-muted-foreground flex items-center gap-1">
-                                <Smartphone className="h-3 w-3 shrink-0" />
-                                <span className="italic">{b.mobileLabel}</span>
+                              <p className="text-xs text-muted-foreground flex items-start gap-1">
+                                <Smartphone className="h-3 w-3 shrink-0 mt-0.5" />
+                                <span className="italic break-words min-w-0">{b.mobileLabel}</span>
                               </p>
                             )}
-                            <div className="flex items-center gap-1 text-xs text-muted-foreground/80 font-mono">
+                            <div className="flex min-w-0 items-center gap-1 text-xs text-muted-foreground/80 font-mono">
                               <ExternalLink className="h-3 w-3 shrink-0" />
-                              <span className="truncate">{b.href}</span>
+                              <span className="min-w-0 truncate">{b.href}</span>
                             </div>
                           </div>
                         </TableCell>
@@ -602,10 +602,10 @@ export function BannersClient({ initial }: { initial: BannerRow[] }) {
 
       {/* ─── Create & Edit Modal Dialog ──────────────────────────────────── */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
+        <DialogContent className="grid-cols-1 sm:max-w-[min(42rem,calc(100%-2rem))] max-h-[90dvh] overflow-y-auto overscroll-contain">
+          <DialogHeader className="min-w-0 pr-6">
             <DialogTitle className="flex items-center gap-2">
-              <Megaphone className="h-5 w-5 text-primary" />
+              <Megaphone className="h-5 w-5 text-primary shrink-0" />
               {editing ? "Edit Site Banner" : "Create Site Banner"}
             </DialogTitle>
             <DialogDescription>
@@ -613,10 +613,10 @@ export function BannersClient({ initial }: { initial: BannerRow[] }) {
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-5 py-2">
+          <div className="min-w-0 space-y-5 py-2">
             {/* ─── Dual Interactive Preview Widget ───────────────────────── */}
-            <div className="space-y-2 rounded-lg border bg-card p-3 shadow-xs">
-              <div className="flex items-center justify-between pb-1">
+            <div className="min-w-0 space-y-2 rounded-lg border bg-card p-3 shadow-xs">
+              <div className="flex flex-wrap items-center justify-between gap-2 pb-1">
                 <div className="text-xs font-semibold tracking-tight text-foreground flex items-center gap-1.5">
                   <span>Interactive Preview</span>
                   <Badge variant="outline" className="text-[10px] py-0">
@@ -624,7 +624,7 @@ export function BannersClient({ initial }: { initial: BannerRow[] }) {
                   </Badge>
                 </div>
                 {/* Desktop ↔ Mobile Toggle */}
-                <div className="flex items-center rounded-md border p-0.5 bg-muted/60">
+                <div className="flex items-center rounded-md border p-0.5 bg-muted/60 shrink-0">
                   <Button
                     type="button"
                     variant={previewMode === "desktop" ? "default" : "ghost"}
@@ -649,11 +649,11 @@ export function BannersClient({ initial }: { initial: BannerRow[] }) {
               </div>
 
               {/* Rendered Preview Bar */}
-              <div className="p-2 bg-background/50 rounded border border-dashed flex justify-center">
+              <div className="min-w-0 p-2 bg-background/50 rounded border border-dashed flex justify-center">
                 {previewMode === "desktop" ? (
                   /* Desktop Simulation: Full width, centered text, 13px */
-                  <div className="w-full relative rounded border border-border/60 bg-muted/40 transition-all">
-                    <div className="flex items-center justify-center gap-x-2 py-1.5 px-8 text-center text-[13px] text-muted-foreground min-w-0">
+                  <div className="w-full min-w-0 relative rounded border border-border/60 bg-muted/40 transition-all overflow-hidden">
+                    <div className="flex min-w-0 items-center justify-center gap-x-2 py-1.5 px-8 text-center text-[13px] text-muted-foreground">
                       {/* Variant Dot */}
                       {previewEffectiveVariant === "live" ? (
                         <span className="relative flex h-2 w-2 shrink-0">
@@ -669,7 +669,7 @@ export function BannersClient({ initial }: { initial: BannerRow[] }) {
                       {/* Truncated Copy */}
                       <span
                         className={
-                          "truncate font-medium underline underline-offset-4 " +
+                          "min-w-0 truncate font-medium underline underline-offset-4 " +
                           (previewEffectiveVariant === "live"
                             ? "text-emerald-600 dark:text-emerald-400 decoration-emerald-600/30"
                             : previewEffectiveVariant === "warning"
@@ -694,8 +694,8 @@ export function BannersClient({ initial }: { initial: BannerRow[] }) {
                   </div>
                 ) : (
                   /* Mobile Simulation: Strict 375px frame, left-aligned, 12px, 44px dismiss target */
-                  <div className="w-[375px] max-w-full relative rounded-md border-2 border-border/80 bg-muted/40 shadow-xs transition-all overflow-hidden">
-                    <div className="flex items-center justify-start gap-x-2 py-2 pl-4 pr-11 text-left text-[12px] text-muted-foreground truncate">
+                  <div className="w-[375px] max-w-full min-w-0 relative rounded-md border-2 border-border/80 bg-muted/40 shadow-xs transition-all overflow-hidden">
+                    <div className="flex min-w-0 items-center justify-start gap-x-2 py-2 pl-4 pr-11 text-left text-[12px] text-muted-foreground">
                       {/* Variant Dot */}
                       {previewEffectiveVariant === "live" ? (
                         <span className="relative flex h-2 w-2 shrink-0">
@@ -708,10 +708,10 @@ export function BannersClient({ initial }: { initial: BannerRow[] }) {
                         <span className="inline-flex h-1.5 w-1.5 shrink-0 rounded-full bg-foreground/40" />
                       )}
 
-                      <div className="flex min-w-0 items-center gap-1.5 truncate">
+                      <div className="flex min-w-0 flex-1 items-center gap-1.5">
                         <span
                           className={
-                            "truncate font-medium underline underline-offset-4 " +
+                            "min-w-0 truncate font-medium underline underline-offset-4 " +
                             (previewEffectiveVariant === "live"
                               ? "text-emerald-600 dark:text-emerald-400 decoration-emerald-600/30"
                               : previewEffectiveVariant === "warning"
@@ -729,7 +729,7 @@ export function BannersClient({ initial }: { initial: BannerRow[] }) {
                       </div>
                     </div>
                     {/* Simulated 44px Accessible Touch Dismiss Hit Area */}
-                    <div className="absolute right-0 top-0 flex h-full min-h-[44px] min-w-[44px] items-center justify-center p-2 text-muted-foreground/60 border-l border-border/30 bg-muted/20">
+                    <div className="absolute right-0 top-1/2 -translate-y-1/2 flex h-full min-h-[44px] min-w-[44px] items-center justify-center p-2 text-muted-foreground/60 border-l border-border/30 bg-muted/20">
                       <X className="h-3.5 w-3.5" />
                     </div>
                   </div>
@@ -738,15 +738,15 @@ export function BannersClient({ initial }: { initial: BannerRow[] }) {
             </div>
 
             {/* ─── Headline & Mobile Label Fields ────────────────────────── */}
-            <div className="space-y-3">
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
+            <div className="min-w-0 space-y-3">
+              <div className="min-w-0 space-y-1.5">
+                <div className="flex items-center justify-between gap-2">
                   <Label htmlFor="banner-label" className="text-sm font-medium">
                     Primary Headline <span className="text-destructive">*</span>
                   </Label>
                   <span
                     className={
-                      "text-xs font-mono " +
+                      "shrink-0 text-xs font-mono " +
                       (form.label.length > 35 ? "text-amber-500 font-semibold" : "text-muted-foreground")
                     }
                   >
@@ -765,19 +765,19 @@ export function BannersClient({ initial }: { initial: BannerRow[] }) {
               {showMobileWarning && (
                 <div className="flex items-start gap-2 p-2.5 rounded-md bg-amber-500/10 border border-amber-500/30 text-amber-800 dark:text-amber-300 text-xs">
                   <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" />
-                  <p>
+                  <p className="min-w-0">
                     Primary headline is <strong>{form.label.length} characters</strong>. On narrow phone screens (≤375px), it will likely truncate before the countdown suffix. Consider entering a concise <strong>Mobile Label</strong> below.
                   </p>
                 </div>
               )}
 
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
+              <div className="min-w-0 space-y-1.5">
+                <div className="flex items-center justify-between gap-2">
                   <Label htmlFor="banner-mobile-label" className="text-sm font-medium">
                     Mobile Label <span className="text-muted-foreground font-normal">(Optional short copy)</span>
                   </Label>
                   {form.mobileLabel && (
-                    <span className="text-xs font-mono text-muted-foreground">
+                    <span className="shrink-0 text-xs font-mono text-muted-foreground">
                       {form.mobileLabel.length} chars
                     </span>
                   )}
@@ -792,7 +792,7 @@ export function BannersClient({ initial }: { initial: BannerRow[] }) {
             </div>
 
             {/* ─── Destination URL ────────────────────────────────────────── */}
-            <div className="space-y-1.5">
+            <div className="min-w-0 space-y-1.5">
               <Label htmlFor="banner-href" className="text-sm font-medium block">
                 Destination URL <span className="text-destructive">*</span>
               </Label>
@@ -806,7 +806,7 @@ export function BannersClient({ initial }: { initial: BannerRow[] }) {
 
             {/* ─── Visual Variant & Active Status ─────────────────────────── */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="space-y-1.5">
+              <div className="min-w-0 space-y-1.5">
                 <Label htmlFor="banner-variant" className="text-sm font-medium block">
                   Visual Variant
                 </Label>
@@ -825,11 +825,11 @@ export function BannersClient({ initial }: { initial: BannerRow[] }) {
                 </Select>
               </div>
 
-              <div className="space-y-1.5">
+              <div className="min-w-0 space-y-1.5">
                 <Label htmlFor="banner-is-active" className="text-sm font-medium block">
                   Status
                 </Label>
-                <div className="flex h-9 items-center justify-between rounded-md border px-3 bg-muted/30">
+                <div className="flex h-9 items-center justify-between gap-2 rounded-md border px-3 bg-muted/30">
                   <Label htmlFor="banner-is-active" className="text-xs font-medium cursor-pointer">
                     Active Immediately
                   </Label>
@@ -843,9 +843,9 @@ export function BannersClient({ initial }: { initial: BannerRow[] }) {
             </div>
 
             {/* ─── Countdown Configuration ───────────────────────────────── */}
-            <div className="space-y-3 rounded-md border p-3 bg-muted/20">
+            <div className="min-w-0 space-y-3 rounded-md border p-3 bg-muted/20">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className={`space-y-1.5 ${form.countdownType === "none" ? "sm:col-span-2" : ""}`}>
+                <div className={`min-w-0 space-y-1.5 ${form.countdownType === "none" ? "sm:col-span-2" : ""}`}>
                   <Label className="text-sm font-medium block">Countdown Calculation</Label>
                   <Select
                     value={form.countdownType}
@@ -863,7 +863,7 @@ export function BannersClient({ initial }: { initial: BannerRow[] }) {
                 </div>
 
                 {form.countdownType !== "none" && (
-                  <div className="space-y-1.5">
+                  <div className="min-w-0 space-y-1.5">
                     <Label htmlFor="countdown-target" className="text-sm font-medium block">
                       Target Event Date & Time <span className="text-destructive">*</span>
                     </Label>
@@ -880,12 +880,12 @@ export function BannersClient({ initial }: { initial: BannerRow[] }) {
             </div>
 
             {/* ─── Schedule Window ───────────────────────────────────────── */}
-            <div className="space-y-3 rounded-md border p-3 bg-muted/20">
+            <div className="min-w-0 space-y-3 rounded-md border p-3 bg-muted/20">
               <div className="text-xs font-medium text-foreground">
                 Scheduling Window (Optional — leave blank for unbounded activation)
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="space-y-1.5">
+                <div className="min-w-0 space-y-1.5">
                   <Label htmlFor="start-date" className="text-xs text-muted-foreground block">
                     Start Showing At
                   </Label>
@@ -897,7 +897,7 @@ export function BannersClient({ initial }: { initial: BannerRow[] }) {
                   />
                 </div>
 
-                <div className="space-y-1.5">
+                <div className="min-w-0 space-y-1.5">
                   <Label htmlFor="end-date" className="text-xs text-muted-foreground block">
                     Stop Showing At
                   </Label>
@@ -913,7 +913,7 @@ export function BannersClient({ initial }: { initial: BannerRow[] }) {
 
             {/* ─── Advanced Settings: Priority, Paths, Reset Dismissals ──── */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="space-y-1.5">
+              <div className="min-w-0 space-y-1.5">
                 <Label htmlFor="banner-priority" className="text-sm font-medium">
                   Priority Score
                 </Label>
@@ -931,7 +931,7 @@ export function BannersClient({ initial }: { initial: BannerRow[] }) {
                 </p>
               </div>
 
-              <div className="space-y-1.5">
+              <div className="min-w-0 space-y-1.5">
                 <Label htmlFor="banner-hide-paths" className="text-sm font-medium">
                   Suppress On Routes
                 </Label>
@@ -961,17 +961,17 @@ export function BannersClient({ initial }: { initial: BannerRow[] }) {
                     htmlFor="reset-dismissals"
                     className="text-sm font-medium cursor-pointer"
                   >
-                    Reset player dismissals (v{editing.dismissVersion} → v{editing.dismissVersion + 1})
+                    Reset player dismissals
                   </Label>
                   <p className="text-xs text-muted-foreground">
-                    Check this if you made a critical announcement update so users who previously dismissed this banner will see it again.
+                    Check this if you want to clear any player dismissals and ensure the banner shows for all users.
                   </p>
                 </div>
               </div>
             )}
           </div>
 
-          <DialogFooter>
+          <DialogFooter className="min-w-0">
             <Button variant="outline" onClick={() => setDialogOpen(false)} disabled={busy}>
               Cancel
             </Button>
@@ -985,10 +985,10 @@ export function BannersClient({ initial }: { initial: BannerRow[] }) {
 
       {/* ─── Delete Confirmation Alert Dialog ────────────────────────────── */}
       <AlertDialog open={!!pendingDelete} onOpenChange={(open) => !open && setPendingDelete(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
+        <AlertDialogContent className="grid-cols-1">
+          <AlertDialogHeader className="min-w-0">
             <AlertDialogTitle>Delete Site Banner</AlertDialogTitle>
-            <AlertDialogDescription>
+            <AlertDialogDescription className="break-words">
               Are you sure you want to permanently delete banner &ldquo;{pendingDelete?.label}&rdquo;? This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
