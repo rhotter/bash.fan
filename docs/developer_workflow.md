@@ -5,7 +5,7 @@
 Before starting development on the BASH Hockey website, assure you have the following installed on your local machine:
 - **Node.js** (Version 22.18+ or 24+, required to load `oxlint.config.ts` natively)
 - **pnpm** (Package manager, install via `npm install -g pnpm`)
-- A **Neon Postgres** database instance (or any compatible PostgreSQL database).
+- A **Neon Postgres** database instance, or **Docker** to run Postgres on your machine (see [Local Docker Postgres](#local-docker-postgres)).
 
 ## Local Environment Setup
 
@@ -86,6 +86,37 @@ npx tsx scripts/export-prod-db.ts --from '<prod-db-url>' --to '<dev-db-url>' --s
 > - Source and target URLs cannot be identical (the script will abort to prevent accidental overwrites).
 > - Dynamic name-to-ID alignment ensures that target historical stats are preserved without ID collision.
 
+### Local Docker Postgres
+This replaces steps 2–4 if you'd rather not use a hosted database.
+
+1. In `.env.local`, point the app at the container:
+   ```bash
+   DATABASE_URL=postgresql://postgres:postgres@localhost:5432/postgres
+   ```
+2. Start Postgres and build the schema:
+   ```bash
+   pnpm db:setup
+   ```
+   This starts `docker-compose.yml`, creates the database named in the URL if it's missing, pushes `lib/db/schema.ts`, and adds the functions, triggers and push tables that Drizzle can't create. It's safe to re-run after a schema change. As in the app, `DATABASE_URL_DEV` wins over `DATABASE_URL` if both are set, and the script refuses any URL that isn't on localhost.
+3. Copy data from production:
+   ```bash
+   PROD_URL='<prod-db-url>' pnpm db:export-prod --to 'postgresql://postgres:postgres@localhost:5432/postgres'
+   ```
+   If the source role can't read a table, the script says so, skips it, and leaves your local rows for that table alone.
+
+To start over, `pnpm db:reset` **deletes all local database data** and runs the setup again.
+
+The container is published on port 5432. To use another port, add a `docker-compose.override.yml` (gitignored, and merged by Compose automatically) and use the same port in your URLs:
+
+```yaml
+services:
+  postgres:
+    ports: !override
+      - "54321:5432"
+```
+
+The app uses `node-postgres` for a localhost URL and Neon's HTTP driver for anything else. `db.transaction()` still isn't supported (see [Known Gotchas](#known-gotchas)), even though a local database would allow it.
+
 ### 5. Start the Development Server
 ```bash
 pnpm dev
@@ -119,6 +150,15 @@ Navigate to `http://localhost:3000` in your browser. The app should now be runni
   pnpm logos:optimize
   ```
   Commit the generated files in `public/optimized-logos/` and `lib/optimized-logos.json`. (`pnpm build` also runs this automatically.)
+
+- **Running Tests**: `pnpm test:run` needs no database server. A test that imports `@/lib/db` gets an in-memory Postgres ([PGlite](https://pglite.dev/)) built from `lib/db/schema.ts` plus the same functions and triggers as the local setup. Every table is emptied and ID sequences restart before each test.
+  - Create rows with the factories in `tests/factories/` (`setupSeason`, `setupTeam`, `setupPlayer`, `setupGame`, `setupPlayerGame`, `setupGoalieGame`). Each fills in the fields you don't pass.
+  - A test with its own `vi.mock("@/lib/db")` keeps that mock. Browser (`jsdom`) tests get an empty stub.
+  - Two tests need a real database with data, so they're skipped unless you ask for them. They connect to the database the app would use:
+    ```bash
+    DB_INTEGRATION=1 pnpm vitest run tests/drizzle-migration.test.ts      # needs season 2024-2025
+    PLAYER_BENCHMARK=before pnpm vitest run tests/player-uncached-benchmark.test.ts
+    ```
 
 - **Running Banner Tests**: To verify the full banner test suite (helper math, date/timezone parsing, SWR, admin & public APIs, responsive layout assertions, draft sync lifecycle):
   ```bash

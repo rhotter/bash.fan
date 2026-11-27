@@ -8,7 +8,7 @@
  */
 
 import "./env";
-import { neon } from "@neondatabase/serverless";
+import { neon, type NeonQueryFunction } from "@neondatabase/serverless";
 import { Pool } from "pg";
 import { isLocalDbUrl } from "../lib/db/is-local-db-url";
 
@@ -26,14 +26,15 @@ function isPermissionDenied(err: unknown) {
   return (err as { code?: string } | null)?.code === "42501";
 }
 
-// A restricted read-only role can't see every table. Skip the ones stats don't need.
-async function readIfPermitted<T>(table: string, query: PromiseLike<T[]>): Promise<T[]> {
+// A restricted read-only role can't see every table. Returns null for a table it can't read,
+// so the caller leaves the target's rows alone instead of treating the source as empty.
+async function readIfPermitted<T>(table: string, query: PromiseLike<T[]>): Promise<T[] | null> {
   try {
     return await query;
   } catch (err) {
     if (!isPermissionDenied(err)) throw err;
     console.warn(`   ⚠️ Skipping ${table}: no read permission on the source database.`);
-    return [];
+    return null;
   }
 }
 
@@ -275,8 +276,20 @@ async function main() {
 
   const prod = neon(prodUrl);
   const local = isLocalDbUrl(devUrl) ? localSql(devUrl) : null;
-  const dev = local ?? neon(devUrl);
+  try {
+    await syncDatabase(prod, local ?? neon(devUrl), seasons);
+  } finally {
+    await local?.close();
+  }
 
+  console.log("\n=== Export & Sync Completed Successfully! ===");
+}
+
+async function syncDatabase(
+  prod: NeonQueryFunction<false, false>,
+  dev: NeonQueryFunction<false, false> | ReturnType<typeof localSql>,
+  seasons: string[]
+) {
   // ─── Phase 1: Teams, Franchises & Player Alignment ────────────────────────
   console.log("1. Aligning Teams, Franchises & Players...");
 
@@ -291,8 +304,8 @@ async function main() {
   }
 
   // Franchises
-  const prodFranchises = await prod`SELECT slug, name, color FROM franchises;`;
-  for (const f of prodFranchises) {
+  const prodFranchises = await readIfPermitted("franchises", prod`SELECT slug, name, color FROM franchises;`);
+  for (const f of prodFranchises ?? []) {
     await dev`
       INSERT INTO franchises (slug, name, color)
       VALUES (${f.slug}, ${f.name}, ${f.color})
@@ -325,7 +338,7 @@ async function main() {
     if (devId) devIdByProdId.set(p.id, devId);
   }
   console.log(
-    `   Teams: ${prodTeams.length}, Franchises: ${prodFranchises.length}, Players: ${devIdByProdId.size} aligned (${newPlayersAdded} newly created in dev).`
+    `   Teams: ${prodTeams.length}, Franchises: ${prodFranchises?.length ?? "skipped"}, Players: ${devIdByProdId.size} aligned (${newPlayersAdded} newly created in dev).`
   );
 
   // ─── Phase 2: Seasons & Season Teams ──────────────────────────────────────
@@ -364,6 +377,14 @@ async function main() {
     SELECT * FROM season_teams WHERE season_id = ANY(${seasons});
   `;
   for (const st of prodSeasonTeams) {
+    // season_teams.franchise_slug is a foreign key. Without the source franchises, stand in a
+    // placeholder for any the target is missing.
+    if (prodFranchises === null && st.franchise_slug) {
+      await dev`
+        INSERT INTO franchises (slug, name) VALUES (${st.franchise_slug}, ${st.franchise_slug})
+        ON CONFLICT (slug) DO NOTHING;
+      `;
+    }
     await dev`
       INSERT INTO season_teams (season_id, team_slug, franchise_slug, color)
       VALUES (${st.season_id}, ${st.team_slug}, ${st.franchise_slug}, ${st.color})
@@ -385,7 +406,7 @@ async function main() {
     if (!devPlayerId) continue;
     await dev`
       INSERT INTO player_seasons (player_id, season_id, team_slug, is_goalie, is_captain, is_rookie, registration_meta)
-      VALUES (${devPlayerId}, ${ps.season_id}, ${ps.team_slug}, ${ps.is_goalie}, ${ps.is_captain}, ${ps.is_rookie}, ${ps.registration_meta ? JSON.stringify(ps.registration_meta) : null})
+      VALUES (${devPlayerId}, ${ps.season_id}, ${ps.team_slug}, ${ps.is_goalie}, ${ps.is_captain}, ${ps.is_rookie ?? false}, ${ps.registration_meta ? JSON.stringify(ps.registration_meta) : null})
       ON CONFLICT (player_id, season_id, team_slug) DO UPDATE SET
         is_goalie = EXCLUDED.is_goalie,
         is_captain = EXCLUDED.is_captain,
@@ -394,10 +415,11 @@ async function main() {
     `;
   }
 
-  const prodDrafts = await prod`
-    SELECT * FROM draft_instances WHERE season_id = ANY(${seasons});
-  `;
-  for (const d of prodDrafts) {
+  const prodDrafts = await readIfPermitted(
+    "draft_instances",
+    prod`SELECT * FROM draft_instances WHERE season_id = ANY(${seasons});`
+  );
+  for (const d of prodDrafts ?? []) {
     await dev`
       INSERT INTO draft_instances (
         id, season_id, season_type, name, status, rounds, draft_type,
@@ -467,7 +489,7 @@ async function main() {
       `;
     }
   }
-  console.log(`   Player Seasons: ${prodPS.length}, Draft Instances: ${prodDrafts.length}.`);
+  console.log(`   Player Seasons: ${prodPS.length}, Draft Instances: ${prodDrafts?.length ?? "skipped"}.`);
 
   // ─── Phase 4: Games, Officials, Boxscores & Awards ────────────────────────
   console.log("4. Syncing Games, Boxscores & Awards...");
@@ -549,14 +571,16 @@ async function main() {
       "game_officials",
       prod`SELECT * FROM game_officials WHERE game_id = ANY(${gameIds});`
     );
-    await dev`DELETE FROM game_officials WHERE game_id = ANY(${gameIds});`;
-    for (const o of prodOfficials) {
-      await dev`
-        INSERT INTO game_officials (game_id, name, role)
-        VALUES (${o.game_id}, ${o.name}, ${o.role});
-      `;
+    if (prodOfficials !== null) {
+      await dev`DELETE FROM game_officials WHERE game_id = ANY(${gameIds});`;
+      for (const o of prodOfficials) {
+        await dev`
+          INSERT INTO game_officials (game_id, name, role)
+          VALUES (${o.game_id}, ${o.name}, ${o.role});
+        `;
+      }
+      officialsCount = prodOfficials.length;
     }
-    officialsCount = prodOfficials.length;
 
     const prodPGS = await prod`SELECT * FROM player_game_stats WHERE game_id = ANY(${gameIds});`;
     await dev`DELETE FROM player_game_stats WHERE game_id = ANY(${gameIds});`;
@@ -601,44 +625,51 @@ async function main() {
       "adhoc_game_rosters",
       prod`SELECT * FROM adhoc_game_rosters WHERE game_id = ANY(${gameIds});`
     );
-    await dev`DELETE FROM adhoc_game_rosters WHERE game_id = ANY(${gameIds});`;
-    for (const r of prodAdhoc) {
-      const devPlayerId = devIdByProdId.get(r.player_id);
-      if (!devPlayerId) continue;
-      await dev`
-        INSERT INTO adhoc_game_rosters (game_id, player_id, team_side, is_sub)
-        VALUES (${r.game_id}, ${devPlayerId}, ${r.team_side}, ${r.is_sub ?? false})
-        ON CONFLICT (game_id, player_id) DO UPDATE SET
-          team_side = EXCLUDED.team_side,
-          is_sub = EXCLUDED.is_sub;
-      `;
+    if (prodAdhoc !== null) {
+      await dev`DELETE FROM adhoc_game_rosters WHERE game_id = ANY(${gameIds});`;
+      for (const r of prodAdhoc) {
+        const devPlayerId = devIdByProdId.get(r.player_id);
+        if (!devPlayerId) continue;
+        await dev`
+          INSERT INTO adhoc_game_rosters (game_id, player_id, team_side, is_sub)
+          VALUES (${r.game_id}, ${devPlayerId}, ${r.team_side}, ${r.is_sub ?? false})
+          ON CONFLICT (game_id, player_id) DO UPDATE SET
+            team_side = EXCLUDED.team_side,
+            is_sub = EXCLUDED.is_sub;
+        `;
+      }
     }
 
     // Live scorekeeper state (needed for AdminGameEditor boxscore editing in dev)
-    const prodLive = await prod`SELECT game_id, state, pin_hash, created_at, updated_at FROM game_live WHERE game_id = ANY(${gameIds});`;
-    await dev`DELETE FROM game_live WHERE game_id = ANY(${gameIds});`;
-    for (const row of prodLive) {
-      for (const pid of collectLiveStatePlayerIds(row.state)) {
-        if (!devIdByProdId.has(pid)) {
-          const placeholderName = `Unknown Player #${pid}`;
-          const [inserted] = await dev`
-            INSERT INTO players (name) VALUES (${placeholderName})
-            ON CONFLICT (name) DO UPDATE SET name = EXCLUDED.name
-            RETURNING id;
-          `;
-          devIdByProdId.set(pid, inserted.id);
+    const prodLive = await readIfPermitted(
+      "game_live",
+      prod`SELECT game_id, state, pin_hash, created_at, updated_at FROM game_live WHERE game_id = ANY(${gameIds});`
+    );
+    if (prodLive !== null) {
+      await dev`DELETE FROM game_live WHERE game_id = ANY(${gameIds});`;
+      for (const row of prodLive) {
+        for (const pid of collectLiveStatePlayerIds(row.state)) {
+          if (!devIdByProdId.has(pid)) {
+            const placeholderName = `Unknown Player #${pid}`;
+            const [inserted] = await dev`
+              INSERT INTO players (name) VALUES (${placeholderName})
+              ON CONFLICT (name) DO UPDATE SET name = EXCLUDED.name
+              RETURNING id;
+            `;
+            devIdByProdId.set(pid, inserted.id);
+          }
         }
+        const remappedState = remapLiveStatePlayers(row.state, devIdByProdId);
+        await dev`
+          INSERT INTO game_live (game_id, state, pin_hash, created_at, updated_at)
+          VALUES (${row.game_id}, ${JSON.stringify(remappedState)}::jsonb, ${row.pin_hash ?? ""}, ${row.created_at}, ${row.updated_at})
+          ON CONFLICT (game_id) DO UPDATE SET
+            state = EXCLUDED.state,
+            pin_hash = EXCLUDED.pin_hash,
+            updated_at = EXCLUDED.updated_at;
+        `;
+        liveCount++;
       }
-      const remappedState = remapLiveStatePlayers(row.state, devIdByProdId);
-      await dev`
-        INSERT INTO game_live (game_id, state, pin_hash, created_at, updated_at)
-        VALUES (${row.game_id}, ${JSON.stringify(remappedState)}::jsonb, ${row.pin_hash ?? ""}, ${row.created_at}, ${row.updated_at})
-        ON CONFLICT (game_id) DO UPDATE SET
-          state = EXCLUDED.state,
-          pin_hash = EXCLUDED.pin_hash,
-          updated_at = EXCLUDED.updated_at;
-      `;
-      liveCount++;
     }
   }
 
@@ -646,7 +677,7 @@ async function main() {
     "player_awards",
     prod`SELECT * FROM player_awards WHERE season_id = ANY(${seasons});`
   );
-  for (const a of prodAwards) {
+  for (const a of prodAwards ?? []) {
     const devPlayerId = a.player_id ? devIdByProdId.get(a.player_id) ?? null : null;
     await dev`
       INSERT INTO player_awards (player_name, player_id, season_id, award_type)
@@ -663,7 +694,7 @@ async function main() {
   });
 
   console.log(
-    `   Games: ${prodGames.length}, Live States: ${liveCount}, Officials: ${officialsCount}, Skater Stats: ${pgsCount}, Goalie Stats: ${ggsCount}, Awards: ${prodAwards.length}, Trades: ${tradesCount}, Trade Items: ${itemsCount}.`
+    `   Games: ${prodGames.length}, Live States: ${liveCount}, Officials: ${officialsCount}, Skater Stats: ${pgsCount}, Goalie Stats: ${ggsCount}, Awards: ${prodAwards?.length ?? 0}, Trades: ${tradesCount}, Trade Items: ${itemsCount}.`
   );
 
   // Synchronize games_gen_seq in dev DB with highest copied game ID
@@ -684,10 +715,6 @@ async function main() {
       END IF;
     END $$;
   `;
-
-  await local?.close();
-
-  console.log("\n=== Export & Sync Completed Successfully! ===");
 }
 
 export async function syncTrades(
@@ -697,6 +724,11 @@ export async function syncTrades(
   devIdByProdId: Map<number, number>
 ): Promise<{ tradesCount: number; itemsCount: number }> {
   const prodTrades = await prod`SELECT * FROM season_trades WHERE season_id = ANY(${seasons}) ORDER BY id ASC;`;
+  // Read both tables before deleting, so a failed read leaves the target's trades in place.
+  const tradeIds = prodTrades.map((t: any) => t.id);
+  const prodTradeItems = tradeIds.length > 0
+    ? await prod`SELECT * FROM season_trade_items WHERE trade_id = ANY(${tradeIds}) ORDER BY id ASC;`
+    : [];
   await dev`DELETE FROM season_trades WHERE season_id = ANY(${seasons});`;
 
   let itemsCount = 0;
@@ -709,9 +741,6 @@ export async function syncTrades(
     await dev`
       SELECT setval('season_trade_items_id_seq', COALESCE((SELECT MAX(id) FROM season_trade_items), 1));
     `;
-
-    const tradeIds = prodTrades.map((t: any) => t.id);
-    const prodTradeItems = await prod`SELECT * FROM season_trade_items WHERE trade_id = ANY(${tradeIds}) ORDER BY id ASC;`;
 
     // Let Dev allocate fresh serial IDs rather than forcing Prod IDs via ON CONFLICT (id),
     // which would otherwise overwrite unrelated historical trades in non-synced seasons if IDs overlap.

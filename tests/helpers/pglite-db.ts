@@ -8,10 +8,12 @@ import * as schema from "@/lib/db/schema"
 // secure-mcp-access.sql starts with role grants that only exist on production.
 function objectsOutsideSchemaTs() {
   const access = readFileSync("scripts/secure-mcp-access.sql", "utf8")
+  const triggerStart = access.indexOf("CREATE OR REPLACE FUNCTION clear_legacy_game_pin")
+  if (triggerStart === -1) throw new Error("clear_legacy_game_pin not found in scripts/secure-mcp-access.sql")
   return [
     readFileSync("scripts/operator-security-schema.sql", "utf8"),
     readFileSync("lib/push/schema.sql", "utf8"),
-    access.slice(access.indexOf("CREATE OR REPLACE FUNCTION clear_legacy_game_pin")),
+    access.slice(triggerStart),
   ]
 }
 

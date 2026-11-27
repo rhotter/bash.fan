@@ -7,22 +7,30 @@
  * 3. All data-fetching functions return valid, well-shaped data
  * 4. Query builder operations (select, insert, update) work
  * 5. Performance: queries complete within acceptable timeframes
+ *
+ * Opt-in: they need a real database that has data, including season 2024-2025.
+ *   DB_INTEGRATION=1 pnpm vitest run tests/drizzle-migration.test.ts
  */
-
-// Measures a real database, so it opts out of the in-memory one from tests/setup.ts.
-vi.unmock("@/lib/db")
 
 import { describe, it, expect, vi } from "vitest"
 import { db, rawSql, schema } from "@/lib/db"
 import { sql, eq, count } from "drizzle-orm"
 import { getCurrentSeason } from "@/lib/seasons"
 
+// When asked to run, uses the real database in place of the in-memory one from tests/setup.ts.
+// When skipped, a stub means neither database is started.
+vi.mock("@/lib/db", (importOriginal) =>
+  process.env.DB_INTEGRATION ? importOriginal() : { db: {}, rawSql: vi.fn(), schema: {} }
+)
+
+const integration = describe.skipIf(!process.env.DB_INTEGRATION)
+
 // Integration queries run outside Next's request/cache runtime.
 vi.mock("next/cache", () => ({ unstable_cache: (fn: unknown) => fn }))
 
 // ─── Connection & rawSql helper ──────────────────────────────────────────────
 
-describe("Drizzle connection", () => {
+integration("Drizzle connection", () => {
   it("rawSql returns an array of rows", async () => {
     const rows = await rawSql(sql`SELECT 1 as val`)
     expect(Array.isArray(rows)).toBe(true)
@@ -49,7 +57,7 @@ describe("Drizzle connection", () => {
 
 // ─── Schema verification (Drizzle schema matches DB) ────────────────────────
 
-describe("Schema matches database", () => {
+integration("Schema matches database", () => {
   it("seasons table has expected columns", async () => {
     const rows = await rawSql(sql`
       SELECT column_name FROM information_schema.columns
@@ -181,7 +189,7 @@ describe("Schema matches database", () => {
 
 // ─── Drizzle query builder operations ────────────────────────────────────────
 
-describe("Drizzle query builder", () => {
+integration("Drizzle query builder", () => {
   it("select from teams returns rows", async () => {
     const rows = await db.select().from(schema.teams).limit(5)
     expect(Array.isArray(rows)).toBe(true)
@@ -240,7 +248,7 @@ describe("Drizzle query builder", () => {
 
 // ─── Data fetching functions ─────────────────────────────────────────────────
 
-describe("fetchBashData", () => {
+integration("fetchBashData", () => {
   it("returns valid structure for current season", async () => {
     const { fetchBashData } = await import("@/lib/fetch-bash-data")
     const data = await fetchBashData()
@@ -298,7 +306,7 @@ describe("fetchBashData", () => {
   })
 })
 
-describe("fetchPlayerStats", () => {
+integration("fetchPlayerStats", () => {
   it("returns valid structure for current season", async () => {
     const { fetchPlayerStats } = await import("@/lib/fetch-player-stats")
     const data = await fetchPlayerStats()
@@ -367,7 +375,7 @@ describe("fetchPlayerStats", () => {
   })
 })
 
-describe("fetchTeamDetail", () => {
+integration("fetchTeamDetail", () => {
   let teamSlug: string
 
   it("returns null for nonexistent team", async () => {
@@ -416,7 +424,7 @@ describe("fetchTeamDetail", () => {
   })
 })
 
-describe("fetchGameDetail", () => {
+integration("fetchGameDetail", () => {
   it("returns null for nonexistent game", async () => {
     const { fetchGameDetail } = await import("@/lib/fetch-game-detail")
     const result = await fetchGameDetail("nonexistent-game-id-xyz")
@@ -465,7 +473,7 @@ describe("fetchGameDetail", () => {
   })
 })
 
-describe("fetchPlayerDetail", () => {
+integration("fetchPlayerDetail", () => {
   it("returns null for nonexistent player", async () => {
     const { fetchPlayerDetail } = await import("@/lib/fetch-player-detail")
     const result = await fetchPlayerDetail("nonexistent-player-slug-xyz-abc")
@@ -524,7 +532,7 @@ describe("fetchPlayerDetail", () => {
 
 // ─── Complex rawSql queries ─────────────────────────────────────────────────
 
-describe("Complex SQL queries via rawSql", () => {
+integration("Complex SQL queries via rawSql", () => {
   it("CTE query works (all-time stats pattern)", async () => {
     const rows = await rawSql(sql`
       WITH game_stats AS (
@@ -614,7 +622,7 @@ describe("Complex SQL queries via rawSql", () => {
 
 // ─── Performance tests ──────────────────────────────────────────────────────
 
-describe("Query performance", () => {
+integration("Query performance", () => {
   const TIMEOUT_MS = 5000 // 5 second max for any single query
 
   it("fetchBashData completes within timeout", async () => {
@@ -706,7 +714,7 @@ describe("Query performance", () => {
 
 // ─── Data integrity checks ──────────────────────────────────────────────────
 
-describe("Data integrity", () => {
+integration("Data integrity", () => {
   it("every game references valid teams", async () => {
     const orphans = await rawSql(sql`
       SELECT g.id FROM games g

@@ -17,6 +17,8 @@ Bay Area Street Hockey (BASH) league stats website. Displays scores, standings, 
 - `pnpm lint` — Run Oxlint (`oxlint.config.ts`, extending `@cloudflare/oxlint-config` with `tsrs` type-aware rules and `eslint-plugin-drizzle` via `jsPlugins`)
 - `pnpm typecheck` — Run TypeScript compiler check (`tsc --noEmit`)
 - `pnpm logos:optimize` — Pre-generate 64/128/256px content-hashed WebP logos in `public/optimized-logos/` and update `lib/optimized-logos.json`
+- `pnpm db:setup` — Build the schema in a local Docker Postgres (`pnpm db:reset` wipes it first). See `docs/developer_workflow.md` before using or changing the local database
+- `pnpm test:run` — Run Vitest. Tests importing `@/lib/db` get an in-memory Postgres (`tests/setup.ts`): create rows with `tests/factories/*` instead of mocking the database. Tests that need a real database are opt-in (`DB_INTEGRATION`, `PLAYER_BENCHMARK`)
 - `npx tsx scripts/seed.ts` — Seed database from Sportability API
 - `PROD_URL='<prod-db-url>' DEV_URL='<dev-db-url>' npx tsx scripts/export-prod-db.ts` — Sync recent seasons, boxscores, and draft boards from production into dev database (or `pnpm db:export-prod --from '...' --to '...'`)
 
@@ -137,7 +139,7 @@ Playoff Odds (`lib/playoff-odds.ts`, served via `GET /api/bash/playoff-odds`) ru
 
 ## Environment
 
-- `DATABASE_URL` — Neon Postgres connection string for your dev database (required), stored in `.env.local`
+- `DATABASE_URL` — Postgres connection string for your dev database, Neon or local Docker (required), stored in `.env.local`
 - `PROD_URL` — Production Neon Postgres connection string (required at runtime for `scripts/export-prod-db.ts`; NEVER save to `.env.local` or commit)
 - `DEV_URL` — Destination dev database connection string for `scripts/export-prod-db.ts` (pass via env or `--to`)
 - To run scripts that need DB access: `export $(cat .env.local | grep -v '^#' | xargs) && npx tsx scripts/your-script.ts`
