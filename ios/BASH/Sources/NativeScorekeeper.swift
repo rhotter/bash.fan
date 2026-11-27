@@ -1187,26 +1187,114 @@ private struct ScoringEventEditor: View {
 private struct ScoringClockEditor: View {
     @ObservedObject var model: NativeScorekeeper
     @Environment(\.dismiss) private var dismiss
+    @FocusState private var editingTime: Bool
     @State private var period = 1
-    @State private var minutes = 20
-    @State private var seconds = 0
+    @State private var timeInput = ""
+    @State private var initialized = false
+
+    private var limit: Int {
+        period == 4 && model.payload?.isPlayoff != true ? 300 : model.payload?.periodLength ?? 1200
+    }
+
+    private var draftTime: Int? {
+        let digits = Array(timeInput)
+        guard !digits.isEmpty, digits.count <= 5, let value = Int(timeInput), value % 100 < 60 else { return nil }
+        return value / 100 * 60 + value % 100
+    }
+
+    private var validTime: Int? { draftTime.flatMap { $0 <= limit ? $0 : nil } }
+
     var body: some View {
         NavigationStack {
             Form {
-                Picker("Period", selection: $period) { ForEach(1...max(4, model.period), id: \.self) { Text($0 < 4 ? "Period \($0)" : "Overtime \($0 - 3)").tag($0) } }
-                Picker("Minutes remaining", selection: $minutes) { ForEach(0...30, id: \.self) { Text(String($0)).tag($0) } }
-                Picker("Seconds remaining", selection: $seconds) { ForEach(0..<60, id: \.self) { Text(String(format: "%02d", $0)).tag($0) } }
-            }.navigationTitle("Game clock").navigationBarTitleDisplayMode(.inline)
-                .toolbar {
-                    ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
-                    ToolbarItem(placement: .confirmationAction) {
-                        Button("Set clock") {
-                            model.change { $0["period"] = .int(period); $0["clockSeconds"] = .int(minutes * 60 + seconds); $0["clockRunning"] = .bool(false); $0["clockStartedAt"] = .null }
-                            dismiss()
-                        }.disabled(minutes * 60 + seconds > (period >= 4 && model.payload?.isPlayoff != true ? 300 : model.payload?.periodLength ?? 1200))
-                    }
+                Section {
+                    VStack(spacing: 7) {
+                        Text("Time remaining").font(.subheadline.weight(.medium)).foregroundStyle(.secondary)
+                        Text(draftTime.map(NativeScorekeeper.time) ?? "–:––")
+                            .font(.system(size: 58, weight: .bold, design: .rounded))
+                            .monospacedDigit()
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.5)
+                            .accessibilityIdentifier("gameClockDraft")
+                    }.frame(maxWidth: .infinity).padding(.vertical, 12)
                 }
-        }.tint(LeagueStyle.orange).onAppear { period = max(1, model.period); minutes = model.clock() / 60; seconds = model.clock() % 60 }
+                Section {
+                    Picker("Period", selection: $period) {
+                        ForEach(1...4, id: \.self) { Text($0 == 4 ? "Overtime" : "Period \($0)").tag($0) }
+                    }
+                    LabeledContent("Enter time") {
+                        TextField("mmss", text: $timeInput)
+                            .keyboardType(.numberPad)
+                            .multilineTextAlignment(.trailing)
+                            .monospacedDigit()
+                            .focused($editingTime)
+                            .accessibilityLabel("Time remaining in minutes and seconds")
+                            .accessibilityIdentifier("gameClockInput")
+                    }
+                } footer: {
+                    Text(validTime == nil ? "Enter a time from 0:00 to \(NativeScorekeeper.time(limit)), with seconds below 60." : "Enter time as digits: 1722 means 17:22.")
+                }
+                Section {
+                    HStack(spacing: 8) {
+                        adjustment(-10)
+                        adjustment(-1)
+                        adjustment(1)
+                        adjustment(10)
+                    }
+                    .buttonStyle(.bordered)
+                } header: {
+                    Text("Quick adjustments")
+                } footer: {
+                    Text(model.editable ? "Setting the clock leaves it paused." : "The game clock is no longer editable.")
+                }
+            }
+            .navigationTitle("Game clock")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Set clock") {
+                        guard model.editable, let validTime else { return }
+                        model.change {
+                            $0["period"] = .int(period)
+                            $0["clockSeconds"] = .int(validTime)
+                            $0["clockRunning"] = .bool(false)
+                            $0["clockStartedAt"] = .null
+                        }
+                        dismiss()
+                    }.disabled(!model.editable || validTime == nil)
+                }
+            }
+        }.tint(LeagueStyle.orange)
+            .onAppear {
+                guard !initialized else { return }
+                period = min(4, max(1, model.period))
+                setDraft(min(limit, model.clock()))
+                initialized = true
+            }
+            .onChange(of: timeInput) { _, input in
+                let digits = String(input.filter { $0.isASCII && $0.isNumber }.prefix(5))
+                if input != digits { timeInput = digits }
+            }
+    }
+
+    private func adjustment(_ delta: Int) -> some View {
+        let sign = delta < 0 ? "−" : "+"
+        return Button("\(sign)\(abs(delta))s") {
+            guard let validTime else { return }
+            setDraft(min(limit, max(0, validTime + delta)))
+            editingTime = false
+        }
+        .font(.subheadline.weight(.semibold).monospacedDigit())
+        .lineLimit(1)
+        .minimumScaleFactor(0.65)
+        .accessibilityLabel("\(delta < 0 ? "Subtract" : "Add") \(abs(delta)) \(abs(delta) == 1 ? "second" : "seconds")")
+        .disabled(validTime.map { delta < 0 ? $0 == 0 : $0 == limit } ?? true)
+        .frame(maxWidth: .infinity)
+    }
+
+    private func setDraft(_ value: Int) {
+        timeInput = String(format: "%d%02d", value / 60, value % 60)
     }
 }
 

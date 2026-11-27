@@ -765,3 +765,46 @@ final class LeagueUITests: XCTestCase {
         add(attachment)
     }
 }
+
+extension LeagueUITests {
+    @MainActor func testClockEditorDraftAndSave() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--native-scorekeeper-preview"]
+        app.launch()
+        let edit = app.buttons["Edit clock"]
+        XCTAssertTrue(edit.waitForExistence(timeout: 10))
+        edit.tap()
+        let draft = app.staticTexts["gameClockDraft"]
+        XCTAssertTrue(draft.waitForExistence(timeout: 5))
+        XCTAssertEqual(draft.label, "17:22")
+        let period = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Period, ")).firstMatch
+        XCTAssertTrue(period.exists)
+        period.tap()
+        app.buttons["Overtime"].tap()
+        XCTAssertEqual(draft.label, "17:22")
+        XCTAssertFalse(app.buttons["Set clock"].isEnabled)
+        period.tap()
+        app.buttons["Period 1"].tap()
+        XCTAssertEqual(draft.label, "17:22")
+        XCTAssertTrue(app.buttons["Set clock"].isEnabled)
+
+        app.buttons["Subtract 10 seconds"].tap()
+        XCTAssertEqual(draft.label, "17:12")
+        app.buttons["Add 1 second"].tap()
+        XCTAssertEqual(draft.label, "17:13")
+        app.buttons["Cancel"].tap()
+        XCTAssertTrue(app.staticTexts["17:22"].exists)
+        app.buttons["Start clock"].tap()
+        edit.tap()
+        XCTAssertTrue(draft.waitForExistence(timeout: 5))
+        app.buttons["Subtract 10 seconds"].tap()
+        let proof = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        proof.name = "BASH-game-clock-editor"
+        proof.lifetime = .keepAlways
+        add(proof)
+        let saved = draft.label
+        app.buttons["Set clock"].tap()
+        XCTAssertTrue(app.buttons["Start clock"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts[saved].exists)
+    }
+}
