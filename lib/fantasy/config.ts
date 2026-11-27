@@ -27,6 +27,13 @@ export interface FantasyConfig {
     /** IANA zone, so the Lock follows daylight saving. */
     timeZone: string
   }
+  /**
+   * The run includes each Week closing from `startsOn` to `endsOn` inclusive, with all of that Week's games,
+   * so a Week is never split. Both are `YYYY-MM-DD`. With no `startsOn` it begins after it's turned on,
+   * and with no `endsOn` it keeps going.
+   */
+  startsOn: string | null
+  endsOn: string | null
 }
 
 export const DEFAULT_FANTASY_CONFIG: FantasyConfig = {
@@ -38,6 +45,8 @@ export const DEFAULT_FANTASY_CONFIG: FantasyConfig = {
     goalie: { save: 1, goalAgainst: -3, win: 5, shutout: 10 },
   },
   lock: { dayOfWeek: 6, time: "08:00", timeZone: "America/Los_Angeles" },
+  startsOn: null,
+  endsOn: null,
 }
 
 const count = z.number().int().min(0).max(20)
@@ -52,6 +61,26 @@ function isTimeZone(zone: string) {
     if (error instanceof RangeError) return false
     throw error
   }
+}
+
+/** A real calendar date: `Date` would roll 30 February over into March. */
+function isCalendarDate(date: string) {
+  const parsed = new Date(`${date}T00:00:00Z`)
+  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === date
+}
+
+/** Optional, so configs stored before runs had dates still load. */
+const runDate = z
+  .string()
+  .refine((date) => /^\d{4}-\d{2}-\d{2}$/.test(date) && isCalendarDate(date), "Use a real date, YYYY-MM-DD, or null")
+  .nullable()
+  .default(null)
+
+/** The first closing day on or after a calendar date. 0 is Sunday. */
+export function closingDayOnOrAfter(date: string, dayOfWeek: number) {
+  const day = new Date(`${date}T00:00:00Z`)
+  day.setUTCDate(day.getUTCDate() + ((dayOfWeek - day.getUTCDay() + 7) % 7))
+  return day.toISOString().slice(0, 10)
 }
 
 const fantasyConfigSchema: z.ZodType<FantasyConfig, z.ZodTypeDef, unknown> = z.object({
@@ -90,7 +119,13 @@ const fantasyConfigSchema: z.ZodType<FantasyConfig, z.ZodTypeDef, unknown> = z.o
       timeZone: z.string().refine(isTimeZone, "Use an IANA time zone, such as America/Los_Angeles"),
     })
     .strict(),
-}).strict()
+  startsOn: runDate,
+  endsOn: runDate,
+}).strict().superRefine(({ startsOn, endsOn, lock }, context) => {
+  if (startsOn !== null && endsOn !== null && closingDayOnOrAfter(startsOn, lock.dayOfWeek) > endsOn) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ["endsOn"], message: "No Week closes between the start and end dates" })
+  }
+})
 
 export type ConfigCheck = { ok: true; config: FantasyConfig } | { ok: false; issues: string[] }
 

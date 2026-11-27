@@ -792,6 +792,13 @@ describe("contests", () => {
     expect(await points("playoffs")).toBe(20)
   })
 
+  it("turns on a run under its own name, beside one of the same type", async () => {
+    const response = await adminPut(json("/x", "PUT", { contest: "december-beta", config: DEFAULT_FANTASY_CONFIG }), seasonParams())
+
+    expect(response.status).toBe(200)
+    expect((await adminList()).contests.sort()).toEqual(["december-beta", "regular"])
+  })
+
   it("rejects a contest name that can't go in a URL", async () => {
     const response = await adminPut(json("/x", "PUT", { contest: "Play offs!" }), seasonParams())
     expect(response.status).toBe(400)

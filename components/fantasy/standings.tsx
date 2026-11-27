@@ -9,7 +9,7 @@ import { Chevron, ProvisionalBadge } from "@/components/fantasy/week-row"
 import { WeekOverviewPanel } from "@/components/fantasy/week-overview"
 import { playerSlug } from "@/lib/player-slug"
 import { weekLabel } from "@/lib/fantasy/week"
-import { fantasyHref, type FantasyTab, type FantasyView } from "@/lib/fantasy/view-state"
+import { contestLabel, fantasyHref, instantLabel, type FantasyTab, type FantasyView } from "@/lib/fantasy/view-state"
 import { cn } from "@/lib/utils"
 import type { PickemWeek, PickemWeekRow, PredictionOutcome } from "@/lib/fantasy/pickem"
 import type { PublicSelection, StandingsWeek } from "@/lib/fantasy/standings"
@@ -388,18 +388,18 @@ function PickemSeasonTable({ season }: { season: FantasyPageData["pickem"]["seas
 /** Contests are separate games with their own Managers, so each is its own page rather than an in-place switch. */
 function ContestNav({ data }: { data: FantasyPageData }) {
   return (
-    <nav aria-label="Contests" className="flex gap-1">
+    <nav aria-label="Contests" className="flex flex-wrap gap-1">
       {data.contests.map((key) => (
         <IntentLink
           key={key}
           href={fantasyHref({ tab: "fantasy", weekId: null, contest: key })}
           aria-current={key === data.contest ? "page" : undefined}
           className={cn(
-            "rounded-md px-3 py-1 text-sm font-semibold capitalize transition-colors",
+            "rounded-md px-3 py-1 text-sm font-semibold transition-colors",
             key === data.contest ? "bg-secondary text-foreground" : "text-muted-foreground hover:text-foreground"
           )}
         >
-          {key}
+          {contestLabel(key)}
         </IntentLink>
       ))}
     </nav>
@@ -428,26 +428,39 @@ export function FantasyStandingsView({ data, view: initialView }: { data: Fantas
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Fantasy</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Lineups and Predictions close {closingLabel(data)}</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {data.status === "upcoming" && data.picksOpenAt
+              ? `This run hasn't started. Picks open ${instantLabel(data.picksOpenAt, data.timeZone)}. You can join now.`
+              : data.status === "active"
+                ? `Lineups and Predictions close ${closingLabel(data)}`
+                : data.status === "final-week"
+                  ? "Picks are closed: the last Week is being played."
+                  : "This run has ended."}
+          </p>
         </div>
-        <Button asChild size="sm">
-          <IntentLink href={`/fantasy/register?contest=${encodeURIComponent(data.contest)}`}>Join Fantasy</IntentLink>
-        </Button>
+        {(data.status === "active" || data.status === "upcoming") && (
+          <Button asChild size="sm">
+            <IntentLink href={`/fantasy/register?contest=${encodeURIComponent(data.contest)}`}>Join Fantasy</IntentLink>
+          </Button>
+        )}
       </div>
 
       {data.contests.length > 1 && <ContestNav data={data} />}
 
-      <div className="space-y-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-lg font-semibold">{view.weekId ? `Week of ${weekLabel(view.weekId)}` : "This Week"}</h2>
-          {weekIds.length > 1 && view.weekId && <WeekPicker weekIds={weekIds} view={view} switchTo={changeView} />}
+      {/* An upcoming run has no Week to show yet. */}
+      {data.status !== "upcoming" && (
+        <div className="space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-lg font-semibold">{view.weekId ? `Week of ${weekLabel(view.weekId)}` : "This Week"}</h2>
+            {weekIds.length > 1 && view.weekId && <WeekPicker weekIds={weekIds} view={view} switchTo={changeView} />}
+          </div>
+          {overview ? (
+            <WeekOverviewPanel overview={overview} />
+          ) : (
+            <p className="text-sm text-muted-foreground">No Weeks yet.</p>
+          )}
         </div>
-        {overview ? (
-          <WeekOverviewPanel overview={overview} />
-        ) : (
-          <p className="text-sm text-muted-foreground">No Weeks yet.</p>
-        )}
-      </div>
+      )}
 
       <TabNav view={view} switchTo={changeView} />
 

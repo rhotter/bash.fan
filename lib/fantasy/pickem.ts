@@ -124,7 +124,7 @@ export function buildPickemStandings(input: PickemStandingsInput): PickemStandin
 
   const gamesByWeek = new Map<string, SeasonGame[]>()
   for (const game of games) {
-    if (!countsForGame(game, launchedAt, config.lock)) continue
+    if (!countsForGame(game, launchedAt, config)) continue
     const weekId = gameWeekId(game, config.lock)
     if (weekId > lastLockedWeek) continue
     gamesByWeek.set(weekId, [...(gamesByWeek.get(weekId) ?? []), game])

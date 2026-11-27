@@ -21,7 +21,7 @@ import {
 } from "./scoring"
 import { getFantasySeason, type FantasySeason } from "./season"
 import { buildStandings } from "./standings"
-import { buildWeekOverview, countsForGame, gameWeekId, openWeek, scheduledStart, weekContaining, type FantasyWeek } from "./week"
+import { buildWeekOverview, countsForGame, gameWeekId, openWeek, picksOpenAt, runStatus, scheduledStart, weekContaining, type FantasyWeek } from "./week"
 
 const { fantasyLineups, fantasyPredictions } = schema
 
@@ -60,7 +60,7 @@ export function scoreSavedLineups(
   config: FantasyConfig,
   launchedAt: Date
 ) {
-  const counting = games.filter((game) => countsForGame(game, launchedAt, config.lock))
+  const counting = games.filter((game) => countsForGame(game, launchedAt, config))
   return saved.map(({ weekId, lineup }) => {
     const weekGames = counting.filter((game) => gameWeekId(game, config.lock) === weekId)
     return scoreWeek(lineup, stats, weekGames, config)
@@ -224,7 +224,7 @@ export function usesHeldForCap(weeks: Pick<ScoredWeek, "selections">[]) {
 function weekGames(state: SeasonState, season: FantasySeason, weekId: string) {
   const { lock } = season.config
   return state.games.filter(
-    (game) => countsForGame(game, season.launchedAt, lock) && gameWeekId(game, lock) === weekId
+    (game) => countsForGame(game, season.launchedAt, season.config) && gameWeekId(game, lock) === weekId
   )
 }
 
@@ -318,6 +318,8 @@ function buildWeekForm(manager: ManagerIdentity, { season, state, predictions }:
 
   return {
     teamName: manager.teamName,
+    status: runStatus(season.config, now),
+    picksOpenAt: picksOpenAt(season.config)?.toISOString() ?? null,
     overview: buildWeekOverview({
       weekId: week.id,
       games: state.games,
@@ -350,28 +352,32 @@ export async function loadLineupForm(manager: ManagerIdentity, now = new Date())
   return buildWeekForm(manager, context, openWeek(now, context.season.config.lock), now)
 }
 
-/** The closed Weeks with counting games, oldest first, followed by the open Week. Later Weeks can't be edited. */
+/**
+ * The closed Weeks with counting games, oldest first, followed by the open Week. Later Weeks can't be edited.
+ * Once a run takes no more picks, the open Week is left out unless there's nothing else.
+ */
 function adminWeeks(state: SeasonState, season: FantasySeason, now: Date) {
   const { lock } = season.config
   const open = openWeek(now, lock)
-  const weeks = new Map<string, FantasyWeek>([[open.id, open]])
+  const weeks = new Map<string, FantasyWeek>()
   for (const game of state.games) {
-    if (!countsForGame(game, season.launchedAt, lock)) continue
+    if (!countsForGame(game, season.launchedAt, season.config)) continue
     const week = weekContaining(scheduledStart(game, lock), lock)
     if (week.id < open.id) weeks.set(week.id, week)
   }
+  if (runStatus(season.config, now) === "active" || weeks.size === 0) weeks.set(open.id, open)
   return { open, weeks: [...weeks.values()].sort((a, b) => a.id.localeCompare(b.id)) }
 }
 
 /**
  * Admin-only: a Manager's picks for any Week up to the open one, including picks that aren't public yet.
- * An unknown or later Week falls back to the open Week.
+ * An unknown or later Week falls back to the latest one offered.
  */
 export async function loadAdminPicks(manager: ManagerIdentity, weekId?: string, now = new Date()) {
   const context = await readManagerContext(manager)
   if (!context) return null
   const { open, weeks } = adminWeeks(context.state, context.season, now)
-  const week = weeks.find(({ id }) => id === weekId) ?? open
+  const week = weeks.find(({ id }) => id === weekId) ?? weeks[weeks.length - 1]
   const form = buildWeekForm(manager, context, week, now)
   const gameIds = new Set(form.overview.games.map(({ id }) => id))
   return {

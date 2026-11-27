@@ -6,6 +6,7 @@ import { PredictionsFormPanel } from "@/components/fantasy/predictions-form"
 import { WeekOverviewPanel } from "@/components/fantasy/week-overview"
 import { IntentLink } from "@/components/intent-link"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { instantLabel } from "@/lib/fantasy/view-state"
 import { weekLabel } from "@/lib/fantasy/week"
 import type { loadAdminPicks } from "@/lib/fantasy/lineups"
 import { cn } from "@/lib/utils"
@@ -18,6 +19,17 @@ export function FantasyPicksEditor({ picks, adminUrl, pageHref }: { picks: Admin
   const { form, weekIds, openWeekId, closed } = picks
   // The page's points, history and uses are rendered on the server, so reload them after a save.
   const onSaved = () => router.refresh()
+
+  if (form.status === "upcoming" && form.picksOpenAt) {
+    return (
+      <section className="space-y-3">
+        <h2 className="text-lg font-semibold">Edit picks</h2>
+        <p className="text-sm text-muted-foreground">
+          This run hasn&apos;t started. Picks open {instantLabel(form.picksOpenAt, form.week.timeZone)}.
+        </p>
+      </section>
+    )
+  }
 
   return (
     <section className="space-y-3">

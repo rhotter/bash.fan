@@ -12,6 +12,7 @@ import { loadAdminPicks, loadPublicManager } from "@/lib/fantasy/lineups"
 import { fetchFantasyOverview } from "@/lib/fetch-fantasy"
 import { findManagerById, listManagers, parseManagerId } from "@/lib/fantasy/managers"
 import { getFantasySeason } from "@/lib/fantasy/season"
+import { contestLabel } from "@/lib/fantasy/view-state"
 import { getSeasonById } from "@/lib/seasons"
 
 export const dynamic = "force-dynamic"
@@ -54,7 +55,7 @@ export default async function AdminFantasyTeamPage({
     <div className="space-y-6">
       <div>
         <IntentLink href={back} className="text-sm text-muted-foreground hover:underline">
-          Fantasy · {season.name} · {identity.contest}
+          Fantasy · {season.name} · {contestLabel(identity.contest)}
         </IntentLink>
         <h1 className="mt-1 text-2xl font-bold tracking-tight">{manager.teamName}</h1>
         <p className="text-sm text-muted-foreground">

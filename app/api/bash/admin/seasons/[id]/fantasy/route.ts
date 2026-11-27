@@ -5,6 +5,7 @@ import { fetchFantasyOverview } from "@/lib/fetch-fantasy"
 import { checkFantasyConfig, DEFAULT_FANTASY_CONFIG } from "@/lib/fantasy/config"
 import { listManagers } from "@/lib/fantasy/managers"
 import { refreshPublicPages, reply } from "@/lib/fantasy/reply"
+import { firstWeekId, picksOpenAt, runStatus } from "@/lib/fantasy/week"
 import {
   DEFAULT_CONTEST,
   getFantasySeason,
@@ -32,6 +33,8 @@ export async function GET(request: Request, { params }: Context) {
       contest,
       contests: contests.map((c) => c.contest),
       enabled: season !== null,
+      status: season ? runStatus(season.config, new Date()) : null,
+      picksOpenAt: season ? (picksOpenAt(season.config)?.toISOString() ?? null) : null,
       config: season?.config ?? DEFAULT_FANTASY_CONFIG,
       launchedAt: season?.launchedAt ?? null,
       hasLineups: lineupsExist,
@@ -55,8 +58,9 @@ export async function PUT(request: Request, { params }: Context) {
     }
     const contest = parseContest(body.contest ?? DEFAULT_CONTEST)
     if (!contest) return reply({ error: "That contest isn't valid. Use letters, numbers and dashes." }, 400)
+    const existing = await getFantasySeason(id, contest)
     // A request with no config turns a contest on with the defaults. It never resets one that's already on.
-    if (body.config === undefined && (await getFantasySeason(id, contest))) {
+    if (body.config === undefined && existing) {
       return reply({ error: "Send the config to change it. This contest is already on." }, 400)
     }
     const checked = checkFantasyConfig(body.config === undefined ? DEFAULT_FANTASY_CONFIG : body.config)
@@ -69,7 +73,13 @@ export async function PUT(request: Request, { params }: Context) {
       .where(eq(schema.seasons.id, id))
     if (!season) return reply({ error: "Season not found" }, 404)
 
-    await saveFantasyConfig(id, contest, config, new Date())
+    const now = new Date()
+    // With no start date the first Week depends on when the run was turned on, which the config alone can't check.
+    if (config.endsOn !== null && config.endsOn < firstWeekId(config, existing?.launchedAt ?? now)) {
+      return reply({ error: "That config isn't valid.", issues: ["endsOn: The run would end before its first Week"] }, 400)
+    }
+
+    await saveFantasyConfig(id, contest, config, now)
     refreshPublicPages()
     return reply({ contest, config })
   } catch (error) {

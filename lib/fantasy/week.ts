@@ -1,6 +1,6 @@
 import { TZDate } from "@date-fns/tz"
 import { addDays, format, getDay, set, subDays } from "date-fns"
-import type { FantasyConfig } from "./config"
+import { closingDayOnOrAfter, type FantasyConfig } from "./config"
 import type { SeasonGame } from "./lineups"
 
 type LockRule = FantasyConfig["lock"]
@@ -36,15 +36,47 @@ export function weekContaining(instant: Date, rule: LockRule): FantasyWeek {
   }
 }
 
-/**
- * Only games starting at or after the first Lock following launch count (by `scheduledStart`, so a game
- * with no readable time counts as starting at midday). Which game types a contest scores is
- * decided when the games are read, from the config's `gameTypes`.
- */
-export function countsForGame(game: { date: string; time: string }, launchedAt: Date, rule: LockRule) {
-  const firstLock = weekContaining(launchedAt, rule).nextLockAt
-  return scheduledStart(game, rule) >= firstLock
+type RunRule = Pick<FantasyConfig, "lock" | "startsOn" | "endsOn">
+
+/** The id of a run's first Week: set by its start date, or else the first to close after it was turned on. */
+export function firstWeekId({ lock, startsOn }: Pick<RunRule, "lock" | "startsOn">, launchedAt: Date) {
+  return startsOn === null ? openWeek(launchedAt, lock).id : closingDayOnOrAfter(startsOn, lock.dayOfWeek)
 }
+
+/** When a start date's first picks open: the Lock a Week before the first Week's own. Null with no start date. */
+export function picksOpenAt({ lock, startsOn }: Pick<RunRule, "lock" | "startsOn">) {
+  if (startsOn === null) return null
+  const first = closingDayOnOrAfter(startsOn, lock.dayOfWeek)
+  return gameStartsAt(format(subDays(new Date(`${first}T12:00:00`), 7), "yyyy-MM-dd"), lock.time, lock.timeZone)
+}
+
+/**
+ * Whether a game belongs to one of the run's Weeks, going by its `scheduledStart`, so a game with no readable
+ * time counts as starting at midday. Which game types a contest scores is decided when the games are read,
+ * from the config's `gameTypes`.
+ */
+export function countsForGame(game: { date: string; time: string }, launchedAt: Date, rule: RunRule) {
+  const week = gameWeekId(game, rule.lock)
+  return week >= firstWeekId(rule, launchedAt) && (rule.endsOn === null || week <= rule.endsOn)
+}
+
+/**
+ * - `upcoming`: its first picks haven't opened yet. People can already join.
+ * - `active`: taking picks.
+ * - `final-week`: the last Week has closed to picks and is being played.
+ * - `ended`: the last Week is over. Its scores can still come in.
+ */
+export type RunStatus = "upcoming" | "active" | "final-week" | "ended"
+
+export function runStatus({ lock, startsOn, endsOn }: RunRule, now: Date): RunStatus {
+  const open = openWeek(now, lock).id
+  if (startsOn !== null && open < startsOn) return "upcoming"
+  if (endsOn === null || open <= endsOn) return "active"
+  return weekContaining(now, lock).id <= endsOn ? "final-week" : "ended"
+}
+
+/** Whether people can still join a run. */
+export const takesRegistrations = (status: RunStatus) => status === "upcoming" || status === "active"
 
 /** The Week taking Lineups now: the one whose Lock comes next. A Lock moves this on. */
 export function openWeek(now: Date, rule: LockRule) {
@@ -116,7 +148,7 @@ export function buildWeekOverview({ weekId, games, teams, config, launchedAt }: 
   const ref = (slug: string): TeamRef => names.get(slug) ?? { slug, name: slug }
 
   const weekGames = games
-    .filter((game) => countsForGame(game, launchedAt, config.lock) && gameWeekId(game, config.lock) === weekId)
+    .filter((game) => countsForGame(game, launchedAt, config) && gameWeekId(game, config.lock) === weekId)
     .sort((a, b) => scheduledStart(a, config.lock).getTime() - scheduledStart(b, config.lock).getTime())
     .map((game) => ({
       id: game.id,

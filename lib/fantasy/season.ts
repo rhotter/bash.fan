@@ -2,6 +2,7 @@ import { and, asc, desc, eq } from "drizzle-orm"
 import { db, schema } from "@/lib/db"
 import { DEFAULT_CONTEST } from "./view-state"
 import { checkFantasyConfig, type FantasyConfig } from "./config"
+import { firstWeekId, runStatus } from "./week"
 
 export { DEFAULT_CONTEST, parseContest } from "./view-state"
 
@@ -31,17 +32,19 @@ export async function getFantasySeason(seasonId: string, contest = DEFAULT_CONTE
   return row ? toFantasySeason(row) : null
 }
 
-/** Every contest turned on for a season, the one launched first at the front. */
+/** Every contest turned on for a season in the order they start, then the order they were turned on. */
 export async function listFantasyContests(seasonId: string): Promise<FantasySeason[]> {
   const rows = await db
     .select()
     .from(fantasySeasons)
     .where(eq(fantasySeasons.seasonId, seasonId))
     .orderBy(asc(fantasySeasons.launchedAt), asc(fantasySeasons.contest))
-  return rows.map(toFantasySeason)
+  const start = (season: FantasySeason) => firstWeekId(season.config, season.launchedAt)
+  // The sort is stable, so runs starting the same Week keep the query's order.
+  return rows.map(toFantasySeason).sort((a, b) => start(a).localeCompare(start(b)))
 }
 
-/** Every contest of the current season that an admin has turned on, the one launched first at the front. */
+/** Every contest of the current season that an admin has turned on, in the order of `listFantasyContests`. */
 export async function listCurrentFantasyContests(): Promise<FantasySeason[]> {
   const [row] = await db
     .select({ seasonId: fantasySeasons.seasonId })
@@ -54,16 +57,22 @@ export async function listCurrentFantasyContests(): Promise<FantasySeason[]> {
 }
 
 /**
- * A contest of the current season, once an admin has turned it on. With no key it's the first one
- * launched, so `/fantasy` keeps showing the regular season while the playoffs run beside it.
+ * A contest of the current season, once an admin has turned it on. With no key it's the default: the first
+ * current run to have started, so `/fantasy` keeps showing the regular season while the playoffs run beside it.
+ * With none current it's the next upcoming one.
  */
-export async function getCurrentFantasySeason(contest?: string): Promise<FantasySeason | null> {
-  return pickContest(await listCurrentFantasyContests(), contest)
+export async function getCurrentFantasySeason(contest?: string, now = new Date()): Promise<FantasySeason | null> {
+  return pickContest(await listCurrentFantasyContests(), contest, now)
 }
 
-/** The named contest, or the first launched when none is named. */
-export function pickContest(contests: FantasySeason[], contest?: string) {
-  return (contest === undefined ? contests[0] : contests.find((c) => c.contest === contest)) ?? null
+/** The named contest, or the default when none is named. Takes contests in the order they start. */
+export function pickContest(contests: FantasySeason[], contest?: string, now = new Date()) {
+  if (contest !== undefined) return contests.find((c) => c.contest === contest) ?? null
+  const withStatus = contests.map((season) => ({ season, status: runStatus(season.config, now) }))
+  const current = withStatus.find(({ status }) => status === "active" || status === "final-week")
+  const upcoming = withStatus.find(({ status }) => status === "upcoming")
+  // With every run over, the latest is the one people are most likely after.
+  return (current ?? upcoming)?.season ?? contests.at(-1) ?? null
 }
 
 /** Whether any Manager has saved a Lineup, so a config change would re-score real Selections. */

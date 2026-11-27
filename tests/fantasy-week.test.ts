@@ -46,8 +46,8 @@ describe("countsForGame", () => {
   const game = { date: "2026-11-07", time: "9:00a" }
 
   it("starts at the first Lock after launch", () => {
-    expect(countsForGame(game, launchedAt, lock)).toBe(true)
-    expect(countsForGame({ ...game, date: "2026-10-31" }, launchedAt, lock)).toBe(false)
+    expect(countsForGame(game, launchedAt, { lock, startsOn: null, endsOn: null })).toBe(true)
+    expect(countsForGame({ ...game, date: "2026-10-31" }, launchedAt, { lock, startsOn: null, endsOn: null })).toBe(false)
   })
 
 })

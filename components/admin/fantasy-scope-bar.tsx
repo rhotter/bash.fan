@@ -1,16 +1,75 @@
 "use client"
 
 import { useRouter } from "next/navigation"
-import { useState } from "react"
+import { useState, type FormEvent } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { parseContest } from "@/lib/fantasy/view-state"
+import { RUN_TYPES } from "@/lib/fantasy/config-draft"
+import { contestKeyFromName, contestLabel, MAX_CONTEST_NAME } from "@/lib/fantasy/view-state"
 import { cn } from "@/lib/utils"
 
-const href = (seasonId: string, contest?: string) =>
-  `/admin/fantasy?season=${encodeURIComponent(seasonId)}${contest ? `&contest=${encodeURIComponent(contest)}` : ""}`
+const href = (seasonId: string, contest?: string, type?: string) => {
+  const query = new URLSearchParams({ season: seasonId, ...(contest ? { contest } : {}), ...(type ? { type } : {}) })
+  return `/admin/fantasy?${query}`
+}
 
-/** Which season and which of its contests the page is showing. */
+const selectClass = "h-9 rounded-md border border-input bg-background px-2 text-sm"
+
+/** Names a new run. Nothing is stored until the run is turned on. */
+function NewRunForm({ taken, onCreate, onCancel }: { taken: string[]; onCreate: (key: string, type: string) => void; onCancel: () => void }) {
+  const [type, setType] = useState(RUN_TYPES[0].value)
+  const [name, setName] = useState("")
+  const key = contestKeyFromName(name)
+  const exists = key !== null && taken.includes(key)
+
+  function submit(event: FormEvent) {
+    event.preventDefault()
+    if (key !== null && !exists) onCreate(key, type)
+  }
+
+  return (
+    <form onSubmit={submit} className="max-w-xl space-y-2 rounded-lg border p-3">
+      <div className="flex flex-wrap items-end gap-3">
+        <label className="space-y-1 text-sm">
+          <span className="block text-muted-foreground">Type</span>
+          <select aria-label="Run type" value={type} onChange={(e) => setType(e.target.value)} className={selectClass}>
+            {RUN_TYPES.map(({ value, label }) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="min-w-40 flex-1 space-y-1 text-sm">
+          <span className="block text-muted-foreground">Name</span>
+          <Input
+            aria-label="Run name"
+            placeholder="e.g. December Beta"
+            maxLength={MAX_CONTEST_NAME}
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            autoFocus
+          />
+        </label>
+        <Button type="submit" size="sm" disabled={key === null || exists}>
+          Create
+        </Button>
+        <Button type="button" size="sm" variant="ghost" onClick={onCancel}>
+          Cancel
+        </Button>
+      </div>
+      <p className={cn("text-xs", exists ? "text-destructive" : "text-muted-foreground")}>
+        {exists
+          ? "This season already has a run with that name."
+          : key === null
+            ? "The name makes the run's link, and can't be changed later."
+            : `Shown as “${contestLabel(key)}” at /fantasy?contest=${key}. The name can't be changed later.`}
+      </p>
+    </form>
+  )
+}
+
+/** Which season and which of its runs the page is showing. */
 export function FantasyScopeBar({
   seasons,
   seasonId,
@@ -20,12 +79,11 @@ export function FantasyScopeBar({
   seasons: { id: string; name: string }[]
   seasonId: string
   contest: string
-  /** Contests already turned on for this season. */
+  /** Runs already turned on for this season. */
   contests: string[]
 }) {
   const router = useRouter()
-  const [adding, setAdding] = useState<string | null>(null)
-  const newKey = adding === null ? null : parseContest(adding)
+  const [adding, setAdding] = useState(false)
   const shown = contests.includes(contest) ? contests : [...contests, contest]
 
   return (
@@ -33,11 +91,7 @@ export function FantasyScopeBar({
       <div className="flex flex-wrap items-center gap-3">
         <label className="flex items-center gap-2 text-sm font-medium">
           Season
-          <select
-            value={seasonId}
-            onChange={(e) => router.push(href(e.target.value))}
-            className="h-9 rounded-md border border-input bg-background px-2 text-sm"
-          >
+          <select value={seasonId} onChange={(e) => router.push(href(e.target.value))} className={selectClass}>
             {seasons.map((s) => (
               <option key={s.id} value={s.id}>
                 {s.name}
@@ -52,38 +106,29 @@ export function FantasyScopeBar({
               size="sm"
               variant={key === contest ? "default" : "outline"}
               className={cn(!contests.includes(key) && "border-dashed")}
-              onClick={() => router.push(href(seasonId, key))}
+              aria-current={key === contest ? "page" : undefined}
+              // Reopening the current run would drop the type a new one was started with.
+              onClick={() => key !== contest && router.push(href(seasonId, key))}
             >
-              {key}
+              {contestLabel(key)}
             </Button>
           ))}
-          {adding === null && (
-            <Button size="sm" variant="ghost" onClick={() => setAdding("")}>
-              + Add contest
+          {!adding && (
+            <Button size="sm" variant="ghost" onClick={() => setAdding(true)}>
+              + New run
             </Button>
           )}
         </nav>
       </div>
-      {adding !== null && (
-        <div className="flex max-w-md items-center gap-2">
-          <Input
-            aria-label="New contest name"
-            placeholder="playoffs"
-            maxLength={30}
-            value={adding}
-            onChange={(e) => setAdding(e.target.value)}
-          />
-          <Button
-            size="sm"
-            disabled={newKey === null}
-            onClick={() => newKey && router.push(href(seasonId, newKey))}
-          >
-            Add
-          </Button>
-          <Button size="sm" variant="ghost" onClick={() => setAdding(null)}>
-            Cancel
-          </Button>
-        </div>
+      {adding && (
+        <NewRunForm
+          taken={shown}
+          onCancel={() => setAdding(false)}
+          onCreate={(key, type) => {
+            setAdding(false)
+            router.push(href(seasonId, key, type))
+          }}
+        />
       )}
     </div>
   )

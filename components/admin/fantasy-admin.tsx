@@ -2,33 +2,41 @@
 
 import { useCallback, useEffect, useState } from "react"
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
 import { ErrorNotice } from "@/components/error-notice"
 import { LoadingState } from "@/components/loading-state"
+import { FantasyConfigForm } from "@/components/admin/fantasy-config-form"
 import { FantasyOverviewPanel, type ManagerPerson } from "@/components/admin/fantasy-overview"
 import { errorMessage, fetchApi, readApiJson } from "@/lib/api-errors"
+import type { FantasyConfig } from "@/lib/fantasy/config"
+import { startingConfig } from "@/lib/fantasy/config-draft"
+import { contestLabel, instantLabel } from "@/lib/fantasy/view-state"
+import type { RunStatus } from "@/lib/fantasy/week"
 import type { FantasyOverview } from "@/lib/fetch-fantasy"
 
 interface FantasyData {
   enabled: boolean
-  config: unknown
+  status: RunStatus | null
+  picksOpenAt: string | null
+  config: FantasyConfig
   hasLineups: boolean
   managers: ManagerPerson[]
   overview: FantasyOverview | null
 }
 
-/** A new playoff contest starts from the defaults, but scoring playoff games instead of regular ones.
- * A contest counts as a playoff when its key starts with `playoff`. */
-function startingConfig(contest: string, config: unknown) {
-  return contest.startsWith("playoff") ? { ...(config as object), gameTypes: ["playoff", "championship"] } : config
-}
+const STATUS_LABELS: Record<RunStatus, string> = { upcoming: "Upcoming", active: "On", "final-week": "Final Week", ended: "Ended" }
 
-export function FantasyAdmin({ seasonId, contest }: { seasonId: string; contest: string }) {
+export function FantasyAdmin({
+  seasonId,
+  contest,
+  type = contest,
+}: {
+  seasonId: string
+  contest: string
+  /** The kind of run being started, for one that isn't on yet. */
+  type?: string
+}) {
   const base = `/api/bash/admin/seasons/${seasonId}/fantasy`
   const [data, setData] = useState<FantasyData | null>(null)
-  const [configText, setConfigText] = useState("")
   const [loadError, setLoadError] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
 
@@ -36,7 +44,6 @@ export function FantasyAdmin({ seasonId, contest }: { seasonId: string; contest:
     try {
       const body: FantasyData = await readApiJson(await fetchApi(`${base}?contest=${encodeURIComponent(contest)}`))
       setData(body)
-      setConfigText(JSON.stringify(body.enabled ? body.config : startingConfig(contest, body.config), null, 2))
       setLoadError(null)
     } catch (err) {
       setLoadError(errorMessage(err))
@@ -69,17 +76,6 @@ export function FantasyAdmin({ seasonId, contest }: { seasonId: string; contest:
     }
   }
 
-  async function saveConfig() {
-    let config: unknown
-    try {
-      config = JSON.parse(configText)
-    } catch (err) {
-      setActionError(`The config isn't valid JSON: ${errorMessage(err)}`)
-      return
-    }
-    await act(base, "PUT", { contest, config })
-  }
-
   if (loadError) return <ErrorNotice message={loadError} onRetry={load} />
   if (!data) return <LoadingState variant="list" label="Loading Fantasy…" />
 
@@ -91,25 +87,28 @@ export function FantasyAdmin({ seasonId, contest }: { seasonId: string; contest:
 
       <section className="space-y-3">
         <div className="flex items-center gap-2">
-          <h2 className="text-lg font-semibold">Season config</h2>
-          <Badge variant="secondary">{data.enabled ? "On" : "Off"}</Badge>
+          <h2 className="text-lg font-semibold">{contestLabel(contest)} settings</h2>
+          <Badge variant="secondary">{data.status ? STATUS_LABELS[data.status] : "Off"}</Badge>
         </div>
+        <p className="text-sm text-muted-foreground">These apply to this run only. Other runs keep their own.</p>
+        {data.status === "upcoming" && data.picksOpenAt && (
+          <p className="text-sm text-muted-foreground">
+            People can join now. Picks open {instantLabel(data.picksOpenAt, data.config.lock.timeZone)}.
+          </p>
+        )}
         {data.hasLineups && (
           <p className="text-sm text-muted-foreground">
             Lineups exist. Changes re-score every Week straight away, and changing the Lock day or time moves which Week each saved Lineup belongs to.
           </p>
         )}
-        <div className="space-y-1.5">
-          <Label htmlFor="fantasy-config">Config</Label>
-          <Textarea
-            id="fantasy-config"
-            rows={14}
-            value={configText}
-            onChange={(e) => setConfigText(e.target.value)}
-            className="font-mono text-xs"
-          />
-        </div>
-        <Button onClick={saveConfig}>{data.enabled ? "Save config" : "Turn on Fantasy"}</Button>
+        <FantasyConfigForm
+          // Starts the form again from what was stored whenever that changes.
+          key={JSON.stringify(data.config)}
+          initial={data.enabled ? data.config : startingConfig(type, data.config)}
+          enabled={data.enabled}
+          hasLineups={data.hasLineups}
+          onSave={async (config) => void (await act(base, "PUT", { contest, config }))}
+        />
       </section>
     </div>
   )

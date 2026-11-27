@@ -66,7 +66,7 @@ async function replaceWeekPredictions(
 ): Promise<Exclude<SavePredictionsResult, { outcome: "locked" }>> {
   const { lock } = season.config
   const games = (await readSeasonGames(manager.seasonId, season.config.gameTypes)).filter(
-    (game) => countsForGame(game, season.launchedAt, lock) && gameWeekId(game, lock) === weekId
+    (game) => countsForGame(game, season.launchedAt, season.config) && gameWeekId(game, lock) === weekId
   )
   if (games.length === 0) return { outcome: "no-games" }
 

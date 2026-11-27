@@ -83,6 +83,8 @@ describe("WeekOverviewPanel", () => {
 })
 
 const pageData: FantasyPageData = {
+  status: "active",
+  picksOpenAt: null,
   contest: "regular",
   contests: ["regular"],
   nextLockAt: "2026-11-21T16:00:00.000Z",
@@ -191,6 +193,7 @@ describe("FantasyStandingsView", () => {
     )
     const links = [...container.querySelectorAll('[aria-label="Contests"] a')]
     expect(links.map((a) => a.getAttribute("href"))).toEqual(["/fantasy?contest=regular", "/fantasy?contest=playoffs"])
+    expect(links.map((a) => a.textContent)).toEqual(["Regular", "Playoffs"])
     expect(links[1].getAttribute("aria-current")).toBe("page")
     expect([...container.querySelectorAll("a")].find((a) => a.textContent === "Join Fantasy")?.getAttribute("href")).toBe(
       "/fantasy/register?contest=playoffs"
@@ -344,6 +347,53 @@ describe("FantasyOverviewPanel", () => {
   })
 })
 
+describe("an ended run", () => {
+  const join = () => [...container.querySelectorAll("a")].find((a) => a.textContent === "Join Fantasy")
+  const view = { tab: "fantasy" as const, weekId: "2026-11-07" }
+
+  it.each([
+    ["ended", "This run has ended"],
+    ["final-week", "the last Week is being played"],
+  ] as const)("says so on the standings, with nothing to join: %s", async (status, message) => {
+    await render(<FantasyStandingsView data={{ ...pageData, status }} view={view} />)
+
+    expect(container.textContent).toContain(message)
+    expect(container.textContent).not.toContain("Lineups and Predictions close")
+    expect(join()).toBeUndefined()
+  })
+
+  it("keeps History on the Manager page, with no forms or empty Week", async () => {
+    await render(<ManagerPanel form={{ ...formFixture(), status: "ended", noGames: true }} token="t" />)
+
+    expect(container.textContent).toContain("This run has ended")
+    expect(container.textContent).toContain("Previous Weeks")
+    expect(container.querySelector('[role="tab"]')).toBeNull()
+    expect(container.querySelector('[aria-label="Week overview"]')).toBeNull()
+  })
+})
+
+describe("an upcoming run", () => {
+  const picksOpenAt = "2027-01-02T16:00:00.000Z"
+  const upcoming = { ...pageData, status: "upcoming" as const, picksOpenAt, overviews: {}, weeks: [] }
+
+  it("says when picks open and invites people to join", async () => {
+    await render(<FantasyStandingsView data={upcoming} view={{ tab: "fantasy", weekId: "2026-12-05" }} />)
+
+    expect(container.textContent).toContain("Picks open Saturday, Jan 2, 8:00 AM PST")
+    expect(container.textContent).not.toContain("No Weeks yet")
+    expect([...container.querySelectorAll("a")].some((a) => a.textContent === "Join Fantasy")).toBe(true)
+  })
+
+  it("tells a Manager who joined early when to come back, with no forms", async () => {
+    await render(<ManagerPanel form={{ ...formFixture(), status: "upcoming", picksOpenAt, noGames: true }} token="t" />)
+
+    expect(container.textContent).toContain("You're in")
+    expect(container.textContent).toContain("Saturday, Jan 2, 8:00 AM PST")
+    expect(container.querySelector('[role="tab"]')).toBeNull()
+    expect(container.querySelector("form")).toBeNull()
+  })
+})
+
 describe("RegistrationForm", () => {
   it("asks for a real name, since it's the only way to reissue a lost link", async () => {
     await render(<RegistrationForm contest="regular" />)
@@ -411,6 +461,8 @@ function formFixture(): LineupForm {
     overview,
     week: { id: "2026-11-07", lockAt: "2026-11-07T16:00:00.000Z", timeZone: "America/Los_Angeles" },
     noGames: false,
+    status: "active",
+    picksOpenAt: null,
     slots: { skaters: 2, goalies: 1, skaterBackups: 1, goalieBackups: 0 },
     players: [
       { id: 1, name: "Ada Lovelace", team: "Seals", teams: ["seals"], isGoalie: false, onBye: false, skaterUsesLeft: 2, goalieUsesLeft: null, pointsPerGame: 4.5 },

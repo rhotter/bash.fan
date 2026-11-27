@@ -31,11 +31,41 @@ export function fantasyHref({ tab, weekId, contest }: { tab: FantasyTab; weekId:
 
 export const DEFAULT_CONTEST = "regular"
 
-/** A contest is addressed by a short key in URLs and the admin: `regular`, `playoffs`. */
+/** A contest is addressed by a short key in URLs and the admin: `regular`, `december-beta`. */
 export const contestKeySchema = z.string().trim().toLowerCase().regex(/^[a-z0-9][a-z0-9-]{0,29}$/)
 
 /** Returns null for anything that isn't a valid key. */
 export function parseContest(value: unknown) {
   const parsed = contestKeySchema.safeParse(value)
   return parsed.success ? parsed.data : null
+}
+
+export const MAX_CONTEST_NAME = 30
+
+/** The key a run's name makes, such as "December Beta" → `december-beta`, or null if the name has no letters or numbers. */
+export function contestKeyFromName(name: string) {
+  const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+/, "").slice(0, MAX_CONTEST_NAME).replace(/-+$/, "")
+  return parseContest(slug)
+}
+
+/** A key read back as a name to show: `december-beta` → "December Beta". Only the key is stored. */
+export function contestLabel(key: string) {
+  return key
+    .split("-")
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ")
+}
+
+/** An instant as people read it in the contest's zone, such as "Saturday, Jan 2, 8:00 AM PST". */
+export function instantLabel(instant: string, timeZone: string) {
+  return new Intl.DateTimeFormat("en-US", {
+    weekday: "long",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone,
+    timeZoneName: "short",
+  }).format(new Date(instant))
 }

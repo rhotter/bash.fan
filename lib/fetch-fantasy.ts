@@ -5,7 +5,7 @@ import { findManagerById, listPublicManagers } from "@/lib/fantasy/managers"
 import { buildPickemStandings } from "@/lib/fantasy/pickem"
 import { getCurrentFantasySeason, listCurrentFantasyContests, pickContest, type FantasySeason } from "@/lib/fantasy/season"
 import { buildStandings } from "@/lib/fantasy/standings"
-import { buildWeekOverview, openWeek } from "@/lib/fantasy/week"
+import { buildWeekOverview, openWeek, picksOpenAt, runStatus } from "@/lib/fantasy/week"
 
 const { fantasyLineups, fantasyManagers, fantasyPredictions, playerSeasons, players, teams } = schema
 
@@ -72,15 +72,18 @@ async function readStandingsInput(season: FantasySeason, now: Date) {
 export async function fetchFantasyStandings(contest?: string) {
   const now = new Date()
   const allContests = await listCurrentFantasyContests()
-  const season = pickContest(allContests, contest)
+  const season = pickContest(allContests, contest, now)
   if (!season) return null
   const { config, launchedAt } = season
   const input = await readStandingsInput(season, now)
   const standings = buildStandings(input)
   const pickem = buildPickemStandings(input)
   const openWeekId = openWeek(now, config.lock).id
+  const status = runStatus(config, now)
   // The open Week has no standings yet, but Managers need its games and Bye to choose against.
-  const overviewWeekIds = [...new Set([...standings.weeks.map(({ id }) => id), openWeekId])].sort()
+  const overviewWeekIds = [
+    ...new Set([...standings.weeks.map(({ id }) => id), ...(status === "active" ? [openWeekId] : [])]),
+  ].sort()
   const overviews = Object.fromEntries(
     overviewWeekIds.map((id) => [
       id,
@@ -88,6 +91,8 @@ export async function fetchFantasyStandings(contest?: string) {
     ])
   )
   return {
+    status,
+    picksOpenAt: picksOpenAt(config)?.toISOString() ?? null,
     contest: season.contest,
     contests: allContests.map((c) => c.contest),
     nextLockAt: openWeek(now, config.lock).lockAt.toISOString(),
