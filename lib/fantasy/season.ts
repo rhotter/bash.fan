@@ -2,7 +2,7 @@ import { and, asc, desc, eq } from "drizzle-orm"
 import { db, schema } from "@/lib/db"
 import { DEFAULT_CONTEST } from "./view-state"
 import { checkFantasyConfig, type FantasyConfig } from "./config"
-import { endsBeforeFirstWeek, firstWeekId, picksOpenAt, runStatus, takesRegistrations } from "./week"
+import { endsBeforeFirstWeek, firstWeekId, runStatus, takesRegistrations } from "./week"
 
 export { DEFAULT_CONTEST, parseContest } from "./view-state"
 
@@ -139,20 +139,13 @@ export function pickRegistrationContest(contests: FantasySeason[], contest?: str
 
 export interface OpenContest {
   contest: string
-  /** When its picks open, for a contest that hasn't started. Null once it's taking picks. */
-  picksOpenAt: string | null
-  timeZone: string
 }
 
 /** The contests people can join now, apart from `except`. Plain data for the page cache. */
 export function otherOpenContests(contests: FantasySeason[], except: string, now = new Date()): OpenContest[] {
   return contests
     .filter((season) => season.contest !== except && isJoinable(season, now))
-    .map(({ contest, config }) => ({
-      contest,
-      picksOpenAt: runStatus(config, now) === "upcoming" ? (picksOpenAt(config)?.toISOString() ?? null) : null,
-      timeZone: config.lock.timeZone,
-    }))
+    .map(({ contest }) => ({ contest }))
 }
 
 /** Whether any Manager has saved a Lineup, so a config change would re-score real Selections. */

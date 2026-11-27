@@ -71,6 +71,7 @@ const standings = (input: Partial<Parameters<typeof buildStandings>[0]>) =>
       { slug: "seals", name: "Seals" },
       { slug: "yetis", name: "Yetis" },
     ],
+    playerTeams: new Map(),
     config: DEFAULT_FANTASY_CONFIG,
     launchedAt: LAUNCHED,
     now: AFTER_FIRST_LOCK,
@@ -194,16 +195,18 @@ describe("buildStandings", () => {
         [20, "Goalie"],
         [21, "Spare"],
       ]),
+      // A traded Player has both teams.
+      playerTeams: new Map([[10, ["seals", "yetis"]]]),
     })
 
     const [row] = weeks[0].rows
     expect(row.points).toBe(55)
     expect(row.selections).toEqual([
-      { playerId: 10, playerName: "Starter", kind: "skater", isBackup: false, outcome: "played", points: 10, games: expect.any(Array) },
-      { playerId: 11, playerName: "Absent", kind: "skater", isBackup: false, outcome: "absent", points: 0, games: expect.any(Array) },
-      { playerId: 12, playerName: "Backup", kind: "skater", isBackup: true, outcome: "played", points: 20, games: expect.any(Array) },
-      { playerId: 20, playerName: "Goalie", kind: "goalie", isBackup: false, outcome: "played", points: 25, games: expect.any(Array) },
-      { playerId: 21, playerName: "Spare", kind: "goalie", isBackup: true, outcome: "unused", points: 0, games: expect.any(Array) },
+      { playerId: 10, playerName: "Starter", teams: [{ slug: "seals", name: "Seals" }, { slug: "yetis", name: "Yetis" }], kind: "skater", isBackup: false, outcome: "played", points: 10, games: expect.any(Array) },
+      { playerId: 11, playerName: "Absent", teams: [], kind: "skater", isBackup: false, outcome: "absent", points: 0, games: expect.any(Array) },
+      { playerId: 12, playerName: "Backup", teams: [], kind: "skater", isBackup: true, outcome: "played", points: 20, games: expect.any(Array) },
+      { playerId: 20, playerName: "Goalie", teams: [], kind: "goalie", isBackup: false, outcome: "played", points: 25, games: expect.any(Array) },
+      { playerId: 21, playerName: "Spare", teams: [], kind: "goalie", isBackup: true, outcome: "unused", points: 0, games: expect.any(Array) },
     ])
   })
 

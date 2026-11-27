@@ -25,7 +25,7 @@ Bragging rights only: no fees or prizes.
 - A Week runs from one Lock to the next. Games fall inside the Saturday and Sunday after a Lock, so midweek games need no special handling.
 - At the Lock, that Week's Lineups and Predictions freeze and become public. Before it they are visible only through the owning Manager Link.
 - Only regular-season games count: `game_type = 'regular'`, not playoff, not exhibition.
-- A Week with no games shows "No games this Week" and takes no Lineups or Predictions. Games don't move once scheduled.
+- A Week with no games shows "No games this Week" and takes no Lineups or Predictions. Pages open on the next Week with games, so a holiday Week is skipped. Games don't move once scheduled.
 - The site shows the day and time rather than the word "Lock", for example "Lineups due Sat, Nov 7, 8am PST". Avoid "deadline" in site copy.
 - The game starts at the first Lock after launch in the current season. Earlier games don't count.
 
@@ -33,7 +33,7 @@ Bragging rights only: no fees or prizes.
 
 - A Lineup has 3 skaters, 1 goalie, 1 skater Backup and 1 goalie Backup.
 - The 3 skaters and goalie are required to save, except that the goalie slot may stay empty once every default goalie is at the Usage Cap for that Manager or on a Bye. An empty slot scores 0. Backups are optional.
-- A Manager can edit freely until the Lock.
+- Managers can pick ahead: any Week in the run that has games and hasn't locked. Each Week is edited freely until its own Lock. This applies to Predictions too, and to a run that hasn't started.
 - A Player can appear only once in a Lineup.
 - Only Players rostered in the season can be selected.
 - A Player on a Bye can't be selected, including as a Backup, and the server rejects them. A traded Player is on a Bye only if none of their teams play that Week. If a Week has no games, nobody is on a Bye.
@@ -41,7 +41,7 @@ Bragging rights only: no fees or prizes.
 - **Usage Cap**: per Player, per Manager, per season, with separate caps and separate counts for skater and goalie slots. A Player can be used up to the skater cap in skater slots and up to the goalie cap in goalie slots. Values are still being tested; see Cap experiments.
   - A Player at the cap can't be selected, including as a Backup.
   - The cap is checked on save and never voids a saved Lineup, even if a later correction changes a count.
-  - A starter in a locked Week still waiting on a boxscore holds a use at save time, handed back if they turn out absent.
+  - A starter in a Week still waiting on a boxscore holds a use at save time, handed back if they turn out absent. This includes later Weeks picked ahead, so planned starters can't go past the cap. Backups hold none.
   - The form shows remaining uses per Player.
 - A Selection follows the Player. Every counting game they play in that Week scores, including after a trade, except games they play as a Sub, which score nothing.
 - A Player has played if they have a non-Sub stats row for a game in that Week. Zero-stat attendance counts as played. A Player whose only game was as a Sub counts as absent.
@@ -107,12 +107,12 @@ Skater and goalie slots are data, so the parked 8-slot format can be added later
 
 ### Public
 
-- `/fantasy`: a shared Week overview (games, Bye team, results), then Fantasy and Pick'em tabs with Weekly and season standings (opening on the season standings unless the URL names a Week, and switching to Weekly when a Week is picked), plus public Lineups and Predictions after the Lock. The tab and Week are in the URL.
-- `/fantasy/manager/[id]`: one Manager's season totals and locked Weeks for both games. Never the open Week or a real name.
-- Registration form. With no Contest named it picks one still taking people, by the same rule as the registration API. It says when picks open for a Contest that hasn't started, says when registration is closed, and links to any other Contest that's open to join.
+- `/fantasy`: a shared Week overview (games, Bye team, results), then Fantasy and Pick'em tabs with Weekly and season standings (opening on the season standings unless the URL names a Week, and switching to Weekly when a Week is picked). Fantasy standings are a table with one list to choose the season or a Week. Opening a row shows each Player's stats in columns, and in the season view picks which Week's to show. Pick'em standings are a table too: a Weekly row opens that Manager's Predictions, and season rows don't open. Nothing on a public page starts open. Lineups and Predictions are public after the Lock. Predictions are shown in the entry form's layout, away team first, with each game's final score, goals off, and the games skipped. The tab and Week are in the URL.
+- `/fantasy/manager/[id]`: one Manager's season totals and locked Weeks for both games, as tables in the standings' style. Never a Week that hasn't locked, or a real name.
+- Registration form. With no Contest named it picks one still taking people, by the same rule as the registration API. It says picks can be made ahead for a Contest that hasn't started, says when registration is closed, and links to any other Contest that's open to join.
 - `/fantasy` also lists any other Contest that's open to join, with a Join link.
 - With more than one Contest enabled, `/fantasy` and the registration form always name the Contest in the URL (`?contest=<key>`).
-- Manager Link page: the close time and a countdown beside the Team Name, the Week overview plus Lineup, Predictions and History tabs. Lineups and Predictions save separately.
+- Manager Link page: the season totals with a link to the Manager's public page, a Week picker (`?week=`) over every Week with games, and Lineup and Predictions tabs. An open Week shows the forms, with its close time and a countdown beside the Team Name. A closed Week is read only, with its results. With no Week in the URL, the page stays on the Week that just closed through Sunday, and from Monday opens on the next Week with games that can be picked, or else the latest. The Week overview sits on the Lineup tab, as Predictions list the same games. Lineups and Predictions save separately.
 - Player picker: searchable, grouped by Week game then team, showing uses left and Fantasy points per game this season. Players with no uses left are visible but disabled.
 
 ### Admin

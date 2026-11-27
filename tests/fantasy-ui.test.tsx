@@ -10,6 +10,7 @@ import { ManagerPanel } from "@/components/fantasy/manager-panel"
 import { FantasyPicksEditor } from "@/components/admin/fantasy-picks-editor"
 import { LineupFormPanel, SelectionSheet } from "@/components/fantasy/lineup-form"
 import { PredictionsFormPanel } from "@/components/fantasy/predictions-form"
+import { Predictions } from "@/components/fantasy/standings"
 import type { LineupForm } from "@/lib/fantasy/lineups"
 import type { SelectionOption } from "@/lib/fantasy/selection-options"
 import { FantasyStandingsView } from "@/components/fantasy/standings"
@@ -87,7 +88,6 @@ describe("WeekOverviewPanel", () => {
 
 const pageData: FantasyPageData = {
   status: "active",
-  picksOpenAt: null,
   contest: "regular",
   contests: ["regular"],
   otherOpenContests: [],
@@ -112,6 +112,7 @@ const pageData: FantasyPageData = {
             {
               playerId: 1,
               playerName: "Ada Lovelace",
+              teams: [{ slug: "seals", name: "Seals" }],
               kind: "skater",
               isBackup: false,
               outcome: "played",
@@ -131,6 +132,7 @@ const pageData: FantasyPageData = {
             {
               playerId: 2,
               playerName: "Grace Hopper",
+              teams: [{ slug: "yetis", name: "Yetis" }],
               kind: "skater",
               isBackup: false,
               outcome: "absent",
@@ -172,15 +174,27 @@ async function showRange(name: "Season" | "Weekly") {
   await act(async () => [...container.querySelectorAll('[role="tab"]')].find((t) => t.textContent === name)!.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, button: 0, ctrlKey: false })))
 }
 
+/** The Fantasy standings pick the season or a Week from one list. Pick'em still has its tabs. */
+async function showScope(value: string) {
+  const select = container.querySelector<HTMLSelectElement>('[aria-label="Standings for"]')!
+  await act(async () => {
+    select.value = value
+    select.dispatchEvent(new Event("change", { bubbles: true }))
+  })
+}
+
+const expander = () => container.querySelector<HTMLButtonElement>('[aria-label="Lineup for Puck Norris"]')!
+const openRow = () => act(async () => expander().click())
+
 describe("FantasyStandingsView", () => {
-  it("opens on the Season standings, with the Week's overview and Weekly standings behind a toggle", async () => {
+  it("opens on the Season standings, with the Week's overview and Weekly standings in the same list", async () => {
     await render(<FantasyStandingsView data={pageData} view={{ tab: "fantasy", weekId: "2026-11-07" }} />)
 
     expect(container.querySelector('[aria-label="Week overview"]')?.textContent).toContain("Seals")
     expect(container.querySelector('[aria-label="Season standings"]')?.textContent).toContain("Puck Norris")
     expect(container.querySelector('[aria-label="Weekly standings"]')).toBeNull()
 
-    await showRange("Weekly")
+    await showScope("2026-11-07")
     expect(container.querySelector('[aria-label="Weekly standings"]')?.textContent).toContain("Puck Norris")
     expect(container.querySelector('[aria-label="Season standings"]')).toBeNull()
   })
@@ -218,14 +232,14 @@ describe("FantasyStandingsView", () => {
         data={{
           ...pageData,
           status: "final-week",
-          otherOpenContests: [{ contest: "main", picksOpenAt: "2027-01-02T16:00:00.000Z", timeZone: "America/Los_Angeles" }],
+          otherOpenContests: [{ contest: "main" }],
         }}
         view={{ tab: "fantasy", weekId: "2026-11-07" }}
       />
     )
 
     const list = container.querySelector('[aria-label="Other contests open to join"]')!
-    expect(list.textContent).toContain("Main is open to join. Picks open Saturday, Jan 2, 8:00 AM PST.")
+    expect(list.textContent).toContain("Main is open to join.")
     expect(list.querySelector("a")?.getAttribute("href")).toBe("/fantasy/register?contest=main")
   })
 
@@ -264,7 +278,7 @@ describe("FantasyStandingsView", () => {
     const hrefs = (label: string) =>
       [...container.querySelectorAll(`[aria-label="${label}"] a[href^="/fantasy/manager/"]`)].map((a) => a.getAttribute("href"))
     expect(hrefs("Weekly standings")).toEqual(["/fantasy/manager/7"])
-    await showRange("Season")
+    await showScope("season")
     expect(hrefs("Season standings")).toEqual(["/fantasy/manager/7"])
 
     await act(async () => [...container.querySelectorAll("a")].find((a) => a.textContent === "Pick'em")!.click())
@@ -275,18 +289,70 @@ describe("FantasyStandingsView", () => {
 
   it("links each Selection to the Player's page, with their game stats inline", async () => {
     await render(<FantasyStandingsView initialRange="weekly" data={pageData} view={{ tab: "fantasy", weekId: "2026-11-07" }} />)
+    await openRow()
 
     const link = container.querySelector('a[href="/player/ada-lovelace"]')
     expect(link?.textContent).toBe("Ada Lovelace")
     expect(container.querySelector('a[href="/player/grace-hopper"]')).not.toBeNull()
-    expect(container.textContent).toContain("G 2  A 0")
+    const cells = [...link!.closest("tr")!.querySelectorAll("td")].map((cell) => cell.textContent)
+    // G, A, PPG, SHG, PIM, then points.
+    expect(cells).toEqual(["2", "0", "0", "0", "0", "20"])
+    expect(link!.closest("tr")!.querySelector('[role="img"]')?.getAttribute("aria-label")).toBe("Seals")
     expect(document.querySelector('[role="dialog"]')).toBeNull()
   })
 
   it("says why a Selection has no game stats", async () => {
     await render(<FantasyStandingsView initialRange="weekly" data={pageData} view={{ tab: "fantasy", weekId: "2026-11-07" }} />)
+    await openRow()
 
     expect(container.textContent).toContain("Absent")
+  })
+
+  it("starts with every row closed, then opens and closes one", async () => {
+    await render(<FantasyStandingsView data={pageData} view={{ tab: "fantasy", weekId: "2026-11-07" }} />)
+    const player = () => container.querySelector('a[href="/player/ada-lovelace"]')
+    expect(expander().getAttribute("aria-expanded")).toBe("false")
+    expect(player()).toBeNull()
+
+    await openRow()
+    expect(expander().getAttribute("aria-expanded")).toBe("true")
+    expect(player()).not.toBeNull()
+
+    await openRow()
+    expect(player()).toBeNull()
+  })
+
+  it("opens a season row on the Manager's latest Week with a Lineup, with Weeks they missed disabled", async () => {
+    const [first] = pageData.weeks
+    const earlier = {
+      ...first,
+      id: "2026-10-31",
+      rows: [{ ...first.rows[0], points: 7, selections: [{ ...first.rows[0].selections[1], playerName: "Alan Turing" }] }],
+    }
+    await render(
+      <FantasyStandingsView data={{ ...pageData, weeks: [earlier, ...pageData.weeks] }} view={{ tab: "fantasy", weekId: "2026-11-07" }} />
+    )
+    await openRow()
+    const weekButtons = () => [...container.querySelectorAll<HTMLButtonElement>('[role="group"][aria-label="Week"] button')]
+    expect(weekButtons().map((b) => [b.textContent, b.getAttribute("aria-pressed"), b.disabled])).toEqual([
+      ["Oct 317", "false", false],
+      ["Nov 720", "true", false],
+      ["Nov 14–", "false", true],
+    ])
+
+    await act(async () => weekButtons()[0].click())
+    expect(container.querySelector('a[href="/player/alan-turing"]')).not.toBeNull()
+    expect(container.querySelector('a[href="/player/ada-lovelace"]')).toBeNull()
+  })
+
+  it("rewrites the URL when a Week is picked from the standings list", async () => {
+    const replaceState = vi.spyOn(window.history, "replaceState")
+    await render(<FantasyStandingsView data={pageData} view={{ tab: "fantasy", weekId: "2026-11-14" }} />)
+
+    await showScope("2026-11-07")
+
+    expect(replaceState).toHaveBeenLastCalledWith(null, "", "/fantasy?week=2026-11-07")
+    replaceState.mockRestore()
   })
 
   it("never says Lock, showing the day and time instead", async () => {
@@ -328,6 +394,11 @@ describe("FantasyStandingsView", () => {
 
   it("shows Pick'em standings apart from Fantasy, with each Manager's Predictions", async () => {
     await render(<FantasyStandingsView initialRange="weekly" data={pageData} view={{ tab: "pickem", weekId: "2026-11-07" }} />)
+
+    const expand = container.querySelector<HTMLButtonElement>('[aria-label="Predictions for Oracle"]')!
+    expect(expand.getAttribute("aria-expanded")).toBe("false")
+    expect(container.textContent).not.toContain("Correct winner")
+    await act(async () => expand.click())
 
     const weekly = container.querySelector('[aria-label="Weekly standings"]')!.textContent ?? ""
     expect(weekly).toContain("Oracle")
@@ -391,35 +462,31 @@ describe("an ended run", () => {
     expect(join()).toBeUndefined()
   })
 
-  it("keeps History on the Manager page, with no forms or empty Week", async () => {
-    await render(<ManagerPanel form={{ ...formFixture(), status: "ended", noGames: true }} token="t" />)
+  it("keeps the closed Weeks on the Manager page, with no forms", async () => {
+    await render(<ManagerPanel managerId={7} form={{ ...formFixture(), status: "ended", closed: true }} token="t" />)
 
     expect(container.textContent).toContain("This run has ended")
-    expect(container.textContent).toContain("Previous Weeks")
-    expect(container.querySelector('[role="tab"]')).toBeNull()
-    expect(container.querySelector('[aria-label="Week overview"]')).toBeNull()
+    expect(container.textContent).toContain("You didn't save a Lineup for this Week.")
+    expect(container.querySelector("form")).toBeNull()
   })
 })
 
 describe("an upcoming run", () => {
-  const picksOpenAt = "2027-01-02T16:00:00.000Z"
-  const upcoming = { ...pageData, status: "upcoming" as const, picksOpenAt, overviews: {}, weeks: [] }
+  const upcoming = { ...pageData, status: "upcoming" as const, overviews: {}, weeks: [] }
 
-  it("says when picks open and invites people to join", async () => {
+  it("invites people to join and pick", async () => {
     await render(<FantasyStandingsView data={upcoming} view={{ tab: "fantasy", weekId: "2026-12-05" }} />)
 
-    expect(container.textContent).toContain("Picks open Saturday, Jan 2, 8:00 AM PST")
+    expect(container.textContent).toContain("You can join and make picks now.")
     expect(container.textContent).not.toContain("No Weeks yet")
     expect([...container.querySelectorAll("a")].some((a) => a.textContent === "Join Fantasy")).toBe(true)
   })
 
-  it("tells a Manager who joined early when to come back, with no forms", async () => {
-    await render(<ManagerPanel form={{ ...formFixture(), status: "upcoming", picksOpenAt, noGames: true }} token="t" />)
+  it("gives a Manager who joined early the forms", async () => {
+    await render(<ManagerPanel managerId={7} form={{ ...formFixture(), status: "upcoming" }} token="t" />)
 
-    expect(container.textContent).toContain("You're in")
-    expect(container.textContent).toContain("Saturday, Jan 2, 8:00 AM PST")
-    expect(container.querySelector('[role="tab"]')).toBeNull()
-    expect(container.querySelector("form")).toBeNull()
+    expect(container.querySelector('[role="tab"]')).not.toBeNull()
+    expect(container.querySelector("form")).not.toBeNull()
   })
 })
 
@@ -491,7 +558,8 @@ function formFixture(): LineupForm {
     week: { id: "2026-11-07", lockAt: "2026-11-07T16:00:00.000Z", timeZone: "America/Los_Angeles" },
     noGames: false,
     status: "active",
-    picksOpenAt: null,
+    weekIds: ["2026-11-07"],
+    closed: false,
     slots: { skaters: 2, goalies: 1, skaterBackups: 1, goalieBackups: 0 },
     players: [
       { id: 1, name: "Ada Lovelace", team: "Seals", teams: ["seals"], isGoalie: false, onBye: false, skaterUsesLeft: 2, goalieUsesLeft: null, pointsPerGame: 4.5 },
@@ -521,6 +589,38 @@ describe("LineupFormPanel", () => {
     expect(button("Ada Lovelace")).toBeDefined()
     expect(button("Gus Goalie")).toBeDefined()
     expect(container.textContent).not.toMatch(/lock/i)
+  })
+
+  it("groups slots by kind, each Backup after the starters it covers", async () => {
+    await render(<LineupFormPanel form={form} token="t" />)
+
+    const groups = [...container.querySelectorAll("fieldset")].map((group) => [
+      group.querySelector("legend")?.textContent,
+      [...group.querySelectorAll("li button")].map((b) => b.getAttribute("aria-label")),
+    ])
+    expect(groups).toEqual([
+      ["Skaters", ["Skater 1: Ada Lovelace", "Skater 2: Choose a Player", "Skater Backup: Choose a Player"]],
+      ["Goalie", ["Goalie: Gus Goalie"]],
+    ])
+  })
+
+  it("shows a chosen Player's game, points per game and uses left on the card", async () => {
+    await render(<LineupFormPanel form={form} token="t" />)
+
+    const card = button("Skater 1").textContent
+    expect(card).toContain("Sat 9:00a vs Yetis")
+    expect(card).toContain("4.5 pts/g")
+    expect(card).toContain("2 uses left")
+    expect(button("Goalie").textContent).toContain("3 uses left")
+  })
+
+  it("says which empty slots are required, and that a saved Player has a Bye", async () => {
+    const players = form.players.map((p) => (p.id === 1 ? { ...p, teams: ["bears"], onBye: true } : p))
+    await render(<LineupFormPanel form={{ ...form, players }} token="t" />)
+
+    expect(button("Skater 1").textContent).toContain("Bye this Week")
+    expect(button("Skater 2").textContent).toContain("Required to save")
+    expect(button("Skater Backup").textContent).toContain("Optional")
   })
 
   it("flags unsaved changes beside the Save button once a slot changes", async () => {
@@ -698,25 +798,93 @@ describe("ManagerPanel", () => {
       el.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, button: 0, ctrlKey: false }))
     })
 
-  it("shows the Week overview above Lineup, Predictions and History tabs", async () => {
-    await render(<ManagerPanel form={form} token="t" />)
+  it("shows Lineup and Predictions tabs, with the Week overview on Lineup", async () => {
+    await render(<ManagerPanel managerId={7} form={form} token="t" />)
 
     expect(container.querySelector('[aria-label="Week overview"]')?.textContent).toContain("Seals")
     expect([...container.querySelectorAll('[role="tab"]')].map((t) => t.textContent)).toEqual([
       "Lineup",
       "Predictions",
-      "History",
     ])
     expect(tab("Lineup").getAttribute("aria-selected")).toBe("true")
     expect(container.textContent).toContain("Skater 2")
+
+    await activate(tab("Predictions"))
+    expect(container.querySelector('[aria-label="Week overview"]')).toBeNull()
   })
 
-  it("switches to the History tab", async () => {
-    await render(<ManagerPanel form={form} token="t" />)
+  it("shows the season totals, with a link to the full results", async () => {
+    await render(<ManagerPanel managerId={7} form={{ ...form, history: { points: 42, weeks: [] } }} token="t" />)
 
-    await activate(tab("History"))
+    expect(container.textContent).toContain("Season: 42 Fantasy points")
+    expect(container.querySelector('a[href="/fantasy/manager/7"]')?.textContent).toBe("Season results")
+  })
 
-    expect(container.textContent).toContain("Previous Weeks")
+  it("shows a closed Week's Lineup and Predictions with their results, read only", async () => {
+    const week = { id: "2026-11-07", provisional: false }
+    const closed = {
+      ...form,
+      closed: true,
+      history: { points: 20, weeks: [{ ...week, points: 20, selections: pageData.weeks[0].rows[0].selections }] },
+      pickemHistory: {
+        correct: 1,
+        goalError: 3,
+        weeks: [{ ...week, correct: 1, goalError: 3, games: overview.games, predictions: [{ gameId: "g1", homeScore: 5, awayScore: 1, outcome: "correct" as const }] }],
+      },
+    }
+    await render(<ManagerPanel managerId={7} form={closed} token="t" />)
+
+    expect(container.textContent).toContain("20 points")
+    expect(container.querySelector('a[href="/player/ada-lovelace"]')).not.toBeNull()
+
+    await activate(tab("Predictions"))
+
+    expect(container.textContent).toContain("1 correct, 3 goals off")
+    expect(container.textContent).toContain("Correct winner")
+    expect(container.querySelector("form")).toBeNull()
+    expect(container.querySelector("input")).toBeNull()
+  })
+
+  it("says so when a closed Week has no Predictions", async () => {
+    await render(<ManagerPanel managerId={7} form={{ ...form, closed: true }} token="t" />)
+    await activate(tab("Predictions"))
+
+    expect(container.textContent).toContain("You made no Predictions for this Week.")
+  })
+
+  const weekLinks = () => [...container.querySelectorAll<HTMLAnchorElement>('[aria-label="Weeks"] a')]
+
+  it("links to each Week by its own URL, the one shown included, and marks it", async () => {
+    await render(<ManagerPanel managerId={7} form={{ ...form, weekIds: ["2026-11-07", "2026-11-14"] }} token="t" />)
+
+    expect(weekLinks().map((a) => a.getAttribute("href"))).toEqual(["/fantasy/m/t?week=2026-11-07", "/fantasy/m/t?week=2026-11-14"])
+    expect(weekLinks().map((a) => a.getAttribute("aria-current"))).toEqual(["page", null])
+  })
+
+  it("has no Week picker with only one Week to pick", async () => {
+    await render(<ManagerPanel managerId={7} form={form} token="t" />)
+
+    expect(container.querySelector('[aria-label="Weeks"]')).toBeNull()
+  })
+
+  it("asks before leaving a Week with unsaved changes, and stays if refused", async () => {
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false)
+    await render(<ManagerPanel managerId={7} form={{ ...form, weekIds: ["2026-11-07", "2026-11-14"] }} token="t" />)
+    await activate(tab("Predictions"))
+    const score = container.querySelector<HTMLInputElement>('input[aria-label^="Seals score"]')!
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(score, "3")
+      score.dispatchEvent(new Event("input", { bubbles: true }))
+    })
+
+    const click = new MouseEvent("click", { bubbles: true, cancelable: true, button: 0 })
+    await act(async () => {
+      weekLinks()[1].dispatchEvent(click)
+    })
+
+    expect(confirm).toHaveBeenCalledWith("Discard your unsaved changes?")
+    expect(click.defaultPrevented).toBe(true)
+    confirm.mockRestore()
   })
 })
 
@@ -795,6 +963,40 @@ describe("PredictionsFormPanel", () => {
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
+  it("moves to the next box once a score is typed, waiting after a 1", async () => {
+    await render(<PredictionsFormPanel overview={overview} saved={[]} week={week} token="t" />)
+    const inputs = [...container.querySelectorAll("input")]
+    inputs[0].focus()
+
+    await setValue(inputs[0], "1")
+    expect(document.activeElement).toBe(inputs[0])
+    await setValue(inputs[0], "12")
+    expect(document.activeElement).toBe(inputs[1])
+    await setValue(inputs[1], "4")
+    expect(document.activeElement).toBe(inputs[2])
+  })
+
+  it("lists the away team's box first, and counts the games picked", async () => {
+    await render(<PredictionsFormPanel overview={overview} saved={[]} week={week} token="t" />)
+    const [first, second] = [...container.querySelectorAll("input")].map((input) => input.getAttribute("aria-label"))
+    expect(first).toBe(`${overview.games[0].away.name} score, Seals vs Yetis`)
+    expect(second).toBe(`${overview.games[0].home.name} score, Seals vs Yetis`)
+    expect(container.textContent).toContain("0 of 2 games picked")
+
+    await setValue(box("Seals score"), "4")
+    await setValue(box("Yetis score"), "2")
+
+    expect(container.textContent).toContain("1 of 2 games picked")
+  })
+
+  it("keeps only digits", async () => {
+    await render(<PredictionsFormPanel overview={overview} saved={[]} week={week} token="t" />)
+
+    await setValue(box("Seals score"), "-3")
+
+    expect(box("Seals score").value).toBe("3")
+  })
+
   it("sends only the games with scores, as one save for the Week", async () => {
     fetchMock.mockResolvedValue(new Response(JSON.stringify({ saved: true }), { status: 200 }))
     await render(<PredictionsFormPanel overview={overview} saved={[]} week={week} token="secret" />)
@@ -832,6 +1034,31 @@ describe("CloseTime", () => {
   })
 })
 
+describe("Predictions", () => {
+  const game = { ...overview.games[0], result: { homeScore: 6, awayScore: 1 } }
+  const skipped = { ...overview.games[1], result: null }
+
+  it("shows each final score away first, how far off the pick was, and the games skipped", async () => {
+    await render(
+      <Predictions row={{ predictions: [{ gameId: game.id, homeScore: 2, awayScore: 3, outcome: "wrong" }] }} games={[game, skipped]} />
+    )
+
+    const [first, second] = [...container.querySelectorAll("li")].map((li) => li.textContent)
+    expect(first).toContain("Final 1–6")
+    expect(first).toContain("Wrong winner, 6 goals off")
+    expect(second).toContain("Skipped")
+  })
+
+  it("gives a forfeited game no goals off", async () => {
+    await render(
+      <Predictions row={{ predictions: [{ gameId: game.id, homeScore: 2, awayScore: 3, outcome: "void" }] }} games={[game]} />
+    )
+
+    expect(container.textContent).toContain("Forfeited, doesn't count")
+    expect(container.textContent).not.toContain("goals off")
+  })
+})
+
 describe("ManagerHistory", () => {
   it("lists the Manager's locked Weeks of Predictions with each game's outcome", async () => {
     const pickem = {
@@ -855,6 +1082,24 @@ describe("ManagerHistory", () => {
     expect(text).toContain("1 correct, 3 goals off")
     expect(text).toContain("Seals vs Yetis")
     expect(text).toContain("Correct winner")
+  })
+
+  it("shows each Week's stats in columns, with every Week closed", async () => {
+    const week = { provisional: false, points: 20, selections: pageData.weeks[0].rows[0].selections }
+    await render(
+      <ManagerHistory
+        history={{ points: 40, weeks: [{ ...week, id: "2026-10-31" }, { ...week, id: "2026-11-07" }] }}
+        pickem={{ correct: 0, goalError: 0, weeks: [] }}
+      />
+    )
+
+    const rows = [...container.querySelectorAll("details")]
+    expect(rows.map((row) => [row.querySelector("summary")!.textContent, row.open])).toEqual([
+      ["Week of Nov 720 points", false],
+      ["Week of Oct 3120 points", false],
+    ])
+    const player = rows[0].querySelector('a[href="/player/ada-lovelace"]')!
+    expect([...player.closest("tr")!.querySelectorAll("td")].map((cell) => cell.textContent)).toEqual(["2", "0", "0", "0", "0", "20"])
   })
 
   it("never says Lock in its empty state", async () => {

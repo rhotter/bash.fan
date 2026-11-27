@@ -5,7 +5,7 @@ import { useEffect, useState } from "react"
 import { instantLabel } from "@/lib/fantasy/view-state"
 
 function timeLeft(ms: number) {
-  if (ms <= 0) return "Closed. Reload for the next picks."
+  if (ms <= 0) return "Closed. Reload to see your picks."
   const minutes = Math.floor(ms / 60_000)
   if (minutes < 1) return "Less than a minute left"
   const days = Math.floor(minutes / 1440)

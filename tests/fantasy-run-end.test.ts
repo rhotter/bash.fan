@@ -162,8 +162,9 @@ describe("an ending run", () => {
     const manager = await managerIn("december-beta")
 
     expect((await loadLineupForm(manager, BEFORE_FINAL_CLOSE))?.status).toBe("active")
-    expect(await loadLineupForm(manager, FINAL_WEEK_PLAYING)).toMatchObject({ status: "final-week", noGames: true })
-    expect((await loadLineupForm(manager, ENDED))?.status).toBe("ended")
+    const weekIds = [FIRST_WEEK, LAST_WEEK]
+    expect(await loadLineupForm(manager, FINAL_WEEK_PLAYING)).toMatchObject({ status: "final-week", week: { id: LAST_WEEK }, closed: true, weekIds })
+    expect(await loadLineupForm(manager, ENDED)).toMatchObject({ status: "ended", week: { id: LAST_WEEK }, closed: true, weekIds })
   })
 
   it("opens admin entry on the last Week, offering nothing later", async () => {

@@ -56,7 +56,7 @@ describe("a Manager's public page", () => {
     const page = (await fetchFantasyManager(managerId))!
 
     // Exact keys, so a new field has to be considered here before it can reach the public.
-    expect(Object.keys(page).sort()).toEqual(["contest", "history", "pickemHistory", "teamName"])
+    expect(Object.keys(page).sort()).toEqual(["contest", "history", "multipleContests", "pickemHistory", "teamName"])
     expect(page.history).toEqual({ points: 0, weeks: [] })
     expect(page.pickemHistory).toEqual({ correct: 0, goalError: 0, weeks: [] })
     expect(JSON.stringify(page)).not.toMatch(/Secret|Hidden|Realname/)

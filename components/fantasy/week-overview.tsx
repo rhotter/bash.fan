@@ -1,6 +1,6 @@
 import { GAME_CARD_CLASS, GAME_CARD_LABEL_CLASS, GameCardScore, GameCardStatusBar, GameCardTeam } from "@/components/game-card"
 import { TeamLogo } from "@/components/team-logo"
-import type { WeekOverview, WeekOverviewGame } from "@/lib/fantasy/week"
+import type { TeamRef, WeekOverview, WeekOverviewGame } from "@/lib/fantasy/week"
 
 function GameCard({ game }: { game: WeekOverviewGame }) {
   const { result } = game
@@ -26,6 +26,21 @@ function GameCard({ game }: { game: WeekOverviewGame }) {
   )
 }
 
+export function ByeTeams({ teams }: { teams: TeamRef[] }) {
+  if (teams.length === 0) return null
+  return (
+    <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
+      <span>Bye:</span>
+      {teams.map((team) => (
+        <span key={team.slug} className="flex items-center gap-1.5 text-foreground">
+          <TeamLogo slug={team.slug} name={team.name} size={16} />
+          {team.name}
+        </span>
+      ))}
+    </p>
+  )
+}
+
 /** The games, Bye team and results for one Week. Shared by /fantasy and the Manager Link page. */
 export function WeekOverviewPanel({ overview }: { overview: WeekOverview }) {
   return (
@@ -39,17 +54,7 @@ export function WeekOverviewPanel({ overview }: { overview: WeekOverview }) {
           ))}
         </ul>
       )}
-      {overview.byeTeams.length > 0 && (
-        <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
-          <span>Bye:</span>
-          {overview.byeTeams.map((team) => (
-            <span key={team.slug} className="flex items-center gap-1.5 text-foreground">
-              <TeamLogo slug={team.slug} name={team.name} size={16} />
-              {team.name}
-            </span>
-          ))}
-        </p>
-      )}
+      <ByeTeams teams={overview.byeTeams} />
     </section>
   )
 }

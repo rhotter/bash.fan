@@ -5,7 +5,7 @@ import { findManagerById, listPublicManagers } from "@/lib/fantasy/managers"
 import { buildPickemStandings } from "@/lib/fantasy/pickem"
 import { listCurrentFantasyContests, otherOpenContests, pickContest, type FantasySeason } from "@/lib/fantasy/season"
 import { buildStandings } from "@/lib/fantasy/standings"
-import { buildWeekOverview, openWeek, picksOpenAt, runStatus } from "@/lib/fantasy/week"
+import { buildWeekOverview, openWeek, pickableWeeks, runStatus } from "@/lib/fantasy/week"
 
 const { fantasyLineups, fantasyManagers, fantasyPredictions, playerSeasons, players, teams } = schema
 
@@ -39,21 +39,23 @@ async function readSeasonPredictions(seasonId: string, contest: string) {
     .where(and(eq(fantasyManagers.seasonId, seasonId), eq(fantasyManagers.contest, contest)))
 }
 
-function readSeasonTeams(seasonId: string) {
+/** One row for each team a Player has been on this season. */
+function readSeasonRosters(seasonId: string) {
   return db
-    .selectDistinct({ slug: teams.slug, name: teams.name })
+    .select({ playerId: playerSeasons.playerId, slug: teams.slug, name: teams.name })
     .from(playerSeasons)
     .innerJoin(teams, eq(teams.slug, playerSeasons.teamSlug))
     .where(eq(playerSeasons.seasonId, seasonId))
+    .orderBy(teams.name)
 }
 
 async function readStandingsInput(season: FantasySeason, now: Date) {
   const { seasonId, contest, config, launchedAt } = season
-  const [managers, lineups, games, seasonTeams, predictions] = await Promise.all([
+  const [managers, lineups, games, rosters, predictions] = await Promise.all([
     listPublicManagers(seasonId, contest),
     readSeasonLineups(seasonId, contest),
     readSeasonGames(seasonId, config.gameTypes),
-    readSeasonTeams(seasonId),
+    readSeasonRosters(seasonId),
     readSeasonPredictions(seasonId, contest),
   ])
   // Which Players matter depends on the Lineups, so these reads follow the ones above.
@@ -65,7 +67,10 @@ async function readStandingsInput(season: FantasySeason, now: Date) {
       .where(inArray(players.id, selectedPlayerIds(lineups))),
   ])
   const playerNames = new Map(names.map(({ id, name }) => [id, name]))
-  return { managers, lineups, predictions, games, teams: seasonTeams, stats, playerNames, config, launchedAt, now }
+  const seasonTeams = [...new Map(rosters.map(({ slug, name }) => [slug, { slug, name }])).values()]
+  const playerTeams = new Map<number, string[]>()
+  for (const { playerId, slug } of rosters) playerTeams.set(playerId, [...(playerTeams.get(playerId) ?? []), slug])
+  return { managers, lineups, predictions, games, teams: seasonTeams, playerTeams, stats, playerNames, config, launchedAt, now }
 }
 
 /** The public /fantasy snapshot, or null while the game is off. Team Names only. */
@@ -78,11 +83,14 @@ export async function fetchFantasyStandings(contest?: string) {
   const input = await readStandingsInput(season, now)
   const standings = buildStandings(input)
   const pickem = buildPickemStandings(input)
-  const openWeekId = openWeek(now, config.lock).id
   const status = runStatus(config, now)
-  // The open Week has no standings yet, but Managers need its games and Bye to choose against.
+  const [nextPick] = pickableWeeks(input.games, launchedAt, config, now)
+  const nextWeek = nextPick ?? openWeek(now, config.lock)
+  // The next Week to pick has no standings yet, but Managers need its games and Bye to choose against.
+  // A run under way with nothing left to pick shows the open Week, which says it has no games.
+  const showsNextWeek = nextPick !== undefined || status === "active"
   const overviewWeekIds = [
-    ...new Set([...standings.weeks.map(({ id }) => id), ...(status === "active" ? [openWeekId] : [])]),
+    ...new Set([...standings.weeks.map(({ id }) => id), ...(showsNextWeek ? [nextWeek.id] : [])]),
   ].sort()
   const overviews = Object.fromEntries(
     overviewWeekIds.map((id) => [
@@ -92,13 +100,13 @@ export async function fetchFantasyStandings(contest?: string) {
   )
   return {
     status,
-    picksOpenAt: picksOpenAt(config)?.toISOString() ?? null,
     contest: season.contest,
     contests: allContests.map((c) => c.contest),
     otherOpenContests: otherOpenContests(allContests, season.contest, now),
-    nextLockAt: openWeek(now, config.lock).lockAt.toISOString(),
+    nextLockAt: nextWeek.lockAt.toISOString(),
     timeZone: config.lock.timeZone,
-    openWeekId,
+    /** The soonest Week still taking picks. */
+    openWeekId: nextWeek.id,
     overviews,
     ...standings,
     pickem,
@@ -110,7 +118,7 @@ export async function fetchFantasyOverview(season: FantasySeason) {
   const now = new Date()
   const input = await readStandingsInput(season, now)
   const { weeks, season: table } = buildStandings(input)
-  const openWeekId = openWeek(now, season.config.lock).id
+  const [nextPick] = pickableWeeks(input.games, season.launchedAt, season.config, now)
   const playerNames = input.playerNames
 
   return {
@@ -136,7 +144,7 @@ export async function fetchFantasyOverview(season: FantasySeason) {
         weeks: managerWeeks,
         uses: uses.sort((a, b) => b.used - a.used || a.playerName.localeCompare(b.playerName)),
         openWeekSubmitted: input.lineups.some(
-          ({ managerId, weekId }) => managerId === row.managerId && weekId === openWeekId
+          ({ managerId, weekId }) => managerId === row.managerId && weekId === nextPick?.id
         ),
       }
     }),

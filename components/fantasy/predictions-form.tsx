@@ -1,17 +1,15 @@
 "use client"
 
-import { X } from "lucide-react"
-import { useEffect, useState, type FormEvent } from "react"
+import { useEffect, useState, type ChangeEvent, type FormEvent } from "react"
+import { PickRow, pickedSide, SIDES, type Side } from "@/components/fantasy/pick-row"
 import { UnsavedBadge } from "@/components/fantasy/unsaved-badge"
-import { GAME_CARD_CLASS, GameCardStatusBar, GameCardTeam } from "@/components/game-card"
+import { ByeTeams } from "@/components/fantasy/week-overview"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { saveRequest, type SaveTarget } from "@/components/fantasy/save-target"
 import { errorMessage, fetchApi, readApiJson } from "@/lib/api-errors"
 import { isValidPrediction, MAX_PREDICTED_SCORE, type Prediction } from "@/lib/fantasy/pickem"
 import type { PredictionError } from "@/lib/fantasy/predictions"
 import type { WeekOverview } from "@/lib/fantasy/week"
-import { cn } from "@/lib/utils"
 
 const ERRORS: Record<PredictionError, string> = {
   "tied-score": "A game can't end tied: pick a winner.",
@@ -53,18 +51,32 @@ function readBoxes(overview: WeekOverview, boxes: Boxes) {
   return { predictions }
 }
 
+/** Moves on once a score is typed. A lone 1 waits, as it could be the start of 10 or more. */
+function advance(event: ChangeEvent<HTMLInputElement>, value: string) {
+  const { inputType } = event.nativeEvent as InputEvent
+  if (value === "" || value === "1" || inputType?.startsWith("delete")) return
+  const inputs = [...(event.target.form?.querySelectorAll("input") ?? [])]
+  inputs[inputs.indexOf(event.target) + 1]?.focus()
+}
+
 function ScoreBox({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
   return (
-    <Input
-      type="number"
+    // A text box, since a number box can't be selected or limited to two digits.
+    <input
+      type="text"
       inputMode="numeric"
-      min={0}
-      max={MAX_PREDICTED_SCORE}
-      step={1}
+      pattern="[0-9]*"
+      maxLength={2}
+      autoComplete="off"
       aria-label={label}
       value={value}
-      onChange={(event) => onChange(event.target.value)}
-      className="h-8 w-16 shrink-0 px-2 text-center tabular-nums"
+      onFocus={(event) => event.target.select()}
+      onChange={(event) => {
+        const digits = event.target.value.replace(/\D/g, "").slice(0, 2)
+        onChange(digits)
+        advance(event, digits)
+      }}
+      className="h-13 w-14 rounded-lg border border-input bg-card text-center text-2xl font-bold tabular-nums outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]"
     />
   )
 }
@@ -93,7 +105,7 @@ export function PredictionsFormPanel({
     return () => onDirtyChange?.(false)
   }, [dirty, onDirtyChange])
 
-  function change(gameId: string, side: "home" | "away", value: string) {
+  function change(gameId: string, side: Side, value: string) {
     setBoxes({ ...boxes, [gameId]: { ...boxes[gameId], [side]: value } })
     setMessage(null)
     setDirty(true)
@@ -134,70 +146,94 @@ export function PredictionsFormPanel({
     }
   }
 
+  const reads = overview.games.map((game) => {
+    const { home, away } = boxes[game.id]
+    const complete = home !== "" && away !== ""
+    return { game, home, away, picked: complete ? pickedSide(Number(away), Number(home)) : null, tied: complete && Number(home) === Number(away) }
+  })
+  const pickedCount = reads.filter(({ picked }) => picked !== null).length
+
   return (
-    <form onSubmit={submit} noValidate className="mt-6 space-y-6">
+    <form onSubmit={submit} noValidate className="@container mt-6 space-y-4">
       <div className="space-y-1 text-sm text-muted-foreground">
         <p>
-          <span className="font-medium text-foreground">Pick the winner of each game.</span> Standings rank by how many
-          winners you get right.
+          <span className="font-medium text-foreground">Pick the winner of each game</span> by giving it the higher
+          score. Winners decide the standings, and scores only break ties, favoring whoever is closest in total goals.
         </p>
-        <p>
-          Enter a final score to make your pick. The scores only break ties, favoring whoever is closest in total
-          goals. Leave a game blank to skip it, with no penalty.
-        </p>
+        <p>Leave both boxes empty to skip a game, with no penalty.</p>
         {!dirty && <p>{saved.length > 0 ? "Your saved Predictions are shown." : "Nothing saved for this Week yet."}</p>}
       </div>
 
-      <ul className="space-y-3">
-        {overview.games.map((game) => {
-          const box = boxes[game.id]
-          const home = Number(box.home)
-          const away = Number(box.away)
-          const filled = box.home.trim() !== "" && box.away.trim() !== "" && home !== away
-          const winner = filled ? (home > away ? game.home.name : game.away.name) : null
-          const matchup = `${game.home.name} vs ${game.away.name}`
-          const entered = box.home !== "" || box.away !== ""
-          return (
-            <li key={game.id} className={GAME_CARD_CLASS}>
-              <GameCardStatusBar>
-                <span className="text-[10px] text-muted-foreground/50">{game.startLabel}</span>
-                {/* Always laid out, so the card doesn't jump when the button appears. */}
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className={cn("-mr-1.5 size-6", !entered && "invisible")}
-                  aria-label={`Clear ${matchup}`}
-                  title="Clear this game"
-                  onClick={() => clear(game.id)}
+      {/* `clip` rounds the corners without stopping the Save bar from sticking. */}
+      <div className="overflow-clip rounded-xl border border-border bg-card">
+        <ul className="divide-y divide-border">
+          {reads.map(({ game, home, away, picked, tied }) => {
+            const matchup = `${game.home.name} vs ${game.away.name}`
+            const entered = home !== "" || away !== ""
+            return (
+              <li key={game.id}>
+                <PickRow
+                  game={game}
+                  picked={picked}
+                  scores={Object.fromEntries(
+                    SIDES.map((side) => [
+                      side,
+                      <ScoreBox
+                        key={side}
+                        label={`${game[side].name} score, ${matchup}`}
+                        value={boxes[game.id][side]}
+                        onChange={(value) => change(game.id, side, value)}
+                      />,
+                    ])
+                  ) as Record<Side, React.ReactNode>}
+                  // Always laid out, so the row doesn't jump when the button appears.
+                  action={
+                    <Button
+                      type="button"
+                      variant="link"
+                      className={entered ? "h-6 p-0 text-xs text-muted-foreground underline" : "invisible h-6 p-0 text-xs"}
+                      aria-label={`Clear ${matchup}`}
+                      onClick={() => clear(game.id)}
+                    >
+                      Clear
+                    </Button>
+                  }
                 >
-                  <X aria-hidden />
-                </Button>
-              </GameCardStatusBar>
-              <div className="flex flex-col gap-1.5 px-3 py-2">
-                {(["away", "home"] as const).map((side) => (
-                  <GameCardTeam key={side} {...game[side]} won={winner === game[side].name}>
-                    <ScoreBox label={`${game[side].name} score, ${matchup}`} value={box[side]} onChange={(v) => change(game.id, side, v)} />
-                  </GameCardTeam>
-                ))}
-              </div>
-              <p className="border-t border-border/20 bg-muted/20 px-3 py-1.5 text-xs text-muted-foreground" aria-live="polite">
-                {winner ? <>Your pick: <span className="font-medium text-foreground">{winner}</span> wins</> : "No pick yet"}
-              </p>
-            </li>
-          )
-        })}
-      </ul>
+                  <p className="sr-only" aria-live="polite">
+                    {picked ? `Your pick: ${game[picked].name} wins` : "No pick yet"}
+                  </p>
+                  {tied && <p className="mt-2 text-center text-xs text-destructive">A game can&apos;t end tied. Change one score.</p>}
+                  {game.result && (
+                    <p className="mt-2 text-center text-xs font-semibold">
+                      Final {game.result.awayScore}–{game.result.homeScore}
+                    </p>
+                  )}
+                </PickRow>
+              </li>
+            )
+          })}
+        </ul>
 
-      {message && (
-        <p role={message.failed ? "alert" : "status"} className={message.failed ? "text-sm text-destructive" : "text-sm text-muted-foreground"}>
-          {message.text}
-        </p>
-      )}
-      <div className="flex flex-wrap items-center gap-3">
-        <Button type="submit" disabled={saving}>{saving ? "Saving…" : "Save Predictions"}</Button>
-        {dirty && <UnsavedBadge />}
+        <div className="sticky bottom-0 flex flex-col gap-2 border-t border-border bg-muted p-3 @min-[34rem]:static @min-[34rem]:flex-row @min-[34rem]:items-center @min-[34rem]:justify-between @min-[34rem]:px-4">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            {message ? (
+              <p role={message.failed ? "alert" : "status"} className={message.failed ? "text-sm text-destructive" : "text-sm text-muted-foreground"}>
+                {message.text}
+              </p>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                {pickedCount} of {overview.games.length} games picked
+              </p>
+            )}
+            {dirty && <UnsavedBadge />}
+          </div>
+          <Button type="submit" disabled={saving} className="@min-[34rem]:shrink-0">
+            {saving ? "Saving…" : "Save Predictions"}
+          </Button>
+        </div>
       </div>
+
+      <ByeTeams teams={overview.byeTeams} />
     </form>
   )
 }

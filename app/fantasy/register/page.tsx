@@ -4,8 +4,8 @@ import { OpenContestList } from "@/components/fantasy/open-contests"
 import { RegistrationForm } from "@/components/fantasy/registration-form"
 import { IntentLink } from "@/components/intent-link"
 import { listCurrentFantasyContests, otherOpenContests, parseContest, pickRegistrationContest } from "@/lib/fantasy/season"
-import { contestLabel, fantasyHref, instantLabel } from "@/lib/fantasy/view-state"
-import { picksOpenAt, runStatus, takesRegistrations } from "@/lib/fantasy/week"
+import { contestLabel, fantasyHref } from "@/lib/fantasy/view-state"
+import { runStatus, takesRegistrations } from "@/lib/fantasy/week"
 
 export const dynamic = "force-dynamic"
 export const metadata: Metadata = {
@@ -25,8 +25,6 @@ export default async function FantasyRegisterPage({ searchParams }: { searchPara
   const name = contestLabel(season.contest)
   const status = runStatus(season.config, now)
   const open = takesRegistrations(status)
-  const opensAt = status === "upcoming" ? picksOpenAt(season.config) : null
-  const picksOpen = opensAt ? instantLabel(opensAt.toISOString(), season.config.lock.timeZone) : null
   const others = otherOpenContests(contests, season.contest, now)
 
   return (
@@ -36,13 +34,13 @@ export default async function FantasyRegisterPage({ searchParams }: { searchPara
         <>
           <p className="mt-3 rounded-md border border-border bg-muted p-3 text-sm">
             You&apos;re registering for the <span className="font-semibold">{name}</span> contest.
-            {picksOpen && ` It hasn't started: picks open ${picksOpen}.`}
+            {status === "upcoming" && " It hasn't started, but you can make picks ahead."}
           </p>
           <OpenContestList contests={others} className="mt-3" />
           <p className="mt-3 text-sm text-muted-foreground">
             Your Team Name is public. Your real name is only seen by admins.
           </p>
-          <RegistrationForm contest={season.contest} picksOpen={picksOpen} />
+          <RegistrationForm contest={season.contest} />
         </>
       ) : (
         <>

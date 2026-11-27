@@ -47,7 +47,7 @@ export default async function FantasyManagerPage(props: Params) {
           </BreadcrumbList>
         </Breadcrumb>
         <h1 className="mt-2 text-2xl font-bold tracking-tight">{data.teamName}</h1>
-        <ManagerHistory history={data.history} pickem={data.pickemHistory} own={false} />
+        <ManagerHistory history={data.history} pickem={data.pickemHistory} />
       </main>
     </div>
   )

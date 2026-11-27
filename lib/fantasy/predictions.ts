@@ -30,8 +30,8 @@ export type SavePredictionsResult =
 
 /**
  * Replaces the Manager's Predictions for the Week they were editing: games sent are saved and
- * games left out are cleared. A Week other than the open one is refused, so a form left open
- * past the Lock can't change a frozen Week or land in the next one.
+ * games left out are cleared. Any Week with games that hasn't locked can be saved. A locked one
+ * is refused, so a form left open past its Lock can't change a frozen Week.
  */
 export async function savePredictions(
   manager: ManagerIdentity,
@@ -41,11 +41,11 @@ export async function savePredictions(
   now = new Date()
 ): Promise<SavePredictionsResult> {
   const open = openWeek(now, season.config.lock)
-  if (weekId !== open.id) return { outcome: "locked", openWeekId: open.id }
+  if (weekId < open.id) return { outcome: "locked", openWeekId: open.id }
   return replaceWeekPredictions(manager, season, weekId, predictions, now)
 }
 
-/** Replaces a Manager's Predictions for any Week up to the open one, ignoring the Lock. Every other rule applies. */
+/** Replaces a Manager's Predictions for any Week, ignoring the Lock. Every other rule applies. */
 export async function adminSavePredictions(
   manager: ManagerIdentity,
   season: FantasySeason,
@@ -53,7 +53,6 @@ export async function adminSavePredictions(
   predictions: Prediction[],
   now = new Date()
 ) {
-  if (weekId > openWeek(now, season.config.lock).id) return { outcome: "no-games" as const }
   return replaceWeekPredictions(manager, season, weekId, predictions, now)
 }
 

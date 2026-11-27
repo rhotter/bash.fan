@@ -53,13 +53,6 @@ export function endsBeforeFirstWeek(rule: Pick<RunRule, "lock" | "startsOn" | "e
     : null
 }
 
-/** When a start date's first picks open: the Lock a Week before the first Week's own. Null with no start date. */
-export function picksOpenAt({ lock, startsOn }: Pick<RunRule, "lock" | "startsOn">) {
-  if (startsOn === null) return null
-  const first = closingDayOnOrAfter(startsOn, lock.dayOfWeek)
-  return gameStartsAt(format(subDays(new Date(`${first}T12:00:00`), 7), "yyyy-MM-dd"), lock.time, lock.timeZone)
-}
-
 /**
  * Whether a game belongs to one of the run's Weeks, going by its `scheduledStart`, so a game with no readable
  * time counts as starting at midday. Which game types a contest scores is decided when the games are read,
@@ -71,8 +64,8 @@ export function countsForGame(game: { date: string; time: string }, launchedAt: 
 }
 
 /**
- * - `upcoming`: its first picks haven't opened yet. People can already join.
- * - `active`: taking picks.
+ * - `upcoming`: its first Week isn't the next to close yet. People can already join and pick ahead.
+ * - `active`: under way and taking picks.
  * - `final-week`: the last Week has closed to picks and is being played.
  * - `ended`: the last Week is over. Its scores can still come in.
  */
@@ -91,6 +84,36 @@ export const takesRegistrations = (status: RunStatus) => status === "upcoming" |
 /** The Week taking Lineups now: the one whose Lock comes next. A Lock moves this on. */
 export function openWeek(now: Date, rule: LockRule) {
   return weekContaining(weekContaining(now, rule).nextLockAt, rule)
+}
+
+/**
+ * The Weeks a Manager can pick, soonest first: each of the run's Weeks that has games and hasn't locked.
+ * A Week with no games, such as a holiday, isn't one, so the first may be later than the open Week.
+ */
+export function pickableWeeks(games: { date: string; time: string }[], launchedAt: Date, rule: RunRule, now: Date) {
+  const open = openWeek(now, rule.lock).id
+  const weeks = new Map<string, FantasyWeek>()
+  for (const game of games) {
+    if (!countsForGame(game, launchedAt, rule)) continue
+    const week = weekContaining(scheduledStart(game, rule.lock), rule.lock)
+    if (week.id >= open) weeks.set(week.id, week)
+  }
+  return [...weeks.values()].sort((a, b) => a.id.localeCompare(b.id))
+}
+
+const MONDAY = 1
+
+/**
+ * The Week a Manager's page opens on, out of those with games. The Week that just closed stays up through its
+ * weekend, so its games can be followed. From Monday it's the soonest still open, or else the latest.
+ */
+export function defaultWeek<T extends { id: string }>(weeks: T[], now: Date, rule: LockRule): T | undefined {
+  const closed = weekContaining(now, rule).id
+  const dayAfter = format(addDays(new Date(`${closed}T12:00:00`), 1), "yyyy-MM-dd")
+  const today = format(new TZDate(now, rule.timeZone), "yyyy-MM-dd")
+  const thisWeekend = today < closingDayOnOrAfter(dayAfter, MONDAY) ? weeks.find(({ id }) => id === closed) : undefined
+  const open = openWeek(now, rule).id
+  return thisWeekend ?? weeks.find(({ id }) => id >= open) ?? weeks.at(-1)
 }
 
 /** The Week a game belongs to, from its scheduled start. */

@@ -1,19 +1,21 @@
 "use client"
 
-import { Check, Minus, X } from "lucide-react"
+import { Check, ChevronDown, X } from "lucide-react"
 import { useState } from "react"
 import { IntentLink } from "@/components/intent-link"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { OpenContestList } from "@/components/fantasy/open-contests"
-import { Chevron, ProvisionalBadge } from "@/components/fantasy/week-row"
+import { PickRow, pickedSide } from "@/components/fantasy/pick-row"
+import { FantasyStandingsTable } from "@/components/fantasy/standings-table"
+import { ProvisionalBadge, WEEK_NAV_CLASS } from "@/components/fantasy/week-row"
 import { WeekOverviewPanel } from "@/components/fantasy/week-overview"
 import { playerSlug } from "@/lib/player-slug"
 import { weekLabel } from "@/lib/fantasy/week"
-import { contestLabel, fantasyHref, instantLabel, type FantasyTab, type FantasyView } from "@/lib/fantasy/view-state"
+import { contestLabel, fantasyHref, type FantasyTab, type FantasyView } from "@/lib/fantasy/view-state"
 import { cn } from "@/lib/utils"
-import type { PickemWeek, PickemWeekRow, PredictionOutcome } from "@/lib/fantasy/pickem"
-import type { PublicSelection, StandingsWeek } from "@/lib/fantasy/standings"
+import type { PickemWeek, PickemWeekRow, PredictionOutcome, PublicPrediction } from "@/lib/fantasy/pickem"
+import type { PublicSelection } from "@/lib/fantasy/standings"
 import type { WeekOverview } from "@/lib/fantasy/week"
 import type { FantasyPageData } from "@/lib/fetch-fantasy"
 
@@ -35,18 +37,6 @@ function outcomeLabel({ outcome, isBackup }: PublicSelection, provisional: boole
   // While the Week is provisional, a Backup may still come in for an absent starter.
   if (outcome === "unused") return provisional ? "Not scored yet" : "Not needed"
   return isBackup ? "Came in" : null
-}
-
-/** Links by id, because Team Names can be renamed. */
-function ManagerLink({ managerId, teamName }: { managerId: number; teamName: string }) {
-  return (
-    // The span takes the spare width, so only the name itself is a link and the rest of the row still expands it.
-    <span className="min-w-0 flex-1 truncate">
-      <IntentLink href={`/fantasy/manager/${managerId}`} className="font-medium hover:underline">
-        {teamName}
-      </IntentLink>
-    </span>
-  )
 }
 
 type ChangeView = (view: FantasyView) => void
@@ -78,7 +68,7 @@ function WeekPicker({
   switchTo: ChangeView
 }) {
   return (
-    <nav aria-label="Weeks" className="flex gap-1 overflow-x-auto">
+    <nav aria-label="Weeks" className={WEEK_NAV_CLASS}>
       {weekIds.map((id) => (
         <ViewLink
           key={id}
@@ -125,18 +115,6 @@ function TabNav({ view, switchTo }: { view: FantasyView; switchTo: ChangeView })
   )
 }
 
-function Medal({ rank }: { rank: number }) {
-  const color =
-    rank === 1
-      ? "bg-amber-400 text-amber-950"
-      : rank === 2
-        ? "bg-slate-300 text-slate-900"
-        : rank === 3
-          ? "bg-orange-300 text-orange-950"
-          : "bg-secondary text-muted-foreground"
-  return <span className={cn("grid size-7 shrink-0 place-items-center rounded-full text-sm font-bold tabular-nums", color)}>{rank}</span>
-}
-
 function GoalieTag() {
   return <span className="rounded bg-foreground px-1 text-[10px] font-bold leading-4 text-background">G</span>
 }
@@ -145,25 +123,17 @@ function BackupTag() {
   return <span className="rounded border border-border px-1 text-[10px] font-semibold leading-4 text-muted-foreground">BACKUP</span>
 }
 
-/** A Backup only shows once it has actually come in. */
-function shownSelections(selections: PublicSelection[]) {
-  return selections.filter((s) => !s.isBackup || s.outcome === "played")
-}
-
-/** A Week's Selections as a box score. Each game gets one line of stats. */
+/** The admin's view of a Week's Selections, listing every Backup. Each game gets one line of stats. */
 export function BoxScore({
   selections,
   provisional,
-  showIdleBackups = false,
 }: {
   selections: PublicSelection[]
   provisional: boolean
-  /** Admins see every Backup. The public page hides the ones that never came in. */
-  showIdleBackups?: boolean
 }) {
   return (
     <div className="space-y-3 px-3 py-3">
-      {(showIdleBackups ? selections : shownSelections(selections)).map((selection) => {
+      {selections.map((selection) => {
         const note = selection.outcome === "played" ? null : outcomeLabel(selection, provisional)
         return (
           <section key={`${selection.kind}-${selection.playerId}`} className={cn(selection.outcome !== "played" && "opacity-70")}>
@@ -196,78 +166,6 @@ export function BoxScore({
   )
 }
 
-const PODIUM_STRIPE = ["border-l-amber-400", "border-l-slate-400", "border-l-orange-400"]
-
-function Score({ value, big }: { value: number; big?: boolean }) {
-  return <span className={cn("font-bold tabular-nums", big ? "text-2xl" : "text-lg")}>{value}</span>
-}
-
-/** One Manager's row in a Weekly list: podium stripe, rank, team and score, with the details when opened. */
-function RankedCard({
-  rank,
-  managerId,
-  teamName,
-  score,
-  children,
-}: {
-  rank: number
-  managerId: number
-  teamName: string
-  score: React.ReactNode
-  children: React.ReactNode
-}) {
-  return (
-    <li>
-      <details className={cn("rounded-xl border border-l-4 border-border bg-card", PODIUM_STRIPE[rank - 1] ?? "border-l-border")}>
-        <summary className="flex cursor-pointer list-none items-center gap-3 p-3 text-sm [&::-webkit-details-marker]:hidden">
-          <span className={cn("w-5 shrink-0 text-right tabular-nums", rank <= 3 ? "font-bold" : "text-muted-foreground")}>{rank}</span>
-          <ManagerLink managerId={managerId} teamName={teamName} />
-          {score}
-          <Chevron />
-        </summary>
-        <div className="border-t border-border">{children}</div>
-      </details>
-    </li>
-  )
-}
-
-/** One row in a Season list. */
-function SeasonRow({ rank, managerId, teamName, score }: { rank: number; managerId: number; teamName: string; score: React.ReactNode }) {
-  return (
-    <li className="flex items-center gap-3 rounded-lg border border-border p-3 text-sm">
-      <Medal rank={rank} />
-      <ManagerLink managerId={managerId} teamName={teamName} />
-      {score}
-    </li>
-  )
-}
-
-function WeekStandings({ week }: { week: StandingsWeek }) {
-  if (week.rows.length === 0) {
-    return <p className="text-sm text-muted-foreground">No Lineups were submitted this Week.</p>
-  }
-  return (
-    <ul className="space-y-2">
-      {week.rows.map((row) => (
-        <RankedCard key={row.managerId} {...row} score={<Score value={row.points} big={row.rank === 1} />}>
-          <BoxScore selections={row.selections} provisional={week.provisional} />
-        </RankedCard>
-      ))}
-    </ul>
-  )
-}
-
-function SeasonTable({ season }: { season: FantasyPageData["season"] }) {
-  if (season.rows.length === 0) return <p className="text-sm text-muted-foreground">No Managers yet.</p>
-  return (
-    <ol className="space-y-1.5">
-      {season.rows.map((row) => (
-        <SeasonRow key={row.managerId} {...row} score={<Score value={row.points} />} />
-      ))}
-    </ol>
-  )
-}
-
 export type StandingsRange = "season" | "weekly"
 
 /** One column at a time, so each list gets the full width. */
@@ -284,7 +182,7 @@ function StandingsToggle({
 }) {
   const pages = { weekly, season }
   return (
-    <Tabs value={which} onValueChange={(value) => onChange(value as StandingsRange)} className="mx-auto max-w-xl gap-3">
+    <Tabs value={which} onValueChange={(value) => onChange(value as StandingsRange)} className="gap-3">
       <div className="flex items-center justify-between gap-2">
         <TabsList aria-label="Standings">
           <TabsTrigger value="season">Season</TabsTrigger>
@@ -299,32 +197,6 @@ function StandingsToggle({
   )
 }
 
-function FantasyStandings({
-  week,
-  season,
-  ...toggle
-}: {
-  week: StandingsWeek | undefined
-  season: FantasyPageData["season"]
-  which: StandingsRange
-  onChange: (which: StandingsRange) => void
-}) {
-  return (
-    <StandingsToggle
-      {...toggle}
-      weekly={{
-        provisional: week?.provisional,
-        children: week ? (
-          <WeekStandings week={week} />
-        ) : (
-          <p className="text-sm text-muted-foreground">Standings appear after this Week closes.</p>
-        ),
-      }}
-      season={{ provisional: season.provisional, children: <SeasonTable season={season} /> }}
-    />
-  )
-}
-
 const OUTCOMES: Record<PredictionOutcome, string> = {
   correct: "Correct winner",
   wrong: "Wrong winner",
@@ -332,72 +204,162 @@ const OUTCOMES: Record<PredictionOutcome, string> = {
   void: "Forfeited, doesn't count",
 }
 
-/** A check or X for a scored predicted winner, and a dash for a game with no verdict. Words stay for screen readers. */
-function OutcomeMark({ outcome }: { outcome: PredictionOutcome }) {
-  const Icon = outcome === "correct" ? Check : outcome === "wrong" ? X : Minus
+/** What happened in one game, and how the Prediction did. A game without one was skipped. */
+function PredictionVerdict({ result, prediction }: { result: WeekOverview["games"][number]["result"]; prediction: PublicPrediction | undefined }) {
+  const outcome = prediction?.outcome
+  const scored = outcome === "correct" || outcome === "wrong"
+  const off =
+    scored && prediction && result
+      ? Math.abs(prediction.homeScore - result.homeScore) + Math.abs(prediction.awayScore - result.awayScore)
+      : null
   return (
-    <span className="ml-2 inline-flex align-middle" title={OUTCOMES[outcome]}>
-      <Icon aria-hidden className={cn("size-4", outcome === "correct" ? "text-foreground" : "text-muted-foreground")} />
-      <span className="sr-only">{OUTCOMES[outcome]}</span>
+    <p className="mt-2 flex flex-wrap items-center justify-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
+      {result && (
+        <span className="font-semibold text-foreground">
+          Final {result.awayScore}–{result.homeScore}
+        </span>
+      )}
+      <span
+        className={cn(
+          "flex items-center gap-1",
+          scored && "font-semibold",
+          outcome === "correct" && "text-green-700",
+          outcome === "wrong" && "text-destructive"
+        )}
+      >
+        {outcome === "correct" && <Check aria-hidden className="size-4" />}
+        {outcome === "wrong" && <X aria-hidden className="size-4" />}
+        {outcome ? OUTCOMES[outcome] : "Skipped"}
+        {off !== null && `, ${off} ${off === 1 ? "goal" : "goals"} off`}
+      </span>
+    </p>
+  )
+}
+
+function PredictedScore({ score }: { score: number | undefined }) {
+  return (
+    // The spoken summary of each game carries the scores.
+    <span aria-hidden className="grid h-13 w-14 place-items-center rounded-lg border border-border bg-card text-2xl font-bold tabular-nums">
+      {score ?? <span className="text-muted-foreground">–</span>}
     </span>
   )
 }
 
-function PickemRecord({ correct, goalError, big }: { correct: number; goalError: number; big?: boolean }) {
+/** A Week's Predictions in the entry form's layout, read only. Every game is listed, skipped ones too. */
+export function Predictions({ row, games }: { row: { predictions: PickemWeekRow["predictions"] }; games: WeekOverview["games"] }) {
   return (
-    <span className="shrink-0 text-right tabular-nums">
-      <Score value={correct} big={big} />
-      <span className="ml-2 text-xs font-normal text-muted-foreground">{goalError} goals off</span>
-    </span>
+    <div className="@container">
+      <ul className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-muted/40">
+        {games.map((game) => {
+          const p = row.predictions.find((prediction) => prediction.gameId === game.id)
+          return (
+            <li key={game.id}>
+              <p className="sr-only">
+                {game.home.name} vs {game.away.name}, {p ? `predicted ${p.homeScore} – ${p.awayScore}` : "no Prediction"}
+              </p>
+              <PickRow
+                game={game}
+                picked={p ? pickedSide(p.awayScore, p.homeScore) : null}
+                scores={{ away: <PredictedScore score={p?.awayScore} />, home: <PredictedScore score={p?.homeScore} /> }}
+              >
+                <PredictionVerdict result={game.result} prediction={p} />
+              </PickRow>
+            </li>
+          )
+        })}
+      </ul>
+    </div>
   )
 }
 
-export function Predictions({ row, games }: { row: { predictions: PickemWeekRow["predictions"] }; games: WeekOverview["games"] | undefined }) {
+/** The columns every Pick'em standings row shares with its heading. */
+function PickemColumns({ rank, name, correct, goalError }: { rank: number; name: React.ReactNode; correct: number; goalError: number }) {
   return (
-    <ul className="space-y-1 px-3 pb-3 text-sm">
-      {row.predictions.map((p) => {
-        const game = games?.find((g) => g.id === p.gameId)
-        return (
-          <li key={p.gameId} className="flex items-baseline gap-2">
-            <span className="min-w-0 flex-1 truncate">
-              {game ? `${game.home.name} vs ${game.away.name}` : "Game"}
-              <OutcomeMark outcome={p.outcome} />
-            </span>
-            <span className="shrink-0 tabular-nums text-muted-foreground">
-              {p.homeScore} – {p.awayScore}
-            </span>
-          </li>
-        )
-      })}
-    </ul>
+    <>
+      <span className="w-7 font-semibold">{rank}</span>
+      <span className="min-w-0 flex-1 truncate">{name}</span>
+      <span className="w-14 text-right text-base font-bold">
+        {correct}
+        <span className="sr-only"> correct</span>
+      </span>
+      <span className="w-16 text-right text-muted-foreground">
+        {goalError}
+        <span className="sr-only"> goals off</span>
+      </span>
+    </>
+  )
+}
+
+/** Pick'em standings as a table in the Fantasy standings' style. */
+function PickemTable({ expandable, children }: { expandable?: boolean; children: React.ReactNode }) {
+  return (
+    <div className="border-t-2 border-foreground">
+      <div aria-hidden className="flex items-center gap-2 border-b border-border px-2 py-1.5 text-xs text-muted-foreground">
+        <span className="w-7">Rank</span>
+        <span className="flex-1">Team</span>
+        <span className="w-14 text-right">Correct</span>
+        <span className="w-16 text-right">Goals off</span>
+        {expandable && <span className="w-4" />}
+      </div>
+      <ol>{children}</ol>
+    </div>
+  )
+}
+
+/** Links by id, because Team Names can be renamed. Sits above a row's expand button. */
+function ManagerLink({ managerId, teamName }: { managerId: number; teamName: string }) {
+  return (
+    <IntentLink href={`/fantasy/manager/${managerId}`} className="relative font-semibold hover:underline">
+      {teamName}
+    </IntentLink>
   )
 }
 
 function PickemWeekStandings({ week, overview }: { week: PickemWeek; overview: WeekOverview | undefined }) {
+  const [open, setOpen] = useState<number | null>(null)
   if (week.rows.length === 0) {
     return <p className="text-sm text-muted-foreground">No Predictions were made this Week.</p>
   }
   return (
-    <ul className="space-y-2">
-      {week.rows.map((row) => (
-        <RankedCard key={row.managerId} {...row} score={<PickemRecord correct={row.correct} goalError={row.goalError} big={row.rank === 1} />}>
-          <div className="pt-3">
-            <Predictions row={row} games={overview?.games} />
-          </div>
-        </RankedCard>
-      ))}
-    </ul>
+    <PickemTable expandable>
+      {week.rows.map((row) => {
+        const isOpen = open === row.managerId
+        return (
+          <li key={row.managerId} className={cn("border-b border-border", isOpen && "bg-muted/60")}>
+            <div className="relative flex items-center gap-2 px-2 py-2.5 text-sm tabular-nums hover:bg-muted/60">
+              {/* Covers the row, so everywhere but the Team Name opens it. */}
+              <button
+                type="button"
+                aria-expanded={isOpen}
+                aria-label={`Predictions for ${row.teamName}`}
+                onClick={() => setOpen(isOpen ? null : row.managerId)}
+                className="absolute inset-0 w-full cursor-pointer"
+              />
+              <PickemColumns rank={row.rank} name={<ManagerLink {...row} />} correct={row.correct} goalError={row.goalError} />
+              <ChevronDown aria-hidden className={cn("size-4 text-muted-foreground transition-transform", isOpen && "rotate-180")} />
+            </div>
+            {isOpen && (
+              <div className="pb-3 pt-1 sm:px-2">
+                <Predictions row={row} games={overview?.games ?? []} />
+              </div>
+            )}
+          </li>
+        )
+      })}
+    </PickemTable>
   )
 }
 
 function PickemSeasonTable({ season }: { season: FantasyPageData["pickem"]["season"] }) {
   if (season.rows.length === 0) return <p className="text-sm text-muted-foreground">No Predictions yet.</p>
   return (
-    <ol className="space-y-1.5">
+    <PickemTable>
       {season.rows.map((row) => (
-        <SeasonRow key={row.managerId} {...row} score={<PickemRecord correct={row.correct} goalError={row.goalError} />} />
+        <li key={row.managerId} className="flex items-center gap-2 border-b border-border px-2 py-2.5 text-sm tabular-nums">
+          <PickemColumns rank={row.rank} name={<ManagerLink {...row} />} correct={row.correct} goalError={row.goalError} />
+        </li>
       ))}
-    </ol>
+    </PickemTable>
   )
 }
 
@@ -453,7 +415,6 @@ export function FantasyStandingsView({
     changeView(next)
   }
   const weekIds = Object.keys(overviews).sort()
-  const week = weeks.find((w) => w.id === view.weekId)
   const pickemWeek = pickem.weeks.find((w) => w.id === view.weekId)
   const overview = view.weekId ? overviews[view.weekId] : undefined
 
@@ -463,8 +424,8 @@ export function FantasyStandingsView({
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Fantasy</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            {data.status === "upcoming" && data.picksOpenAt
-              ? `This run hasn't started. Picks open ${instantLabel(data.picksOpenAt, data.timeZone)}. You can join now.`
+            {data.status === "upcoming"
+              ? "This run hasn't started. You can join and make picks now."
               : data.status === "active"
                 ? `Lineups and Predictions close ${closingLabel(data)}`
                 : data.status === "final-week"
@@ -483,8 +444,8 @@ export function FantasyStandingsView({
 
       <OpenContestList contests={data.otherOpenContests} />
 
-      {/* An upcoming run has no Week to show yet. */}
-      {data.status !== "upcoming" && (
+      {/* An upcoming run has no Week to show until its games are scheduled. */}
+      {(data.status !== "upcoming" || weekIds.length > 0) && (
         <div className="space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h2 className="text-lg font-semibold">{view.weekId ? `Week of ${weekLabel(view.weekId)}` : "This Week"}</h2>
@@ -501,9 +462,15 @@ export function FantasyStandingsView({
       <TabNav view={view} switchTo={changeView} />
 
       {view.tab === "fantasy" ? (
-        <FantasyStandings week={week} season={season} which={ranges.fantasy} onChange={setRange} />
+        <FantasyStandingsTable
+          weeks={weeks}
+          season={season}
+          scope={ranges.fantasy === "season" ? { range: "season" } : { range: "weekly", weekId: view.weekId }}
+          onSeason={() => setRange("season")}
+          onWeek={(weekId) => changeWeek({ ...view, weekId })}
+        />
       ) : (
-        <div className="mx-auto max-w-xl space-y-3">
+        <div className="mx-auto max-w-3xl space-y-3">
           <p className="text-sm text-muted-foreground">
             Ranked by winners picked correctly. Predicted scores only break ties: fewer total goals off ranks higher.
           </p>
@@ -513,7 +480,7 @@ export function FantasyStandingsView({
             weekly={{
               provisional: pickemWeek?.provisional,
               children: pickemWeek ? (
-                <PickemWeekStandings week={pickemWeek} overview={overview} />
+                <PickemWeekStandings key={pickemWeek.id} week={pickemWeek} overview={overview} />
               ) : (
                 <p className="text-sm text-muted-foreground">Predictions appear after this Week closes.</p>
               ),

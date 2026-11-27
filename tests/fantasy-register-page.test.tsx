@@ -81,10 +81,10 @@ describe("with a running and an upcoming contest", () => {
     expect((await db.select().from(schema.fantasyManagers)).map((m) => m.contest)).toEqual(["main"])
   })
 
-  it("says when picks open for a contest that hasn't started", async () => {
+  it("says picks can be made ahead for a contest that hasn't started", async () => {
     vi.setSystemTime(BETA_ACTIVE)
 
-    expect(await page("main")).toContain("picks open Saturday, Jan 2, 8:00 AM PST")
+    expect(await page("main")).toContain("you can make picks ahead")
   })
 
   it("shows a closed contest no form, only the way to an open one", async () => {
@@ -101,10 +101,10 @@ describe("with a running and an upcoming contest", () => {
     vi.setSystemTime(BETA_ACTIVE)
 
     expect((await fetchFantasyStandings("beta"))?.otherOpenContests).toEqual([
-      { contest: "main", picksOpenAt: "2027-01-02T16:00:00.000Z", timeZone: "America/Los_Angeles" },
+      { contest: "main" },
     ])
     expect((await fetchFantasyStandings("main"))?.otherOpenContests).toEqual([
-      { contest: "beta", picksOpenAt: null, timeZone: "America/Los_Angeles" },
+      { contest: "beta" },
     ])
   })
 
