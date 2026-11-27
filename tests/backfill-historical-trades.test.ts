@@ -296,6 +296,69 @@ describe("scripts/backfill-historical-trades.ts", () => {
         /missing player_seasons row for toTeamSlug "landsharks"/
       )
     })
+
+    it("resolves playerNameAliases across renamed/merged environments and aborts if multiple candidates are on the roster", async () => {
+      const ruiz: HistoricalTradeEntry = {
+        seasonId: "2021-2022",
+        leagueId: 48607,
+        playerName: "David Ruiz",
+        playerNameAliases: ["David Andrew Ruiz"],
+        sportabilityPlayerId: 2512796,
+        fromTeamSlug: "seals",
+        toTeamSlug: "reign",
+        gameDates: ["2021-09-25"],
+      }
+      const teams21 = [
+        { season_id: "2021-2022", team_slug: "seals" },
+        { season_id: "2021-2022", team_slug: "reign" },
+      ]
+
+      // Prod-like: primary name absent, alias matches uniquely and holds (2021-2022, reign)
+      const prodMock = makeMockSql((q) => {
+        if (q.includes("FROM players")) return [{ id: 1261, name: "David Andrew Ruiz" }]
+        if (q.includes("FROM season_teams")) return teams21
+        if (q.includes("FROM player_seasons")) return [{ player_id: 1261, season_id: "2021-2022", team_slug: "reign" }]
+        return []
+      })
+      const prodResolved = await resolveEntriesForDatabase(prodMock.sql, [ruiz])
+      expect(prodResolved[0]).toMatchObject({ playerName: "David Ruiz", playerId: 1261 })
+
+      // Dev-like: both primary and alias exist in players, only primary holds (2021-2022, reign)
+      const devMock = makeMockSql((q) => {
+        if (q.includes("FROM players")) {
+          return [
+            { id: 65, name: "David Andrew Ruiz" },
+            { id: 39724, name: "David Ruiz" },
+          ]
+        }
+        if (q.includes("FROM season_teams")) return teams21
+        if (q.includes("FROM player_seasons")) return [{ player_id: 39724, season_id: "2021-2022", team_slug: "reign" }]
+        return []
+      })
+      const devResolved = await resolveEntriesForDatabase(devMock.sql, [ruiz])
+      expect(devResolved[0]).toMatchObject({ playerName: "David Ruiz", playerId: 39724 })
+
+      // Ambiguous: both candidates hold (2021-2022, reign) -> must abort
+      const bothMock = makeMockSql((q) => {
+        if (q.includes("FROM players")) {
+          return [
+            { id: 65, name: "David Andrew Ruiz" },
+            { id: 39724, name: "David Ruiz" },
+          ]
+        }
+        if (q.includes("FROM season_teams")) return teams21
+        if (q.includes("FROM player_seasons")) {
+          return [
+            { player_id: 65, season_id: "2021-2022", team_slug: "reign" },
+            { player_id: 39724, season_id: "2021-2022", team_slug: "reign" },
+          ]
+        }
+        return []
+      })
+      await expect(resolveEntriesForDatabase(bothMock.sql, [ruiz])).rejects.toThrow(
+        /expected exactly 1 candidate on "reign" in player_seasons, found 2/
+      )
+    })
   })
 
   describe("auditBoxscoreRegressions", () => {
