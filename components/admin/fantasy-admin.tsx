@@ -1,7 +1,11 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
+import { useCallback, useEffect, useRef, useState } from "react"
+import { toast } from "sonner"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { ErrorNotice } from "@/components/error-notice"
 import { LoadingState } from "@/components/loading-state"
 import { FantasyConfigForm } from "@/components/admin/fantasy-config-form"
@@ -28,17 +32,22 @@ const STATUS_LABELS: Record<RunStatus, string> = { upcoming: "Upcoming", active:
 export function FantasyAdmin({
   seasonId,
   contest,
-  type = contest,
+  type,
 }: {
   seasonId: string
   contest: string
-  /** The kind of run being started, for one that isn't on yet. */
+  /** The kind of run being started. Passed for a run that was just created, whose settings open straight away. */
   type?: string
 }) {
+  const router = useRouter()
   const base = `/api/bash/admin/seasons/${seasonId}/fantasy`
+  const name = contestLabel(contest)
   const [data, setData] = useState<FantasyData | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
+  // Null until opened or closed by hand, so a run that was just created can start open.
+  const [settingsOpen, setSettingsOpen] = useState<boolean | null>(null)
+  const unsaved = useRef(false)
 
   const load = useCallback(async () => {
     try {
@@ -54,6 +63,13 @@ export function FantasyAdmin({
     void load()
   }, [load])
 
+  /** A toast shows wherever the page is scrolled, and the message also stays at the top. */
+  function fail(message: string) {
+    setActionError(message)
+    // At the top, because the default corner covers the settings window's Save button.
+    toast.error(message, { position: "top-center" })
+  }
+
   /** Runs a change, shows any failure, and returns the response body on success. */
   async function act(url: string, method: string, payload?: unknown) {
     setActionError(null)
@@ -65,51 +81,95 @@ export function FantasyAdmin({
       })
       const body = await readApiJson(response)
       if (!response.ok) {
-        setActionError([body.error, ...(Array.isArray(body.issues) ? body.issues : [])].join(" "))
+        fail([body.error, ...(Array.isArray(body.issues) ? body.issues : [])].join(" "))
         return null
       }
       await load()
       return body
     } catch (err) {
-      setActionError(errorMessage(err))
+      fail(errorMessage(err))
       return null
     }
+  }
+
+  async function saveSettings(config: FantasyConfig) {
+    const turningOn = !data?.enabled
+    if (!(await act(base, "PUT", { contest, config }))) return
+    unsaved.current = false
+    setSettingsOpen(false)
+    toast.success(turningOn ? `${name} is turned on.` : `${name} settings saved.`)
+    // The run tabs are rendered on the server, so a new run's tab only changes on a refresh.
+    router.refresh()
+  }
+
+  function changeSettingsOpen(open: boolean) {
+    if (!open && unsaved.current && !window.confirm("Discard your unsaved changes?")) return
+    unsaved.current = false
+    setActionError(null)
+    setSettingsOpen(open)
   }
 
   if (loadError) return <ErrorNotice message={loadError} onRetry={load} />
   if (!data) return <LoadingState variant="list" label="Loading Fantasy…" />
 
+  const showSettings = settingsOpen ?? (type !== undefined && !data.enabled)
+
   return (
-    <div className="space-y-8">
-      {actionError && <p role="alert" className="text-sm text-destructive">{actionError}</p>}
-
-      {data.overview && <FantasyOverviewPanel overview={data.overview} people={data.managers} />}
-
-      <section className="space-y-3">
-        <div className="flex items-center gap-2">
-          <h2 className="text-lg font-semibold">{contestLabel(contest)} settings</h2>
-          <Badge variant="secondary">{data.status ? STATUS_LABELS[data.status] : "Off"}</Badge>
+    <div className="space-y-6">
+      <section className="space-y-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <h2 className="text-lg font-semibold">{name}</h2>
+          <Badge variant="secondary">{data.status ? STATUS_LABELS[data.status] : "Not saved"}</Badge>
+          <Button size="sm" variant="outline" className="ml-auto" onClick={() => changeSettingsOpen(true)}>
+            {data.enabled ? "Settings" : "Set up run"}
+          </Button>
         </div>
-        <p className="text-sm text-muted-foreground">These apply to this run only. Other runs keep their own.</p>
+        {!data.enabled && (
+          <p role="note" className="rounded-md border border-border bg-muted p-3 text-sm">
+            {name} isn&apos;t saved yet. Set it up, then click Turn on run.
+          </p>
+        )}
         {data.status === "upcoming" && data.picksOpenAt && (
           <p className="text-sm text-muted-foreground">
             People can join now. Picks open {instantLabel(data.picksOpenAt, data.config.lock.timeZone)}.
           </p>
         )}
-        {data.hasLineups && (
-          <p className="text-sm text-muted-foreground">
-            Lineups exist. Changes re-score every Week straight away, and changing the Lock day or time moves which Week each saved Lineup belongs to.
-          </p>
-        )}
-        <FantasyConfigForm
-          // Starts the form again from what was stored whenever that changes.
-          key={JSON.stringify(data.config)}
-          initial={data.enabled ? data.config : startingConfig(type, data.config)}
-          enabled={data.enabled}
-          hasLineups={data.hasLineups}
-          onSave={async (config) => void (await act(base, "PUT", { contest, config }))}
-        />
+        {/* While the settings are open, a failure shows inside them. */}
+        {actionError && !showSettings && <p role="alert" className="text-sm text-destructive">{actionError}</p>}
       </section>
+
+      {data.overview && <FantasyOverviewPanel overview={data.overview} people={data.managers} />}
+
+      <Dialog open={showSettings} onOpenChange={changeSettingsOpen}>
+        <DialogContent
+          className="flex max-h-[90vh] flex-col gap-0 p-0 sm:max-w-3xl"
+          // A stray click outside, or on a toast, shouldn't throw away what's been typed.
+          onInteractOutside={(event) => event.preventDefault()}
+        >
+          <DialogHeader className="border-b px-6 py-4 text-left">
+            <DialogTitle>{name} settings</DialogTitle>
+            <DialogDescription>
+              These apply to this run only. Other runs keep their own.
+              {data.hasLineups &&
+                " Lineups exist: changes re-score every Week straight away, and changing the closing day or time can move saved Lineups to a different Week."}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="min-h-0 overflow-y-auto px-6 pt-4">
+            {actionError && <p role="alert" className="mb-4 text-sm text-destructive">{actionError}</p>}
+            <FantasyConfigForm
+              // Starts the form again from what was stored whenever that changes.
+              key={JSON.stringify(data.config)}
+              initial={data.enabled ? data.config : startingConfig(type ?? contest, data.config)}
+              enabled={data.enabled}
+              hasLineups={data.hasLineups}
+              onDirtyChange={(dirty) => {
+                unsaved.current = dirty
+              }}
+              onSave={saveSettings}
+            />
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

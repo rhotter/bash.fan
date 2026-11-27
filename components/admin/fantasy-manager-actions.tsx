@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation"
 import { useState } from "react"
+import { toast } from "sonner"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -36,11 +37,13 @@ export function FantasyManagerActions({
       const body = await readApiJson(response)
       if (!response.ok) {
         setError(body.error)
+        toast.error(body.error)
         return null
       }
       return body
     } catch (err) {
       setError(errorMessage(err))
+      toast.error(errorMessage(err))
       return null
     }
   }
@@ -48,18 +51,23 @@ export function FantasyManagerActions({
   async function rename() {
     if (renaming === null || !(await act(url, "PATCH", { teamName: renaming }))) return
     setRenaming(null)
+    toast.success("Team renamed.")
     router.refresh()
   }
 
   async function reissue() {
     if (!window.confirm(`Reissue the link for ${manager.teamName}? Their old link stops working.`)) return
     const body = await act(`${url}/reissue`, "POST")
-    if (body) setReissuedPath(body.managerPath)
+    if (!body) return
+    setReissuedPath(body.managerPath)
+    toast.success("New link created. Copy it now: it's shown only once.")
   }
 
   async function remove() {
     if (!window.confirm(`Remove ${manager.teamName} and delete their Lineups? This can't be undone.`)) return
-    if (await act(url, "DELETE")) router.push(backHref)
+    if (!(await act(url, "DELETE"))) return
+    toast.success(`${manager.teamName} removed.`)
+    router.push(backHref)
   }
 
   return (

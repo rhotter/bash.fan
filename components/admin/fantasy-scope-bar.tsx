@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation"
 import { useState, type FormEvent } from "react"
+import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { RUN_TYPES } from "@/lib/fantasy/config-draft"
@@ -126,6 +127,12 @@ export function FantasyScopeBar({
           onCancel={() => setAdding(false)}
           onCreate={(key, type) => {
             setAdding(false)
+            // Nothing is stored yet, so say what's left to do.
+            toast.info(`${contestLabel(key)} isn't saved yet.`, {
+              description: "Check its settings, then click Turn on run.",
+              // The new run's settings open next, with Save in the default corner.
+              position: "top-center",
+            })
             router.push(href(seasonId, key, type))
           }}
         />

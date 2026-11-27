@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Input } from "@/components/ui/input"
+import { Spinner } from "@/components/ui/spinner"
 import { Textarea } from "@/components/ui/textarea"
 import { checkFantasyConfig, GAME_TYPES, type FantasyConfig } from "@/lib/fantasy/config"
 import {
@@ -155,15 +156,19 @@ export function FantasyConfigForm({
   enabled,
   hasLineups,
   onSave,
+  onDirtyChange,
 }: {
   initial: FantasyConfig
   /** Whether the run is already on. */
   enabled: boolean
   hasLineups: boolean
   onSave: (config: FantasyConfig) => void | Promise<void>
+  /** Told whether the draft, as fields or JSON, differs from where it started. */
+  onDirtyChange?: (dirty: boolean) => void
 }) {
   const [{ draft, text }, setState] = useState(() => ({ draft: initial as ConfigDraft, text: stringify(initial) }))
   const [advancedOpen, setAdvancedOpen] = useState(false)
+  const [saving, setSaving] = useState(false)
   const [confirming, setConfirming] = useState<{ config: FantasyConfig; changes: string[] } | null>(null)
   // The last cap typed for each kind, so unticking No limit brings it back.
   const [lastCap, setLastCap] = useState<Partial<ConfigDraft["usageCap"]>>({})
@@ -172,19 +177,32 @@ export function FantasyConfigForm({
   const check = checkFantasyConfig(draft)
   const issues = check.ok ? [] : check.issues
 
-  const change = (next: ConfigDraft) => setState({ draft: next, text: stringify(next) })
+  const update = (state: { draft: ConfigDraft; text: string }) => {
+    setState(state)
+    onDirtyChange?.(state.text !== stringify(initial))
+  }
+  const change = (next: ConfigDraft) => update({ draft: next, text: stringify(next) })
   const changeJson = (next: string) => {
     const read = readJson(next)
-    setState({ draft: read.draft ?? draft, text: next })
+    update({ draft: read.draft ?? draft, text: next })
     if (read.problem !== undefined) setAdvancedOpen(true)
+  }
+
+  async function save(config: FantasyConfig) {
+    setSaving(true)
+    try {
+      await onSave(config)
+    } finally {
+      setSaving(false)
+    }
   }
 
   function submit(event: FormEvent) {
     event.preventDefault()
-    if (problem !== undefined || !check.ok) return
+    if (saving || problem !== undefined || !check.ok) return
     const changes = describeConfigChanges(initial, check.config)
     if (enabled && hasLineups && changes.length > 0) setConfirming({ config: check.config, changes })
-    else void onSave(check.config)
+    else void save(check.config)
   }
 
   const timeZones = Intl.supportedValuesOf("timeZone")
@@ -193,7 +211,7 @@ export function FantasyConfigForm({
     (["dayOfWeek", "time", "timeZone"] as const).some((key) => confirming.config.lock[key] !== initial.lock[key])
 
   return (
-    <form onSubmit={submit} noValidate className="max-w-3xl space-y-6">
+    <form onSubmit={submit} noValidate className="space-y-6">
       <fieldset disabled={problem !== undefined} className="min-w-0 space-y-6 disabled:opacity-50">
         <Group title="Games that count">
           <div className="flex flex-wrap gap-x-5 gap-y-2">
@@ -399,12 +417,14 @@ export function FantasyConfigForm({
         </CollapsibleContent>
       </Collapsible>
 
-      <div className="space-y-2">
+      {/* Stays in view while a long form scrolls inside its window. */}
+      <div className="sticky bottom-0 flex flex-wrap items-center justify-end gap-3 border-t bg-background py-3">
         {problem === undefined && !check.ok && (
           <p className="text-sm text-destructive">Fix the highlighted settings to save.</p>
         )}
-        <Button type="submit" disabled={problem !== undefined || !check.ok}>
-          {enabled ? "Save settings" : "Turn on run"}
+        <Button type="submit" disabled={saving || problem !== undefined || !check.ok}>
+          {saving && <Spinner aria-hidden />}
+          {saving ? "Saving…" : enabled ? "Save settings" : "Turn on run"}
         </Button>
       </div>
 
@@ -425,7 +445,7 @@ export function FantasyConfigForm({
           </ul>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={() => confirming && void onSave(confirming.config)}>Save changes</AlertDialogAction>
+            <AlertDialogAction onClick={() => confirming && void save(confirming.config)}>Save changes</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

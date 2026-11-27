@@ -1,6 +1,7 @@
 "use client"
 
 import { useRouter } from "next/navigation"
+import { toast } from "sonner"
 import { LineupFormPanel } from "@/components/fantasy/lineup-form"
 import { PredictionsFormPanel } from "@/components/fantasy/predictions-form"
 import { WeekOverviewPanel } from "@/components/fantasy/week-overview"
@@ -18,7 +19,10 @@ export function FantasyPicksEditor({ picks, adminUrl, pageHref }: { picks: Admin
   const router = useRouter()
   const { form, weekIds, openWeekId, closed } = picks
   // The page's points, history and uses are rendered on the server, so reload them after a save.
-  const onSaved = () => router.refresh()
+  const onSaved = () => {
+    toast.success("Picks saved.")
+    router.refresh()
+  }
 
   if (form.status === "upcoming" && form.picksOpenAt) {
     return (
