@@ -21,7 +21,7 @@ import {
 } from "./scoring"
 import { getFantasySeason, type FantasySeason } from "./season"
 import { buildStandings } from "./standings"
-import { buildWeekOverview, countsForGame, gameWeekId, openWeek } from "./week"
+import { buildWeekOverview, countsForGame, gameWeekId, openWeek, scheduledStart, weekContaining, type FantasyWeek } from "./week"
 
 const { fantasyLineups, fantasyPredictions } = schema
 
@@ -305,12 +305,10 @@ function pickemHistory(
   }
 }
 
-export async function loadLineupForm(manager: ManagerIdentity, now = new Date()) {
-  const context = await readManagerContext(manager)
-  if (!context) return null
-  const { season, state, predictions } = context
+type ManagerContext = NonNullable<Awaited<ReturnType<typeof readManagerContext>>>
 
-  const week = openWeek(now, season.config.lock)
+/** One Week's forms: its games, who can be selected, and what's saved. */
+function buildWeekForm(manager: ManagerIdentity, { season, state, predictions }: ManagerContext, week: FantasyWeek, now: Date) {
   const { roster, uses, defaultGoalies, onBye } = capContext(state, season, week.id)
   const ids = roster.map((entry) => entry.playerId)
   const skaterUses = remainingUses(ids, "skater", uses.skater, season.config)
@@ -343,6 +341,45 @@ export async function loadLineupForm(manager: ManagerIdentity, now = new Date())
     history: managerHistory(manager, state, season, now),
     predictions,
     pickemHistory: pickemHistory(manager, state, season, predictions, now),
+  }
+}
+
+export async function loadLineupForm(manager: ManagerIdentity, now = new Date()) {
+  const context = await readManagerContext(manager)
+  if (!context) return null
+  return buildWeekForm(manager, context, openWeek(now, context.season.config.lock), now)
+}
+
+/** The closed Weeks with counting games, oldest first, followed by the open Week. Later Weeks can't be edited. */
+function adminWeeks(state: SeasonState, season: FantasySeason, now: Date) {
+  const { lock } = season.config
+  const open = openWeek(now, lock)
+  const weeks = new Map<string, FantasyWeek>([[open.id, open]])
+  for (const game of state.games) {
+    if (!countsForGame(game, season.launchedAt, lock)) continue
+    const week = weekContaining(scheduledStart(game, lock), lock)
+    if (week.id < open.id) weeks.set(week.id, week)
+  }
+  return { open, weeks: [...weeks.values()].sort((a, b) => a.id.localeCompare(b.id)) }
+}
+
+/**
+ * Admin-only: a Manager's picks for any Week up to the open one, including picks that aren't public yet.
+ * An unknown or later Week falls back to the open Week.
+ */
+export async function loadAdminPicks(manager: ManagerIdentity, weekId?: string, now = new Date()) {
+  const context = await readManagerContext(manager)
+  if (!context) return null
+  const { open, weeks } = adminWeeks(context.state, context.season, now)
+  const week = weeks.find(({ id }) => id === weekId) ?? open
+  const form = buildWeekForm(manager, context, week, now)
+  const gameIds = new Set(form.overview.games.map(({ id }) => id))
+  return {
+    weekIds: weeks.map(({ id }) => id),
+    openWeekId: open.id,
+    /** True once the Week's Lock has passed, so the Manager can no longer change it. */
+    closed: week.id !== open.id,
+    form: { ...form, predictions: form.predictions.filter(({ gameId }) => gameIds.has(gameId)) },
   }
 }
 
@@ -396,11 +433,45 @@ export async function saveLineup(
   const errors = validateLineup(lineup, capContext(state, season, weekId))
   if (errors.length > 0) return { outcome: "invalid", errors }
 
+  await writeLineup(manager.id, weekId, lineup, now)
+  return { outcome: "saved" }
+}
+
+async function writeLineup(managerId: number, weekId: string, lineup: Lineup, now: Date) {
   const values = { ...lineup, updatedAt: now }
   await db
     .insert(fantasyLineups)
-    .values({ managerId: manager.id, weekId, ...values })
+    .values({ managerId, weekId, ...values })
     .onConflictDoUpdate({ target: [fantasyLineups.managerId, fantasyLineups.weekId], set: values })
+}
+
+export type AdminSaveResult =
+  | { outcome: "saved" }
+  | { outcome: "no-games" }
+  | { outcome: "invalid"; errors: LineupError[]; canOverride: boolean }
+
+/**
+ * Saves a Lineup for a Manager in any Week up to the open one, ignoring the Lock. Every other rule applies,
+ * counting uses from all the Manager's other Weeks, later ones included. Only the Usage Cap can be overridden.
+ */
+export async function adminSaveLineup(
+  manager: ManagerIdentity,
+  season: FantasySeason,
+  weekId: string,
+  lineup: Lineup,
+  { overrideCap = false } = {},
+  now = new Date()
+): Promise<AdminSaveResult> {
+  const state = await readSeasonState(manager, season.config.gameTypes)
+  if (weekId > openWeek(now, season.config.lock).id || weekGames(state, season, weekId).length === 0) {
+    return { outcome: "no-games" }
+  }
+
+  const errors = validateLineup(lineup, capContext(state, season, weekId))
+  const canOverride = errors.every((error) => error === "at-usage-cap")
+  if (errors.length > 0 && !(overrideCap && canOverride)) return { outcome: "invalid", errors, canOverride }
+
+  await writeLineup(manager.id, weekId, lineup, now)
   return { outcome: "saved" }
 }
 

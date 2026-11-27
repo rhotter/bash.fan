@@ -10,6 +10,7 @@ import { PredictionsFormPanel } from "@/components/fantasy/predictions-form"
 import type { LineupForm } from "@/lib/fantasy/lineups"
 import type { SelectionOption } from "@/lib/fantasy/selection-options"
 import { FantasyStandingsView } from "@/components/fantasy/standings"
+import { FantasyOverviewPanel } from "@/components/admin/fantasy-overview"
 import { WeekOverviewPanel } from "@/components/fantasy/week-overview"
 import type { FantasyPageData } from "@/lib/fetch-fantasy"
 import type { WeekOverview } from "@/lib/fantasy/week"
@@ -178,7 +179,7 @@ describe("FantasyStandingsView", () => {
     expect(container.querySelector('[aria-label="Weekly standings"]')).toBeNull()
   })
 
-  it("only shows the contest switcher when there is more than one, with the first as the plain /fantasy", async () => {
+  it("only shows the contest switcher when there is more than one, naming each contest in its link", async () => {
     await render(<FantasyStandingsView data={pageData} view={{ tab: "fantasy", weekId: "2026-11-07" }} />)
     expect(container.querySelector('[aria-label="Contests"]')).toBeNull()
 
@@ -189,11 +190,31 @@ describe("FantasyStandingsView", () => {
       />
     )
     const links = [...container.querySelectorAll('[aria-label="Contests"] a')]
-    expect(links.map((a) => a.getAttribute("href"))).toEqual(["/fantasy", "/fantasy?contest=playoffs"])
+    expect(links.map((a) => a.getAttribute("href"))).toEqual(["/fantasy?contest=regular", "/fantasy?contest=playoffs"])
     expect(links[1].getAttribute("aria-current")).toBe("page")
     expect([...container.querySelectorAll("a")].find((a) => a.textContent === "Join Fantasy")?.getAttribute("href")).toBe(
       "/fantasy/register?contest=playoffs"
     )
+  })
+
+  it("keeps the contest in tab and Week links and the rewritten URL when there is more than one", async () => {
+    const replace = vi.spyOn(window.history, "replaceState")
+    // No contest in the view, as on a plain /fantasy.
+    await render(
+      <FantasyStandingsView
+        data={{ ...pageData, contest: "playoffs", contests: ["regular", "playoffs"] }}
+        view={{ tab: "fantasy", weekId: "2026-11-07" }}
+      />
+    )
+    const links = [...container.querySelectorAll<HTMLAnchorElement>('[aria-label="Weeks"] a, [aria-label="Game"] a')]
+    expect(links.length).toBeGreaterThan(0)
+    for (const link of links) expect(link.getAttribute("href")).toContain("contest=playoffs")
+
+    await act(async () =>
+      links.find((a) => a.textContent === "Pick'em")!.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, button: 0 }))
+    )
+    expect(replace).toHaveBeenLastCalledWith(null, "", "/fantasy?contest=playoffs&tab=pickem&week=2026-11-07")
+    replace.mockRestore()
   })
 
   it("links the tabs and Weeks through the URL and marks the current ones", async () => {
@@ -290,6 +311,36 @@ describe("FantasyStandingsView", () => {
     await render(<FantasyStandingsView data={pageData} view={{ tab: "pickem", weekId: "2026-11-14" }} />)
 
     expect(container.querySelector('[aria-label="Weekly standings"]')?.textContent).toContain("after this Week closes")
+  })
+})
+
+describe("FantasyOverviewPanel", () => {
+  const weeks = [{ id: "2026-11-07", provisional: false }]
+  const row = { rank: 1, points: 20, weeks: [], uses: [], openWeekSubmitted: false }
+
+  it("shows each Manager's real name and flags the duplicates", async () => {
+    await render(
+      <FantasyOverviewPanel
+        overview={{ weeks, managers: [{ ...row, managerId: 7, teamName: "Puck Norris" }, { ...row, managerId: 9, teamName: "Oracle" }] }}
+        people={[
+          { id: 7, firstName: "Ada", lastName: "Lovelace", duplicate: true },
+          { id: 9, firstName: "Grace", lastName: "Hopper", duplicate: false },
+        ]}
+      />
+    )
+    expect([...container.querySelectorAll("th")].map((th) => th.textContent)).toEqual(
+      expect.arrayContaining(["First name", "Last name"])
+    )
+    const [first, second] = [...container.querySelectorAll("tbody tr")].map((tr) => [...tr.querySelectorAll("td")].map((td) => td.textContent))
+    expect(first.slice(1, 4)).toEqual(["Puck Norris", "Ada", "LovelaceDuplicate name"])
+    expect(second.slice(1, 4)).toEqual(["Oracle", "Grace", "Hopper"])
+  })
+
+  it("says so when nobody has registered", async () => {
+    await render(<FantasyOverviewPanel overview={{ weeks, managers: [] }} people={[]} />)
+    const cell = container.querySelector<HTMLTableCellElement>("tbody td")
+    expect(cell?.textContent).toBe("No managers registered yet.")
+    expect(cell?.colSpan).toBe(container.querySelectorAll("thead th").length)
   })
 })
 
@@ -401,6 +452,86 @@ describe("LineupFormPanel", () => {
 
     expect(container.textContent).toContain("Cy Clark")
     expect(document.body.textContent).not.toContain("Seals vs Yetis")
+  })
+})
+
+describe("admin pick entry", () => {
+  const url = "/api/bash/admin/seasons/s1/fantasy/managers/7"
+  const fetchMock = vi.fn()
+  const button = (name: string) =>
+    [...document.body.querySelectorAll("button")].find(
+      (b) => b.textContent?.includes(name) || b.getAttribute("aria-label")?.includes(name)
+    )
+  const submit = () => act(async () => container.querySelector("form")!.requestSubmit())
+  const respond = (status: number, body: object) =>
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify(body), { status }))
+
+  // Restores only fetch: unstubbing every global would also drop the file's ResizeObserver.
+  const realFetch = globalThis.fetch
+  beforeEach(() => {
+    fetchMock.mockReset()
+    globalThis.fetch = fetchMock
+  })
+  afterEach(() => {
+    globalThis.fetch = realFetch
+  })
+
+  it("saves a Lineup through the admin route, with no Manager token or closing time", async () => {
+    respond(200, { saved: true })
+    const onSaved = vi.fn()
+    await render(<LineupFormPanel form={formFixture()} adminUrl={url} onSaved={onSaved} />)
+    expect(container.textContent).not.toContain("closes")
+
+    await submit()
+
+    const [target, init] = fetchMock.mock.calls[0]
+    expect(target).toBe(`${url}/lineup`)
+    expect(init.headers.Authorization).toBeUndefined()
+    expect(JSON.parse(init.body)).toMatchObject({ weekId: "2026-11-07", overrideCap: false })
+    expect(onSaved).toHaveBeenCalled()
+  })
+
+  it("lets an admin choose a Player with no uses left", async () => {
+    await render(<LineupFormPanel form={formFixture()} adminUrl={url} />)
+
+    await act(async () => button("Skater 2")!.click())
+
+    expect((button("Bo Jackson") as HTMLButtonElement).disabled).toBe(false)
+  })
+
+  it("asks before going over the Usage Cap, then sends the override", async () => {
+    respond(422, { error: "That Lineup can't be saved.", errors: ["at-usage-cap"], canOverride: true })
+    respond(200, { saved: true })
+    await render(<LineupFormPanel form={formFixture()} adminUrl={url} />)
+    await submit()
+    expect(container.textContent).toContain("no uses left")
+
+    await act(async () => button("Save over the cap")!.click())
+
+    expect(JSON.parse(fetchMock.mock.calls[1][1].body).overrideCap).toBe(true)
+    expect(button("Save over the cap")).toBeUndefined()
+  })
+
+  it("offers no override for any other rule", async () => {
+    respond(422, { error: "That Lineup can't be saved.", errors: ["duplicate-player"], canOverride: false })
+    await render(<LineupFormPanel form={formFixture()} adminUrl={url} />)
+
+    await submit()
+
+    expect(button("Save over the cap")).toBeUndefined()
+  })
+
+  it("saves Predictions through the admin route", async () => {
+    respond(200, { saved: true })
+    const week = formFixture().week
+    await render(<PredictionsFormPanel overview={overview} saved={[]} week={week} adminUrl={url} />)
+    expect(container.textContent).not.toContain("Predictions close")
+
+    await submit()
+
+    const [target, init] = fetchMock.mock.calls[0]
+    expect(target).toBe(`${url}/predictions`)
+    expect(init.headers.Authorization).toBeUndefined()
   })
 })
 

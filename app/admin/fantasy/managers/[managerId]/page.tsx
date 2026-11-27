@@ -2,12 +2,13 @@ import type { Metadata } from "next"
 import { notFound } from "next/navigation"
 import { getSession } from "@/lib/admin-session"
 import { FantasyManagerActions } from "@/components/admin/fantasy-manager-actions"
+import { FantasyPicksEditor } from "@/components/admin/fantasy-picks-editor"
 import { UsageList } from "@/components/admin/fantasy-overview"
 import { IntentLink } from "@/components/intent-link"
 import { PickemHistory } from "@/components/fantasy/manager-history"
 import { BoxScore } from "@/components/fantasy/standings"
 import { WeekRow } from "@/components/fantasy/week-row"
-import { loadPublicManager } from "@/lib/fantasy/lineups"
+import { loadAdminPicks, loadPublicManager } from "@/lib/fantasy/lineups"
 import { fetchFantasyOverview } from "@/lib/fetch-fantasy"
 import { findManagerById, listManagers, parseManagerId } from "@/lib/fantasy/managers"
 import { getFantasySeason } from "@/lib/fantasy/season"
@@ -16,7 +17,13 @@ import { getSeasonById } from "@/lib/seasons"
 export const dynamic = "force-dynamic"
 export const metadata: Metadata = { title: "Fantasy team" }
 
-export default async function AdminFantasyTeamPage({ params }: { params: Promise<{ managerId: string }> }) {
+export default async function AdminFantasyTeamPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ managerId: string }>
+  searchParams: Promise<{ week?: string }>
+}) {
   // This page renders real names on the server, so it checks the session itself rather than relying on the layout.
   if (!(await getSession())) notFound()
   const managerId = parseManagerId((await params).managerId)
@@ -31,14 +38,16 @@ export default async function AdminFantasyTeamPage({ params }: { params: Promise
   ])
   if (!season || !fantasySeason) notFound()
 
-  const [overview, managers, profile] = await Promise.all([
+  const { week } = await searchParams
+  const [overview, managers, profile, picks] = await Promise.all([
     fetchFantasyOverview(fantasySeason),
     listManagers(season.id, identity.contest),
     loadPublicManager(identity),
+    loadAdminPicks(identity, week),
   ])
   const manager = overview.managers.find((m) => m.managerId === managerId)
   const person = managers.find((m) => m.id === managerId)
-  if (!manager || !person || !profile) notFound()
+  if (!manager || !person || !profile || !picks) notFound()
   const back = `/admin/fantasy?season=${encodeURIComponent(season.id)}&contest=${encodeURIComponent(identity.contest)}`
 
   return (
@@ -60,6 +69,12 @@ export default async function AdminFantasyTeamPage({ params }: { params: Promise
       </div>
 
       <FantasyManagerActions seasonId={season.id} manager={person} backHref={back} />
+
+      <FantasyPicksEditor
+        picks={picks}
+        adminUrl={`/api/bash/admin/seasons/${encodeURIComponent(season.id)}/fantasy/managers/${manager.managerId}`}
+        pageHref={`/admin/fantasy/managers/${manager.managerId}`}
+      />
 
       <div className="grid items-start gap-6 md:grid-cols-2">
         <section className="space-y-3">

@@ -69,13 +69,11 @@ function ViewLink({ view, switchTo, ...props }: { view: FantasyView; switchTo: C
 
 function WeekPicker({
   weekIds,
-  tab,
-  selectedId,
+  view,
   switchTo,
 }: {
   weekIds: string[]
-  tab: FantasyTab
-  selectedId: string
+  view: FantasyView
   switchTo: ChangeView
 }) {
   return (
@@ -83,12 +81,12 @@ function WeekPicker({
       {weekIds.map((id) => (
         <ViewLink
           key={id}
-          view={{ tab, weekId: id }}
+          view={{ ...view, weekId: id }}
           switchTo={switchTo}
-          aria-current={id === selectedId ? "page" : undefined}
+          aria-current={id === view.weekId ? "page" : undefined}
           className={cn(
             "shrink-0 rounded-md px-2 py-1 text-xs font-semibold transition-colors",
-            id === selectedId ? "bg-secondary text-foreground" : "text-muted-foreground hover:text-foreground"
+            id === view.weekId ? "bg-secondary text-foreground" : "text-muted-foreground hover:text-foreground"
           )}
         >
           {weekLabel(id)}
@@ -109,7 +107,7 @@ function TabNav({ view, switchTo }: { view: FantasyView; switchTo: ChangeView })
       {TABS.map(({ tab, label }) => (
         <ViewLink
           key={tab}
-          view={{ tab, weekId: view.weekId }}
+          view={{ ...view, tab }}
           switchTo={switchTo}
           aria-current={tab === view.tab ? "page" : undefined}
           className={cn(
@@ -391,11 +389,10 @@ function PickemSeasonTable({ season }: { season: FantasyPageData["pickem"]["seas
 function ContestNav({ data }: { data: FantasyPageData }) {
   return (
     <nav aria-label="Contests" className="flex gap-1">
-      {data.contests.map((key, index) => (
+      {data.contests.map((key) => (
         <IntentLink
           key={key}
-          // The first contest is the page's default, so its link stays the plain /fantasy.
-          href={fantasyHref({ tab: "fantasy", weekId: null, contest: index === 0 ? undefined : key })}
+          href={fantasyHref({ tab: "fantasy", weekId: null, contest: key })}
           aria-current={key === data.contest ? "page" : undefined}
           className={cn(
             "rounded-md px-3 py-1 text-sm font-semibold capitalize transition-colors",
@@ -411,7 +408,10 @@ function ContestNav({ data }: { data: FantasyPageData }) {
 
 /** Everything it needs is already here, so the tab and Week switch in place and only rewrite the URL. */
 export function FantasyStandingsView({ data, view: initialView }: { data: FantasyPageData; view: FantasyView }) {
-  const [view, setView] = useState(initialView)
+  // With more than one contest, every link and rewritten URL names this one, so a reload or a shared link stays on it.
+  const [view, setView] = useState(() =>
+    data.contests.length > 1 ? { ...initialView, contest: data.contest } : initialView
+  )
   const { weeks, season, overviews, pickem } = data
 
   function changeView(next: FantasyView) {
@@ -440,7 +440,7 @@ export function FantasyStandingsView({ data, view: initialView }: { data: Fantas
       <div className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-lg font-semibold">{view.weekId ? `Week of ${weekLabel(view.weekId)}` : "This Week"}</h2>
-          {weekIds.length > 1 && view.weekId && <WeekPicker weekIds={weekIds} tab={view.tab} selectedId={view.weekId} switchTo={changeView} />}
+          {weekIds.length > 1 && view.weekId && <WeekPicker weekIds={weekIds} view={view} switchTo={changeView} />}
         </div>
         {overview ? (
           <WeekOverviewPanel overview={overview} />

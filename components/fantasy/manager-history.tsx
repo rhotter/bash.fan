@@ -7,7 +7,7 @@ export function PickemHistory({ pickem, own }: { pickem: LineupForm["pickemHisto
   return (
     <section className="mt-8 space-y-3">
       <div className="flex items-baseline justify-between gap-3">
-        <h2 className="text-lg font-semibold">Pick'em</h2>
+        <h2 className="text-lg font-semibold">Pick&apos;em</h2>
         <p className="text-sm text-muted-foreground">
           Season: {pickem.correct} correct, {pickem.goalError} goals off
         </p>

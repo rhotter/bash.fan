@@ -66,6 +66,7 @@ describe("the Fantasy config", () => {
     ["a cap of zero", { usageCap: { skater: 0, goalie: 4 } }, "usageCap.skater"],
     ["a repeated game type", { gameTypes: ["regular", "regular"] }, "gameTypes"],
     ["no game types", { gameTypes: [] }, "gameTypes"],
+    ["a misspelled game type", { gameTypes: ["regularr"] }, "gameTypes"],
   ])("rejects %s", (_name, change, path) => {
     expect(issues(change).some((issue) => issue.startsWith(path))).toBe(true)
   })

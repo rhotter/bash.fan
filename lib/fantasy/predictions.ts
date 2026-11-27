@@ -40,10 +40,31 @@ export async function savePredictions(
   predictions: Prediction[],
   now = new Date()
 ): Promise<SavePredictionsResult> {
-  const { lock } = season.config
-  const open = openWeek(now, lock)
+  const open = openWeek(now, season.config.lock)
   if (weekId !== open.id) return { outcome: "locked", openWeekId: open.id }
+  return replaceWeekPredictions(manager, season, weekId, predictions, now)
+}
 
+/** Replaces a Manager's Predictions for any Week up to the open one, ignoring the Lock. Every other rule applies. */
+export async function adminSavePredictions(
+  manager: ManagerIdentity,
+  season: FantasySeason,
+  weekId: string,
+  predictions: Prediction[],
+  now = new Date()
+) {
+  if (weekId > openWeek(now, season.config.lock).id) return { outcome: "no-games" as const }
+  return replaceWeekPredictions(manager, season, weekId, predictions, now)
+}
+
+async function replaceWeekPredictions(
+  manager: ManagerIdentity,
+  season: FantasySeason,
+  weekId: string,
+  predictions: Prediction[],
+  now: Date
+): Promise<Exclude<SavePredictionsResult, { outcome: "locked" }>> {
+  const { lock } = season.config
   const games = (await readSeasonGames(manager.seasonId, season.config.gameTypes)).filter(
     (game) => countsForGame(game, season.launchedAt, lock) && gameWeekId(game, lock) === weekId
   )

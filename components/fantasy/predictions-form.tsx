@@ -3,6 +3,7 @@
 import { useState, type FormEvent } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { saveRequest, type SaveTarget } from "@/components/fantasy/save-target"
 import { errorMessage, fetchApi, readApiJson } from "@/lib/api-errors"
 import { isValidPrediction, MAX_PREDICTED_SCORE, type Prediction } from "@/lib/fantasy/pickem"
 import type { PredictionError } from "@/lib/fantasy/predictions"
@@ -68,13 +69,13 @@ export function PredictionsFormPanel({
   overview,
   saved,
   week,
-  token,
+  ...target
 }: {
   overview: WeekOverview
   saved: Prediction[]
   week: { id: string; lockAt: string; timeZone: string }
-  token: string
-}) {
+} & SaveTarget) {
+  const isAdmin = target.adminUrl !== undefined
   const [boxes, setBoxes] = useState(() => initialBoxes(overview, saved))
   const [saving, setSaving] = useState(false)
   const [dirty, setDirty] = useState(false)
@@ -103,16 +104,14 @@ export function PredictionsFormPanel({
     setSaving(true)
     setMessage(null)
     try {
-      const response = await fetchApi("/api/bash/fantasy/predictions", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ weekId: week.id, predictions: read.predictions }),
-      })
+      const { url, init } = saveRequest(target, "predictions", { weekId: week.id, predictions: read.predictions })
+      const response = await fetchApi(url, init)
       const body = await readApiJson(response)
       if (response.ok) {
         setDirty(false)
-        setMessage({ text: "Saved. You can keep editing until it closes.", failed: false })
-      } else if (response.status === 401) {
+        setMessage({ text: isAdmin ? "Saved." : "Saved. You can keep editing until it closes.", failed: false })
+        target.onSaved?.()
+      } else if (response.status === 401 && !isAdmin) {
         setMessage({ text: "This Manager Link is no longer valid. Ask an admin to reissue it.", failed: true })
       } else if (Array.isArray(body.errors)) {
         setMessage({ text: (body.errors as PredictionError[]).map((e) => ERRORS[e] ?? body.error).join(" "), failed: true })
@@ -128,9 +127,11 @@ export function PredictionsFormPanel({
 
   return (
     <form onSubmit={submit} noValidate className="mt-6 space-y-6">
-      <p className="text-sm">
-        Predictions close <span className="font-medium">{closes}</span>
-      </p>
+      {!isAdmin && (
+        <p className="text-sm">
+          Predictions close <span className="font-medium">{closes}</span>
+        </p>
+      )}
       <div className="space-y-1 text-sm text-muted-foreground">
         <p>
           <span className="font-medium text-foreground">Pick the winner of each game.</span> Standings rank by how many

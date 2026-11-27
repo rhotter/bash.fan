@@ -1,5 +1,8 @@
 import { z } from "zod"
 
+/** The `games.game_type` values the schedule admin offers. A contest can only score these. */
+export const GAME_TYPES = ["regular", "playoff", "championship", "exhibition", "tryout"]
+
 /** Rules for one Contest. The engine reads these rather than hardcoding them. */
 export interface FantasyConfig {
   /** The `games.game_type` values this contest scores, such as `["regular"]` or `["playoff", "championship"]`. */
@@ -53,9 +56,13 @@ function isTimeZone(zone: string) {
 
 const fantasyConfigSchema: z.ZodType<FantasyConfig, z.ZodTypeDef, unknown> = z.object({
   gameTypes: z
-    .array(z.string().trim().min(1).max(40))
+    .array(
+      z
+        .string()
+        .trim()
+        .refine((type) => GAME_TYPES.includes(type), `Use one of: ${GAME_TYPES.join(", ")}`)
+    )
     .min(1, "Score at least one game type")
-    .max(10)
     .refine((types) => new Set(types).size === types.length, "Game types can't repeat"),
   lineup: z
     .object({

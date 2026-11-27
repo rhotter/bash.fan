@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { ErrorNotice } from "@/components/error-notice"
 import { LoadingState } from "@/components/loading-state"
-import { FantasyOverviewPanel } from "@/components/admin/fantasy-overview"
+import { FantasyOverviewPanel, type ManagerPerson } from "@/components/admin/fantasy-overview"
 import { errorMessage, fetchApi, readApiJson } from "@/lib/api-errors"
 import type { FantasyOverview } from "@/lib/fetch-fantasy"
 
@@ -15,6 +15,7 @@ interface FantasyData {
   enabled: boolean
   config: unknown
   hasLineups: boolean
+  managers: ManagerPerson[]
   overview: FantasyOverview | null
 }
 
@@ -43,7 +44,7 @@ export function FantasyAdmin({ seasonId, contest }: { seasonId: string; contest:
   }, [base, contest])
 
   useEffect(() => {
-    load()
+    void load()
   }, [load])
 
   /** Runs a change, shows any failure, and returns the response body on success. */
@@ -86,7 +87,7 @@ export function FantasyAdmin({ seasonId, contest }: { seasonId: string; contest:
     <div className="space-y-8">
       {actionError && <p role="alert" className="text-sm text-destructive">{actionError}</p>}
 
-      {data.overview && <FantasyOverviewPanel overview={data.overview} />}
+      {data.overview && <FantasyOverviewPanel overview={data.overview} people={data.managers} />}
 
       <section className="space-y-3">
         <div className="flex items-center gap-2">

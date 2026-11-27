@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label"
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { errorMessage, fetchApi, readApiJson } from "@/lib/api-errors"
 import type { LineupForm } from "@/lib/fantasy/lineups"
+import { saveRequest, type SaveTarget } from "@/components/fantasy/save-target"
 import { buildSelectionGroups, playersForSlot, type SelectionOption } from "@/lib/fantasy/selection-options"
 import type { Lineup, LineupError } from "@/lib/fantasy/scoring"
 import type { WeekOverview } from "@/lib/fantasy/week"
@@ -25,6 +26,7 @@ export function SelectionSheet({
   overview,
   players,
   onSelect,
+  allowAtCap = false,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -32,6 +34,8 @@ export function SelectionSheet({
   overview: WeekOverview
   players: SelectionOption[]
   onSelect: (playerId: number) => void
+  /** Admins may choose a Player with no uses left, and are asked again when saving. */
+  allowAtCap?: boolean
 }) {
   const [query, setQuery] = useState("")
   const groups = buildSelectionGroups(overview, players, query)
@@ -44,7 +48,7 @@ export function SelectionSheet({
       >
         <SheetHeader className="pb-0">
           <SheetTitle>{title}</SheetTitle>
-          <SheetDescription>Grouped by this Week's games.</SheetDescription>
+          <SheetDescription>Grouped by this Week&apos;s games.</SheetDescription>
         </SheetHeader>
         <div className="px-4">
           <Input
@@ -68,7 +72,7 @@ export function SelectionSheet({
                       <li key={player.id}>
                         <button
                           type="button"
-                          disabled={player.disabled}
+                          disabled={player.disabled && !allowAtCap}
                           onClick={() => onSelect(player.id)}
                           className="flex w-full items-center gap-3 p-2.5 text-left text-sm disabled:cursor-not-allowed disabled:opacity-50 enabled:hover:bg-secondary"
                         >
@@ -122,12 +126,14 @@ function initialSelections(form: LineupForm): Selections {
   return selections
 }
 
-export function LineupFormPanel({ form, token }: { form: LineupForm; token: string }) {
+export function LineupFormPanel({ form, ...target }: { form: LineupForm } & SaveTarget) {
+  const isAdmin = target.adminUrl !== undefined
   const [selections, setSelections] = useState(() => initialSelections(form))
   const [everyGoalie, setEveryGoalie] = useState(false)
   const [saving, setSaving] = useState(false)
   const [editing, setEditing] = useState<{ group: SlotGroup; index: number } | null>(null)
   const [dirty, setDirty] = useState(false)
+  const [canOverride, setCanOverride] = useState(false)
   const [message, setMessage] = useState<{ text: string; failed: boolean } | null>(null)
 
   const defaultGoalies = new Set(form.defaultGoalieIds)
@@ -144,29 +150,40 @@ export function LineupFormPanel({ form, token }: { form: LineupForm; token: stri
   function select(group: SlotGroup, index: number, value: string) {
     setSelections({ ...selections, [group]: selections[group].map((old, i) => (i === index ? value : old)) })
     setMessage(null)
+    setCanOverride(false)
     setDirty(true)
   }
 
-  async function submit(event: FormEvent) {
+  function submit(event: FormEvent) {
     event.preventDefault()
+    void save(false)
+  }
+
+  async function save(overrideCap: boolean) {
     setSaving(true)
     setMessage(null)
+    setCanOverride(false)
     const lineup = Object.fromEntries(
       GROUPS.map(({ group }) => [group, selections[group].filter(Boolean).map(Number)])
     )
     try {
-      const response = await fetchApi("/api/bash/fantasy/lineup", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ weekId: form.week.id, lineup }),
+      const { url, init } = saveRequest(target, "lineup", {
+        weekId: form.week.id,
+        lineup,
+        ...(isAdmin ? { overrideCap } : {}),
       })
+      const response = await fetchApi(url, init)
       const body = await readApiJson(response)
       if (response.ok) {
         setDirty(false)
-        setMessage({ text: "Saved. You can keep editing until it closes.", failed: false })
+        setMessage({ text: isAdmin ? "Saved." : "Saved. You can keep editing until it closes.", failed: false })
+        target.onSaved?.()
       }
-      else if (response.status === 401) setMessage({ text: "This Manager Link is no longer valid. Ask an admin to reissue it.", failed: true })
-      else if (body.errors) setMessage({ text: (body.errors as LineupError[]).map((e) => ERRORS[e] ?? "That Lineup isn’t valid.").join(" "), failed: true })
+      else if (response.status === 401 && !isAdmin) setMessage({ text: "This Manager Link is no longer valid. Ask an admin to reissue it.", failed: true })
+      else if (body.errors) {
+        setCanOverride(isAdmin && body.canOverride === true)
+        setMessage({ text: (body.errors as LineupError[]).map((e) => ERRORS[e] ?? "That Lineup isn’t valid.").join(" "), failed: true })
+      }
       else setMessage({ text: body.error ?? "Could not save the Lineup.", failed: true })
     } catch (err) {
       setMessage({ text: errorMessage(err), failed: true })
@@ -177,9 +194,11 @@ export function LineupFormPanel({ form, token }: { form: LineupForm; token: stri
 
   return (
     <form onSubmit={submit} className="mt-6 space-y-6">
-      <p className="text-sm">
-        Lineup closes <span className="font-medium">{lock}</span>
-      </p>
+      {!isAdmin && (
+        <p className="text-sm">
+          Lineup closes <span className="font-medium">{lock}</span>
+        </p>
+      )}
       <p className="text-sm text-muted-foreground">
         {dirty ? "Unsaved changes." : form.lineup ? "Your saved Lineup is shown." : "No Lineup saved for this Week yet."}
       </p>
@@ -220,6 +239,7 @@ export function LineupFormPanel({ form, token }: { form: LineupForm; token: stri
           onOpenChange={(open) => !open && setEditing(null)}
           title={`${GROUPS.find((g) => g.group === editing.group)!.label} ${editing.index + 1}`}
           overview={form.overview}
+          allowAtCap={isAdmin}
           players={playersForSlot({
             players: form.players,
             goalieSlot: isGoalieSlot(editing.group),
@@ -249,7 +269,14 @@ export function LineupFormPanel({ form, token }: { form: LineupForm; token: stri
           {message.text}
         </p>
       )}
-      <Button type="submit" disabled={saving}>{saving ? "Saving…" : "Save Lineup"}</Button>
+      <div className="flex flex-wrap gap-2">
+        <Button type="submit" disabled={saving}>{saving ? "Saving…" : "Save Lineup"}</Button>
+        {canOverride && (
+          <Button type="button" variant="outline" disabled={saving} onClick={() => void save(true)}>
+            Save over the cap
+          </Button>
+        )}
+      </div>
     </form>
   )
 }
