@@ -1,5 +1,6 @@
 import {
   pgTable,
+  pgSequence,
   text,
   boolean,
   integer,
@@ -17,6 +18,10 @@ import {
   check,
 } from "drizzle-orm/pg-core"
 import { sql } from "drizzle-orm"
+
+// Game IDs are "g<n>", allocated from this sequence by lib/db/game-id.ts. Declared here so
+// `drizzle-kit push` doesn't drop it.
+export const gamesGenSeq = pgSequence("games_gen_seq")
 
 // ─── Seasons ────────────────────────────────────────────────────────────────
 

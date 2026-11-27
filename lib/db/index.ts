@@ -2,8 +2,9 @@ import { neon } from "@neondatabase/serverless"
 import { drizzle } from "drizzle-orm/neon-http"
 import { drizzle as drizzleNodePg } from "drizzle-orm/node-postgres"
 import type { SQL } from "drizzle-orm"
-import { Pool } from "pg"
 import { isLocalDbUrl } from "./is-local-db-url"
+import { getLocalPool } from "./local-pool"
+import { resolveDbUrl } from "./resolve-db-url"
 import * as schema from "./schema"
 
 function describeDbEndpoint(dbUrl: string): { host: string; label: string } {
@@ -25,19 +26,13 @@ function describeDbEndpoint(dbUrl: string): { host: string; label: string } {
   }
 }
 
-// DB_TARGET selects which connection string to use: "dev" → DATABASE_URL_DEV,
-// "prod" → DATABASE_URL_PROD. Falls back to plain DATABASE_URL if unset.
-// In local development, defaults to "dev". On Vercel / production, defaults to "prod".
-const defaultTarget = process.env.VERCEL_ENV === "production" ? "prod" : "dev"
-const target = (process.env.DB_TARGET ?? defaultTarget).toLowerCase()
-const targetVar = `DATABASE_URL_${target.toUpperCase()}`
-const url = process.env[targetVar] ?? process.env.DATABASE_URL
+const { target, targetVar, source, url } = resolveDbUrl(process.env)
 if (!url) {
   throw new Error(`No database URL found (tried ${targetVar} and DATABASE_URL)`)
 }
 if (typeof window === "undefined") {
   const { host, label } = describeDbEndpoint(url)
-  console.log(`[db] DB_TARGET=${target} (${targetVar in process.env ? targetVar : "DATABASE_URL"})`)
+  console.log(`[db] DB_TARGET=${target} (${source})`)
   console.log(`[db] Connected to: ${label} [${host}]`)
 }
 
@@ -45,17 +40,11 @@ function createNeonDb(dbUrl: string) {
   return drizzle(neon(dbUrl), { schema })
 }
 
-// A pool holds open connections, and `next dev` re-evaluates this module on edits,
-// so the pool is kept on globalThis to stop each reload opening another one.
-const globalForDb = globalThis as unknown as { pgPool?: Pool }
-
 // Neon's driver only speaks HTTP, so a local Docker Postgres needs node-postgres.
 // The cast keeps one db type: code stays limited to what neon-http supports, so
 // nothing that only works locally (such as db.transaction) type-checks differently.
 function createLocalDb(dbUrl: string) {
-  const pool = globalForDb.pgPool ?? new Pool({ connectionString: dbUrl })
-  if (process.env.NODE_ENV !== "production") globalForDb.pgPool = pool
-  return drizzleNodePg(pool, { schema }) as unknown as ReturnType<typeof createNeonDb>
+  return drizzleNodePg(getLocalPool(dbUrl), { schema }) as unknown as ReturnType<typeof createNeonDb>
 }
 
 export const db = isLocalDbUrl(url) ? createLocalDb(url) : createNeonDb(url)

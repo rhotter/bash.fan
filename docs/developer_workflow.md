@@ -70,7 +70,7 @@ pnpm seed
 To replicate recent seasons, game boxscores, rosters, and live draft boards from production into your development or branch database:
 
 ```bash
-# Using Environment Variables (requires both PROD_URL and DEV_URL)
+# Using Environment Variables (the source and target are both required)
 PROD_URL='<prod-db-url>' DEV_URL='<dev-db-url>' npx tsx scripts/export-prod-db.ts
 
 # Or using CLI Flags
@@ -83,6 +83,7 @@ npx tsx scripts/export-prod-db.ts --from '<prod-db-url>' --to '<dev-db-url>' --s
 > **Safety & Credential Security:**
 > - **Never** save `PROD_URL` into `.env.local` or commit it to Git. Pass it at runtime via command line or environment variables.
 > - The script automatically masks passwords in terminal output.
+> - The target must be given with `--to` or `DEV_URL`. The script deletes from its target, so it never falls back to `DATABASE_URL`.
 > - Source and target URLs cannot be identical (the script will abort to prevent accidental overwrites).
 > - Dynamic name-to-ID alignment ensures that target historical stats are preserved without ID collision.
 
@@ -97,12 +98,12 @@ This replaces steps 2–4 if you'd rather not use a hosted database.
    ```bash
    pnpm db:setup
    ```
-   This starts `docker-compose.yml`, creates the database named in the URL if it's missing, pushes `lib/db/schema.ts`, and adds the functions, triggers and push tables that Drizzle can't create. It's safe to re-run after a schema change. As in the app, `DATABASE_URL_DEV` wins over `DATABASE_URL` if both are set, and the script refuses any URL that isn't on localhost.
+   This starts `docker-compose.yml`, creates the database named in the URL if it's missing, pushes `lib/db/schema.ts`, and adds the functions, triggers and push tables that Drizzle can't create. Re-run it after a schema change; local data is kept. If a change would delete data, Drizzle asks first, and answering No stops the setup. If any part of the schema push fails, the script stops with an error instead of reporting the database as ready. It picks the database the way the app does: the environment wins over `.env.local`, then `.env`, and `DATABASE_URL_DEV` wins over `DATABASE_URL`. It refuses any URL that isn't on localhost (including one with a `host` or `port` query parameter), and stops if the URL's port isn't the one the container is published on.
 3. Copy data from production:
    ```bash
    PROD_URL='<prod-db-url>' pnpm db:export-prod --to 'postgresql://postgres:postgres@localhost:5432/postgres'
    ```
-   If the source role can't read a table, the script says so, skips it, and leaves your local rows for that table alone.
+   If the source role can't read a table, the script skips it, leaves your local rows for that table alone, and lists the skipped tables when it finishes. If `franchises` is skipped, it creates a placeholder, named after its slug, for each franchise a synced team needs and you don't have, and logs each one. If `draft_instances` is skipped, no draft order, pool or picks are copied either.
 
 To start over, `pnpm db:reset` **deletes all local database data** and runs the setup again.
 

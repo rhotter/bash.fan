@@ -26,6 +26,9 @@ function isPermissionDenied(err: unknown) {
   return (err as { code?: string } | null)?.code === "42501";
 }
 
+// Tables the current run couldn't read, reported when it finishes.
+const skippedTables = new Set<string>();
+
 // A restricted read-only role can't see every table. Returns null for a table it can't read,
 // so the caller leaves the target's rows alone instead of treating the source as empty.
 async function readIfPermitted<T>(table: string, query: PromiseLike<T[]>): Promise<T[] | null> {
@@ -34,6 +37,7 @@ async function readIfPermitted<T>(table: string, query: PromiseLike<T[]>): Promi
   } catch (err) {
     if (!isPermissionDenied(err)) throw err;
     console.warn(`   ⚠️ Skipping ${table}: no read permission on the source database.`);
+    skippedTables.add(table);
     return null;
   }
 }
@@ -43,8 +47,7 @@ export function parseArgs(customArgs?: string[]) {
   let devUrl =
     process.env.DEV_URL ||
     process.env.DEV_DATABASE_URL ||
-    process.env.TARGET_DATABASE_URL ||
-    process.env.DATABASE_URL;
+    process.env.TARGET_DATABASE_URL;
   let prodUrl =
     process.env.PROD_URL ||
     process.env.PROD_DATABASE_URL ||
@@ -69,7 +72,8 @@ Usage:
 
 Options:
   --from, --prod, --source <url> Source production database URL (or PROD_URL env var)
-  --to, --dev, --target <url>   Target dev database URL (or DEV_URL env var / DATABASE_URL in .env.local)
+  --to, --dev, --target <url>   Target dev database URL (or DEV_URL env var). Required: the sync
+                                deletes from the target, so DATABASE_URL is never used
   --seasons <list>              Comma-separated season IDs (default: 2025-2026, 2026-summer, bash-2026-2027)
   --help, -h                    Show this help message
       `);
@@ -89,10 +93,10 @@ Options:
   }
   if (!devUrl) {
     if (customArgs) {
-      throw new Error("Missing target dev database URL. Provide via DEV_URL='...', --to '<url>', or DATABASE_URL in .env.local.");
+      throw new Error("Missing target dev database URL. Provide via DEV_URL='...' or --to '<url>'. DATABASE_URL isn't used, because the sync deletes from its target.");
     }
     console.error(
-      "Error: Missing target dev database URL. Provide via DEV_URL='...', --to '<url>', or DATABASE_URL in .env.local."
+      "Error: Missing target dev database URL. Provide via DEV_URL='...' or --to '<url>'. DATABASE_URL isn't used, because the sync deletes from its target."
     );
     process.exit(1);
   }
@@ -276,20 +280,28 @@ async function main() {
 
   const prod = neon(prodUrl);
   const local = isLocalDbUrl(devUrl) ? localSql(devUrl) : null;
+  let skipped: string[];
   try {
-    await syncDatabase(prod, local ?? neon(devUrl), seasons);
+    skipped = await syncDatabase(prod, local ?? neon(devUrl), seasons);
   } finally {
     await local?.close();
   }
 
-  console.log("\n=== Export & Sync Completed Successfully! ===");
+  console.log(
+    skipped.length === 0
+      ? "\n=== Export & Sync Completed Successfully! ==="
+      : `\n=== Export & Sync Completed, with tables skipped: ${skipped.join(", ")} ===\nThe source role can't read them, so they weren't copied.`
+  );
 }
 
-async function syncDatabase(
+/** Copies the seasons from prod into dev. Returns the tables the source role couldn't read. */
+export async function syncDatabase(
   prod: NeonQueryFunction<false, false>,
   dev: NeonQueryFunction<false, false> | ReturnType<typeof localSql>,
   seasons: string[]
-) {
+): Promise<string[]> {
+  skippedTables.clear();
+
   // ─── Phase 1: Teams, Franchises & Player Alignment ────────────────────────
   console.log("1. Aligning Teams, Franchises & Players...");
 
@@ -380,10 +392,14 @@ async function syncDatabase(
     // season_teams.franchise_slug is a foreign key. Without the source franchises, stand in a
     // placeholder for any the target is missing.
     if (prodFranchises === null && st.franchise_slug) {
-      await dev`
+      const created = await dev`
         INSERT INTO franchises (slug, name) VALUES (${st.franchise_slug}, ${st.franchise_slug})
-        ON CONFLICT (slug) DO NOTHING;
+        ON CONFLICT (slug) DO NOTHING
+        RETURNING slug;
       `;
+      if (created.length > 0) {
+        console.log(`   Created placeholder franchise "${st.franchise_slug}", named after its slug.`);
+      }
     }
     await dev`
       INSERT INTO season_teams (season_id, team_slug, franchise_slug, color)
@@ -489,7 +505,7 @@ async function syncDatabase(
       `;
     }
   }
-  console.log(`   Player Seasons: ${prodPS.length}, Draft Instances: ${prodDrafts?.length ?? "skipped"}.`);
+  console.log(`   Player Seasons: ${prodPS.length}, Draft Instances: ${prodDrafts?.length ?? "skipped (with their order, pool and picks)"}.`);
 
   // ─── Phase 4: Games, Officials, Boxscores & Awards ────────────────────────
   console.log("4. Syncing Games, Boxscores & Awards...");
@@ -561,10 +577,11 @@ async function syncDatabase(
   }
 
   const gameIds = prodGames.map((g) => g.id);
-  let officialsCount = 0;
+  let officialsCount: number | "skipped" = 0;
   let pgsCount = 0;
   let ggsCount = 0;
   let liveCount = 0;
+  let liveSkipped = false;
 
   if (gameIds.length > 0) {
     const prodOfficials = await readIfPermitted(
@@ -580,6 +597,8 @@ async function syncDatabase(
         `;
       }
       officialsCount = prodOfficials.length;
+    } else {
+      officialsCount = "skipped";
     }
 
     const prodPGS = await prod`SELECT * FROM player_game_stats WHERE game_id = ANY(${gameIds});`;
@@ -645,6 +664,7 @@ async function syncDatabase(
       "game_live",
       prod`SELECT game_id, state, pin_hash, created_at, updated_at FROM game_live WHERE game_id = ANY(${gameIds});`
     );
+    liveSkipped = prodLive === null;
     if (prodLive !== null) {
       await dev`DELETE FROM game_live WHERE game_id = ANY(${gameIds});`;
       for (const row of prodLive) {
@@ -687,14 +707,10 @@ async function syncDatabase(
     `;
   }
 
-  const { tradesCount, itemsCount } = await syncTrades(prod, dev, seasons, devIdByProdId).catch((err) => {
-    if (!isPermissionDenied(err)) throw err;
-    console.warn("   ⚠️ Skipping trades: no read permission on the source database.");
-    return { tradesCount: 0, itemsCount: 0 };
-  });
+  const trades = await syncTrades(prod, dev, seasons, devIdByProdId);
 
   console.log(
-    `   Games: ${prodGames.length}, Live States: ${liveCount}, Officials: ${officialsCount}, Skater Stats: ${pgsCount}, Goalie Stats: ${ggsCount}, Awards: ${prodAwards?.length ?? 0}, Trades: ${tradesCount}, Trade Items: ${itemsCount}.`
+    `   Games: ${prodGames.length}, Live States: ${liveSkipped ? "skipped" : liveCount}, Officials: ${officialsCount}, Skater Stats: ${pgsCount}, Goalie Stats: ${ggsCount}, Awards: ${prodAwards?.length ?? "skipped"}, Trades: ${trades?.tradesCount ?? "skipped"}, Trade Items: ${trades?.itemsCount ?? "skipped"}.`
   );
 
   // Synchronize games_gen_seq in dev DB with highest copied game ID
@@ -715,6 +731,8 @@ async function syncDatabase(
       END IF;
     END $$;
   `;
+
+  return [...skippedTables];
 }
 
 export async function syncTrades(
@@ -722,13 +740,22 @@ export async function syncTrades(
   dev: any,
   seasons: string[],
   devIdByProdId: Map<number, number>
-): Promise<{ tradesCount: number; itemsCount: number }> {
-  const prodTrades = await prod`SELECT * FROM season_trades WHERE season_id = ANY(${seasons}) ORDER BY id ASC;`;
-  // Read both tables before deleting, so a failed read leaves the target's trades in place.
+): Promise<{ tradesCount: number; itemsCount: number } | null> {
+  // Only the source reads may be skipped. Read both tables before deleting, so a failed read
+  // leaves the target's trades in place, and let every target error fail the sync.
+  const prodTrades = await readIfPermitted<any>(
+    "season_trades",
+    prod`SELECT * FROM season_trades WHERE season_id = ANY(${seasons}) ORDER BY id ASC;`
+  );
+  if (prodTrades === null) return null;
   const tradeIds = prodTrades.map((t: any) => t.id);
   const prodTradeItems = tradeIds.length > 0
-    ? await prod`SELECT * FROM season_trade_items WHERE trade_id = ANY(${tradeIds}) ORDER BY id ASC;`
+    ? await readIfPermitted<any>(
+        "season_trade_items",
+        prod`SELECT * FROM season_trade_items WHERE trade_id = ANY(${tradeIds}) ORDER BY id ASC;`
+      )
     : [];
+  if (prodTradeItems === null) return null;
   await dev`DELETE FROM season_trades WHERE season_id = ANY(${seasons});`;
 
   let itemsCount = 0;

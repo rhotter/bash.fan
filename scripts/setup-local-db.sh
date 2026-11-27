@@ -1,33 +1,22 @@
 #!/usr/bin/env bash
-# Starts the local Docker Postgres and builds the full schema in it.
-# Picks the URL the app would use in local dev (see lib/db/index.ts). Each variable is
-# read from the environment, then .env.local, then .env.
+# Starts the local Docker Postgres and builds the full schema in the database the app would
+# use in local dev (see lib/db/resolve-db-url.ts).
 set -euo pipefail
 
-read_env_file() {
-  grep -hE "^$1=" .env.local .env 2>/dev/null | head -n 1 | cut -d= -f2- | sed -E "s/^[\"']|[\"']$//g" || true
-}
-
-read_var() {
-  local value="${!1:-}"
-  echo "${value:-$(read_env_file "$1")}"
-}
-
-target="$(read_var DB_TARGET)"
-target_var="DATABASE_URL_$(echo "${target:-dev}" | tr '[:lower:]' '[:upper:]')"
-url="$(read_var "$target_var")"
-url="${url:-$(read_var DATABASE_URL)}"
-
-# This script pushes schema changes, so it must never run against a hosted database.
-local_url='^postgres(ql)?://([^@/?#]*@)?(localhost|127\.0\.0\.1|\[::1\])(:[0-9]+)?(/([^?#]*))?([?#].*)?$'
-if [[ ! "$url" =~ $local_url ]]; then
-  echo "$target_var or DATABASE_URL must point at localhost; refusing to continue." >&2
-  exit 1
-fi
-
-database="${BASH_REMATCH[6]:-postgres}"
+# This script pushes schema changes, so this step refuses any database that isn't on localhost.
+config="$(npx tsx scripts/local-db-config.ts)"
+{ read -r url; read -r database; read -r port; } <<<"$config"
 
 docker compose up -d --wait
+
+# The schema push connects to the URL's port, while psql below runs inside the container.
+# Stop unless both reach the same server.
+published="$(docker compose port postgres 5432)"
+if [[ "${published##*:}" != "$port" ]]; then
+  echo "The database URL uses port $port, but the postgres container is published on port ${published##*:}." >&2
+  echo "Change the URL, or the port in docker-compose.override.yml, so they match." >&2
+  exit 1
+fi
 
 run_psql() {
   docker compose exec -T postgres sh -c 'psql -q -U "$POSTGRES_USER" -v ON_ERROR_STOP=1 "$@"' _ "$@"
@@ -37,7 +26,16 @@ run_psql() {
 echo "SELECT format('CREATE DATABASE %I', :'name') WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = :'name') \\gexec" \
   | run_psql -d postgres -v name="$database"
 
-DATABASE_URL="$url" npx drizzle-kit push
+# drizzle-kit push exits 0 when it can't connect, a statement fails or a prompt is declined,
+# so only its success message shows that the schema is up to date.
+push_log="$(mktemp)"
+trap 'rm -f "$push_log"' EXIT
+DATABASE_URL="$url" npx drizzle-kit push 2>&1 | tee "$push_log"
+if ! grep -qE 'Changes applied|No changes detected' "$push_log"; then
+  echo "Schema push failed or was aborted, so the local database isn't ready." >&2
+  echo "Fix the error above and run pnpm db:setup again, or run pnpm db:reset to start over (deletes local data)." >&2
+  exit 1
+fi
 
 # Objects drizzle-kit can't create from schema.ts: functions, triggers and the push tables.
 # secure-mcp-access.sql starts with role grants that only exist on production, so only

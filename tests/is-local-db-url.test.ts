@@ -14,6 +14,9 @@ describe("isLocalDbUrl", () => {
     "postgresql://user:pass@ep-example-pooler.c-3.us-west-2.aws.neon.tech/neondb?sslmode=require",
     "postgresql://user:pass@localhost.example.com/neondb",
     "not a url",
+    // node-postgres lets these query parameters override the host and port in the URL.
+    "postgresql://postgres:postgres@localhost:5432/postgres?host=db.example.com",
+    "postgresql://postgres:postgres@localhost:5432/postgres?port=6543",
   ])("treats %s as remote", (url) => {
     expect(isLocalDbUrl(url)).toBe(false)
   })

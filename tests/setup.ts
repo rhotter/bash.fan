@@ -33,6 +33,8 @@ beforeEach(async () => {
         FROM pg_tables
         WHERE schemaname = 'public';
       EXECUTE stmt;
+      -- No column owns this sequence, so RESTART IDENTITY leaves it alone.
+      ALTER SEQUENCE games_gen_seq RESTART;
     END $$;
   `)
 })
