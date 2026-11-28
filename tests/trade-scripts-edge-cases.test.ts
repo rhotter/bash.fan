@@ -472,8 +472,8 @@ describe("Trade Scripts & Prod DB Export Edge Cases", () => {
 
       const result = await syncTrades(mockProd, mockDev, ["bash-2026-2027"], devIdByProdId)
 
-      expect(result.tradesCount).toBe(1)
-      expect(result.itemsCount).toBe(3)
+      expect(result?.tradesCount).toBe(1)
+      expect(result?.itemsCount).toBe(3)
 
       const itemInserts = devInserts.filter((i) => i.queryText.includes("INSERT INTO season_trade_items"))
       expect(itemInserts.length).toBe(3)

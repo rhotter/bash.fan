@@ -549,8 +549,8 @@ describe("scripts/export-prod-db.ts", () => {
         devIdByProdId
       )
 
-      expect(result.tradesCount).toBe(1)
-      expect(result.itemsCount).toBe(2)
+      expect(result?.tradesCount).toBe(1)
+      expect(result?.itemsCount).toBe(2)
 
       // Verifies prod queries
       expect(prodQueries.some((q) => q.includes("FROM season_trades WHERE season_id = ANY"))).toBe(true)
@@ -590,9 +590,73 @@ describe("scripts/export-prod-db.ts", () => {
 
       const result = await syncTrades(mockProd, mockDev, ["2025-2026"], devIdByProdId)
 
-      expect(result.tradesCount).toBe(0)
-      expect(result.itemsCount).toBe(0)
+      expect(result?.tradesCount).toBe(0)
+      expect(result?.itemsCount).toBe(0)
       expect(mockDev).toHaveBeenCalled() // Deletes existing and aligns sequences
+    })
+  })
+
+  describe("sync target", () => {
+    it("won't fall back to the app's DATABASE_URL, since the sync deletes from its target", () => {
+      vi.stubEnv("DATABASE_URL", "postgres://app-database")
+      vi.stubEnv("DEV_URL", "")
+      vi.stubEnv("DEV_DATABASE_URL", "")
+      vi.stubEnv("TARGET_DATABASE_URL", "")
+      try {
+        expect(() => parseExportArgs(["--from", "postgres://prod"])).toThrow("Missing target dev database URL")
+        expect(parseExportArgs(["--from", "postgres://prod", "--to", "postgres://dev"]).devUrl).toBe("postgres://dev")
+      } finally {
+        vi.unstubAllEnvs()
+      }
+    })
+  })
+
+  describe("syncTrades permission errors", () => {
+    const denied = () => Object.assign(new Error("permission denied"), { code: "42501" })
+    const trade = { id: 5, season_id: "s", team_slugs: ["a", "b"] }
+    const writes = (dev: ReturnType<typeof vi.fn>) => dev.mock.calls.map(([strings]) => strings.join("?"))
+    const mockProdDenying = (deniedTable: string) =>
+      vi.fn().mockImplementation(async (strings: TemplateStringsArray) => {
+        const query = strings.join("?")
+        if (query.includes(`FROM ${deniedTable} `)) throw denied()
+        return query.includes("FROM season_trades ") ? [trade] : []
+      })
+
+    it.each(["season_trades", "season_trade_items"])(
+      "leaves the target's trades alone when the source can't read %s",
+      async (table) => {
+        const dev = vi.fn().mockResolvedValue([])
+
+        await expect(syncTrades(mockProdDenying(table), dev, ["s"], new Map())).resolves.toBeNull()
+
+        expect(dev).not.toHaveBeenCalled()
+      }
+    )
+
+    it("fails when the target denies a write, rather than reporting the trades as skipped", async () => {
+      const prod = vi.fn().mockImplementation(async (strings: TemplateStringsArray) =>
+        strings.join("?").includes("FROM season_trades ") ? [trade] : []
+      )
+      const dev = vi.fn().mockImplementation(async (strings: TemplateStringsArray) => {
+        if (strings.join("?").includes("setval(")) throw denied()
+        return []
+      })
+
+      await expect(syncTrades(prod, dev, ["s"], new Map())).rejects.toThrow("permission denied")
+      expect(writes(dev).some((q) => q.includes("DELETE FROM season_trades"))).toBe(true)
+    })
+
+    it("passes on a source error that isn't about permissions", async () => {
+      const prod = vi.fn().mockRejectedValue(new Error("connection reset"))
+      const dev = vi.fn().mockResolvedValue([])
+
+      await expect(syncTrades(prod, dev, ["s"], new Map())).rejects.toThrow("connection reset")
+      expect(dev).not.toHaveBeenCalled()
+    })
+
+    it("doesn't wrap the whole of syncTrades in a catch", () => {
+      const script = fs.readFileSync(path.resolve(__dirname, "../scripts/export-prod-db.ts"), "utf-8")
+      expect(script).not.toMatch(/syncTrades\([^)]*\)\s*\.catch/)
     })
   })
 

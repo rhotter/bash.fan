@@ -24,6 +24,8 @@ A stats website for the Bay Area Street Hockey (BASH) league. View live scores, 
    DATABASE_URL=postgresql://...
    ```
 
+   To run Postgres on your machine with Docker instead, follow [Local Docker Postgres](docs/developer_workflow.md#local-docker-postgres).
+
 3. Push the Drizzle schema to your database:
 
    ```bash

@@ -1,7 +1,5 @@
 import { describe, expect, it, vi } from "vitest"
 import { writeFile, readFile } from "node:fs/promises"
-import { fetchPlayerDetail } from "@/lib/fetch-player-detail"
-import { rawSql } from "@/lib/db"
 import { sql } from "drizzle-orm"
 import { playerSlugSql } from "@/lib/player-slug-sql"
 import { playerSlug } from "@/lib/player-slug"
@@ -13,6 +11,11 @@ vi.mock("react", () => ({ cache: (fn: unknown) => fn }))
 
 describe.skipIf(!process.env.PLAYER_BENCHMARK)("Uncached player reads", () => {
   it("measures fresh reads and compares complete player payloads", async () => {
+    // Measures a real database, so it opts out of the in-memory one from tests/setup.ts.
+    // Imported here so a skipped run never connects to it.
+    vi.doUnmock("@/lib/db")
+    const { rawSql } = await import("@/lib/db")
+    const { fetchPlayerDetail } = await import("@/lib/fetch-player-detail")
     const directory = await rawSql(sql`SELECT name, ${playerSlugSql(sql`name`)} AS slug FROM players`)
     for (const row of directory) expect(row.slug).toBe(playerSlug(row.name))
     const players = ["alex-muhn", "jarrod-hatfield", "joseph-guillemette"]
