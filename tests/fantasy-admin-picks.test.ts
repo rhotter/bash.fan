@@ -117,11 +117,13 @@ describe("admin Lineup entry", () => {
     expect(await storedLineups()).toMatchObject([{ weekId: OPEN_WEEK, skaters: swapped }])
   })
 
-  it.each([
-    ["a Week that isn't open yet", FUTURE_WEEK],
-    ["a Week with no counting games", "2026-10-31"],
-  ])("refuses %s", async (_name, weekId) => {
-    const response = await putLineup(weekId)
+  it("saves a Lineup for a later Week", async () => {
+    expect((await putLineup(FUTURE_WEEK)).status).toBe(200)
+    expect(await storedLineups()).toMatchObject([{ weekId: FUTURE_WEEK }])
+  })
+
+  it("refuses a Week with no counting games", async () => {
+    const response = await putLineup("2026-10-31")
 
     expect(response.status).toBe(409)
     expect(await storedLineups()).toEqual([])
@@ -243,8 +245,9 @@ describe("admin Prediction entry", () => {
     expect(await storedPredictions()).toEqual([])
   })
 
-  it("refuses a Week that isn't open yet", async () => {
-    expect((await putPredictions(FUTURE_WEEK, [predict(league.games.future.id)])).status).toBe(409)
+  it("saves Predictions for a later Week", async () => {
+    expect((await putPredictions(FUTURE_WEEK, [predict(league.games.future.id)])).status).toBe(200)
+    expect(await storedPredictions()).toMatchObject([{ gameId: league.games.future.id }])
   })
 })
 
@@ -278,10 +281,10 @@ describe("admin pick routes", () => {
 })
 
 describe("loadAdminPicks", () => {
-  it("offers every Week up to the open one and starts on the open Week", async () => {
+  it("offers every Week with games and starts on the next to close", async () => {
     const picks = await loadAdminPicks(league.manager)
 
-    expect(picks?.weekIds).toEqual([PAST_WEEK, OPEN_WEEK])
+    expect(picks?.weekIds).toEqual([PAST_WEEK, OPEN_WEEK, FUTURE_WEEK])
     expect(picks?.form.week.id).toBe(OPEN_WEEK)
     expect(picks?.closed).toBe(false)
   })
@@ -298,7 +301,8 @@ describe("loadAdminPicks", () => {
     expect(picks?.form.overview.games.map((g) => g.id)).toEqual([league.games.past.id])
   })
 
-  it("falls back to the open Week for one that can't be edited", async () => {
-    expect((await loadAdminPicks(league.manager, FUTURE_WEEK))?.form.week.id).toBe(OPEN_WEEK)
+  it("opens a later Week, and falls back to the next to close for an unknown one", async () => {
+    expect(await loadAdminPicks(league.manager, FUTURE_WEEK)).toMatchObject({ closed: false, form: { week: { id: FUTURE_WEEK } } })
+    expect((await loadAdminPicks(league.manager, "2030-01-05"))?.form.week.id).toBe(OPEN_WEEK)
   })
 })

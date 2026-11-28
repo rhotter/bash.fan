@@ -13,14 +13,13 @@ import { FantasyOverviewPanel, type ManagerPerson } from "@/components/admin/fan
 import { errorMessage, fetchApi, readApiJson } from "@/lib/api-errors"
 import type { FantasyConfig } from "@/lib/fantasy/config"
 import { startingConfig } from "@/lib/fantasy/config-draft"
-import { contestLabel, instantLabel } from "@/lib/fantasy/view-state"
+import { contestLabel } from "@/lib/fantasy/view-state"
 import type { RunStatus } from "@/lib/fantasy/week"
 import type { FantasyOverview } from "@/lib/fetch-fantasy"
 
 interface FantasyData {
   enabled: boolean
   status: RunStatus | null
-  picksOpenAt: string | null
   config: FantasyConfig
   hasLineups: boolean
   hasPredictions: boolean
@@ -149,10 +148,8 @@ export function FantasyAdmin({
             {name} isn&apos;t saved yet. Set it up, then click Turn on run.
           </p>
         )}
-        {data.status === "upcoming" && data.picksOpenAt && (
-          <p className="text-sm text-muted-foreground">
-            People can join now. Picks open {instantLabel(data.picksOpenAt, data.config.lock.timeZone)}.
-          </p>
+        {data.status === "upcoming" && (
+          <p className="text-sm text-muted-foreground">People can join and make picks ahead of the first Week.</p>
         )}
         {/* While the settings are open, a failure shows inside them. */}
         {actionError && !showSettings && <p role="alert" className="text-sm text-destructive">{actionError}</p>}

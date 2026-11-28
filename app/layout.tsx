@@ -1,7 +1,6 @@
 import type { Metadata, Viewport } from 'next'
 import { Inter, JetBrains_Mono } from 'next/font/google'
-import { Analytics } from '@vercel/analytics/next'
-import { SpeedInsights } from '@vercel/speed-insights/next'
+import { SafeAnalytics } from '@/components/safe-analytics'
 import { AdminProvider } from '@/lib/admin-context'
 import { ConditionalFooter } from '@/components/conditional-footer'
 import { SiteHeader } from '@/components/site-header'
@@ -58,8 +57,7 @@ export default async function RootLayout({
           <ConditionalFooter initialDraftStatus={initialDraftStatus} />
           <Toaster />
         </AdminProvider>
-        <Analytics />
-        <SpeedInsights />
+        <SafeAnalytics />
       </body>
     </html>
   )

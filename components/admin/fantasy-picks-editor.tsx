@@ -1,57 +1,35 @@
 "use client"
 
 import { useRouter } from "next/navigation"
-import { useCallback, useRef, type MouseEvent } from "react"
 import { toast } from "sonner"
 import { LineupFormPanel } from "@/components/fantasy/lineup-form"
 import { PredictionsFormPanel } from "@/components/fantasy/predictions-form"
+import { useUnsavedPicks } from "@/components/fantasy/use-unsaved-picks"
 import { WeekOverviewPanel } from "@/components/fantasy/week-overview"
+import { WEEK_NAV_CLASS } from "@/components/fantasy/week-row"
 import { IntentLink } from "@/components/intent-link"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { instantLabel } from "@/lib/fantasy/view-state"
 import { weekLabel } from "@/lib/fantasy/week"
 import type { loadAdminPicks } from "@/lib/fantasy/lineups"
 import { cn } from "@/lib/utils"
 
 type AdminPicks = NonNullable<Awaited<ReturnType<typeof loadAdminPicks>>>
 
-/** Admin-only: view and enter one Manager's picks for any Week up to the open one. */
+/** Admin-only: view and enter one Manager's picks for any Week. */
 export function FantasyPicksEditor({ picks, adminUrl, pageHref }: { picks: AdminPicks; adminUrl: string; pageHref: string }) {
   const router = useRouter()
   const { form, weekIds, openWeekId, closed } = picks
-  // Kept per form, so one with nothing to save can't hide the other's unsaved picks.
-  const unsaved = useRef({ lineup: false, predictions: false })
-  const setLineupDirty = useCallback((dirty: boolean) => {
-    unsaved.current.lineup = dirty
-  }, [])
-  const setPredictionsDirty = useCallback((dirty: boolean) => {
-    unsaved.current.predictions = dirty
-  }, [])
-  function confirmLeave(event: MouseEvent) {
-    const { lineup, predictions } = unsaved.current
-    if ((lineup || predictions) && !window.confirm("Discard your unsaved changes?")) event.preventDefault()
-  }
+  const { setLineupDirty, setPredictionsDirty, confirmLeave } = useUnsavedPicks()
   // The page's points, history and uses are rendered on the server, so reload them after a save.
   const onSaved = () => {
     toast.success("Picks saved.")
     router.refresh()
   }
 
-  if (form.status === "upcoming" && form.picksOpenAt) {
-    return (
-      <section className="space-y-3">
-        <h2 className="text-lg font-semibold">Edit picks</h2>
-        <p className="text-sm text-muted-foreground">
-          This run hasn&apos;t started. Picks open {instantLabel(form.picksOpenAt, form.week.timeZone)}.
-        </p>
-      </section>
-    )
-  }
-
   return (
     <section className="space-y-3">
       <h2 className="text-lg font-semibold">Edit picks</h2>
-      <nav aria-label="Weeks to edit" className="flex gap-1 overflow-x-auto">
+      <nav aria-label="Weeks to edit" className={WEEK_NAV_CLASS}>
         {weekIds.map((id) => (
           <IntentLink
             key={id}
@@ -65,7 +43,7 @@ export function FantasyPicksEditor({ picks, adminUrl, pageHref }: { picks: Admin
             )}
           >
             {weekLabel(id)}
-            {id === openWeekId && " (open)"}
+            {id >= openWeekId && " (open)"}
           </IntentLink>
         ))}
       </nav>
@@ -78,7 +56,6 @@ export function FantasyPicksEditor({ picks, adminUrl, pageHref }: { picks: Admin
         <p className="text-sm text-muted-foreground">This Week has no games to pick.</p>
       ) : (
         <div className="max-w-3xl space-y-4">
-          <WeekOverviewPanel overview={form.overview} />
           {/* Keyed by Week, so one Week's unsaved boxes never carry into another. */}
           <Tabs key={form.week.id} defaultValue="lineup">
             <TabsList>
@@ -87,6 +64,9 @@ export function FantasyPicksEditor({ picks, adminUrl, pageHref }: { picks: Admin
             </TabsList>
             {/* Both stay mounted, so switching tabs keeps what's been typed. */}
             <TabsContent value="lineup" forceMount className="data-[state=inactive]:hidden">
+              <div className="mt-4">
+                <WeekOverviewPanel overview={form.overview} />
+              </div>
               <LineupFormPanel form={form} adminUrl={adminUrl} onSaved={onSaved} onDirtyChange={setLineupDirty} />
             </TabsContent>
             <TabsContent value="predictions" forceMount className="data-[state=inactive]:hidden">

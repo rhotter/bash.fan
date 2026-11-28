@@ -10,7 +10,7 @@ import { checkFantasyConfig, DEFAULT_FANTASY_CONFIG, type FantasyConfig } from "
 import { adminSaveLineup, loadAdminPicks, loadLineupForm, saveLineup } from "@/lib/fantasy/lineups"
 import { createManager } from "@/lib/fantasy/managers"
 import { getCurrentFantasySeason, getFantasySeason, listFantasyContests, saveFantasyConfig } from "@/lib/fantasy/season"
-import { countsForGame, picksOpenAt, runStatus } from "@/lib/fantasy/week"
+import { countsForGame, runStatus } from "@/lib/fantasy/week"
 import { fetchFantasyStandings } from "@/lib/fetch-fantasy"
 import { setupGame } from "./factories/setupGame"
 import { setupPlayer } from "./factories/setupPlayer"
@@ -20,10 +20,8 @@ import { setupTeam } from "./factories/setupTeam"
 const at = (local: string) => new Date(`${local}-08:00`)
 /** Set up well ahead of the January run. */
 const CREATED = at("2026-12-01T12:00:00")
-/** The Saturday before the first Week's, when its picks open. */
-const PICKS_OPEN = at("2027-01-02T08:00:00")
-const BEFORE_OPEN = at("2027-01-02T07:59:00")
-const AFTER_OPEN = at("2027-01-02T08:01:00")
+const NOT_YET = at("2027-01-02T07:59:00")
+const UNDER_WAY = at("2027-01-02T08:01:00")
 const FIRST_WEEK = "2027-01-09"
 
 const dated = (startsOn: string | null, endsOn: string | null = null): FantasyConfig => ({
@@ -61,17 +59,12 @@ describe("which games count from a start date", () => {
 
 describe("an upcoming run's status", () => {
   it.each([
-    ["is upcoming until its first picks open", BEFORE_OPEN, "upcoming"],
-    ["is active from the weekly close before its first Week", AFTER_OPEN, "active"],
+    ["is upcoming until its first Week is the next to close", NOT_YET, "upcoming"],
+    ["is active from the weekly close before its first Week", UNDER_WAY, "active"],
   ])("%s", (_name, now, status) => {
     expect(runStatus(dated(FIRST_WEEK), now)).toBe(status)
   })
 
-  it("says when picks open, also for a date between closing days", () => {
-    expect(picksOpenAt(dated(FIRST_WEEK))?.toISOString()).toBe(PICKS_OPEN.toISOString())
-    expect(picksOpenAt(dated("2027-01-05"))?.toISOString()).toBe(PICKS_OPEN.toISOString())
-    expect(picksOpenAt(dated(null))).toBeNull()
-  })
 })
 
 describe("the start date in a config", () => {
@@ -137,49 +130,51 @@ describe("a run set up ahead of time", () => {
     vi.unstubAllEnvs()
   })
 
-  it("accepts sign-ups early, but no picks", async () => {
+  it("takes picks for its first Week as soon as people sign up", async () => {
     expect((await signUp("january", "Early Bird")).status).toBe(201)
     const [manager] = await managers()
 
-    expect(await loadLineupForm(manager, BEFORE_OPEN)).toMatchObject({
+    expect(await loadLineupForm(manager, CREATED)).toMatchObject({
       status: "upcoming",
-      noGames: true,
-      picksOpenAt: PICKS_OPEN.toISOString(),
+      noGames: false,
+      week: { id: FIRST_WEEK },
+      weekIds: [FIRST_WEEK],
     })
-    // The Week open before the start isn't part of the run.
+    expect(await saveLineup(manager, await january(), FIRST_WEEK, lineup(), CREATED)).toEqual({ outcome: "saved" })
+    // The Weeks before the start aren't part of the run.
     expect(await saveLineup(manager, await january(), "2026-12-05", lineup(), CREATED)).toEqual({ outcome: "no-games" })
     expect(await adminSaveLineup(manager, await january(), "2026-12-05", lineup(), {}, CREATED)).toEqual({ outcome: "no-games" })
-    expect((await loadAdminPicks(manager, undefined, CREATED))?.form).toMatchObject({ status: "upcoming", noGames: true })
   })
 
-  it("opens picks for its first Week at the close before it", async () => {
+  it("still takes picks for its first Week once under way", async () => {
     await createManager(seasonId, "january", { teamName: "Early Bird", firstName: "Ada", lastName: "Lovelace" })
     const [manager] = await managers()
 
-    expect(await saveLineup(manager, await january(), FIRST_WEEK, lineup(), AFTER_OPEN)).toEqual({ outcome: "saved" })
+    expect(await saveLineup(manager, await january(), FIRST_WEEK, lineup(), UNDER_WAY)).toEqual({ outcome: "saved" })
   })
 
-  it("shows as upcoming to the public, with who has joined and no Week yet", async () => {
+  it("shows as upcoming to the public, with who has joined and the first Week's games", async () => {
     await signUp("january", "Early Bird")
 
     const standings = await fetchFantasyStandings("january")
 
-    expect(standings).toMatchObject({ status: "upcoming", picksOpenAt: PICKS_OPEN.toISOString(), overviews: {} })
+    expect(standings).toMatchObject({ status: "upcoming", openWeekId: FIRST_WEEK, weeks: [] })
+    expect(Object.keys(standings!.overviews)).toEqual([FIRST_WEEK])
     expect(standings?.season.rows).toMatchObject([{ teamName: "Early Bird", points: 0 }])
   })
 
   it("tells the admin it's upcoming", async () => {
     const response = await adminGet(new Request("http://test/x?contest=january"), context())
 
-    expect(await response.json()).toMatchObject({ status: "upcoming", picksOpenAt: PICKS_OPEN.toISOString() })
+    expect(await response.json()).toMatchObject({ status: "upcoming" })
   })
 
   it("counts earlier Weeks once the start date is moved back", async () => {
-    vi.setSystemTime(AFTER_OPEN)
+    vi.setSystemTime(UNDER_WAY)
     await createManager(seasonId, "january", { teamName: "Early Bird", firstName: "Ada", lastName: "Lovelace" })
     await saveFantasyConfig(seasonId, "january", dated("2026-12-05"), CREATED)
 
-    const picks = await loadAdminPicks((await managers())[0], undefined, AFTER_OPEN)
+    const picks = await loadAdminPicks((await managers())[0], undefined, UNDER_WAY)
 
     expect(picks?.weekIds).toEqual(["2026-12-05", "2027-01-02", FIRST_WEEK])
   })
@@ -210,7 +205,7 @@ describe("a run set up ahead of time", () => {
       // The beta's last Week is still being played.
       expect(await defaultAt(at("2026-12-22T12:00:00"))).toBe("december-beta")
       expect(await defaultAt(at("2026-12-28T12:00:00"))).toBe("january")
-      expect(await defaultAt(AFTER_OPEN)).toBe("january")
+      expect(await defaultAt(UNDER_WAY)).toBe("january")
     })
 
     it("prefers the next upcoming run over a later one", async () => {

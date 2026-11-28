@@ -1,19 +1,19 @@
 "use client"
 
 import { useEffect, useState, type FormEvent } from "react"
+import { LineupSlotCard } from "@/components/fantasy/lineup-slot-card"
+import { UnsavedBadge } from "@/components/fantasy/unsaved-badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { errorMessage, fetchApi, readApiJson } from "@/lib/api-errors"
-import type { LineupForm } from "@/lib/fantasy/lineups"
+import type { WeekForm } from "@/lib/fantasy/lineups"
 import { saveRequest, type SaveTarget } from "@/components/fantasy/save-target"
-import { buildSelectionGroups, playersForSlot, type SelectionOption } from "@/lib/fantasy/selection-options"
+import { buildSelectionGroups, playersForSlot, usesLabel, type SelectionOption } from "@/lib/fantasy/selection-options"
 import type { Lineup, LineupError } from "@/lib/fantasy/scoring"
 import type { WeekOverview } from "@/lib/fantasy/week"
-
-const usesLabel = (usesLeft: number) => `${usesLeft} ${usesLeft === 1 ? "use" : "uses"} left`
 
 /**
  * Choose a Player for one Lineup slot. A bottom sheet on phones and a side panel from 768px up.
@@ -98,7 +98,7 @@ export function SelectionSheet({
 type SlotGroup = keyof Lineup
 type Selections = Record<SlotGroup, string[]>
 
-const GROUPS: { group: SlotGroup; label: string; count: (s: LineupForm["slots"]) => number }[] = [
+const GROUPS: { group: SlotGroup; label: string; count: (s: WeekForm["slots"]) => number }[] = [
   { group: "skaters", label: "Skater", count: (s) => s.skaters },
   { group: "goalies", label: "Goalie", count: (s) => s.goalies },
   { group: "skaterBackups", label: "Skater Backup", count: (s) => s.skaterBackups },
@@ -117,10 +117,15 @@ const ERRORS: Record<LineupError, string> = {
 }
 
 const isGoalieSlot = (group: SlotGroup) => group === "goalies" || group === "goalieBackups"
+const isBackupSlot = (group: SlotGroup) => group === "skaterBackups" || group === "goalieBackups"
 
-const emptyOrGone = (value: string) => (value ? "Player no longer on a roster" : "Choose a Player")
+/** Each kind of slot is shown together, so a Backup sits beside the starters it covers. */
+const SECTIONS: { title: string; groups: SlotGroup[] }[] = [
+  { title: "Skaters", groups: ["skaters", "skaterBackups"] },
+  { title: "Goalie", groups: ["goalies", "goalieBackups"] },
+]
 
-function initialSelections(form: LineupForm): Selections {
+function initialSelections(form: WeekForm): Selections {
   const selections = {} as Selections
   for (const { group, count } of GROUPS) {
     selections[group] = Array.from({ length: count(form.slots) }, (_, i) => String(form.lineup?.[group][i] ?? ""))
@@ -133,7 +138,7 @@ export function LineupFormPanel({
   onDirtyChange,
   ...target
 }: {
-  form: LineupForm
+  form: WeekForm
   /** Told whether there's something unsaved. Leaving the form counts as nothing unsaved. */
   onDirtyChange?: (dirty: boolean) => void
 } & SaveTarget) {
@@ -153,15 +158,6 @@ export function LineupFormPanel({
 
   const defaultGoalies = new Set(form.defaultGoalieIds)
   const chosen = new Set(Object.values(selections).flat().filter(Boolean))
-  const lock = new Intl.DateTimeFormat("en-US", {
-    weekday: "long",
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-    timeZone: form.week.timeZone,
-  }).format(new Date(form.week.lockAt))
-
   function select(group: SlotGroup, index: number, value: string) {
     setSelections({ ...selections, [group]: selections[group].map((old, i) => (i === index ? value : old)) })
     setMessage(null)
@@ -208,90 +204,94 @@ export function LineupFormPanel({
   }
 
   return (
-    <form onSubmit={submit} className="mt-6 space-y-6">
-      {!isAdmin && (
-        <p className="text-sm">
-          Lineup closes <span className="font-medium">{lock}</span>
-        </p>
-      )}
-      <p className="text-sm text-muted-foreground">
-        {dirty ? "Unsaved changes." : form.lineup ? "Your saved Lineup is shown." : "No Lineup saved for this Week yet."}
-      </p>
-
-      {GROUPS.map(({ group, label }) =>
-        selections[group].map((value, index) => {
-          const id = `${group}-${index}`
-          const optional = group.endsWith("Backups") || (group === "goalies" && form.goalieSlotOptional)
-          return (
-            <div key={id} className="space-y-1.5">
-              <Label htmlFor={id}>
-                {label}
-                {selections[group].length > 1 ? ` ${index + 1}` : ""}
-                {optional && <span className="ml-1 font-normal text-muted-foreground">(optional)</span>}
-              </Label>
-              <Button
-                type="button"
-                variant="outline"
-                id={id}
-                aria-label={`${label}${selections[group].length > 1 ? ` ${index + 1}` : ""}: ${
-                  form.players.find((p) => String(p.id) === value)?.name ?? emptyOrGone(value)
-                }`}
-                onClick={() => setEditing({ group, index })}
-                className="w-full justify-between font-normal"
-              >
-                {form.players.find((p) => String(p.id) === value)?.name ?? (
-                  <span className="text-muted-foreground">{emptyOrGone(value)}</span>
-                )}
-              </Button>
-            </div>
-          )
-        })
-      )}
-
-      {editing && (
-        <SelectionSheet
-          open
-          onOpenChange={(open) => !open && setEditing(null)}
-          title={`${GROUPS.find((g) => g.group === editing.group)!.label} ${editing.index + 1}`}
-          overview={form.overview}
-          allowAtCap={isAdmin}
-          players={playersForSlot({
-            players: form.players,
-            goalieSlot: isGoalieSlot(editing.group),
-            chosen: new Set([...chosen].map(Number)),
-            current: Number(selections[editing.group][editing.index]) || null,
-            defaultGoalieIds: defaultGoalies,
-            everyGoalie,
-          })}
-          onSelect={(playerId) => {
-            select(editing.group, editing.index, String(playerId))
-            setEditing(null)
-          }}
-        />
-      )}
-
-      <div className="flex items-center gap-2">
-        <Checkbox
-          id="every-goalie"
-          checked={everyGoalie}
-          onCheckedChange={(checked) => setEveryGoalie(checked === true)}
-        />
-        <Label htmlFor="every-goalie" className="font-normal">Show every rostered Player in goalie slots</Label>
-      </div>
-
-      {message && (
-        <p role={message.failed ? "alert" : "status"} className={message.failed ? "text-sm text-destructive" : "text-sm text-muted-foreground"}>
-          {message.text}
-        </p>
-      )}
-      <div className="flex flex-wrap gap-2">
-        <Button type="submit" disabled={saving}>{saving ? "Saving…" : "Save Lineup"}</Button>
-        {canOverride && (
-          <Button type="button" variant="outline" disabled={saving} onClick={() => void save(true)}>
-            Save over the cap
-          </Button>
+    <form onSubmit={submit} className="mt-6">
+      {/* Locked while saving, so nothing changed meanwhile can read as saved. */}
+      <fieldset disabled={saving} className="min-w-0 space-y-6">
+        {!dirty && (
+          <p className="text-sm text-muted-foreground">
+            {form.lineup ? "Your saved Lineup is shown." : "No Lineup saved for this Week yet."} Uses left count your other saved
+            Weeks, later ones included.
+          </p>
         )}
-      </div>
+
+        {SECTIONS.map(({ title, groups }) => (
+          <fieldset key={title} className="min-w-0">
+            <legend className="mb-2 text-sm font-semibold">{title}</legend>
+            <ul className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              {groups.flatMap((group) => {
+                const { label } = GROUPS.find((g) => g.group === group)!
+                const backup = isBackupSlot(group)
+                return selections[group].map((value, index) => {
+                  const number = selections[group].length > 1 ? ` ${index + 1}` : ""
+                  const player = form.players.find((p) => String(p.id) === value)
+                  return (
+                    <li key={`${group}-${index}`}>
+                      <LineupSlotCard
+                        slot={`${label}${number}`}
+                        title={`${backup ? "Backup" : label}${number}`}
+                        backup={backup}
+                        optional={backup || (group === "goalies" && form.goalieSlotOptional)}
+                        player={player}
+                        missing={!player && value !== ""}
+                        usesLeft={(isGoalieSlot(group) ? player?.goalieUsesLeft : player?.skaterUsesLeft) ?? null}
+                        overview={form.overview}
+                        onClick={() => setEditing({ group, index })}
+                      />
+                    </li>
+                  )
+                })
+              })}
+            </ul>
+            {title === "Goalie" && (
+              <div className="mt-3 flex items-center gap-2">
+                <Checkbox
+                  id="every-goalie"
+                  checked={everyGoalie}
+                  onCheckedChange={(checked) => setEveryGoalie(checked === true)}
+                />
+                <Label htmlFor="every-goalie" className="font-normal">Show every rostered Player in goalie slots</Label>
+              </div>
+            )}
+          </fieldset>
+        ))}
+
+        {editing && (
+          <SelectionSheet
+            open
+            onOpenChange={(open) => !open && setEditing(null)}
+            title={`${GROUPS.find((g) => g.group === editing.group)!.label} ${editing.index + 1}`}
+            overview={form.overview}
+            allowAtCap={isAdmin}
+            players={playersForSlot({
+              players: form.players,
+              goalieSlot: isGoalieSlot(editing.group),
+              chosen: new Set([...chosen].map(Number)),
+              current: Number(selections[editing.group][editing.index]) || null,
+              defaultGoalieIds: defaultGoalies,
+              everyGoalie,
+            })}
+            onSelect={(playerId) => {
+              select(editing.group, editing.index, String(playerId))
+              setEditing(null)
+            }}
+          />
+        )}
+
+        {message && (
+          <p role={message.failed ? "alert" : "status"} className={message.failed ? "text-sm text-destructive" : "text-sm text-muted-foreground"}>
+            {message.text}
+          </p>
+        )}
+        <div className="flex flex-wrap items-center gap-2">
+          <Button type="submit" disabled={saving}>{saving ? "Saving…" : "Save Lineup"}</Button>
+          {canOverride && (
+            <Button type="button" variant="outline" disabled={saving} onClick={() => void save(true)}>
+              Save over the cap
+            </Button>
+          )}
+          {dirty && <UnsavedBadge />}
+        </div>
+      </fieldset>
     </form>
   )
 }

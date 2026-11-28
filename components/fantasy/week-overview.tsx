@@ -1,31 +1,43 @@
+import { GAME_CARD_CLASS, GAME_CARD_LABEL_CLASS, GameCardScore, GameCardStatusBar, GameCardTeam } from "@/components/game-card"
 import { TeamLogo } from "@/components/team-logo"
-import type { WeekOverview, WeekOverviewGame } from "@/lib/fantasy/week"
+import type { TeamRef, WeekOverview, WeekOverviewGame } from "@/lib/fantasy/week"
 
-function Team({ team, size = 20 }: { team: WeekOverviewGame["home"]; size?: number }) {
+function GameCard({ game }: { game: WeekOverviewGame }) {
+  const { result } = game
   return (
-    <span className="flex min-w-0 items-center gap-1.5">
-      <TeamLogo slug={team.slug} name={team.name} size={size} />
-      <span className="truncate font-medium">{team.name}</span>
-    </span>
+    <li className={GAME_CARD_CLASS}>
+      <GameCardStatusBar>
+        <span className="whitespace-nowrap text-[10px] text-muted-foreground/50">{game.startLabel}</span>
+        {result && <span className={GAME_CARD_LABEL_CLASS}>Final</span>}
+      </GameCardStatusBar>
+      {/* Away on top, as on the Scores page. */}
+      <div className="px-3 py-2 flex flex-col gap-1">
+        {(["away", "home"] as const).map((side) => {
+          const won = result !== null && result[`${side}Score`] > result[side === "home" ? "awayScore" : "homeScore"]
+          return (
+            <GameCardTeam key={side} {...game[side]} won={won}>
+              <GameCardScore score={result?.[`${side}Score`]} bold={won} />
+            </GameCardTeam>
+          )
+        })}
+      </div>
+      {result && <span className="sr-only">Final {result.homeScore} – {result.awayScore}</span>}
+    </li>
   )
 }
 
-function GameCard({ game }: { game: WeekOverviewGame }) {
+export function ByeTeams({ teams }: { teams: TeamRef[] }) {
+  if (teams.length === 0) return null
   return (
-    <li className="space-y-1 rounded-md border border-border p-3 text-sm">
-      <div className="flex items-center justify-between gap-2">
-        <Team team={game.home} />
-        {game.result && <span className="shrink-0 font-semibold tabular-nums">{game.result.homeScore}</span>}
-      </div>
-      <div className="flex items-center justify-between gap-2">
-        <Team team={game.away} />
-        {game.result && <span className="shrink-0 font-semibold tabular-nums">{game.result.awayScore}</span>}
-      </div>
-      <p className="whitespace-nowrap text-xs text-muted-foreground">
-        {game.startLabel}
-        {game.result && <span className="sr-only"> final {game.result.homeScore} – {game.result.awayScore}</span>}
-      </p>
-    </li>
+    <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
+      <span>Bye:</span>
+      {teams.map((team) => (
+        <span key={team.slug} className="flex items-center gap-1.5 text-foreground">
+          <TeamLogo slug={team.slug} name={team.name} size={16} />
+          {team.name}
+        </span>
+      ))}
+    </p>
   )
 }
 
@@ -42,17 +54,7 @@ export function WeekOverviewPanel({ overview }: { overview: WeekOverview }) {
           ))}
         </ul>
       )}
-      {overview.byeTeams.length > 0 && (
-        <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
-          <span>Bye:</span>
-          {overview.byeTeams.map((team) => (
-            <span key={team.slug} className="flex items-center gap-1.5 text-foreground">
-              <TeamLogo slug={team.slug} name={team.name} size={16} />
-              {team.name}
-            </span>
-          ))}
-        </p>
-      )}
+      <ByeTeams teams={overview.byeTeams} />
     </section>
   )
 }

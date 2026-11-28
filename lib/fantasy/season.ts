@@ -2,7 +2,7 @@ import { and, asc, desc, eq } from "drizzle-orm"
 import { db, schema } from "@/lib/db"
 import { DEFAULT_CONTEST } from "./view-state"
 import { checkFantasyConfig, type FantasyConfig } from "./config"
-import { endsBeforeFirstWeek, firstWeekId, runStatus } from "./week"
+import { endsBeforeFirstWeek, firstWeekId, runStatus, takesRegistrations } from "./week"
 
 export { DEFAULT_CONTEST, parseContest } from "./view-state"
 
@@ -122,6 +122,30 @@ export function pickContest(contests: FantasySeason[], contest?: string, now = n
   const upcoming = withStatus.find(({ status }) => status === "upcoming")
   // With every run over, the latest is the one people are most likely after.
   return (current ?? upcoming)?.season ?? contests.at(-1) ?? null
+}
+
+const isJoinable = (season: FantasySeason, now: Date) => takesRegistrations(runStatus(season.config, now))
+
+/**
+ * The contest a registration is for, shared by the page and the API so they can't disagree. A named contest
+ * is returned even once closed, so the caller can say so. With none named it's the default among those still
+ * taking people, not one playing its last Week. With every contest closed it's the overall default.
+ */
+export function pickRegistrationContest(contests: FantasySeason[], contest?: string, now = new Date()) {
+  if (contest !== undefined) return pickContest(contests, contest, now)
+  const joinable = contests.filter((season) => isJoinable(season, now))
+  return pickContest(joinable.length > 0 ? joinable : contests, undefined, now)
+}
+
+export interface OpenContest {
+  contest: string
+}
+
+/** The contests people can join now, apart from `except`. Plain data for the page cache. */
+export function otherOpenContests(contests: FantasySeason[], except: string, now = new Date()): OpenContest[] {
+  return contests
+    .filter((season) => season.contest !== except && isJoinable(season, now))
+    .map(({ contest }) => ({ contest }))
 }
 
 /** Whether any Manager has saved a Lineup, so a config change would re-score real Selections. */

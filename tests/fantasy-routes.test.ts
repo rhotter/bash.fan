@@ -131,6 +131,14 @@ describe("registration", () => {
     expect(await findManagerByToken(token)).toMatchObject({ teamName: "Puck Norris" })
   })
 
+  it("drops the cached public pages, so the new team shows straight away", async () => {
+    revalidateTag.mockClear()
+
+    expect((await registerManager()).response.status).toBe(201)
+
+    expect(revalidateTag).toHaveBeenCalledWith("fantasy", { expire: 0 })
+  })
+
   it("rejects a Team Name that differs only by case", async () => {
     await registerManager("Puck Norris")
 

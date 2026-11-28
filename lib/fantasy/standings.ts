@@ -19,8 +19,10 @@ export interface StandingsInput {
   games: SeasonGame[]
   stats: WeekStats
   playerNames: Map<number, string>
-  /** Names the matchups in each Selection's game lines. */
+  /** Names the matchups in each Selection's game lines, and each Selection's own teams. */
   teams: TeamRef[]
+  /** Each Player's team slugs this season, more than one after a trade. */
+  playerTeams: Map<number, string[]>
   config: FantasyConfig
   launchedAt: Date
   now: Date
@@ -32,6 +34,7 @@ export interface PublicGameLine extends SelectionGameLine {
 
 export interface PublicSelection extends ScoredSelection {
   playerName: string
+  teams: TeamRef[]
   /** The scored games behind `points`. Empty for a Selection that didn't play. */
   games: PublicGameLine[]
 }
@@ -69,7 +72,7 @@ function ranked<T extends { managerId: number; teamName: string; points: number 
 
 /** Derived from the current stats on every call. Lineups outside a locked Week never appear. */
 export function buildStandings(input: StandingsInput): FantasyStandings {
-  const { managers, lineups, games, stats, playerNames, teams, config, launchedAt, now } = input
+  const { managers, lineups, games, stats, playerNames, teams, playerTeams, config, launchedAt, now } = input
   const teamNames = new Map(teams.map(({ slug, name }) => [slug, name]))
   const teamLabel = (slug: string) => teamNames.get(slug) ?? slug
   const lastLockedWeek = weekContaining(now, config.lock).id
@@ -115,6 +118,7 @@ export function buildStandings(input: StandingsInput): FantasyStandings {
           selections: selections.map((s): PublicSelection => ({
             ...s,
             playerName: nameOf(s.playerId),
+            teams: (playerTeams.get(s.playerId) ?? []).map((slug) => ({ slug, name: teamLabel(slug) })),
             games: s.outcome === "played" ? gameLines(s, weekGames) : [],
           })),
         },

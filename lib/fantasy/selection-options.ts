@@ -13,6 +13,8 @@ export interface SelectionOption {
   pointsPerGame: number
 }
 
+export const usesLabel = (usesLeft: number) => `${usesLeft} ${usesLeft === 1 ? "use" : "uses"} left`
+
 export interface SelectionOptionRow {
   id: number
   name: string

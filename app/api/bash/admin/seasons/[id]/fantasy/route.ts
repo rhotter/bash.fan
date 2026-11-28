@@ -5,7 +5,7 @@ import { fetchFantasyOverview } from "@/lib/fetch-fantasy"
 import { checkFantasyConfig, DEFAULT_FANTASY_CONFIG } from "@/lib/fantasy/config"
 import { listManagers } from "@/lib/fantasy/managers"
 import { refreshPublicPages, reply } from "@/lib/fantasy/reply"
-import { endsBeforeFirstWeek, picksOpenAt, runStatus } from "@/lib/fantasy/week"
+import { endsBeforeFirstWeek, runStatus } from "@/lib/fantasy/week"
 import {
   DEFAULT_CONTEST,
   getStoredContest,
@@ -41,7 +41,6 @@ export async function GET(request: Request, { params }: Context) {
       configIssues: existing?.issues ?? null,
       storedConfig: existing?.issues ? existing.stored : null,
       status: season ? runStatus(season.config, new Date()) : null,
-      picksOpenAt: season ? (picksOpenAt(season.config)?.toISOString() ?? null) : null,
       config: season?.config ?? DEFAULT_FANTASY_CONFIG,
       launchedAt: season?.launchedAt ?? null,
       hasLineups: lineupsExist,

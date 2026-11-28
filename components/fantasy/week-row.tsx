@@ -2,6 +2,9 @@ import { ChevronRight } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { weekLabel } from "@/lib/fantasy/week"
 
+/** A row of Weeks that scrolls sideways. The bottom padding keeps macOS's overlay scrollbar off the labels. */
+export const WEEK_NAV_CLASS = "flex gap-1 overflow-x-auto pb-3"
+
 export function ProvisionalBadge() {
   return <Badge variant="secondary">Provisional</Badge>
 }

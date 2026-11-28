@@ -87,7 +87,7 @@ export default async function AdminFantasyTeamPage({
               {[...manager.weeks].reverse().map((week) => (
                 <li key={week.id}>
                   <WeekRow weekId={week.id} provisional={week.provisional} score={week.points}>
-                    <BoxScore selections={week.selections} provisional={week.provisional} showIdleBackups />
+                    <BoxScore selections={week.selections} provisional={week.provisional} />
                   </WeekRow>
                 </li>
               ))}
@@ -95,7 +95,7 @@ export default async function AdminFantasyTeamPage({
           )}
         </section>
         <div className="[&>section]:mt-0">
-          <PickemHistory pickem={profile.pickemHistory} own={false} />
+          <PickemHistory pickem={profile.pickemHistory} />
         </div>
       </div>
 

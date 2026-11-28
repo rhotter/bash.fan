@@ -4,6 +4,13 @@ const nextConfig = {
     return [{
       source: '/optimized-logos/:path*',
       headers: [{ key: 'Cache-Control', value: 'public, max-age=31536000, immutable' }],
+    }, {
+      // The path holds a Manager Link token, which must not reach search engines or other sites.
+      source: '/fantasy/m/:path*',
+      headers: [
+        { key: 'Referrer-Policy', value: 'no-referrer' },
+        { key: 'X-Robots-Tag', value: 'noindex, nofollow' },
+      ],
     }]
   },
   typescript: {
