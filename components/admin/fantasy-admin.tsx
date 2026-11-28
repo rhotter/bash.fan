@@ -23,6 +23,10 @@ interface FantasyData {
   picksOpenAt: string | null
   config: FantasyConfig
   hasLineups: boolean
+  hasPredictions: boolean
+  /** Why the stored config can't be used, or null if it's fine. */
+  configIssues: string[] | null
+  storedConfig: unknown
   managers: ManagerPerson[]
   overview: FantasyOverview | null
 }
@@ -119,11 +123,27 @@ export function FantasyAdmin({
       <section className="space-y-2">
         <div className="flex flex-wrap items-center gap-2">
           <h2 className="text-lg font-semibold">{name}</h2>
-          <Badge variant="secondary">{data.status ? STATUS_LABELS[data.status] : "Not saved"}</Badge>
+          <Badge variant="secondary">
+            {data.configIssues ? "Settings invalid" : data.status ? STATUS_LABELS[data.status] : "Not saved"}
+          </Badge>
           <Button size="sm" variant="outline" className="ml-auto" onClick={() => changeSettingsOpen(true)}>
             {data.enabled ? "Settings" : "Set up run"}
           </Button>
         </div>
+        {data.configIssues && (
+          <div role="alert" className="space-y-2 rounded-md border border-destructive p-3 text-sm">
+            <p>
+              {name}&apos;s stored settings are invalid, so it&apos;s hidden from the public pages. Open Settings and save to
+              replace them. The form starts from the defaults, so copy over anything you want to keep.
+            </p>
+            <ul className="list-disc pl-5">
+              {data.configIssues.map((issue) => <li key={issue}>{issue}</li>)}
+            </ul>
+            <pre className="max-h-48 overflow-auto rounded-md bg-muted p-2 text-xs">
+              {JSON.stringify(data.storedConfig, null, 2)}
+            </pre>
+          </div>
+        )}
         {!data.enabled && (
           <p role="note" className="rounded-md border border-border bg-muted p-3 text-sm">
             {name} isn&apos;t saved yet. Set it up, then click Turn on run.
@@ -151,7 +171,7 @@ export function FantasyAdmin({
             <DialogDescription>
               These apply to this run only. Other runs keep their own.
               {data.hasLineups &&
-                " Lineups exist: changes re-score every Week straight away, and changing the closing day or time can move saved Lineups to a different Week."}
+                " Lineups exist: changes re-score every Week straight away, and the closing day can't change."}
             </DialogDescription>
           </DialogHeader>
           <div className="min-h-0 overflow-y-auto px-6 pt-4">
@@ -162,6 +182,9 @@ export function FantasyAdmin({
               initial={data.enabled ? data.config : startingConfig(type ?? contest, data.config)}
               enabled={data.enabled}
               hasLineups={data.hasLineups}
+              hasPredictions={data.hasPredictions}
+              // While repairing, the form's day is only a default, so it has to stay editable to match the Lineups.
+              fixedClosingDay={data.hasLineups && !data.configIssues}
               onDirtyChange={(dirty) => {
                 unsaved.current = dirty
               }}

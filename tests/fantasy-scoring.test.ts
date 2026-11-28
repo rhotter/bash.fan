@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { DEFAULT_FANTASY_CONFIG as config } from "@/lib/fantasy/config"
+import { checkFantasyConfig, DEFAULT_FANTASY_CONFIG as config } from "@/lib/fantasy/config"
 import {
   countUses,
   goalieOptions,
@@ -8,6 +8,7 @@ import {
   rankByPoints,
   remainingUses,
   scoreWeek,
+  selectionGameLines,
   validateLineup,
   type Lineup,
   type ScoredWeek,
@@ -459,5 +460,81 @@ describe("points per game", () => {
     expect(average.get(1)).toBe(6.5)
     expect(average.get(2)).toBe(20)
     expect(average.has(3)).toBe(false)
+  })
+})
+
+describe("a skater slot holding a Player with goalie stats", () => {
+  // One save and four goals against: 1 - 12 points in the goalie weights, which is negative.
+  const inGoal = goalie(1, "g1", { saves: 1, goalsAgainst: 4 })
+
+  it("adds both kinds of row, goals against included", () => {
+    const stats = { skater: [skater(1, "g1", { goals: 2 })], goalie: [inGoal] }
+
+    const [selection] = score(lineup(), stats).selections
+    const lines = selectionGameLines(1, "skater", stats, [final("g1")], config)
+
+    expect(selection).toMatchObject({ outcome: "played", points: 9 })
+    expect(lines.reduce((total, line) => total + line.points, 0)).toBe(9)
+    expect(lines[0].stats.map((stat) => stat.label)).toEqual(["G", "A", "PPG", "SHG", "PIM", "SV", "GA", "W", "SO"])
+  })
+
+  it("counts a Player with only a goalie row as having played, using a skater use", () => {
+    const week = score(lineup(), { skater: [], goalie: [inGoal] })
+
+    expect(week.selections[0]).toMatchObject({ playerId: 1, outcome: "played", points: -11 })
+    expect(countUses([week]).skater.get(1)).toBe(1)
+    expect(countUses([week]).goalie.get(1)).toBeUndefined()
+  })
+})
+
+describe("decimal weights", () => {
+  const decimals = {
+    ...config,
+    weights: { ...config.weights, skater: { goal: 0.1, assist: 0.2, ppg: 0.3, shg: 0, pim: 0 } },
+  }
+  const games = [final("g1"), final("g2")]
+
+  it("adds up exactly, so equal scores tie", () => {
+    // 0.1 + 0.2 isn't 0.3 in floating point.
+    const apart = scoreWeek(lineup(), { skater: [skater(1, "g1", { goals: 1 }), skater(2, "g1", { assists: 1 })], goalie: [] }, games, decimals)
+    const together = scoreWeek(lineup(), { skater: [skater(1, "g1", { ppg: 1 })], goalie: [] }, games, decimals)
+
+    expect([apart.points, together.points]).toEqual([0.3, 0.3])
+  })
+
+  it("keeps one Player's total and game lines exact across games", () => {
+    const stats = { skater: [skater(1, "g1", { goals: 1 }), skater(1, "g2", { assists: 1 })], goalie: [] }
+
+    expect(scoreWeek(lineup(), stats, games, decimals).selections[0].points).toBe(0.3)
+    expect(selectionGameLines(1, "skater", stats, games, decimals).map((line) => line.points)).toEqual([0.1, 0.2])
+  })
+})
+
+describe("config limits", () => {
+  const goal = (value: number) => ({ ...config, weights: { ...config.weights, skater: { ...config.weights.skater, goal: value } } })
+  const issues = (input: unknown) => {
+    const checked = checkFantasyConfig(input)
+    return checked.ok ? [] : checked.issues
+  }
+
+  it.each([0.5, -2.25, 1000, -1000])("accepts a weight of %d", (value) => {
+    expect(issues(goal(value))).toEqual([])
+  })
+
+  it.each([
+    [0.125, "weights.skater.goal: Use at most 2 decimal places"],
+    [1001, "weights.skater.goal: Use a number from -1000 to 1000"],
+    [-1e308, "weights.skater.goal: Use a number from -1000 to 1000"],
+  ])("refuses a weight of %d", (value, issue) => {
+    expect(issues(goal(value))).toContain(issue)
+  })
+
+  it("refuses goalie Backups with no goalie spot for them to cover", () => {
+    const lineupRule = { ...config.lineup, goalies: 0, goalieBackups: 1 }
+
+    expect(issues({ ...config, lineup: lineupRule })).toEqual([
+      "lineup.goalieBackups: Goalie Backups need a goalie spot to cover",
+    ])
+    expect(issues({ ...config, lineup: { ...lineupRule, goalieBackups: 0 } })).toEqual([])
   })
 })

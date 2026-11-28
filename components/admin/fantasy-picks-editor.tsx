@@ -1,6 +1,7 @@
 "use client"
 
 import { useRouter } from "next/navigation"
+import { useCallback, useRef, type MouseEvent } from "react"
 import { toast } from "sonner"
 import { LineupFormPanel } from "@/components/fantasy/lineup-form"
 import { PredictionsFormPanel } from "@/components/fantasy/predictions-form"
@@ -18,6 +19,18 @@ type AdminPicks = NonNullable<Awaited<ReturnType<typeof loadAdminPicks>>>
 export function FantasyPicksEditor({ picks, adminUrl, pageHref }: { picks: AdminPicks; adminUrl: string; pageHref: string }) {
   const router = useRouter()
   const { form, weekIds, openWeekId, closed } = picks
+  // Kept per form, so one with nothing to save can't hide the other's unsaved picks.
+  const unsaved = useRef({ lineup: false, predictions: false })
+  const setLineupDirty = useCallback((dirty: boolean) => {
+    unsaved.current.lineup = dirty
+  }, [])
+  const setPredictionsDirty = useCallback((dirty: boolean) => {
+    unsaved.current.predictions = dirty
+  }, [])
+  function confirmLeave(event: MouseEvent) {
+    const { lineup, predictions } = unsaved.current
+    if ((lineup || predictions) && !window.confirm("Discard your unsaved changes?")) event.preventDefault()
+  }
   // The page's points, history and uses are rendered on the server, so reload them after a save.
   const onSaved = () => {
     toast.success("Picks saved.")
@@ -44,6 +57,7 @@ export function FantasyPicksEditor({ picks, adminUrl, pageHref }: { picks: Admin
             key={id}
             href={`${pageHref}?week=${id}`}
             scroll={false}
+            onClick={id === form.week.id ? undefined : confirmLeave}
             aria-current={id === form.week.id ? "page" : undefined}
             className={cn(
               "shrink-0 rounded-md px-2 py-1 text-xs font-semibold transition-colors",
@@ -71,11 +85,13 @@ export function FantasyPicksEditor({ picks, adminUrl, pageHref }: { picks: Admin
               <TabsTrigger value="lineup">Lineup</TabsTrigger>
               <TabsTrigger value="predictions">Predictions</TabsTrigger>
             </TabsList>
-            <TabsContent value="lineup">
-              <LineupFormPanel form={form} adminUrl={adminUrl} onSaved={onSaved} />
+            {/* Both stay mounted, so switching tabs keeps what's been typed. */}
+            <TabsContent value="lineup" forceMount className="data-[state=inactive]:hidden">
+              <LineupFormPanel form={form} adminUrl={adminUrl} onSaved={onSaved} onDirtyChange={setLineupDirty} />
             </TabsContent>
-            <TabsContent value="predictions">
+            <TabsContent value="predictions" forceMount className="data-[state=inactive]:hidden">
               <PredictionsFormPanel
+                onDirtyChange={setPredictionsDirty}
                 overview={form.overview}
                 saved={form.predictions}
                 week={form.week}

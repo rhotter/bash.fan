@@ -43,6 +43,16 @@ export function firstWeekId({ lock, startsOn }: Pick<RunRule, "lock" | "startsOn
   return startsOn === null ? openWeek(launchedAt, lock).id : closingDayOnOrAfter(startsOn, lock.dayOfWeek)
 }
 
+/**
+ * With no start date the first Week depends on when the run was turned on, which the config alone
+ * can't check. Returns the broken rule, or null.
+ */
+export function endsBeforeFirstWeek(rule: Pick<RunRule, "lock" | "startsOn" | "endsOn">, launchedAt: Date) {
+  return rule.endsOn !== null && rule.endsOn < firstWeekId(rule, launchedAt)
+    ? "endsOn: The run would end before its first Week"
+    : null
+}
+
 /** When a start date's first picks open: the Lock a Week before the first Week's own. Null with no start date. */
 export function picksOpenAt({ lock, startsOn }: Pick<RunRule, "lock" | "startsOn">) {
   if (startsOn === null) return null

@@ -12,12 +12,16 @@ import {
   PATCH as adminPatch,
 } from "@/app/api/bash/admin/seasons/[id]/fantasy/managers/[managerId]/route"
 import { POST as adminReissue } from "@/app/api/bash/admin/seasons/[id]/fantasy/managers/[managerId]/reissue/route"
+import { PUT as adminSaveLineupRoute } from "@/app/api/bash/admin/seasons/[id]/fantasy/managers/[managerId]/lineup/route"
+import { PUT as adminSavePredictionsRoute } from "@/app/api/bash/admin/seasons/[id]/fantasy/managers/[managerId]/predictions/route"
 import { PUT as saveLineup } from "@/app/api/bash/fantasy/lineup/route"
+import { PUT as savePredictionsRoute } from "@/app/api/bash/fantasy/predictions/route"
 import { POST as register } from "@/app/api/bash/fantasy/register/route"
 import { db, schema } from "@/lib/db"
 import { DEFAULT_FANTASY_CONFIG, type FantasyConfig } from "@/lib/fantasy/config"
 import { loadLineupForm, reassignLineupPlayer } from "@/lib/fantasy/lineups"
 import { findManagerByToken } from "@/lib/fantasy/managers"
+import { saveFantasyConfig } from "@/lib/fantasy/season"
 import { fetchFantasyStandings } from "@/lib/fetch-fantasy"
 import { setupGame, type GameOverrides } from "./factories/setupGame"
 import { setupGoalieGame } from "./factories/setupGoalieGame"
@@ -155,6 +159,51 @@ describe("registration", () => {
       .from(schema.operatorAuthAttempts)
       .where(eq(schema.operatorAuthAttempts.bucket, "global"))
     expect(rows).toEqual([])
+  })
+
+  const team = (n: number) => ({ teamName: `Team ${n}`, firstName: "A", lastName: "B" })
+  const { operatorAuthAttempts: attempts } = schema
+  const countFor = async (bucket: string) =>
+    (await db.select().from(attempts).where(eq(attempts.bucket, bucket)))[0]?.failures ?? 0
+
+  it("doesn't count a blocked client toward the limit everyone shares", async () => {
+    for (let n = 0; n < 40; n++) await postRegistration(team(n), "1.2.3.4")
+
+    expect(await countFor("fantasy-register:global")).toBe(10)
+  })
+
+  it("doesn't count requests that could never register anyone", async () => {
+    for (let n = 0; n < 20; n++) await postRegistration({}, "1.2.3.4")
+
+    expect(await countFor("fantasy-register:global")).toBe(0)
+    expect((await postRegistration(team(1), "1.2.3.4")).status).toBe(201)
+  })
+
+  it("limits registrations across all clients, says how long to wait, and logs it", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
+    await db
+      .insert(attempts)
+      .values({ bucket: "fantasy-register:global", failures: 200, expiresAt: new Date(WEDNESDAY.getTime() + 600_000) })
+
+    const response = await postRegistration(team(1), "5.6.7.8")
+
+    expect(response.status).toBe(429)
+    expect(response.headers.get("Retry-After")).toBe("600")
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("registration"))
+    warn.mockRestore()
+  })
+
+  it.each([
+    ["on Vercel, only Vercel's header names the client", "1", "x-forwarded-for"],
+    ["off Vercel, no header names the client", "", "x-vercel-forwarded-for"],
+  ])("can't be reset by changing headers: %s", async (_name, vercel, header) => {
+    vi.stubEnv("VERCEL", vercel)
+    const statuses: number[] = []
+    for (let n = 0; n < 11; n++) {
+      statuses.push((await register(json("/api/bash/fantasy/register", "POST", team(n), { [header]: `10.9.0.${n}` }))).status)
+    }
+
+    expect(statuses.at(-1)).toBe(429)
   })
 
   it("starts counting again once the window has passed", async () => {
@@ -389,6 +438,30 @@ describe("the season config", () => {
     expect((await adminList()).config.usageCap).toEqual({ skater: 9, goalie: 9 })
   })
 
+  it("won't change the closing day once Lineups are saved, but still changes the time", async () => {
+    const { token } = await registerManager()
+    await putLineup(token)
+    const withLock = (lock: Partial<FantasyConfig["lock"]>) => ({
+      ...DEFAULT_FANTASY_CONFIG,
+      lock: { ...DEFAULT_FANTASY_CONFIG.lock, ...lock },
+    })
+
+    const moved = await turnOn(withLock({ dayOfWeek: 5 }))
+
+    expect(moved.status).toBe(400)
+    expect((await moved.json()).issues[0]).toContain("closing day")
+    expect((await adminList()).config.lock.dayOfWeek).toBe(6)
+    expect((await turnOn(withLock({ time: "07:00" }))).status).toBe(200)
+  })
+
+  it("never stores a run that would end before its first Week, whoever saves it", async () => {
+    // No start date, so the first Week is the first to close after the run is turned on (Nov 7).
+    const ended = { ...DEFAULT_FANTASY_CONFIG, endsOn: "2026-10-31" }
+
+    await expect(saveFantasyConfig(league.season.id, "late", ended, WEDNESDAY)).rejects.toThrow("end before its first Week")
+    expect((await turnOn(ended)).status).toBe(400)
+  })
+
   it("rejects unreadable JSON rather than resetting the config to the defaults", async () => {
     await turnOn({ ...DEFAULT_FANTASY_CONFIG, usageCap: { skater: 9, goalie: 9 } })
 
@@ -425,6 +498,68 @@ describe("the season config", () => {
 
     expect(response.status).toBe(200)
     expect((await response.json()).config).toEqual(DEFAULT_FANTASY_CONFIG)
+  })
+})
+
+describe("an invalid stored config", () => {
+  const BROKEN = { ...DEFAULT_FANTASY_CONFIG, surprise: true }
+  const getRun = (contest: string) => adminGet(new Request(`http://test/x?contest=${contest}`), seasonParams())
+
+  beforeEach(async () => {
+    await db.insert(schema.fantasySeasons).values({ seasonId: league.season.id, contest: "beta", config: BROKEN })
+    vi.spyOn(console, "error").mockImplementation(() => {})
+  })
+  afterEach(() => vi.restoreAllMocks())
+
+  it("leaves the other contests working, and is logged", async () => {
+    const response = await getRun("regular")
+
+    expect(response.status).toBe(200)
+    expect((await response.json()).contests.sort()).toEqual(["beta", "regular"])
+    expect((await registerManager()).response.status).toBe(201)
+    expect((await fetchFantasyStandings())?.contest).toBe("regular")
+    expect(console.error).toHaveBeenCalledWith(expect.stringContaining(`${league.season.id}/beta is invalid`))
+  })
+
+  it("shows the admin what is wrong with it", async () => {
+    const response = await getRun("beta")
+
+    expect(response.status).toBe(200)
+    const body = await response.json()
+    expect(body.enabled).toBe(true)
+    expect(body.configIssues.join()).toContain("surprise")
+    expect(body.storedConfig).toEqual(BROKEN)
+  })
+
+  it("can be repaired by saving a valid config", async () => {
+    const response = await adminPut(json("/x", "PUT", { contest: "beta", config: DEFAULT_FANTASY_CONFIG }), seasonParams())
+
+    expect(response.status).toBe(200)
+    expect((await (await getRun("beta")).json()).configIssues).toBeNull()
+  })
+
+  it("still can't be repaired onto a different closing day from its saved Lineups", async () => {
+    const [manager] = await db
+      .insert(schema.fantasyManagers)
+      .values({ seasonId: league.season.id, contest: "beta", teamName: "B", firstName: "A", lastName: "B", tokenHash: "b" })
+      .returning()
+    await db.insert(schema.fantasyLineups).values({
+      managerId: manager.id,
+      weekId: OPEN_WEEK,
+      skaters: [],
+      goalies: [],
+      skaterBackups: [],
+      goalieBackups: [],
+    })
+    await db.update(schema.fantasySeasons).set({ config: {} as FantasyConfig }).where(eq(schema.fantasySeasons.contest, "beta"))
+    const save = (dayOfWeek: number) =>
+      adminPut(
+        json("/x", "PUT", { contest: "beta", config: { ...DEFAULT_FANTASY_CONFIG, lock: { ...DEFAULT_FANTASY_CONFIG.lock, dayOfWeek } } }),
+        seasonParams()
+      )
+
+    expect((await save(5)).status).toBe(400)
+    expect((await save(6)).status).toBe(200)
   })
 })
 
@@ -790,6 +925,49 @@ describe("contests", () => {
     const points = async (contest: string) => (await fetchFantasyStandings(contest))?.season.rows[0].points
     expect(await points("regular")).toBe(0)
     expect(await points("playoffs")).toBe(20)
+  })
+
+  it("counts a game marked as a playoff game as one, even when its type was never set", async () => {
+    await turnOnPlayoffs()
+    const regular = await registerIn("regular", "Regulars")
+    const post = await registerIn("playoffs", "Playoff Team")
+    // As the daily sync writes it: is_playoff set, game_type left at its default.
+    const { game } = await league.game({ isPlayoff: true, gameType: "regular", date: "2026-11-07" })
+    await setupPlayerGame({ player: league.players[1].player, game, goals: 2 })
+    await putLineup(regular.token)
+    await putLineup(post.token)
+    vi.setSystemTime(new Date("2026-11-10T12:00:00-08:00"))
+
+    const points = async (contest: string) => (await fetchFantasyStandings(contest))?.season.rows[0].points
+    expect(await points("regular")).toBe(0)
+    expect(await points("playoffs")).toBe(20)
+  })
+
+  it("checks a Manager's picks against their own contest's settings", async () => {
+    await turnOnPlayoffs()
+    const post = await registerIn("playoffs", "Playoff Team")
+    // The playoffs only have a game in this Week, which the regular contest doesn't score.
+    const { game } = await league.game({ gameType: "playoff", date: "2026-11-07", status: "upcoming" })
+    const [regularGame] = await db.select().from(schema.games).where(eq(schema.games.date, "2026-11-07"))
+    const auth = { authorization: `Bearer ${post.token}` }
+    const predict = (gameId: string) =>
+      savePredictionsRoute(
+        json("/x", "PUT", { weekId: OPEN_WEEK, predictions: [{ gameId, homeScore: 4, awayScore: 1 }] }, auth)
+      )
+    const [manager] = await db.select().from(schema.fantasyManagers).where(eq(schema.fantasyManagers.teamName, "Playoff Team"))
+    const adminPredict = (gameId: string) =>
+      adminSavePredictionsRoute(
+        json("/x", "PUT", { weekId: OPEN_WEEK, predictions: [{ gameId, homeScore: 4, awayScore: 1 }] }),
+        managerParams(manager.id)
+      )
+
+    for (const save of [predict, adminPredict]) {
+      expect((await save(game.id)).status).toBe(200)
+      const refused = await save(regularGame.id)
+      expect([refused.status, (await refused.json()).errors]).toEqual([422, ["unknown-game"]])
+    }
+    expect((await putLineup(post.token)).status).toBe(200)
+    expect((await adminSaveLineupRoute(json("/x", "PUT", { weekId: OPEN_WEEK, lineup: league.lineup() }), managerParams(manager.id))).status).toBe(200)
   })
 
   it("turns on a run under its own name, beside one of the same type", async () => {

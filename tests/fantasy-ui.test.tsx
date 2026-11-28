@@ -3,8 +3,10 @@ import { act, type ReactNode } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { RegistrationForm } from "@/components/fantasy/registration-form"
+import { CopyLink } from "@/components/fantasy/copy-link"
 import { ManagerHistory } from "@/components/fantasy/manager-history"
 import { ManagerPanel } from "@/components/fantasy/manager-panel"
+import { FantasyPicksEditor } from "@/components/admin/fantasy-picks-editor"
 import { LineupFormPanel, SelectionSheet } from "@/components/fantasy/lineup-form"
 import { PredictionsFormPanel } from "@/components/fantasy/predictions-form"
 import type { LineupForm } from "@/lib/fantasy/lineups"
@@ -587,6 +589,70 @@ describe("admin pick entry", () => {
   })
 })
 
+describe("the admin picks editor", () => {
+  const picks = { weekIds: ["2026-10-31", "2026-11-07"], openWeekId: "2026-11-07", closed: false, form: formFixture() }
+  const render_ = () => render(<FantasyPicksEditor picks={picks} adminUrl="/admin-url" pageHref="/managers/7" />)
+  const tab = (name: string) => [...container.querySelectorAll('[role="tab"]')].find((t) => t.textContent === name)!
+  const activate = (name: string) =>
+    act(async () => {
+      tab(name).dispatchEvent(new MouseEvent("mousedown", { bubbles: true, button: 0, ctrlKey: false }))
+    })
+  const score = () => container.querySelector<HTMLInputElement>('input[aria-label^="Seals score"]')!
+  const typeScore = (value: string) =>
+    act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(score(), value)
+      score().dispatchEvent(new Event("input", { bubbles: true }))
+    })
+  const otherWeek = () => container.querySelector<HTMLAnchorElement>('a[href="/managers/7?week=2026-10-31"]')!
+  /** Clicks the other Week, and says whether the click was allowed to navigate. */
+  const leave = async () => {
+    let allowed = true
+    const watch = (event: Event) => {
+      allowed = !event.defaultPrevented
+      event.preventDefault()
+    }
+    window.addEventListener("click", watch)
+    await act(async () => otherWeek().click())
+    window.removeEventListener("click", watch)
+    return allowed
+  }
+
+  afterEach(() => vi.restoreAllMocks())
+
+  it("keeps unsaved picks while switching tabs", async () => {
+    await render_()
+    await activate("Predictions")
+    await typeScore("5")
+
+    await activate("Lineup")
+    await activate("Predictions")
+
+    expect(score().value).toBe("5")
+  })
+
+  it("asks before leaving a Week with unsaved picks, even from the other tab", async () => {
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false)
+    await render_()
+    await activate("Predictions")
+    await typeScore("5")
+    // The untouched Lineup form must not overwrite what the Predictions form reported.
+    await activate("Lineup")
+
+    await leave()
+
+    expect(confirm).toHaveBeenCalledWith("Discard your unsaved changes?")
+  })
+
+  it("lets an admin leave without asking when nothing has changed", async () => {
+    const confirm = vi.spyOn(window, "confirm")
+    await render_()
+
+    await leave()
+
+    expect(confirm).not.toHaveBeenCalled()
+  })
+})
+
 describe("ManagerPanel", () => {
   const form = formFixture()
   const tab = (name: string) => [...container.querySelectorAll('[role="tab"]')].find((t) => t.textContent === name)!
@@ -723,5 +789,38 @@ describe("ManagerHistory", () => {
     await render(<ManagerHistory history={{ points: 0, weeks: [] }} pickem={{ correct: 0, goalError: 0, weeks: [] }} />)
 
     expect(container.textContent).not.toMatch(/lock/i)
+  })
+})
+
+describe("CopyLink", () => {
+  const writeText = vi.fn()
+  const copyButton = () => [...container.querySelectorAll("button")].find((b) => b.textContent?.startsWith("Cop"))!
+  const copy = () => act(async () => copyButton().click())
+
+  beforeEach(() => {
+    writeText.mockReset().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true })
+  })
+  afterEach(() => vi.restoreAllMocks())
+
+  it("stops saying Copied once a new link replaces the copied one", async () => {
+    await render(<CopyLink path="/fantasy/m/old" />)
+    await copy()
+    expect(copyButton().textContent).toBe("Copied")
+
+    await render(<CopyLink path="/fantasy/m/new" />)
+
+    expect(copyButton().textContent).toBe("Copy")
+  })
+
+  it("says so when the link couldn't be copied", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {})
+    writeText.mockRejectedValue(new Error("denied"))
+    await render(<CopyLink path="/fantasy/m/abc" />)
+
+    await copy()
+
+    expect(copyButton().textContent).toBe("Copy")
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain("copy it yourself")
   })
 })

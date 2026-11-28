@@ -155,6 +155,68 @@ describe("admin Lineup entry", () => {
   })
 })
 
+describe("correcting a closed Week after rosters change", () => {
+  const rosterRow = (playerId: number) => eq(schema.playerSeasons.playerId, playerId)
+
+  /** A saved past Week whose first skater has since moved to a team with no game that Week. */
+  async function savedThenTraded() {
+    await putLineup(PAST_WEEK)
+    const { team: idle } = await setupTeam()
+    await db.update(schema.playerSeasons).set({ teamSlug: idle.slug }).where(rosterRow(league.ids[0]))
+  }
+
+  /** The saved Lineup with its Backup swapped into the third skater slot. */
+  const corrected = () => league.lineup({ skaters: [league.ids[0], league.ids[1], league.ids[3]], skaterBackups: [league.ids[2]] })
+
+  it("keeps a saved Player who now has a Bye", async () => {
+    await savedThenTraded()
+
+    expect((await putLineup(PAST_WEEK, corrected())).status).toBe(200)
+    expect((await storedLineups())[0].skaters).toEqual(corrected().skaters)
+  })
+
+  it("keeps a saved Player who has left the rosters", async () => {
+    await putLineup(PAST_WEEK)
+    await db.delete(schema.playerSeasons).where(rosterRow(league.ids[0]))
+
+    expect((await putLineup(PAST_WEEK, corrected())).status).toBe(200)
+  })
+
+  it("still refuses to add a Player who has a Bye or isn't rostered", async () => {
+    expect((await putLineup(PAST_WEEK, league.lineup({ skaterBackups: [] }))).status).toBe(200)
+    const { team: idle } = await setupTeam()
+    const { player: newcomer } = await setupPlayer({ roster: [{ season: league.season, team: idle }] })
+    await db.delete(schema.playerSeasons).where(rosterRow(league.ids[3]))
+
+    const response = await putLineup(
+      PAST_WEEK,
+      league.lineup({ skaters: [newcomer.id, league.ids[1], league.ids[2]], skaterBackups: [league.ids[3]] })
+    )
+
+    expect(response.status).toBe(422)
+    expect((await response.json()).errors).toEqual(expect.arrayContaining(["on-bye", "not-rostered"]))
+  })
+
+  it("doesn't carry a saved goalie over into a skater slot", async () => {
+    await putLineup(PAST_WEEK)
+    await db.delete(schema.playerSeasons).where(rosterRow(league.goalie.id))
+
+    const response = await putLineup(
+      PAST_WEEK,
+      league.lineup({ skaters: [league.goalie.id, league.ids[1], league.ids[2]], goalies: [] })
+    )
+
+    expect((await response.json()).errors).toContain("not-rostered")
+  })
+
+  it("makes no exception for the open Week, which the Manager can still change", async () => {
+    await putLineup(OPEN_WEEK)
+    await db.delete(schema.playerSeasons).where(rosterRow(league.ids[0]))
+
+    expect((await putLineup(OPEN_WEEK, corrected())).status).toBe(422)
+  })
+})
+
 describe("admin Prediction entry", () => {
   const predict = (gameId: string, homeScore = 3, awayScore = 1) => ({ gameId, homeScore, awayScore })
 

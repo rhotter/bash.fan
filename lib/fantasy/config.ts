@@ -51,7 +51,15 @@ export const DEFAULT_FANTASY_CONFIG: FantasyConfig = {
 
 const count = z.number().int().min(0).max(20)
 const cap = z.number().int().min(1, "A cap is at least 1, or null for no cap").nullable()
-const weight = z.number().finite()
+const MAX_WEIGHT = 1000
+const weightRange = `Use a number from -${MAX_WEIGHT} to ${MAX_WEIGHT}`
+const weight = z
+  .number()
+  .finite()
+  .min(-MAX_WEIGHT, weightRange)
+  .max(MAX_WEIGHT, weightRange)
+  // Scoring adds points to 2 places, so a finer weight would be rounded away.
+  .refine((value) => Math.abs(value * 100 - Math.round(value * 100)) < 1e-7, "Use at most 2 decimal places")
 
 function isTimeZone(zone: string) {
   try {
@@ -69,7 +77,10 @@ function isCalendarDate(date: string) {
   return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === date
 }
 
-/** Optional, so configs stored before runs had dates still load. */
+/**
+ * Optional, so configs stored before runs had dates still load. Give any key added later a default too:
+ * a stored config that fails this schema takes its contest offline until an admin saves it again.
+ */
 const runDate = z
   .string()
   .refine((date) => /^\d{4}-\d{2}-\d{2}$/.test(date) && isCalendarDate(date), "Use a real date, YYYY-MM-DD, or null")
@@ -121,7 +132,11 @@ const fantasyConfigSchema: z.ZodType<FantasyConfig, z.ZodTypeDef, unknown> = z.o
     .strict(),
   startsOn: runDate,
   endsOn: runDate,
-}).strict().superRefine(({ startsOn, endsOn, lock }, context) => {
+}).strict().superRefine(({ startsOn, endsOn, lock, lineup }, context) => {
+  // A Backup only comes in for an absent starter, so with no goalie spot it could never play. Skaters always have one.
+  if (lineup.goalies === 0 && lineup.goalieBackups > 0) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ["lineup", "goalieBackups"], message: "Goalie Backups need a goalie spot to cover" })
+  }
   if (startsOn !== null && endsOn !== null && closingDayOnOrAfter(startsOn, lock.dayOfWeek) > endsOn) {
     context.addIssue({ code: z.ZodIssueCode.custom, path: ["endsOn"], message: "No Week closes between the start and end dates" })
   }

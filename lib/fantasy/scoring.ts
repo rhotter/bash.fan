@@ -81,23 +81,31 @@ function scoredGameIds(games: WeekGame[]) {
   return new Set(games.filter((g) => gameState(g) === "scored").map((g) => g.id))
 }
 
+/**
+ * Adds points without floating point drift, which would stop equal scores tying and show
+ * as 0.30000000000000004. The config keeps weights to 2 decimal places.
+ */
+export function sumPoints(...values: number[]) {
+  return Math.round(values.reduce((total, value) => total + value, 0) * 100) / 100
+}
+
 function skaterLinePoints(line: SkaterStatLine, config: FantasyConfig) {
   const { skater } = config.weights
-  return (
-    line.goals * skater.goal +
-    line.assists * skater.assist +
-    line.ppg * skater.ppg +
-    line.shg * skater.shg +
+  return sumPoints(
+    line.goals * skater.goal,
+    line.assists * skater.assist,
+    line.ppg * skater.ppg,
+    line.shg * skater.shg,
     line.pim * skater.pim
   )
 }
 
 function goalieLinePoints(line: GoalieStatLine, config: FantasyConfig) {
   const { goalie } = config.weights
-  return (
-    line.saves * goalie.save +
-    line.goalsAgainst * goalie.goalAgainst +
-    (line.result === "W" ? goalie.win : 0) +
+  return sumPoints(
+    line.saves * goalie.save,
+    line.goalsAgainst * goalie.goalAgainst,
+    line.result === "W" ? goalie.win : 0,
     line.shutouts * goalie.shutout
   )
 }
@@ -137,7 +145,7 @@ export function selectionGameLines(
     return [
       {
         gameId,
-        points: (skating ? skaterLinePoints(skating, config) : 0) + (goal ? goalieLinePoints(goal, config) : 0),
+        points: sumPoints(skating ? skaterLinePoints(skating, config) : 0, goal ? goalieLinePoints(goal, config) : 0),
         stats: [
           ...(skating
             ? [
@@ -171,7 +179,7 @@ export function goaliePointsByPlayer(stats: WeekStats, games: WeekGame[], config
   const points = new Map<number, number>()
   for (const line of stats.goalie) {
     if (line.isSub || !scored.has(line.gameId)) continue
-    points.set(line.playerId, (points.get(line.playerId) ?? 0) + goalieLinePoints(line, config))
+    points.set(line.playerId, sumPoints(points.get(line.playerId) ?? 0, goalieLinePoints(line, config)))
   }
   return points
 }
@@ -182,7 +190,7 @@ export function pointsByPlayer(stats: WeekStats, games: WeekGame[], config: Fant
   const points = goaliePointsByPlayer(stats, games, config)
   for (const line of stats.skater) {
     if (line.isSub || !scored.has(line.gameId)) continue
-    points.set(line.playerId, (points.get(line.playerId) ?? 0) + skaterLinePoints(line, config))
+    points.set(line.playerId, sumPoints(points.get(line.playerId) ?? 0, skaterLinePoints(line, config)))
   }
   return points
 }
@@ -232,7 +240,7 @@ export function scoreWeek(
     ...scoreKind("goalie", lineup.goalies, lineup.goalieBackups, goaliePoints, provisional),
   ]
   return {
-    points: selections.reduce((total, s) => total + s.points, 0),
+    points: sumPoints(...selections.map((s) => s.points)),
     provisional,
     selections,
   }
@@ -320,6 +328,11 @@ export interface LineupContext {
   /** From `playersOnBye`, for the Week being saved. */
   onBye: Set<number>
   config: FantasyConfig
+  /**
+   * What's already saved, when an admin corrects a closed Week. These Players keep slots of the same kind
+   * even if a trade or roster change since then would stop them being selected today.
+   */
+  saved?: Lineup
 }
 
 /** Save-time rules. An empty result means the Lineup can be saved. */
@@ -327,7 +340,10 @@ export function validateLineup(lineup: Lineup, context: LineupContext): LineupEr
   const { roster, uses, defaultGoalies, onBye, config } = context
   const errors = new Set<LineupError>()
   const rosterById = new Map(roster.map((entry) => [entry.playerId, entry]))
-  const ids = roster.map((entry) => entry.playerId)
+  const { saved } = context
+  const keptSkaters = new Set(saved ? [...saved.skaters, ...saved.skaterBackups] : [])
+  const keptGoalies = new Set(saved ? [...saved.goalies, ...saved.goalieBackups] : [])
+  const ids = [...new Set([...roster.map((entry) => entry.playerId), ...keptSkaters, ...keptGoalies])]
   const skaterUsesLeft = remainingUses(ids, "skater", uses.skater, config)
   const goalieUsesLeft = remainingUses(ids, "goalie", uses.goalie, config)
 
@@ -351,15 +367,16 @@ export function validateLineup(lineup: Lineup, context: LineupContext): LineupEr
 
   for (const id of skaterSlots) {
     const entry = rosterById.get(id)
-    if (!entry) errors.add("not-rostered")
-    else if (entry.isGoalie) errors.add("wrong-kind")
+    if (!keptSkaters.has(id) && !entry) errors.add("not-rostered")
+    else if (!keptSkaters.has(id) && entry?.isGoalie) errors.add("wrong-kind")
     else if (skaterUsesLeft.get(id) === 0) errors.add("at-usage-cap")
   }
   for (const id of goalieSlots) {
-    if (!rosterById.has(id)) errors.add("not-rostered")
+    if (!keptGoalies.has(id) && !rosterById.has(id)) errors.add("not-rostered")
     else if (goalieUsesLeft.get(id) === 0) errors.add("at-usage-cap")
   }
-  if (all.some((id) => onBye.has(id))) errors.add("on-bye")
+  const newOnBye = (slots: number[], kept: Set<number>) => slots.some((id) => onBye.has(id) && !kept.has(id))
+  if (newOnBye(skaterSlots, keptSkaters) || newOnBye(goalieSlots, keptGoalies)) errors.add("on-bye")
   return [...errors]
 }
 

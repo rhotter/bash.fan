@@ -3,7 +3,7 @@ import type { SavedLineup, SeasonGame } from "./lineups"
 import {
   gameState,
   rankByPoints,
-  scoreWeek,
+  scoreWeek, sumPoints,
   selectionGameLines,
   type ScoredSelection,
   type SelectionGameLine,
@@ -106,7 +106,7 @@ export function buildStandings(input: StandingsInput): FantasyStandings {
       const managerName = managerNames.get(managerId)
       if (weekId !== id || managerName === undefined) return []
       const { points, selections } = scoreWeek(lineup, stats, weekGames, config)
-      seasonPoints.set(managerId, (seasonPoints.get(managerId) ?? 0) + points)
+      seasonPoints.set(managerId, sumPoints(seasonPoints.get(managerId) ?? 0, points))
       return [
         {
           managerId,

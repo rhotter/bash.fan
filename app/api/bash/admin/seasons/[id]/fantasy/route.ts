@@ -5,12 +5,14 @@ import { fetchFantasyOverview } from "@/lib/fetch-fantasy"
 import { checkFantasyConfig, DEFAULT_FANTASY_CONFIG } from "@/lib/fantasy/config"
 import { listManagers } from "@/lib/fantasy/managers"
 import { refreshPublicPages, reply } from "@/lib/fantasy/reply"
-import { firstWeekId, picksOpenAt, runStatus } from "@/lib/fantasy/week"
+import { endsBeforeFirstWeek, picksOpenAt, runStatus } from "@/lib/fantasy/week"
 import {
   DEFAULT_CONTEST,
-  getFantasySeason,
+  getStoredContest,
   hasLineups,
-  listFantasyContests,
+  hasLineupsOffDay,
+  hasPredictions,
+  listContestKeys,
   parseContest,
   saveFantasyConfig,
 } from "@/lib/fantasy/season"
@@ -23,21 +25,27 @@ export async function GET(request: Request, { params }: Context) {
   const contest = parseContest(new URL(request.url).searchParams.get("contest") ?? DEFAULT_CONTEST)
   if (!contest) return reply({ error: "That contest isn't valid." }, 400)
   try {
-    const [season, lineupsExist, managers, contests] = await Promise.all([
-      getFantasySeason(id, contest),
+    const [existing, lineupsExist, predictionsExist, managers, contests] = await Promise.all([
+      getStoredContest(id, contest),
       hasLineups(id, contest),
+      hasPredictions(id, contest),
       listManagers(id, contest),
-      listFantasyContests(id),
+      listContestKeys(id),
     ])
+    const season = existing?.season ?? null
     return reply({
       contest,
-      contests: contests.map((c) => c.contest),
-      enabled: season !== null,
+      contests,
+      enabled: existing !== null,
+      // Set when the stored config can't be used, so the admin can see why and save a replacement.
+      configIssues: existing?.issues ?? null,
+      storedConfig: existing?.issues ? existing.stored : null,
       status: season ? runStatus(season.config, new Date()) : null,
       picksOpenAt: season ? (picksOpenAt(season.config)?.toISOString() ?? null) : null,
       config: season?.config ?? DEFAULT_FANTASY_CONFIG,
       launchedAt: season?.launchedAt ?? null,
       hasLineups: lineupsExist,
+      hasPredictions: predictionsExist,
       managers,
       overview: season ? await fetchFantasyOverview(season) : null,
     })
@@ -58,7 +66,8 @@ export async function PUT(request: Request, { params }: Context) {
     }
     const contest = parseContest(body.contest ?? DEFAULT_CONTEST)
     if (!contest) return reply({ error: "That contest isn't valid. Use letters, numbers and dashes." }, 400)
-    const existing = await getFantasySeason(id, contest)
+    // Not parsed, so a valid config can replace one that no longer passes.
+    const existing = await getStoredContest(id, contest)
     // A request with no config turns a contest on with the defaults. It never resets one that's already on.
     if (body.config === undefined && existing) {
       return reply({ error: "Send the config to change it. This contest is already on." }, 400)
@@ -74,9 +83,16 @@ export async function PUT(request: Request, { params }: Context) {
     if (!season) return reply({ error: "Season not found" }, 404)
 
     const now = new Date()
-    // With no start date the first Week depends on when the run was turned on, which the config alone can't check.
-    if (config.endsOn !== null && config.endsOn < firstWeekId(config, existing?.launchedAt ?? now)) {
-      return reply({ error: "That config isn't valid.", issues: ["endsOn: The run would end before its first Week"] }, 400)
+    const endIssue = endsBeforeFirstWeek(config, existing?.launchedAt ?? now)
+    if (endIssue) return reply({ error: "That config isn't valid.", issues: [endIssue] }, 400)
+
+    // Changing back to the day the Lineups were saved under stays allowed.
+    const { dayOfWeek } = config.lock
+    if (existing && dayOfWeek !== existing.dayOfWeek && (await hasLineupsOffDay(id, contest, dayOfWeek))) {
+      return reply(
+        { error: "That config isn't valid.", issues: ["lock.dayOfWeek: The closing day can't change once Lineups are saved"] },
+        400
+      )
     }
 
     await saveFantasyConfig(id, contest, config, now)

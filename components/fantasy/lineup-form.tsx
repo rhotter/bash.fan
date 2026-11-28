@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, type FormEvent } from "react"
+import { useEffect, useState, type FormEvent } from "react"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
@@ -118,6 +118,8 @@ const ERRORS: Record<LineupError, string> = {
 
 const isGoalieSlot = (group: SlotGroup) => group === "goalies" || group === "goalieBackups"
 
+const emptyOrGone = (value: string) => (value ? "Player no longer on a roster" : "Choose a Player")
+
 function initialSelections(form: LineupForm): Selections {
   const selections = {} as Selections
   for (const { group, count } of GROUPS) {
@@ -126,7 +128,15 @@ function initialSelections(form: LineupForm): Selections {
   return selections
 }
 
-export function LineupFormPanel({ form, ...target }: { form: LineupForm } & SaveTarget) {
+export function LineupFormPanel({
+  form,
+  onDirtyChange,
+  ...target
+}: {
+  form: LineupForm
+  /** Told whether there's something unsaved. Leaving the form counts as nothing unsaved. */
+  onDirtyChange?: (dirty: boolean) => void
+} & SaveTarget) {
   const isAdmin = target.adminUrl !== undefined
   const [selections, setSelections] = useState(() => initialSelections(form))
   const [everyGoalie, setEveryGoalie] = useState(false)
@@ -135,6 +145,11 @@ export function LineupFormPanel({ form, ...target }: { form: LineupForm } & Save
   const [dirty, setDirty] = useState(false)
   const [canOverride, setCanOverride] = useState(false)
   const [message, setMessage] = useState<{ text: string; failed: boolean } | null>(null)
+
+  useEffect(() => {
+    onDirtyChange?.(dirty)
+    return () => onDirtyChange?.(false)
+  }, [dirty, onDirtyChange])
 
   const defaultGoalies = new Set(form.defaultGoalieIds)
   const chosen = new Set(Object.values(selections).flat().filter(Boolean))
@@ -219,13 +234,13 @@ export function LineupFormPanel({ form, ...target }: { form: LineupForm } & Save
                 variant="outline"
                 id={id}
                 aria-label={`${label}${selections[group].length > 1 ? ` ${index + 1}` : ""}: ${
-                  form.players.find((p) => String(p.id) === value)?.name ?? "Choose a Player"
+                  form.players.find((p) => String(p.id) === value)?.name ?? emptyOrGone(value)
                 }`}
                 onClick={() => setEditing({ group, index })}
                 className="w-full justify-between font-normal"
               >
                 {form.players.find((p) => String(p.id) === value)?.name ?? (
-                  <span className="text-muted-foreground">Choose a Player</span>
+                  <span className="text-muted-foreground">{emptyOrGone(value)}</span>
                 )}
               </Button>
             </div>

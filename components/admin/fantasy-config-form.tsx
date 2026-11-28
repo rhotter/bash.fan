@@ -18,6 +18,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Input } from "@/components/ui/input"
 import { Spinner } from "@/components/ui/spinner"
 import { Textarea } from "@/components/ui/textarea"
+import { cn } from "@/lib/utils"
 import { checkFantasyConfig, GAME_TYPES, type FantasyConfig } from "@/lib/fantasy/config"
 import {
   DAYS,
@@ -155,6 +156,8 @@ export function FantasyConfigForm({
   initial,
   enabled,
   hasLineups,
+  hasPredictions = false,
+  fixedClosingDay = false,
   onSave,
   onDirtyChange,
 }: {
@@ -162,6 +165,9 @@ export function FantasyConfigForm({
   /** Whether the run is already on. */
   enabled: boolean
   hasLineups: boolean
+  hasPredictions?: boolean
+  /** Whether saved Lineups hold the closing day where it is. The server enforces this too. */
+  fixedClosingDay?: boolean
   onSave: (config: FantasyConfig) => void | Promise<void>
   /** Told whether the draft, as fields or JSON, differs from where it started. */
   onDirtyChange?: (dirty: boolean) => void
@@ -201,7 +207,7 @@ export function FantasyConfigForm({
     event.preventDefault()
     if (saving || problem !== undefined || !check.ok) return
     const changes = describeConfigChanges(initial, check.config)
-    if (enabled && hasLineups && changes.length > 0) setConfirming({ config: check.config, changes })
+    if (enabled && (hasLineups || hasPredictions) && changes.length > 0) setConfirming({ config: check.config, changes })
     else void save(check.config)
   }
 
@@ -342,7 +348,8 @@ export function FantasyConfigForm({
               <span className="block text-muted-foreground">Day</span>
               <select
                 aria-label="Closing day"
-                className={selectClass}
+                disabled={fixedClosingDay}
+                className={cn(selectClass, "disabled:opacity-50")}
                 value={draft.lock.dayOfWeek}
                 onChange={(e) => change({ ...draft, lock: { ...draft.lock, dayOfWeek: Number(e.target.value) } })}
               >
@@ -352,6 +359,9 @@ export function FantasyConfigForm({
                   </option>
                 ))}
               </select>
+              {fixedClosingDay && (
+                <span className="block text-xs text-muted-foreground">The day can&apos;t change once Lineups are saved.</span>
+              )}
             </label>
             <label className="space-y-1 text-sm">
               <span className="block text-muted-foreground">Time (noon at the latest)</span>
@@ -431,13 +441,13 @@ export function FantasyConfigForm({
       <AlertDialog open={confirming !== null} onOpenChange={(open) => !open && setConfirming(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Change a run that has Lineups?</AlertDialogTitle>
+            <AlertDialogTitle>Change a run that has picks?</AlertDialogTitle>
             <AlertDialogDescription>
               Every Week is scored again with the new settings straight away. Saved Lineups aren&apos;t rechecked against new
               Lineup spots or usage limits.
               {(confirming?.config.startsOn !== initial.startsOn || confirming?.config.endsOn !== initial.endsOn) &&
                 " Weeks outside the run's dates don't count."}
-              {movesWeeks && " Changing the closing day, time or time zone can move a saved Lineup into a different Week."}
+              {movesWeeks && " Changing the closing day, time or time zone can move a game into a different Week. Saved Lineups stay with their Week's date."}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <ul className="max-h-48 list-disc space-y-1 overflow-y-auto pl-5 text-sm">

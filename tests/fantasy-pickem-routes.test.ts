@@ -93,6 +93,16 @@ describe("saving Predictions", () => {
     expect(await readManagerPredictions(manager.id)).toEqual([])
   })
 
+  it("never ends up with nothing when two saves overlap", async () => {
+    const token = await registerManager("Aces")
+    const manager = (await db.select().from(schema.fantasyManagers))[0]
+
+    const responses = await Promise.all([put(token, week([predict(g1, 4, 2)])), put(token, week([predict(g2, 6, 5)]))])
+
+    expect(responses.map((r) => r.status)).toEqual([200, 200])
+    expect(await readManagerPredictions(manager.id)).not.toEqual([])
+  })
+
   it("rejects tied scores", async () => {
     const token = await registerManager("Aces")
     const response = await put(token, week([predict(g1, 3, 3)]))

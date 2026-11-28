@@ -1,4 +1,4 @@
-import { and, arrayContains, eq, inArray, or } from "drizzle-orm"
+import { and, arrayContains, eq, inArray, or, sql } from "drizzle-orm"
 import { z } from "zod"
 import { db, schema } from "@/lib/db"
 import type { FantasyConfig } from "./config"
@@ -92,9 +92,12 @@ function foldRoster(rows: { id: number; name: string; team: string; teamSlug: st
 
 const { games: gamesTable, goalieGameStats: goalieStats, playerGameStats: skaterStats } = schema
 
+// The daily sync sets is_playoff but leaves game_type at its default, so a playoff game can read as "regular".
+const effectiveGameType = sql<string>`CASE WHEN ${gamesTable.isPlayoff} AND ${gamesTable.gameType} = 'regular' THEN 'playoff' ELSE ${gamesTable.gameType} END`
+
 /** The season's games of the types a contest scores, such as regular games or playoff games. */
 const scoredGames = (seasonId: string, gameTypes: string[]) =>
-  and(eq(gamesTable.seasonId, seasonId), inArray(gamesTable.gameType, gameTypes))
+  and(eq(gamesTable.seasonId, seasonId), inArray(effectiveGameType, gameTypes))
 
 export function readSeasonGames(seasonId: string, gameTypes: string[]): Promise<SeasonGame[]> {
   return db
@@ -102,7 +105,7 @@ export function readSeasonGames(seasonId: string, gameTypes: string[]): Promise<
       id: gamesTable.id,
       date: gamesTable.date,
       time: gamesTable.time,
-      gameType: gamesTable.gameType,
+      gameType: effectiveGameType,
       homeTeam: gamesTable.homeTeam,
       awayTeam: gamesTable.awayTeam,
       homeScore: gamesTable.homeScore,
@@ -458,6 +461,7 @@ export type AdminSaveResult =
 
 /**
  * Saves a Lineup for a Manager in any Week up to the open one, ignoring the Lock. Every other rule applies,
+ * except that a closed Week's saved Players aren't rechecked against today's rosters and Byes,
  * counting uses from all the Manager's other Weeks, later ones included. Only the Usage Cap can be overridden.
  */
 export async function adminSaveLineup(
@@ -469,11 +473,11 @@ export async function adminSaveLineup(
   now = new Date()
 ): Promise<AdminSaveResult> {
   const state = await readSeasonState(manager, season.config.gameTypes)
-  if (weekId > openWeek(now, season.config.lock).id || weekGames(state, season, weekId).length === 0) {
-    return { outcome: "no-games" }
-  }
+  const open = openWeek(now, season.config.lock).id
+  if (weekId > open || weekGames(state, season, weekId).length === 0) return { outcome: "no-games" }
 
-  const errors = validateLineup(lineup, capContext(state, season, weekId))
+  const saved = weekId < open ? state.lineups.find((l) => l.weekId === weekId)?.lineup : undefined
+  const errors = validateLineup(lineup, { ...capContext(state, season, weekId), saved })
   const canOverride = errors.every((error) => error === "at-usage-cap")
   if (errors.length > 0 && !(overrideCap && canOverride)) return { outcome: "invalid", errors, canOverride }
 
@@ -505,10 +509,12 @@ export function replaceInLineup(lineup: Lineup, fromId: number, toId: number): L
   }
 }
 
+const MAX_REASSIGN_ATTEMPTS = 25
+
 /**
  * Keeps saved Lineups pointing at a live Player when a duplicate is merged away.
  * The Neon HTTP driver has no interactive transactions, so each update only applies if the Lineup is unchanged
- * since it was read (a concurrent save wins), and the function throws if any Lineup still holds the duplicate.
+ * since it was read (a concurrent save wins, then is retried), and the function throws if any Lineup still holds the duplicate.
  * Re-running is safe: only Lineups still holding the duplicate are touched.
  */
 export async function reassignLineupPlayer(fromId: number, toId: number) {
@@ -519,25 +525,30 @@ export async function reassignLineupPlayer(fromId: number, toId: number) {
     arrayContains(skaterBackups, [fromId]),
     arrayContains(goalieBackups, [fromId])
   )
-  const affected = await db.select().from(fantasyLineups).where(holdsPlayer)
-  for (const row of affected) {
-    try {
-      await db
-        .update(fantasyLineups)
-        .set(replaceInLineup(row, fromId, toId))
-        .where(
-          and(
-            eq(managerId, row.managerId),
-            eq(weekId, row.weekId),
-            eq(skaters, row.skaters),
-            eq(goalies, row.goalies),
-            eq(skaterBackups, row.skaterBackups),
-            eq(goalieBackups, row.goalieBackups)
+  // The automatic merge runs groups side by side, so two can change one Lineup at once. Whichever loses
+  // reads it again. Each round lets at least one writer through, so this outlasts every merge worker.
+  for (let attempt = 0; attempt < MAX_REASSIGN_ATTEMPTS; attempt++) {
+    const affected = await db.select().from(fantasyLineups).where(holdsPlayer)
+    if (affected.length === 0) return
+    for (const row of affected) {
+      try {
+        await db
+          .update(fantasyLineups)
+          .set(replaceInLineup(row, fromId, toId))
+          .where(
+            and(
+              eq(managerId, row.managerId),
+              eq(weekId, row.weekId),
+              eq(skaters, row.skaters),
+              eq(goalies, row.goalies),
+              eq(skaterBackups, row.skaterBackups),
+              eq(goalieBackups, row.goalieBackups)
+            )
           )
-        )
-    } catch (error) {
-      console.error(`Could not move Lineup (manager ${row.managerId}, week ${row.weekId}) from player ${fromId} to ${toId}:`, error)
-      throw error
+      } catch (error) {
+        console.error(`Could not move Lineup (manager ${row.managerId}, week ${row.weekId}) from player ${fromId} to ${toId}:`, error)
+        throw error
+      }
     }
   }
   const remaining = await db.select({ managerId, weekId }).from(fantasyLineups).where(holdsPlayer)

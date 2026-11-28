@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, type FormEvent } from "react"
+import { useEffect, useState, type FormEvent } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { saveRequest, type SaveTarget } from "@/components/fantasy/save-target"
@@ -69,17 +69,25 @@ export function PredictionsFormPanel({
   overview,
   saved,
   week,
+  onDirtyChange,
   ...target
 }: {
   overview: WeekOverview
   saved: Prediction[]
   week: { id: string; lockAt: string; timeZone: string }
+  /** Told whether there's something unsaved. Leaving the form counts as nothing unsaved. */
+  onDirtyChange?: (dirty: boolean) => void
 } & SaveTarget) {
   const isAdmin = target.adminUrl !== undefined
   const [boxes, setBoxes] = useState(() => initialBoxes(overview, saved))
   const [saving, setSaving] = useState(false)
   const [dirty, setDirty] = useState(false)
   const [message, setMessage] = useState<{ text: string; failed: boolean } | null>(null)
+
+  useEffect(() => {
+    onDirtyChange?.(dirty)
+    return () => onDirtyChange?.(false)
+  }, [dirty, onDirtyChange])
 
   const closes = new Intl.DateTimeFormat("en-US", {
     weekday: "long",

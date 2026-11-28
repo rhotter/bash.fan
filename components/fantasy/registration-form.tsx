@@ -8,6 +8,12 @@ import { Label } from "@/components/ui/label"
 import { errorMessage, fetchApi, readApiJson } from "@/lib/api-errors"
 import { CopyLink } from "./copy-link"
 
+function tooManyMessage(seconds: number) {
+  const minutes = Math.ceil(seconds / 60)
+  const wait = minutes > 0 ? `in ${minutes} ${minutes === 1 ? "minute" : "minutes"}` : "later"
+  return `Too many registrations right now. Try again ${wait}.`
+}
+
 export function RegistrationForm({ contest }: { contest: string }) {
   const [fields, setFields] = useState({ teamName: "", firstName: "", lastName: "" })
   const [error, setError] = useState<string | null>(null)
@@ -25,7 +31,8 @@ export function RegistrationForm({ contest }: { contest: string }) {
         body: JSON.stringify(fields),
       })
       const body = await readApiJson(response)
-      if (!response.ok) setError(body.error ?? "Could not register.")
+      if (response.status === 429) setError(tooManyMessage(Number(response.headers.get("Retry-After"))))
+      else if (!response.ok) setError(body.error ?? "Could not register.")
       else if (typeof body.managerPath === "string") setManagerPath(body.managerPath)
       else setError("You’re registered, but the server didn’t return your Manager Link. Ask an admin to reissue it.")
     } catch (err) {

@@ -129,6 +129,19 @@ describe("merging Players", () => {
     expect(rows.flatMap((r) => [...r.skaters, ...r.goalies, ...r.skaterBackups, ...r.goalieBackups])).not.toContain(ids.dupe)
   })
 
+  it("merges two Players held by one Lineup in the same automatic merge", async () => {
+    const keep = (await setupPlayer({ name: "Mike Smith" })).player.id
+    const dupe = (await setupPlayer({ name: "Michael Smith" })).player.id
+    await db
+      .update(schema.fantasyLineups)
+      .set({ skaters: [ids.dupe, dupe, 9003], skaterBackups: [] })
+      .where(eq(schema.fantasyLineups.managerId, managerId))
+
+    await mergeDuplicatePlayers()
+
+    expect((await savedSkaters()).skaters).toEqual([ids.keep, keep, 9003])
+  })
+
   it("swaps a goalie and leaves the other slots as they were", async () => {
     await db.update(schema.fantasyLineups).set({ skaters: [9001, 9002, 9003], goalies: [ids.dupe] }).where(eq(schema.fantasyLineups.managerId, managerId))
 

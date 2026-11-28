@@ -205,6 +205,23 @@ describe("FantasyConfigForm", () => {
     expect(onSave).toHaveBeenCalledTimes(1)
   })
 
+  it("asks before saving changes when there are only Predictions", async () => {
+    await renderForm({ hasPredictions: true })
+    await type(field("Points per goal"), "12")
+
+    await click(saveButton())
+
+    expect(onSave).not.toHaveBeenCalled()
+    expect(document.querySelector('[role="alertdialog"]')).not.toBeNull()
+  })
+
+  it("locks the closing day, and says why, once Lineups are saved", async () => {
+    await renderForm({ hasLineups: true, fixedClosingDay: true })
+
+    expect(field<HTMLSelectElement>("Closing day").disabled).toBe(true)
+    expect(container.textContent).toContain("can't change once Lineups are saved")
+  })
+
   it("saves nothing when that confirmation is cancelled", async () => {
     await renderForm({ hasLineups: true })
     await type(field("Points per goal"), "12")

@@ -81,9 +81,24 @@ async function replaceWeekPredictions(
   }
   if (errors.size > 0) return { outcome: "invalid", errors: [...errors] }
 
-  // Save before clearing, so a failure between the two never loses a Prediction.
-  if (predictions.length > 0) {
+  // One statement, so overlapping saves can't each delete what the other just saved.
+  const cleared = db.$with("cleared").as(
+    db
+      .delete(fantasyPredictions)
+      .where(
+        and(
+          eq(fantasyPredictions.managerId, manager.id),
+          inArray(fantasyPredictions.gameId, [...weekGameIds]),
+          predictions.length > 0 ? notInArray(fantasyPredictions.gameId, predictions.map((p) => p.gameId)) : undefined
+        )
+      )
+      .returning({ gameId: fantasyPredictions.gameId })
+  )
+  if (predictions.length === 0) {
+    await db.with(cleared).select().from(cleared)
+  } else {
     await db
+      .with(cleared)
       .insert(fantasyPredictions)
       .values(predictions.map((p) => ({ ...p, managerId: manager.id, updatedAt: now })))
       .onConflictDoUpdate({
@@ -95,14 +110,5 @@ async function replaceWeekPredictions(
         },
       })
   }
-  await db
-    .delete(fantasyPredictions)
-    .where(
-      and(
-        eq(fantasyPredictions.managerId, manager.id),
-        inArray(fantasyPredictions.gameId, [...weekGameIds]),
-        predictions.length > 0 ? notInArray(fantasyPredictions.gameId, predictions.map((p) => p.gameId)) : undefined
-      )
-    )
   return { outcome: "saved" }
 }
