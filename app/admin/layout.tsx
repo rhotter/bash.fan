@@ -28,7 +28,8 @@ export default async function AdminLayout({
     <div className="min-h-screen bg-background text-foreground">
       <SidebarProvider>
         <AdminSidebar />
-        <SidebarInset>
+        {/* Lets the content shrink beside the sidebar, so a wide table scrolls by itself instead of stretching the page. */}
+        <SidebarInset className="min-w-0">
           <AdminTopbar />
           <main className="flex-1 p-4 md:p-6 lg:p-8">
             {children}
