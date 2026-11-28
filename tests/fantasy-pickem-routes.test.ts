@@ -166,15 +166,6 @@ describe("saving Predictions", () => {
     expect(await db.select().from(schema.fantasyPredictions)).toMatchObject([{ homeScore: 4 }])
   })
 
-  it("won't take Predictions for a later Week before it opens", async () => {
-    const token = await registerManager("Aces")
-
-    const response = await put(token, week([predict(g1, 4, 2)], "2026-11-14"))
-
-    expect(response.status).toBe(409)
-    expect(await db.select().from(schema.fantasyPredictions)).toEqual([])
-  })
-
   it("rejects out-of-range, fractional and malformed input", async () => {
     const token = await registerManager("Aces")
 

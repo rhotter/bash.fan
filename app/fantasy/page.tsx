@@ -30,6 +30,8 @@ export default async function FantasyPage({ searchParams }: { searchParams: Prom
     <div className="flex flex-1 flex-col bg-background">
       <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-5 md:py-8">
         <FantasyStandingsView
+          // Switching contests starts the view afresh, rather than carrying the last contest's choices over.
+          key={data.contest}
           data={data}
           view={parseFantasyView(params, Object.keys(data.overviews).sort(), data.weeks.at(-1)?.id ?? data.openWeekId)}
           initialRange={params.week === undefined ? "season" : "weekly"}

@@ -18,6 +18,9 @@ import { POST as register } from "@/app/api/bash/fantasy/register/route"
 import { DEFAULT_FANTASY_CONFIG } from "@/lib/fantasy/config"
 import { saveFantasyConfig } from "@/lib/fantasy/season"
 import { fetchFantasyStandings } from "@/lib/fetch-fantasy"
+import { RegistrationForm } from "@/components/fantasy/registration-form"
+import { FantasyStandingsView } from "@/components/fantasy/standings"
+import { isValidElement } from "react"
 import { setupSeason } from "./factories/setupSeason"
 
 // The cache needs a running Next server, so the page reads straight through.
@@ -134,5 +137,31 @@ describe("with one contest", () => {
 
   it("is a 404 for a contest that doesn't exist", async () => {
     await expect(page("nope")).rejects.toThrow("not-found")
+  })
+})
+
+describe("switching contests in place", () => {
+  /** The key React tells instances apart by, found on the first element of `type`. */
+  function keyOf(node: unknown, type: unknown): string | null | undefined {
+    if (Array.isArray(node)) return node.map((child) => keyOf(child, type)).find((key) => key !== undefined)
+    if (!isValidElement<{ children?: unknown }>(node)) return undefined
+    return node.type === type ? node.key : keyOf(node.props.children, type)
+  }
+
+  beforeEach(async () => {
+    await addMain()
+    vi.setSystemTime(BETA_ACTIVE)
+  })
+
+  it.each(["beta", "main"])("gives the %s registration form its own state", async (contest) => {
+    const tree = await FantasyRegisterPage({ searchParams: Promise.resolve({ contest }) })
+
+    expect(keyOf(tree, RegistrationForm)).toBe(contest)
+  })
+
+  it.each(["beta", "main"])("gives the %s standings their own state", async (contest) => {
+    const tree = await FantasyPage({ searchParams: Promise.resolve({ contest }) })
+
+    expect(keyOf(tree, FantasyStandingsView)).toBe(contest)
   })
 })

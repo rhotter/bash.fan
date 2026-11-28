@@ -1,10 +1,10 @@
 "use client"
 
 import { useRouter } from "next/navigation"
-import { useCallback, useRef, type MouseEvent } from "react"
 import { toast } from "sonner"
 import { LineupFormPanel } from "@/components/fantasy/lineup-form"
 import { PredictionsFormPanel } from "@/components/fantasy/predictions-form"
+import { useUnsavedPicks } from "@/components/fantasy/use-unsaved-picks"
 import { WeekOverviewPanel } from "@/components/fantasy/week-overview"
 import { WEEK_NAV_CLASS } from "@/components/fantasy/week-row"
 import { IntentLink } from "@/components/intent-link"
@@ -19,18 +19,7 @@ type AdminPicks = NonNullable<Awaited<ReturnType<typeof loadAdminPicks>>>
 export function FantasyPicksEditor({ picks, adminUrl, pageHref }: { picks: AdminPicks; adminUrl: string; pageHref: string }) {
   const router = useRouter()
   const { form, weekIds, openWeekId, closed } = picks
-  // Kept per form, so one with nothing to save can't hide the other's unsaved picks.
-  const unsaved = useRef({ lineup: false, predictions: false })
-  const setLineupDirty = useCallback((dirty: boolean) => {
-    unsaved.current.lineup = dirty
-  }, [])
-  const setPredictionsDirty = useCallback((dirty: boolean) => {
-    unsaved.current.predictions = dirty
-  }, [])
-  function confirmLeave(event: MouseEvent) {
-    const { lineup, predictions } = unsaved.current
-    if ((lineup || predictions) && !window.confirm("Discard your unsaved changes?")) event.preventDefault()
-  }
+  const { setLineupDirty, setPredictionsDirty, confirmLeave } = useUnsavedPicks()
   // The page's points, history and uses are rendered on the server, so reload them after a save.
   const onSaved = () => {
     toast.success("Picks saved.")

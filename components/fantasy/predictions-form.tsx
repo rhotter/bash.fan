@@ -19,6 +19,9 @@ const ERRORS: Record<PredictionError, string> = {
 
 type Boxes = Record<string, { home: string; away: string }>
 
+/** A refresh can add a game to the Week after the boxes were built, so it may have none yet. */
+const boxesFor = (boxes: Boxes, gameId: string) => boxes[gameId] ?? { home: "", away: "" }
+
 function initialBoxes(overview: WeekOverview, saved: Prediction[]): Boxes {
   const byGame = new Map(saved.map((p) => [p.gameId, p]))
   return Object.fromEntries(
@@ -33,7 +36,7 @@ function initialBoxes(overview: WeekOverview, saved: Prediction[]): Boxes {
 function readBoxes(overview: WeekOverview, boxes: Boxes) {
   const predictions: Prediction[] = []
   for (const game of overview.games) {
-    const { home, away } = boxes[game.id]
+    const { home, away } = boxesFor(boxes, game.id)
     if (home.trim() === "" && away.trim() === "") continue
     const homeScore = home.trim() === "" ? NaN : Number(home)
     const awayScore = away.trim() === "" ? NaN : Number(away)
@@ -106,7 +109,7 @@ export function PredictionsFormPanel({
   }, [dirty, onDirtyChange])
 
   function change(gameId: string, side: Side, value: string) {
-    setBoxes({ ...boxes, [gameId]: { ...boxes[gameId], [side]: value } })
+    setBoxes({ ...boxes, [gameId]: { ...boxesFor(boxes, gameId), [side]: value } })
     setMessage(null)
     setDirty(true)
   }
@@ -147,93 +150,96 @@ export function PredictionsFormPanel({
   }
 
   const reads = overview.games.map((game) => {
-    const { home, away } = boxes[game.id]
+    const { home, away } = boxesFor(boxes, game.id)
     const complete = home !== "" && away !== ""
     return { game, home, away, picked: complete ? pickedSide(Number(away), Number(home)) : null, tied: complete && Number(home) === Number(away) }
   })
   const pickedCount = reads.filter(({ picked }) => picked !== null).length
 
   return (
-    <form onSubmit={submit} noValidate className="@container mt-6 space-y-4">
-      <div className="space-y-1 text-sm text-muted-foreground">
-        <p>
-          <span className="font-medium text-foreground">Pick the winner of each game</span> by giving it the higher
-          score. Winners decide the standings, and scores only break ties, favoring whoever is closest in total goals.
-        </p>
-        <p>Leave both boxes empty to skip a game, with no penalty.</p>
-        {!dirty && <p>{saved.length > 0 ? "Your saved Predictions are shown." : "Nothing saved for this Week yet."}</p>}
-      </div>
-
-      {/* `clip` rounds the corners without stopping the Save bar from sticking. */}
-      <div className="overflow-clip rounded-xl border border-border bg-card">
-        <ul className="divide-y divide-border">
-          {reads.map(({ game, home, away, picked, tied }) => {
-            const matchup = `${game.home.name} vs ${game.away.name}`
-            const entered = home !== "" || away !== ""
-            return (
-              <li key={game.id}>
-                <PickRow
-                  game={game}
-                  picked={picked}
-                  scores={Object.fromEntries(
-                    SIDES.map((side) => [
-                      side,
-                      <ScoreBox
-                        key={side}
-                        label={`${game[side].name} score, ${matchup}`}
-                        value={boxes[game.id][side]}
-                        onChange={(value) => change(game.id, side, value)}
-                      />,
-                    ])
-                  ) as Record<Side, React.ReactNode>}
-                  // Always laid out, so the row doesn't jump when the button appears.
-                  action={
-                    <Button
-                      type="button"
-                      variant="link"
-                      className={entered ? "h-6 p-0 text-xs text-muted-foreground underline" : "invisible h-6 p-0 text-xs"}
-                      aria-label={`Clear ${matchup}`}
-                      onClick={() => clear(game.id)}
-                    >
-                      Clear
-                    </Button>
-                  }
-                >
-                  <p className="sr-only" aria-live="polite">
-                    {picked ? `Your pick: ${game[picked].name} wins` : "No pick yet"}
-                  </p>
-                  {tied && <p className="mt-2 text-center text-xs text-destructive">A game can&apos;t end tied. Change one score.</p>}
-                  {game.result && (
-                    <p className="mt-2 text-center text-xs font-semibold">
-                      Final {game.result.awayScore}–{game.result.homeScore}
-                    </p>
-                  )}
-                </PickRow>
-              </li>
-            )
-          })}
-        </ul>
-
-        <div className="sticky bottom-0 flex flex-col gap-2 border-t border-border bg-muted p-3 @min-[34rem]:static @min-[34rem]:flex-row @min-[34rem]:items-center @min-[34rem]:justify-between @min-[34rem]:px-4">
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-            {message ? (
-              <p role={message.failed ? "alert" : "status"} className={message.failed ? "text-sm text-destructive" : "text-sm text-muted-foreground"}>
-                {message.text}
-              </p>
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                {pickedCount} of {overview.games.length} games picked
-              </p>
-            )}
-            {dirty && <UnsavedBadge />}
-          </div>
-          <Button type="submit" disabled={saving} className="@min-[34rem]:shrink-0">
-            {saving ? "Saving…" : "Save Predictions"}
-          </Button>
+    <form onSubmit={submit} noValidate className="@container mt-6">
+      {/* Locked while saving, so nothing changed meanwhile can read as saved. */}
+      <fieldset disabled={saving} className="min-w-0 space-y-4">
+        <div className="space-y-1 text-sm text-muted-foreground">
+          <p>
+            <span className="font-medium text-foreground">Pick the winner of each game</span> by giving it the higher
+            score. Winners decide the standings, and scores only break ties, favoring whoever is closest in total goals.
+          </p>
+          <p>Leave both boxes empty to skip a game, with no penalty.</p>
+          {!dirty && <p>{saved.length > 0 ? "Your saved Predictions are shown." : "Nothing saved for this Week yet."}</p>}
         </div>
-      </div>
 
-      <ByeTeams teams={overview.byeTeams} />
+        {/* `clip` rounds the corners without stopping the Save bar from sticking. */}
+        <div className="overflow-clip rounded-xl border border-border bg-card">
+          <ul className="divide-y divide-border">
+            {reads.map(({ game, home, away, picked, tied }) => {
+              const matchup = `${game.home.name} vs ${game.away.name}`
+              const entered = home !== "" || away !== ""
+              return (
+                <li key={game.id}>
+                  <PickRow
+                    game={game}
+                    picked={picked}
+                    scores={Object.fromEntries(
+                      SIDES.map((side) => [
+                        side,
+                        <ScoreBox
+                          key={side}
+                          label={`${game[side].name} score, ${matchup}`}
+                          value={side === "home" ? home : away}
+                          onChange={(value) => change(game.id, side, value)}
+                        />,
+                      ])
+                    ) as Record<Side, React.ReactNode>}
+                    // Always laid out, so the row doesn't jump when the button appears.
+                    action={
+                      <Button
+                        type="button"
+                        variant="link"
+                        className={entered ? "h-6 p-0 text-xs text-muted-foreground underline" : "invisible h-6 p-0 text-xs"}
+                        aria-label={`Clear ${matchup}`}
+                        onClick={() => clear(game.id)}
+                      >
+                        Clear
+                      </Button>
+                    }
+                  >
+                    <p className="sr-only" aria-live="polite">
+                      {picked ? `Your pick: ${game[picked].name} wins` : "No pick yet"}
+                    </p>
+                    {tied && <p className="mt-2 text-center text-xs text-destructive">A game can&apos;t end tied. Change one score.</p>}
+                    {game.result && (
+                      <p className="mt-2 text-center text-xs font-semibold">
+                        Final {game.result.awayScore}–{game.result.homeScore}
+                      </p>
+                    )}
+                  </PickRow>
+                </li>
+              )
+            })}
+          </ul>
+
+          <div className="sticky bottom-0 flex flex-col gap-2 border-t border-border bg-muted p-3 @min-[34rem]:static @min-[34rem]:flex-row @min-[34rem]:items-center @min-[34rem]:justify-between @min-[34rem]:px-4">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+              {message ? (
+                <p role={message.failed ? "alert" : "status"} className={message.failed ? "text-sm text-destructive" : "text-sm text-muted-foreground"}>
+                  {message.text}
+                </p>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  {pickedCount} of {overview.games.length} games picked
+                </p>
+              )}
+              {dirty && <UnsavedBadge />}
+            </div>
+            <Button type="submit" disabled={saving} className="@min-[34rem]:shrink-0">
+              {saving ? "Saving…" : "Save Predictions"}
+            </Button>
+          </div>
+        </div>
+
+        <ByeTeams teams={overview.byeTeams} />
+      </fieldset>
     </form>
   )
 }

@@ -2,7 +2,7 @@ import { createHmac } from "node:crypto"
 import { and, eq, lte, sql } from "drizzle-orm"
 import { db, schema } from "@/lib/db"
 import { createManager, registrationSchema } from "@/lib/fantasy/managers"
-import { reply } from "@/lib/fantasy/reply"
+import { refreshPublicPages, reply } from "@/lib/fantasy/reply"
 import { listCurrentFantasyContests, parseContest, pickRegistrationContest } from "@/lib/fantasy/season"
 import { runStatus, takesRegistrations } from "@/lib/fantasy/week"
 
@@ -76,6 +76,7 @@ export async function POST(request: Request) {
 
     const manager = await createManager(season.seasonId, season.contest, input.data)
     if (!manager) return reply({ error: "That Team Name is taken." }, 409)
+    refreshPublicPages()
     return reply(manager, 201)
   } catch (error) {
     console.error("Fantasy registration failed:", error)

@@ -204,91 +204,94 @@ export function LineupFormPanel({
   }
 
   return (
-    <form onSubmit={submit} className="mt-6 space-y-6">
-      {!dirty && (
-        <p className="text-sm text-muted-foreground">
-          {form.lineup ? "Your saved Lineup is shown." : "No Lineup saved for this Week yet."} Uses left count your other saved
-          Weeks, later ones included.
-        </p>
-      )}
-
-      {SECTIONS.map(({ title, groups }) => (
-        <fieldset key={title} className="min-w-0">
-          <legend className="mb-2 text-sm font-semibold">{title}</legend>
-          <ul className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-            {groups.flatMap((group) => {
-              const { label } = GROUPS.find((g) => g.group === group)!
-              const backup = isBackupSlot(group)
-              return selections[group].map((value, index) => {
-                const number = selections[group].length > 1 ? ` ${index + 1}` : ""
-                const player = form.players.find((p) => String(p.id) === value)
-                return (
-                  <li key={`${group}-${index}`}>
-                    <LineupSlotCard
-                      slot={`${label}${number}`}
-                      title={`${backup ? "Backup" : label}${number}`}
-                      backup={backup}
-                      optional={backup || (group === "goalies" && form.goalieSlotOptional)}
-                      player={player}
-                      missing={!player && value !== ""}
-                      usesLeft={(isGoalieSlot(group) ? player?.goalieUsesLeft : player?.skaterUsesLeft) ?? null}
-                      overview={form.overview}
-                      onClick={() => setEditing({ group, index })}
-                    />
-                  </li>
-                )
-              })
-            })}
-          </ul>
-          {title === "Goalie" && (
-            <div className="mt-3 flex items-center gap-2">
-              <Checkbox
-                id="every-goalie"
-                checked={everyGoalie}
-                onCheckedChange={(checked) => setEveryGoalie(checked === true)}
-              />
-              <Label htmlFor="every-goalie" className="font-normal">Show every rostered Player in goalie slots</Label>
-            </div>
-          )}
-        </fieldset>
-      ))}
-
-      {editing && (
-        <SelectionSheet
-          open
-          onOpenChange={(open) => !open && setEditing(null)}
-          title={`${GROUPS.find((g) => g.group === editing.group)!.label} ${editing.index + 1}`}
-          overview={form.overview}
-          allowAtCap={isAdmin}
-          players={playersForSlot({
-            players: form.players,
-            goalieSlot: isGoalieSlot(editing.group),
-            chosen: new Set([...chosen].map(Number)),
-            current: Number(selections[editing.group][editing.index]) || null,
-            defaultGoalieIds: defaultGoalies,
-            everyGoalie,
-          })}
-          onSelect={(playerId) => {
-            select(editing.group, editing.index, String(playerId))
-            setEditing(null)
-          }}
-        />
-      )}
-
-      {message && (
-        <p role={message.failed ? "alert" : "status"} className={message.failed ? "text-sm text-destructive" : "text-sm text-muted-foreground"}>
-          {message.text}
-        </p>
-      )}
-      <div className="flex flex-wrap items-center gap-2">
-        <Button type="submit" disabled={saving}>{saving ? "Saving…" : "Save Lineup"}</Button>
-        {canOverride && (
-          <Button type="button" variant="outline" disabled={saving} onClick={() => void save(true)}>
-            Save over the cap
-          </Button>
+    <form onSubmit={submit} className="mt-6">
+      {/* Locked while saving, so nothing changed meanwhile can read as saved. */}
+      <fieldset disabled={saving} className="min-w-0 space-y-6">
+        {!dirty && (
+          <p className="text-sm text-muted-foreground">
+            {form.lineup ? "Your saved Lineup is shown." : "No Lineup saved for this Week yet."} Uses left count your other saved
+            Weeks, later ones included.
+          </p>
         )}
-        {dirty && <UnsavedBadge />}
-      </div>
+
+        {SECTIONS.map(({ title, groups }) => (
+          <fieldset key={title} className="min-w-0">
+            <legend className="mb-2 text-sm font-semibold">{title}</legend>
+            <ul className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              {groups.flatMap((group) => {
+                const { label } = GROUPS.find((g) => g.group === group)!
+                const backup = isBackupSlot(group)
+                return selections[group].map((value, index) => {
+                  const number = selections[group].length > 1 ? ` ${index + 1}` : ""
+                  const player = form.players.find((p) => String(p.id) === value)
+                  return (
+                    <li key={`${group}-${index}`}>
+                      <LineupSlotCard
+                        slot={`${label}${number}`}
+                        title={`${backup ? "Backup" : label}${number}`}
+                        backup={backup}
+                        optional={backup || (group === "goalies" && form.goalieSlotOptional)}
+                        player={player}
+                        missing={!player && value !== ""}
+                        usesLeft={(isGoalieSlot(group) ? player?.goalieUsesLeft : player?.skaterUsesLeft) ?? null}
+                        overview={form.overview}
+                        onClick={() => setEditing({ group, index })}
+                      />
+                    </li>
+                  )
+                })
+              })}
+            </ul>
+            {title === "Goalie" && (
+              <div className="mt-3 flex items-center gap-2">
+                <Checkbox
+                  id="every-goalie"
+                  checked={everyGoalie}
+                  onCheckedChange={(checked) => setEveryGoalie(checked === true)}
+                />
+                <Label htmlFor="every-goalie" className="font-normal">Show every rostered Player in goalie slots</Label>
+              </div>
+            )}
+          </fieldset>
+        ))}
+
+        {editing && (
+          <SelectionSheet
+            open
+            onOpenChange={(open) => !open && setEditing(null)}
+            title={`${GROUPS.find((g) => g.group === editing.group)!.label} ${editing.index + 1}`}
+            overview={form.overview}
+            allowAtCap={isAdmin}
+            players={playersForSlot({
+              players: form.players,
+              goalieSlot: isGoalieSlot(editing.group),
+              chosen: new Set([...chosen].map(Number)),
+              current: Number(selections[editing.group][editing.index]) || null,
+              defaultGoalieIds: defaultGoalies,
+              everyGoalie,
+            })}
+            onSelect={(playerId) => {
+              select(editing.group, editing.index, String(playerId))
+              setEditing(null)
+            }}
+          />
+        )}
+
+        {message && (
+          <p role={message.failed ? "alert" : "status"} className={message.failed ? "text-sm text-destructive" : "text-sm text-muted-foreground"}>
+            {message.text}
+          </p>
+        )}
+        <div className="flex flex-wrap items-center gap-2">
+          <Button type="submit" disabled={saving}>{saving ? "Saving…" : "Save Lineup"}</Button>
+          {canOverride && (
+            <Button type="button" variant="outline" disabled={saving} onClick={() => void save(true)}>
+              Save over the cap
+            </Button>
+          )}
+          {dirty && <UnsavedBadge />}
+        </div>
+      </fieldset>
     </form>
   )
 }

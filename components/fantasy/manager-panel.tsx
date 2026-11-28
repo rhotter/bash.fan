@@ -1,10 +1,11 @@
 "use client"
 
 import { useRouter } from "next/navigation"
-import { useCallback, useRef, type MouseEvent } from "react"
+import { useCallback } from "react"
 import { LineupFormPanel } from "@/components/fantasy/lineup-form"
 import { PredictionsFormPanel } from "@/components/fantasy/predictions-form"
 import { Predictions } from "@/components/fantasy/standings"
+import { useUnsavedPicks } from "@/components/fantasy/use-unsaved-picks"
 import { LineupStats } from "@/components/fantasy/standings-table"
 import { WeekOverviewPanel } from "@/components/fantasy/week-overview"
 import { ProvisionalBadge, WEEK_NAV_CLASS } from "@/components/fantasy/week-row"
@@ -17,16 +18,9 @@ import type { LineupForm } from "@/lib/fantasy/lineups"
 /** The Manager Link page body: the shared Week overview, then one tab per task. */
 export function ManagerPanel({ form, token, managerId }: { form: LineupForm; token: string; managerId: number }) {
   const router = useRouter()
-  const unsaved = useRef(false)
-  const setUnsaved = useCallback((dirty: boolean) => {
-    unsaved.current = dirty
-  }, [])
+  const { setLineupDirty, setPredictionsDirty, confirmLeave } = useUnsavedPicks()
   // Other Weeks' pages may be cached from before this save, and a save changes their uses left.
   const onSaved = () => router.refresh()
-
-  function confirmLeave(event: MouseEvent) {
-    if (unsaved.current && !window.confirm("Discard your unsaved changes?")) event.preventDefault()
-  }
 
   // Weeks run oldest first, so late in a season the chosen one would start out of sight.
   const showChosen = useCallback((strip: HTMLElement | null) => {
@@ -81,7 +75,8 @@ export function ManagerPanel({ form, token, managerId }: { form: LineupForm; tok
           <TabsTrigger value="lineup">Lineup</TabsTrigger>
           <TabsTrigger value="predictions">Predictions</TabsTrigger>
         </TabsList>
-        <TabsContent value="lineup">
+        {/* Both stay mounted, so switching tabs keeps what's been typed. */}
+        <TabsContent value="lineup" forceMount className="data-[state=inactive]:hidden">
           {/* Only here: Predictions list the same games themselves. */}
           <div className="mt-4">
             <WeekOverviewPanel overview={form.overview} />
@@ -98,10 +93,10 @@ export function ManagerPanel({ form, token, managerId }: { form: LineupForm; tok
             <p className="mt-6 text-sm text-muted-foreground">The Lineup form opens once games are scheduled.</p>
           ) : (
             // Keyed by Week, so one Week's picks never carry into another.
-            <LineupFormPanel key={form.week.id} form={form} token={token} onSaved={onSaved} onDirtyChange={setUnsaved} />
+            <LineupFormPanel key={form.week.id} form={form} token={token} onSaved={onSaved} onDirtyChange={setLineupDirty} />
           )}
         </TabsContent>
-        <TabsContent value="predictions">
+        <TabsContent value="predictions" forceMount className="data-[state=inactive]:hidden">
           {form.closed ? (
             picks ? (
               <ClosedPicks total={`${picks.correct} correct, ${picks.goalError} ${picks.goalError === 1 ? "goal" : "goals"} off`} provisional={picks.provisional}>
@@ -120,7 +115,7 @@ export function ManagerPanel({ form, token, managerId }: { form: LineupForm; tok
               week={form.week}
               token={token}
               onSaved={onSaved}
-              onDirtyChange={setUnsaved}
+              onDirtyChange={setPredictionsDirty}
             />
           )}
         </TabsContent>

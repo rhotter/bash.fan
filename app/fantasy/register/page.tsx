@@ -40,7 +40,8 @@ export default async function FantasyRegisterPage({ searchParams }: { searchPara
           <p className="mt-3 text-sm text-muted-foreground">
             Your Team Name is public. Your real name is only seen by admins.
           </p>
-          <RegistrationForm contest={season.contest} />
+          {/* Keyed, so one contest's Manager Link can't show under another's name. */}
+          <RegistrationForm key={season.contest} contest={season.contest} />
         </>
       ) : (
         <>

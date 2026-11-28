@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { CloseTime } from "@/components/fantasy/close-time"
 import { RegistrationForm } from "@/components/fantasy/registration-form"
 import { CopyLink } from "@/components/fantasy/copy-link"
+import { SafeAnalytics } from "@/components/safe-analytics"
 import { ManagerHistory } from "@/components/fantasy/manager-history"
 import { ManagerPanel } from "@/components/fantasy/manager-panel"
 import { FantasyPicksEditor } from "@/components/admin/fantasy-picks-editor"
@@ -19,11 +20,28 @@ import { WeekOverviewPanel } from "@/components/fantasy/week-overview"
 import type { FantasyPageData } from "@/lib/fetch-fantasy"
 import type { WeekOverview } from "@/lib/fantasy/week"
 
+const refresh = vi.hoisted(() => vi.fn())
+const pathname = vi.hoisted(() => ({ value: "/fantasy" }))
+type BeforeSend = (event: { type: string; url: string }) => unknown
+const sent = vi.hoisted((): { analytics?: BeforeSend; speed?: BeforeSend } => ({}))
+vi.mock("@vercel/analytics/next", () => ({
+  Analytics: ({ beforeSend }: { beforeSend: BeforeSend }) => {
+    sent.analytics = beforeSend
+    return <i data-testid="analytics" />
+  },
+}))
+vi.mock("@vercel/speed-insights/next", () => ({
+  SpeedInsights: ({ beforeSend }: { beforeSend: BeforeSend }) => {
+    sent.speed = beforeSend
+    return <i data-testid="speed-insights" />
+  },
+}))
+
 // PGlite can't start under jsdom, and these components never touch the database.
 vi.mock("@/lib/db", () => ({ db: {}, schema: {}, rawSql: vi.fn() }))
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: vi.fn(), refresh: vi.fn(), prefetch: vi.fn() }),
-  usePathname: () => "/fantasy",
+  useRouter: () => ({ push: vi.fn(), refresh, prefetch: vi.fn() }),
+  usePathname: () => pathname.value,
   useSearchParams: () => new URLSearchParams(),
 }))
 vi.mock("@/components/team-logo", () => ({ TeamLogo: ({ name }: { name: string }) => <span role="img" aria-label={name} /> }))
@@ -594,7 +612,8 @@ describe("LineupFormPanel", () => {
   it("groups slots by kind, each Backup after the starters it covers", async () => {
     await render(<LineupFormPanel form={form} token="t" />)
 
-    const groups = [...container.querySelectorAll("fieldset")].map((group) => [
+    // The outer fieldset only locks the form while it saves.
+    const groups = [...container.querySelectorAll("fieldset fieldset")].map((group) => [
       group.querySelector("legend")?.textContent,
       [...group.querySelectorAll("li button")].map((b) => b.getAttribute("aria-label")),
     ])
@@ -810,7 +829,8 @@ describe("ManagerPanel", () => {
     expect(container.textContent).toContain("Skater 2")
 
     await activate(tab("Predictions"))
-    expect(container.querySelector('[aria-label="Week overview"]')).toBeNull()
+    const panel = container.querySelector('[aria-label="Week overview"]')!.closest('[role="tabpanel"]')!
+    expect(panel.getAttribute("data-state")).toBe("inactive")
   })
 
   it("shows the season totals, with a link to the full results", async () => {
@@ -1139,5 +1159,197 @@ describe("CopyLink", () => {
 
     expect(copyButton().textContent).toBe("Copy")
     expect(container.querySelector('[role="alert"]')?.textContent).toContain("copy it yourself")
+  })
+})
+
+describe("unsaved picks on the Manager page", () => {
+  const form = { ...formFixture(), weekIds: ["2026-11-07", "2026-11-14"] }
+  const fetchMock = vi.fn()
+  const tab = (name: string) => [...container.querySelectorAll('[role="tab"]')].find((t) => t.textContent === name)!
+  const activate = (name: string) =>
+    act(async () => {
+      tab(name).dispatchEvent(new MouseEvent("mousedown", { bubbles: true, button: 0, ctrlKey: false }))
+    })
+  const box = (team: string) => container.querySelector<HTMLInputElement>(`input[aria-label^="${team} score"]`)!
+  const setScore = (team: string, value: string) =>
+    act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(box(team), value)
+      box(team).dispatchEvent(new Event("input", { bubbles: true }))
+    })
+  const saveButton = (name: string) => [...container.querySelectorAll("button")].find((b) => b.textContent === name)!
+  const otherWeek = () => container.querySelector<HTMLAnchorElement>('a[href="/fantasy/m/t?week=2026-11-14"]')!
+  const leaveWeek = async () => {
+    const stop = (event: Event) => event.preventDefault()
+    window.addEventListener("click", stop)
+    await act(async () => otherWeek().click())
+    window.removeEventListener("click", stop)
+  }
+  /** Whether the browser would be asked to confirm a reload or closing the tab. */
+  const unloadBlocked = () => {
+    const event = new Event("beforeunload", { cancelable: true })
+    window.dispatchEvent(event)
+    return event.defaultPrevented
+  }
+  const open = () => render(<ManagerPanel managerId={7} form={form} token="t" />)
+
+  // An earlier block unstubs every global, which also removes the file's ResizeObserver.
+  const realFetch = globalThis.fetch
+  beforeEach(() => {
+    fetchMock.mockReset()
+    globalThis.fetch = fetchMock
+    vi.stubGlobal("ResizeObserver", class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    })
+  })
+  afterEach(() => {
+    vi.restoreAllMocks()
+    globalThis.fetch = realFetch
+  })
+
+  it("keeps them while switching tabs", async () => {
+    await open()
+    await activate("Predictions")
+    await setScore("Seals", "5")
+
+    await activate("Lineup")
+    await activate("Predictions")
+
+    expect(box("Seals").value).toBe("5")
+  })
+
+  it("asks before leaving the Week, even from the untouched tab", async () => {
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false)
+    await open()
+    await activate("Predictions")
+    await setScore("Seals", "5")
+    await activate("Lineup")
+
+    await leaveWeek()
+
+    expect(confirm).toHaveBeenCalledWith("Discard your unsaved changes?")
+  })
+
+  it("starts another Week from its own saved picks, not the last Week's boxes", async () => {
+    await open()
+    await activate("Predictions")
+    await setScore("Seals", "5")
+    const nextWeek = { ...form, week: { ...form.week, id: "2026-11-14" }, predictions: [{ gameId: "g1", homeScore: 2, awayScore: 1 }] }
+
+    await render(<ManagerPanel managerId={7} form={nextWeek} token="t" />)
+    await activate("Predictions")
+
+    expect(box("Seals").value).toBe("2")
+    expect(unloadBlocked()).toBe(false)
+  })
+
+  it.each([
+    ["Save Lineup", 200, 1],
+    ["Save Predictions", 200, 1],
+    ["Save Lineup", 500, 0],
+    ["Save Predictions", 500, 0],
+  ])("on %s answered with %d, refreshes the page %d times", async (button, status, times) => {
+    refresh.mockClear()
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({}), { status }))
+    await open()
+    if (button === "Save Predictions") await activate("Predictions")
+
+    await act(async () => saveButton(button).click())
+
+    expect(refresh).toHaveBeenCalledTimes(times)
+  })
+
+  it("guards a reload or closing the tab only while something is unsaved", async () => {
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({ saved: true })))
+    await open()
+    expect(unloadBlocked()).toBe(false)
+    await activate("Predictions")
+    await setScore("Seals", "5")
+    await setScore("Yetis", "3")
+    expect(unloadBlocked()).toBe(true)
+
+    await act(async () => saveButton("Save Predictions").click())
+
+    expect(unloadBlocked()).toBe(false)
+  })
+})
+
+describe("editing while a save is on its way", () => {
+  const week = { id: "2026-11-07" }
+  let finish: (response: Response) => void
+
+  beforeEach(() => {
+    vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>((resolve) => {
+      finish = resolve
+    })))
+  })
+  const realFetch = globalThis.fetch
+  afterEach(() => {
+    globalThis.fetch = realFetch
+  })
+
+  const submit = () => act(async () => container.querySelector("form")!.requestSubmit())
+  const respond = () => act(async () => finish(new Response(JSON.stringify({ saved: true }))))
+
+  it("locks the Prediction boxes until the save finishes", async () => {
+    await render(
+      <PredictionsFormPanel overview={overview} saved={[{ gameId: "g1", homeScore: 4, awayScore: 1 }]} week={week} token="t" />
+    )
+    await submit()
+
+    const inputs = [...container.querySelectorAll("input")]
+    expect(inputs.every((input) => input.matches(":disabled"))).toBe(true)
+    await respond()
+    expect(inputs.some((input) => input.matches(":disabled"))).toBe(false)
+  })
+
+  it("locks the Lineup slots until the save finishes", async () => {
+    await render(<LineupFormPanel form={formFixture()} token="t" />)
+    await submit()
+
+    const slot = container.querySelector('button[aria-label^="Skater 1"]')!
+    expect(slot.matches(":disabled")).toBe(true)
+    await respond()
+    expect(slot.matches(":disabled")).toBe(false)
+  })
+})
+
+describe("the Predictions form's score boxes", () => {
+  const week = { id: "2026-11-07" }
+  const box = (team: string) => container.querySelector<HTMLInputElement>(`input[aria-label^="${team} score"]`)!
+
+  it("don't crash when a refresh adds a game to the Week", async () => {
+    await render(<PredictionsFormPanel overview={overview} saved={[]} week={week} token="t" />)
+    const added = { ...overview.games[0], id: "added", home: { slug: "owls", name: "Owls" }, away: { slug: "elks", name: "Elks" } }
+
+    await render(<PredictionsFormPanel overview={{ ...overview, games: [...overview.games, added] }} saved={[]} week={week} token="t" />)
+
+    expect(box("Owls").value).toBe("")
+  })
+})
+
+describe("ManagerLinkSafeAnalytics", () => {
+  it.each([
+    ["/fantasy/m/secret-token", false],
+    ["/fantasy", true],
+    ["/fantasy/manager/7", true],
+  ])("on %s, loads the analytics scripts: %s", async (path, loads) => {
+    pathname.value = path
+    await render(<SafeAnalytics />)
+
+    expect(container.querySelector('[data-testid="analytics"]') !== null).toBe(loads)
+    expect(container.querySelector('[data-testid="speed-insights"]') !== null).toBe(loads)
+  })
+
+  it("drops any event for a Manager Link, in case a script is already running", async () => {
+    pathname.value = "/fantasy"
+    await render(<SafeAnalytics />)
+
+    for (const beforeSend of [sent.analytics!, sent.speed!]) {
+      expect(beforeSend({ type: "pageview", url: "https://bash.fan/fantasy/m/secret-token?week=2026-11-07" })).toBeNull()
+      const event = { type: "pageview", url: "https://bash.fan/fantasy/manager/7" }
+      expect(beforeSend(event)).toBe(event)
+    }
   })
 })

@@ -76,6 +76,19 @@ describe("picking ahead", () => {
     expect(await loadLineupForm(league.manager, HOLIDAY, SECOND)).toMatchObject({ lineup: null, predictions: [] })
   })
 
+  it("leaves other Weeks' Predictions alone when one Week's are re-saved or cleared", async () => {
+    await predict(SECOND)
+    await predict(THIRD)
+    const savedGames = async () =>
+      (await db.select().from(schema.fantasyPredictions)).map((row) => row.gameId).sort()
+
+    await predict(SECOND)
+    expect(await savedGames()).toEqual([league.gameIds[SECOND], league.gameIds[THIRD]].sort())
+
+    await savePredictions(league.manager, league.contest, SECOND, [], HOLIDAY)
+    expect(await savedGames()).toEqual([league.gameIds[THIRD]])
+  })
+
   it("has nothing to save in a Week with no games", async () => {
     expect(await save(HOLIDAY_WEEK)).toEqual({ outcome: "no-games" })
   })
